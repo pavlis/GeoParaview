@@ -56,33 +56,23 @@ void output_data(Three_Component_Ensemble *d, int component)
 void rotate_ensemble(Three_Component_Ensemble *d,double vp, double vs,
 			bool afst)
 {
-	double seaz,phi,delta;
-	double depth;
 	int i;
 	string phase;
 	Slowness_vector uvec;
+	double lat,lon,elev;
 	Spherical_Coordinate scor;
 	double umag;
+	try {
 
 	for(i=0;i<(d->tcse.size());++i)
 	{
-		depth = d->tcse[i].get_double("origin.depth");
+		Hypocenter hypo(dynamic_cast<Metadata&>(d->tcse[i]));
 		phase = d->tcse[i].get_string("assoc.phase");
-		seaz = d->tcse[i].get_double("assoc.seaz");
-		delta = d->tcse[i].get_double("assoc.delta");
+		lat = d->tcse[i].get_double("site.lat");
+		lon = d->tcse[i].get_double("site.lon");
+		elev = d->tcse[i].get_double("site.elev");
+		uvec = hypo.phaseslow(lat,lon,elev,phase);
 
-		umag = phase_slowness(const_cast<char *>(phase.c_str()),
-				delta,depth);
-		if(umag<0.0) throw seispp_error(string(
-			"Computing slowness for phase"+phase
-				+" failed") );
-		// seaz is an azimuth (from north) and points toward
-		// the source.  We need the opposite direction and 
-		// as the angle relative to the x axis for a spherical
-		// coordinate definition.
-		phi = -(rad(seaz)+M_PI_2);
-		uvec.ux = umag*cos(phi);
-		uvec.uy = umag*sin(phi); 
 		if(afst)
 			d->tcse[i].free_surface_transformation(uvec,vp,vs);
 		else
@@ -91,6 +81,7 @@ void rotate_ensemble(Three_Component_Ensemble *d,double vp, double vs,
 			d->tcse[i].rotate(scor);
 		}
 	}
+	} catch (...) { throw; }
 }
 	
 
@@ -241,6 +232,7 @@ cerr << "View size = "<<dbhi0.number_tuples() << endl;
 	} catch (seispp_error serr)
 	{
 		serr.log_error();
+		elog_die(0,"Exit from seispp error\n");
 	}
 	catch (Metadata_error merr)
 	{
