@@ -1,0 +1,30 @@
+# This is a set of db operations passsed to dbprocess.
+#  Useful to vary view and reduce interactive load by appropriate
+# subset conditions
+#
+dbprocess_list &Tbl{
+	dbopen event
+	dbjoin origin
+	dbsubset orid==prefor
+	dbjoin assoc
+	dbjoin arrival
+	dbjoin psdisc arid
+}
+#
+# allowed values are: linlin, loglin, and loglog
+#
+plot_type loglog
+fmin 0.1
+fmax 20.0
+ymin 1.0e-4
+ymax 1.0e4
+#
+#  These parameters are only needed for linear axes
+#  they are ignored when an axis is logarithmic
+#
+yaxis_tic 10.0
+yaxis_annotate 100.0
+yaxis_annotate_format f2.0
+xaxis_tic 5.0
+xaxis_annotate 25.0
+xaxis_annotate_format f2.0
