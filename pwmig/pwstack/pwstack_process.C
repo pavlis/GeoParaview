@@ -115,21 +115,23 @@ int pwstack_ensemble(Three_Component_Ensemble *indata,
 	/* We need dnorth, deast vectors to compute moveout sensibly
 	for this program.  Since we use them repeatedly we will
 	extract them once from the gather.*/
-	double *dnorth=new double[nsta];
-	double *deast=new double[nsta];
-	double *elev = new double[nsta]; // need elevations to compute geometric statics
+	vector <double> dnorth;
+	vector <double> deast;
+	vector <double> elev;
+	dnorth.resize(nsta);   deast.resize(nsta);  elev.resize(nsta);
 	for(i=0,iv=indata->tcse.begin();iv!=indata->tcse.end();++iv,++i)
 	{
 		double lat,lon;
 		int ierr;
 		try{
-			lat = (*iv).x[0].md.get_double("lat");
-			lon = (*iv).x[0].md.get_double("lon");
+			lat = (*iv).x[0].get_double("lat");
+			lon = (*iv).x[0].get_double("lon");
 			// assume metadata store these in degrees so we have to convert
 			lat = rad(lat);
 			lon = rad(lon);
 			geographic_to_dne(lat0, lon0, lat, lon, dnorth+i, deast+i);
-			elev[i]=(*iv).x[0].md.get_double("elev");
+			geographic_to_dne(lat0, lon0, lat, lon, &(dnorth[i]),&(deast[i]));
+			elev[i]=(*iv).x[0].get_double("elev");
 		} catch (Metadata_error merr)
 		{
 			throw merr;
@@ -149,18 +151,17 @@ int pwstack_ensemble(Three_Component_Ensemble *indata,
 	// Should use a matrix class for this, but it is easy enough
 	// for this simple case to just code inline.
 
-	double **weights = new double*[nsta];
-	for(i=0;i<nsta;++i) weights[i]=new double[nsout];
+	dmatrix weights(nsta,nsout);
 	int stack_count=0;  //maximum number of traces not zeroed
-	double *work = new double[nsta];
+	vector <double> work(nsta);
 	for(i=0;i<nsout;++i)
 	{
 		int nused;
 		
-		nused=compute_pseudostation_weights(nsta, dnorth,deast,
+		nused=compute_pseudostation_weights(nsta, &(dnorth[0]),&(deast[0]),
 		    aperture.get_aperture(tstart+dt*(double)i),
-		    aperture.get_cutoff(tstart+dt*(double)i),work);
-		for(j=0;j<nsta;++i) weights[j][i]=work[j];
+		    aperture.get_cutoff(tstart+dt*(double)i),&(work[0]));
+		for(j=0;j<nsta;++i) weights(j,i)=work[j];
 		stack_count=max(nused,stack_count);
 	}
 	///
@@ -170,17 +171,16 @@ int pwstack_ensemble(Three_Component_Ensemble *indata,
 	// it will happen often at the edges of arrays
 	//
 	if(stack_count<=0) return(-1);
-	double *moveout=new double[nsta];
-	double *stack[3];
-	for(i=0;i<3;++i)stack[i]=new double[nsout];
-	double *stack_weight=new double[nsout];
-	double *twork=new double[nsout];
+	vector <double>moveout(nsta);
+	dmatrix stack(3,nsout);
+	vector<double>stack_weight(nsout);
+	vector<double>twork(nsout);`
 
 	double avg_elev,sum_wgt;  // computed now as weighted sum of station elevations
 	for(i=0,avg_elev=0.0,sum_wgt=0.0;i<nsout;++i)
 	{
-		avg_elev += weights[i][0]*elev[i];
-		sum_wgt += weights[i][0];
+		avg_elev += weights(i,0)*elev[i];
+		sum_wgt += weights(i,0);
 	}
 	avg_elev /= sum_wgt;
 
@@ -198,8 +198,9 @@ int pwstack_ensemble(Three_Component_Ensemble *indata,
 		string dfile;
 		char buffer[128];
 
-		for(i=0;i<3;++i) dzero(nsout,stack[i],1);
-		dzero(nsout,stack_weight,1);
+		stack.zero();
+
+		dzero(nsout,&(stack_weight[0]),1);
 
 		ux = ugrid.ux(i);
 		uy = ugrid.uy(j);	
@@ -211,7 +212,7 @@ int pwstack_ensemble(Three_Component_Ensemble *indata,
 		duy = uy - uy0;
 		// moveout computed here and used below assumes the
 		// data are aligned on the P arrival
-		compute_pwmoveout(nsta,deast,dnorth,dux,duy,moveout);
+		compute_pwmoveout(nsta,&(deast[0]),&(dnorth[0]),dux,duy,&(moveout[0]));
 		for(i=0,iv=indata->tcse.begin(),ismute_this=0,iend_this=0,ismin=nsout;
 			iv<indata->tcse.end();++iv,++i)
 		{
@@ -237,16 +238,17 @@ int pwstack_ensemble(Three_Component_Ensemble *indata,
 
 			for(j=0;j<3;++j)
 			{
-				dzero(nsout,twork,1);
-				dzero(nsout,work,1);
+				dzero(nsout,&(twork[0]),1);
+				dzero(nsout,&(work[0]),1);
 				// ugly expression below is an is offset from
 				// start of vector component x[j] of 3c trace
 				dcopy(ns_to_copy,((*iv).x[j].s)+is,1,
-					twork,1);
-				vscal(iend_this,weights[i],1,twork,1);
-				vadd(iend_this,twork,1,stack[j],1);
+					&(twork[0]),1);
+				vscal(iend_this,weights.get_reference(i,0),nsta,&(twork[0]),1);
+				vscal(iend_this,weights.get_reference(i,0),nsta,&(twork[0]),1);
+				vadd(iend_this,&(twork[0]),1,stack.get_reference(j,0),3);
 				// Need to accumulate the sum of weights to normalize
-				if(j==0) vadd(iend_this,weights[i],1,stack_weight,1);
+				if(j==0) vadd(iend_this,weights[i],1,&(stack_weight[0]),1);
 			}
 		}
 		// normalize the stack.
@@ -257,22 +259,23 @@ int pwstack_ensemble(Three_Component_Ensemble *indata,
 			for(i=ismin;i<=iend_this;++i)
 			{
 				if(stack_weight[i]>0)
-					stack[j][i]/=stack_weight[i];
+					stack(j,i)/=stack_weight[i];
 			}
 		// Create the output stack as a 3c trace object and copy
 		// metadata from the input into the output object.
 		stackout = new Three_Component_Seismogram(nsout);
+// MODIFICATION NEEDED FOR THREE COMPONENT SEIS
 		for(j=0;j<3;++j) dcopy(nsout,stack[j],1,stackout->x[j].s,1);
-		copy_selected_metadata(indata->tcse[0].x[0].md,stackout->md,mdlist);
+		copy_selected_metadata(indata->tcse[0].x[0].stackout->mdlist);
 		// Next we load the metadata into the stack varialbe to this code
-		stackout->md.put_metadata("ux",ux);
-		stackout->md.put_metadata("uy",uy);
-		stackout->md.put_metadata("dux",dux);
-		stackout->md.put_metadata("duy",duy);
+		stackout->put_metadata("ux",ux);
+		stackout->put_metadata("uy",uy);
+		stackout->put_metadata("dux",dux);
+		stackout->put_metadata("duy",duy);
 		// may want to output a static here, but it is probably better to 
 		// just keep a good estimate of elevation and deal with this in the
 		// migration algorithm. 
-		stackout->md.put_metadata("elev",avg_elev);
+		stackout->put_metadata("elev",avg_elev);
 		for(j=0;j<3;++j) apply_top_mute(stackout->x[j],stackmute);
 
 		// save the results.  If the write function here fails we have to die
@@ -286,16 +289,6 @@ int pwstack_ensemble(Three_Component_Ensemble *indata,
 		}
 	    }
 	}
-	for(i=0;i<nsta;++i) delete [] weights[i];
-	delete [] weights;
-	delete [] dnorth;
-	delete [] deast;
-	delete [] moveout;
-	delete [] stack_weight;
-	delete [] work;
-	delete [] twork;
-	for(i=0;i<nsta;++i) delete[]stack[i];
-	delete [] elev;
 	return(0);
 }
 	

@@ -10,7 +10,7 @@ using namespace SEISPP;
 
 void usage()
 {
-        cbanner((char *)"$Revision: 1.6 $ $Date: 2004/08/09 21:30:47 $",
+        cbanner((char *)"$Revision: 1.7 $ $Date: 2004/08/26 13:20:13 $",
 		(char *)"dbin dbout [-V -pf pfname]",
                 (char *)"Gary Pavlis",
                 (char *)"Indiana University",
@@ -107,6 +107,7 @@ int main(int argc, char **argv)
 	    Datascope_Handle dbho(string(dbname_out),false);
 	    for(i=0,dbh.rewind();i<dbh.number_tuples();++i,++dbh)
 	    {
+		int iret;
 		din = new Three_Component_Ensemble(
 		    dynamic_cast<Database_Handle&>(dbh),
 		    station_mdl, ensemble_mdl,am);
@@ -119,7 +120,8 @@ int main(int argc, char **argv)
 		// and the data are aligned using P wave arrival times
 		ux0=din->get_double("ux0");
 		uy0=din->get_double("uy0");
-		pwstack_ensemble(din,
+		try {
+		    iret = pwstack_ensemble(din,
 			ugrid,
 			mute,
 			stackmute,
@@ -133,6 +135,12 @@ int main(int argc, char **argv)
 			stack_mdl,
 			dir,
 			dbho);
+		    if((iret<0) && (Verbose))
+			cout << "Ensemble number "<< i << " has no data in pseudoarray aperture"<<endl;
+		} catch (Metadata_error mderr1)
+		{
+			mderr1.log_error;
+			cerr << "Ensemble " << i << " data skipped" << endl;
 		delete din;
 	    }
 	} catch (seispp_error err)
