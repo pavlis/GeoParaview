@@ -12,7 +12,7 @@ ldlibs= $(DBLIBS)
 include $(ANTELOPEMAKE)  	
 
 
-OBJS=dbform_working_view.o  matrix_subs.o pfutils.o
+OBJS=dbform_working_view.o  ftest.o matrix_subs.o pfutils.o
 $(LIB) : $(OBJS)
 	rm -f $@
 	$(AR) $(ARFLAGS) $@ $(LORDER) $(OBJS) $(TSORT)
