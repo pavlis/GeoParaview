@@ -94,6 +94,9 @@ void form_column_indices(SCMatrix *sc, Tbl *ta, int *cindex)
 	Arrival *a;
 	int i;
 	int *iphase,*ista;
+	/* This assumes cindex has been alloced to be of this size.
+	We have to clear it to 0 initially */
+	for(i=0;i<(sc->ncol);++i) cindex[i]=0;
 
 	for(i=0;i<maxtbl(ta);++i)
 	{
@@ -265,10 +268,9 @@ Tbl *pmel(int nevents,
     /* holds station correction perturbation solved for in each interation */
     double *sc_solved;
     double ds_over_s,ds_over_s_converge;
-/* TEMPORARY FOR SUNPERF PROBLEM ON SOLAR */
+/* TEMPORARY FOR SUNPERF PROBLEM ON SOLAR 
 int one=1;
-int worksize;
-double *work;
+*/
 
     nr = s->nrow;
     nc = s->ncol;
@@ -316,7 +318,7 @@ double *work;
     ggnloc looks at tu it must at least be initialized.*/
     tu = newtbl(0);
 
- 
+
     /* Top of processing loop for this group */
     do {
         Hypocenter *current_hypo;
@@ -421,6 +423,10 @@ double *work;
 		}
 		if(cluster_mode)
 		{
+		    /* The hypocentroid has no time field.  We set it
+			to the current_hypo value to keep from having
+			absurdly large residuals */
+		    hypocen->time=current_hypo->time;
 		    stats = form_equations(ALL,*hypocen,ta[i],tu,o,
 				Amatrix,b,r,w,reswt,&nused);
 		    /* We want these equations weighted by the ones
@@ -446,13 +452,6 @@ double *work;
 		is the left singular vectors spanning the data space */
 		dgesvd('a','n',nrow_amatrix,ncol_amatrix,A,
 			nc, svalue, U, nc, Vt, nc, &svdinfo);
-/*
-worksize=3*nrow_amatrix;
-allot(double *,work,worksize);
-dgesvd_('a','n',&nrow_amatrix,&ncol_matrix,A,&nc,svalue,
-	U,&nc,Vt,&nc,work,&worksize,&svdinfo);
-free(work);
-*/
   		if(svdinfo) 
 		{
 		    elog_notify(0,"pmel:  svd error processing event number %d\n",i);
@@ -462,6 +461,7 @@ free(work);
 		blindly that smatrix->S was allocated big enough
 		to hold all of S as we accumulate it here. */
 		nnull = nrow_amatrix-ncol_amatrix;
+    		form_column_indices(s,ta[i],cindex);
 		accumulate_sn_matrix(nrow_amatrix,U+nc*ncol_amatrix,
 			nc,nnull,(s->S)+nrows_S,s->nrow,cindex,wts);
 		/* This forms the annulled data */
@@ -512,10 +512,10 @@ free(work);
 	It is intentional to divide by scdata as adjustments
 	only happen in the subspace covered by scdata. If we used the
 	full vector s->sc it can be artificially large */
-/*
 	ds_over_s = dnrm2(nc,sc_solved,1)/dnrm2(nc,s->scdata,1);
-*/
+/*
 ds_over_s=dnrm2_(&nc,sc_solved,&one)/dnrm2_(&nc,s->scdata,&one);
+*/
 
 	if(ds_over_s<ds_over_s_converge)
 		pushtbl(sc_converge_reasons,
@@ -526,10 +526,10 @@ ds_over_s=dnrm2_(&nc,sc_solved,&one)/dnrm2_(&nc,s->scdata,&one);
 	This is necessary because of the way we form the solution.*/
 	if(data_space_null_project(s->S,nr,nused,nrows_S,scrhs,bwork))
 		elog_complain(0,"Problems in data_space_null_project\n");
-/*
 	rhsnrm = dnrm2(nrows_S,bwork,1);
-*/
+/*
 rhsnrm = dnrm2_(&nrows_S,bwork,&one);
+*/
 	total_wssq = rhsnrm*rhsnrm;
 	/*We alter the minimum error scale used in the locator
 	for m-estimators using global weighted rms using only
