@@ -592,11 +592,14 @@ char **argv;
 			if(station_ratio)
 			{
 				if(ratio_indices.threeC < 0)  continue;
-				if(threeCspec[ratio_indices.threeC].nfreq<threeCspec[j].nfreq)
+				if(strcmp(threeCspec[j].sta,sta_denom))
+				{
+				    if(threeCspec[ratio_indices.threeC].nfreq<threeCspec[j].nfreq)
 					threeCspec[j].nfreq = threeCspec[ratio_indices.threeC].nfreq;
-				spectral_ratio(threeCspec[j].spec,
+				    spectral_ratio(threeCspec[j].spec,
 					threeCspec[ratio_indices.threeC].spec,
 					threeCspec[j].nfreq);
+				}
 			}
 			else
 			{
@@ -607,10 +610,14 @@ char **argv;
 					threeCspec[j].nfreq = gather.nfreq;
 				spectral_ratio(threeCspec[j].spec,median[3],threeCspec[j].nfreq);
 			}
-			strcpy(threeCspec[j].pstype,"3cpsr");
+			if(!(station_ratio) ||
+				(strcmp(threeCspec[j].sta,sta_denom) ))
+			{
+				strcpy(threeCspec[j].pstype,"3cpsr");
 
-			if( (ierr = save_spectrum(db,threeCspec+j)) != 0)
-				save_spectrum_error(threeCspec+j,ierr);
+				if( (ierr=save_spectrum(db,threeCspec+j)) != 0)
+				    save_spectrum_error(threeCspec+j,ierr);
+			}
 		}
 		/* we want to save the median spectra too.  To do this 
 		we call this function which recycles an appropriate 
