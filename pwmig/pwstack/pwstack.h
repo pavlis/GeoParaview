@@ -46,6 +46,5 @@ int pwstack_ensemble(Three_Component_Ensemble& indata,
 	Metadata_list& mdlout,
 	Attribute_Map& am,
 	string dir,
-	string dfile,
 	Database_Handle& dbh);
 string virtual_station_name(int ix1, int ix2);

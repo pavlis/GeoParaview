@@ -1,6 +1,7 @@
 #include <math.h>
 #include <cstdio>
 #include <vector>
+#include <sstream>
 #include "perf.h"
 #include "coords.h"
 #include "seispp.h"
@@ -28,6 +29,14 @@ string virtual_station_name(int ix1, int ix2)
 	char name[8];
 	sprintf(name,"%03.3d%03.3d",ix1,ix2);
 	return(string(name));
+}
+// make station name for pwstack using 3 integer ids
+string MakeDfileName(int evid, int x1, int x2)
+{
+	string dfile;
+	ostringstream sbuf(dfile);
+	sbuf<<"pwstack_"<<evid<<"_"<<x1<<"_"<<x2;
+	return(sbuf.str());
 }
 /*
 Main processing function for this program.  Takes an input 
@@ -88,7 +97,6 @@ int pwstack_ensemble(Three_Component_Ensemble& indata,
 	Metadata_list& mdlout,
 	Attribute_Map& am,
 	string dir,
-	string dfile,
 	Database_Handle& dbh) 
 {
 	// lat0 and lon0 are location of target pseudostation grid point
@@ -100,6 +108,7 @@ int pwstack_ensemble(Three_Component_Ensemble& indata,
 	string gridname;
 	int ix1, ix2;
 	int evid;
+	string dfile;
 	try {
 		lat0=indata.get_double("lat0");
 		lon0=indata.get_double("lon0");
@@ -148,6 +157,8 @@ int pwstack_ensemble(Three_Component_Ensemble& indata,
 	dbstack.lookup("pwstack");
 	Datascope_Handle dbevl(dshandle);
 	dbevl.lookup("evlink");
+	Datascope_Handle dbwf(dshandle);
+	dbwf.lookup("wfprocess");
 
 	if(istart>=indata.tcse[0].ns)
 		elog_die(0,(char *)"Irreconcilable window request:  Requested stack time window = %lf to %lf\nThis is outside range of input data\n",
@@ -356,6 +367,7 @@ int pwstack_ensemble(Three_Component_Ensemble& indata,
 		stackout->put_metadata("wfprocess.endtime",stackout->endtime());
 		stackout->put_metadata("wfprocess.timetype","r"); // always relative
 		stackout->put_metadata("wfprocess.dir",dir);
+		dfile=MakeDfileName(evid, ix1, ix2);
 		stackout->put_metadata("wfprocess.dfile",dfile);
 		stackout->put_metadata("wfprocess.datatype","3c");
 		stackout->put_metadata("samprate",1.0/dt);
@@ -367,31 +379,40 @@ int pwstack_ensemble(Three_Component_Ensemble& indata,
 
 		try{
 			int pwfid;
-			pwfid=dbsave(*stackout,dshandle.db,table_name,mdlout,am);
-			// now fill in the special table for this program
-			dbstack.append();
-			dbstack.put("gridname",gridname);
-			dbstack.put("ix1",ix1);
-			dbstack.put("ix2",ix2);
-			dbstack.put("ux",ux);
-			dbstack.put("uy",uy);
-			dbstack.put("ux0",ux0);
-			dbstack.put("uy0",uy0);
-			dbstack.put("pwfid",pwfid);
-			dbstack.put("sta",sta);
-			// Perhaps should put this out as a static, but we
-			// save the elevation instead and compute it in 
-			// the migration algorithm where a velocity available.
-			// Here we'd have to get that information to this point
-			dbstack.put("elev",avg_elev);
-			//
-			// Now for event link table -- awful database table, but 
-			// see now way around it if we are to retain a css back
-			// compatibility
-			//
-			dbevl.append();
-			dbevl.put("evid",evid);
-			dbevl.put("pwfid",pwfid);
+			int rec;
+			rec=dbsave(*stackout,dshandle.db,table_name,mdlout,am);
+			// negative rec means nothings saved.  
+			// skip silently because this happens when 
+			// marked dead
+			if(rec>=0)
+			{
+				dbwf.db.record=rec;
+				dbgetv(dbwf.db,0,"pwfid",&pwfid,0);
+				// now fill in the special table for this program
+				dbstack.append();
+				dbstack.put("gridname",gridname);
+				dbstack.put("ix1",ix1);
+				dbstack.put("ix2",ix2);
+				dbstack.put("ux",ux);
+				dbstack.put("uy",uy);
+				dbstack.put("ux0",ux0);
+				dbstack.put("uy0",uy0);
+				dbstack.put("pwfid",pwfid);
+				dbstack.put("sta",sta);
+				// Perhaps should put this out as a static, but we
+				// save the elevation instead and compute it in 
+				// the migration algorithm where a velocity available.
+				// Here we'd have to get that information to this point
+				dbstack.put("elev",avg_elev);
+				//
+				// Now for event link table -- awful database table, but 
+				// see now way around it if we are to retain a css back
+				// compatibility
+				//
+				dbevl.append();
+				dbevl.put("evid",evid);
+				dbevl.put("pwfid",pwfid);
+			}
 
 		}
 		catch(seispp_error& err)

@@ -11,16 +11,10 @@ using namespace std;
 using namespace SEISPP;
 
 bool Verbose;
-string MakeDfileName(int evid, int x1, int x2)
-{
-	string dfile;
-	ostringstream sbuf(dfile);
-	sbuf<<"pwstack_"<<evid<<"_"<<x1<<"_"<<x2;
-	return(sbuf.str());
-}
+
 void usage()
 {
-        cbanner((char *)"$Revision: 1.16 $ $Date: 2005/01/30 00:39:57 $",
+        cbanner((char *)"$Revision: 1.17 $ $Date: 2005/02/03 02:12:33 $",
 		(char *)"dbin dbout [-v -V -pf pfname]",
                 (char *)"Gary Pavlis",
                 (char *)"Indiana University",
@@ -183,8 +177,6 @@ int main(int argc, char **argv)
 		    ensemble.put_metadata("lon0",lon0);
 		    ensemble.put_metadata("elev0",elev0);
 		    ensemble.put_metadata("gridname",stagridname);
-		    // generate dfile name from evid and grid position
-		    string dfile=MakeDfileName(evid,i,j);
 // Set manually for now
 //
 ensemble.put_metadata("ux0",0.05);
@@ -202,7 +194,6 @@ cerr << "Working on grid i,j = " << i << "," << j << endl;
 			stack_mdl,
 			OutputAM,
 			dir,
-			dfile,
 			dbho);
 		    if((iret<0) && (Verbose))
 			cout << "Ensemble number "<< rec 
