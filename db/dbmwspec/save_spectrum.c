@@ -101,7 +101,7 @@ int save_spectrum(Dbptr db,
 	int n;
 	double today;
 	char *today_time;
-	char *user;
+	char user[10];
 	int i;
 
 	/* These variables written to psdisc are assembled from
@@ -154,7 +154,7 @@ int save_spectrum(Dbptr db,
 	/* here we get the current time (GMT) using CSS time utiliites */
 	today = now();
 	today_time = epoch2str(today,"%y%j%k");
-	user = cuserid(NULL);
+	cuserid(user);
 	sprintf(auth,"dbmwspec:%7.7s:%7.7s",user,today_time);
 	nfreq = nfft/2 + 1;
 	df = 1.0/(dt*( (float) nfft));
@@ -249,7 +249,6 @@ int save_spectrum(Dbptr db,
 	}
 	free(phase);
 	free(sname);
-	free(user);
 	return(0);	
 			
 }
