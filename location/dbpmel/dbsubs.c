@@ -103,8 +103,6 @@ int dbpmel_save_results(Dbptr db,
 	int *evid,
 	Hypocenter *h,
 	Tbl **ta,
-	double sswrodf,
-	Location_options *o,
         Pf *pf, FILE* fp)
 #else
 int dbpmel_save_results(Dbptr db,
@@ -112,8 +110,6 @@ int dbpmel_save_results(Dbptr db,
 	int *evid,
 	Hypocenter *h,
 	Tbl **ta,
-	double sswrodf,
-	Location_options *o,
 	Pf *pf)
 #endif
 {
