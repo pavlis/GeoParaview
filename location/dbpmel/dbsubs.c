@@ -80,6 +80,11 @@ This should be a much faster algorithm as it reduces the number of
 database calls significantly from a single event algorithm.  
 The use of dbmatches is probably safer as well since the input and
 output databases are forced to be equal.
+Revised:  Feb 2002
+Major changes when I recognized that the origin table could not be
+linked back to the grid point from which each solution originated.  
+Consequently I added an extension table that holds just hypo estimates
+with a link back to the parent grid.  
 */
 
 int dbpmel_save_results(Dbptr db,

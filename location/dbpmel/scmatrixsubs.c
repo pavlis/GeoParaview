@@ -420,7 +420,6 @@ int update_scarr(SCMatrix *s,Arr *pha)
 
 	phskeys = keysarr(pha);
 	stakeys = keysarr(s->sta_index);
-elog_log(0,"Station correction adjustments\n");
 
 	for(j=0;j<maxtbl(phskeys);++j)
 	{
@@ -444,8 +443,6 @@ elog_log(0,"Station correction adjustments\n");
 					sta);
 			if(sc != NULL)
 			{
-elog_log(0,"%s:%s %lf %lf %lf\n",
-sta,phase,*sc,s->sc[icol],(*sc)-(s->sc[icol]));
 				*sc = s->sc[icol];
 			}
 			else

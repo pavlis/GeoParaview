@@ -552,6 +552,8 @@ Nevents Nevents_used\n");
 	degrees of freedom */
 	if(total_ndgf<=0)
 	{
+		elog_notify(0,"Insufficient data:  degrees of freedom not\
+ positive\n");
 		pushtbl(*sc_converge_reasons,"ABORT on insufficient data");
 		return(-1);
 	}

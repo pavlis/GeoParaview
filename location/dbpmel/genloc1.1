@@ -517,6 +517,18 @@ Relation pmelruns
 	;
 	
 
+Relation pmelhypo
+	Fields ( gridname gridid evid lat lon depth time lddate )
+	Primary ( gridname gridid evid )
+	Detail {
+		Holds hypocenter estimates produced by pmel associated
+		with grid points.  This is essentially a scratch table
+		used for storing results.  It is necessary because
+		origin has no way of linking a hypocenter to a grid 
+		point.
+	}
+	;
+
 
 #
 #  These are copied from iceworm1.3  but I added time fields
