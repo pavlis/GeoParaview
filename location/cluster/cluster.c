@@ -8,8 +8,8 @@
 #include "glputil.h"
 void usage()
 {
-	banner(Program_Name, "$Revision: 1.5 $ $Date: 2001/08/05 08:34:06 $") ;
-	elog_die(0,"usage:  %s db [-pf pfname]\n",Program_Name);
+	banner(Program_Name, "$Revision: 1.6 $ $Date: 2002/10/24 20:45:26 $") ;
+	elog_die(0,"usage:  %s db [-v -pf pfname]\n",Program_Name);
 }
 /* This is an internal definition of an event location object that holds
 all the things we need here.
@@ -134,9 +134,10 @@ void main(int argc, char **argv)
 	
 	EVENTlocation *e;
 	Tbl *allevents,*keepers;
+	int Verbose=0;
 
 	elog_init(argc,argv);
-	elog_notify (0, "$Revision: 1.5 $ $Date: 2001/08/05 08:34:06 $") ;
+	elog_notify (0, "$Revision: 1.6 $ $Date: 2002/10/24 20:45:26 $") ;
 	if(argc<2) usage();
 
 	dbin = argv[1];
@@ -149,6 +150,8 @@ void main(int argc, char **argv)
                         if(i>=argc) usage();
                         pfin = argv[i];
                 }
+		else if(!strcmp(argv[i],"-v"))
+			Verbose=1;
 		else
 			usage();
 	}
@@ -179,7 +182,7 @@ void main(int argc, char **argv)
 	if(nrecs<=0)
 		elog_die(0,"Working view is empty\nCheck event->origin join\n");
 	else
-		elog_log(0,"Working view has %d events\n",nrecs);
+		if(Verbose)elog_log(0,"Working view has %d events\n",nrecs);
 	dbc = dblookup(db,0,"cluster",0,0);
 	dbh = dblookup(db,0,"hypocentroid",0,0);
 
@@ -187,7 +190,7 @@ void main(int argc, char **argv)
 	allevents = load_full_catalog(dbv);
 
 	/*3d looping */
-	elog_log(0,"Grid point hit counts (lat, long, count)\n");
+	if(Verbose)elog_log(0,"Grid point hit counts (lat, long, count)\n");
 	for(i=0,gridid=0;i<(grd->n1);++i)
 	    for(j=0;j<(grd->n2);++j)
 		for(k=0;k<(grd->n3);++k)
@@ -223,8 +226,9 @@ void main(int argc, char **argv)
 			hypocen_lat = 0.0;
 			hypocen_lon = 0.0;
 			hypocen_z = 0.0;
-			elog_log(0,"%lf %lf %d\n",deg(grd->lat[i][j][k]),
-			deg(grd->lon[i][j][k]),nrecs);
+			if(Verbose)
+			    elog_log(0,"%lf %lf %d\n",deg(grd->lat[i][j][k]),
+			                   deg(grd->lon[i][j][k]),nrecs);
 			for(ie=0;ie<nrecs;++ie)
 			{
 			/* We have to be careful about crossing
