@@ -1,7 +1,7 @@
 LIB=libgclgrid.a
 DLIB=$(LIB:.a=$(DSUFFIX)) 
-DATADIR=
-DATA=
+DATADIR=schemas
+DATA=PWMIG1.0
 INCLUDE=gclgrid.h
 MAN3=
 MAN5=		# man pages for file formats
