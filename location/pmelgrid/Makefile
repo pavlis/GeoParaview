@@ -3,7 +3,7 @@ PF=pmelgrid.pf
 CC=mpcc
 
 #MAN1=	pmelgrid.1
-cflags=-g -DMPI_SET -DBYPASS_DBADD -lmpi -mt
+cflags=-g -DMPI_SET -lmpi -mt
 ldflags=-L/opt/SUNWspro/lib
 ldlibs= -mt $(DBLIBS) $(F77LIBS) -xlic_lib=sunperf,fui,fai,fsu \
     -ltrvltm -ldl -Bdynamic -lgenloc -lpfstream -lglputil -lm -dalign

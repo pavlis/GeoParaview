@@ -9,6 +9,7 @@
 #include "db.h"
 #include "coords.h"
 #include "location.h"
+#include "dbpmel.h"
 #include "pfstream.h"
 #include "pmelgrid.h"
 
@@ -58,7 +59,7 @@ void save_run_parameters(Dbptr db,Pf *pf)
 	{
 		elog_complain(0,
 		   "dbaddv error on pmelrun table using pmelrun=%s\nTrying to generate unique name\n",
-		     dfile)
+		     dfile);
 		dfile=(char *)malloc(20);
 		sprintf(dfile,"%dpmel",getpid());
 		elog_log(0,"Trying again with pmelrun=%s\n",dfile);
@@ -117,13 +118,13 @@ Hypocenter *pfget_hypocenters(Pf_ensemble *pfe)
 		/* All members of a group should have the same
 		hypocenter information so we just grab the first */
 		initialize_hypocenter(h+i);
-		h[i].lat = pfget_double(pfe->pf[group_start[i]],
+		h[i].lat = pfget_double(pfe->pf[pfe->group_start[i]],
 				"origin.lat");
-		h[i].lon = pfget_double(pfe->pf[group_start[i]],
+		h[i].lon = pfget_double(pfe->pf[pfe->group_start[i]],
 				"origin.lon");
-		h[i].z = pfget_double(pfe->pf[group_start[i]],
+		h[i].z = pfget_double(pfe->pf[pfe->group_start[i]],
 				"origin.z");
-		h[i].time = pfget_time(pfe->pf[group_start[i]],
+		h[i].time = pfget_time(pfe->pf[pfe->group_start[i]],
 				"origin.time");	
 	}
 	return(h);
@@ -141,13 +142,14 @@ void main(int argc, char **argv)
 {
 	char *dbin;  /* Input db name */
 	char *streamin;  /* input pfstream name */
-	char *steamout;  /* output pfstream name */
+	char *streamout;  /* output pfstream name */
 	Dbptr db;  /* input db pointer */
 	char *pfinfl=NULL;  /* input parameter file */
 	Pf *pf,*vpf;
-	Pf *pfi;
+	Pf *pfi,*pfo;
 	Pf_ensemble *pfe,*pfesc;
 	Pf *pfsc;
+	int i;
         /* Holds indexed list of stations with bad clocks problems 
         that should be used only with S-P type timing */
         Arr *badclocks;
@@ -170,6 +172,7 @@ void main(int argc, char **argv)
         Arr *events_to_fix;
 	int nbcs;
 	FILE *fpo;
+	char *runname;
 
 	
 #ifdef MPI_SET
@@ -223,6 +226,7 @@ option which is know to cause problems\nrecenter set off\n");
 			o.generalized_inverse = DAMPED_INVERSE;
 	}
 
+	runname = pfget_string(pf,"pmel_run_name");
 
 	/* This uses the same method of defining phase handles as dbgenloc*/
 	vmodel=pfget_string(pf,"travel_time_model");
@@ -253,7 +257,7 @@ option which is know to cause problems\nrecenter set off\n");
 	 * through the pfstream.  Consequently we open this immediately and 
 	 * extract what we need here */
 	if(dbopen(dbin,"r+",&db)==dbINVALID) 
-		elog_die(0,"Unable to open input database %s\n",dbin);`
+		elog_die(0,"Unable to open input database %s\n",dbin);
 
 	/* load the station table and use it to create the station
 	indexes for the smatrix structure and setup the result
@@ -287,7 +291,7 @@ option which is know to cause problems\nrecenter set off\n");
 	save_run_parameters(db,pf);
 #endif
 
-	while(pfi=pfread_stream(streamin)!=NULL)
+	while((pfi=pfread_stream(streamin))!=NULL)
 	{
 		int nevents;
 		Tbl **ta;
@@ -325,9 +329,9 @@ option which is know to cause problems\nrecenter set off\n");
 		for(i=0,ndata=0;i<nevents;++i)
 		{
 			ta[i]=pfextract_arrivals(pfe->pf,
-					pfe->groups_start[i],
-					pfe->groups_end[i],
-					arr_phases,
+					pfe->group_start[i],
+					pfe->group_end[i],
+					arr_phase,
 					stations);
 			evid[i]=pfget_int(pfe->pf[0],"evid");
 			ndata += maxtbl(ta[i]);
@@ -340,7 +344,7 @@ option which is know to cause problems\nrecenter set off\n");
 		moved through this program.  This is a bit obscure and
 		potentially error prone for changes in the front end.*/
 		ierr = initialize_station_corrections(arr_phase,
-			arr_phase_3d,stations,&hypocentroid);
+			arr_phase_3D,stations,&hypocentroid);
 		if(ierr>0)
 		{
 			elog_notify(1,"%d problems setting path anomaly corrections for grid id %d\n",
@@ -442,7 +446,7 @@ option which is know to cause problems\nrecenter set off\n");
 		for(i=0;i<nevents;++i)
 		{
 			freetbl(ta[i],free);
-			free(h0[i]);
+			free(h0+i);
 		}
 		free(ta);
 		free(h0);
