@@ -2,6 +2,7 @@
 #include <fstream>
 #include <list>
 #include <vector>
+#include <sunmath.h>
 
 #include "perf.h"
 #include "coords.h"
@@ -12,6 +13,7 @@ using namespace std;
 // damped least squares solver companion to dgesvd
 // similar to one in libgenloc
 //
+/*
 void lminverse_solver(dmatrix &U,
 	double *s,
 	dmatrix &Vt,
@@ -49,6 +51,7 @@ cout <<"smallest singular value="<<s[n-1]<<endl;
 		daxpy(n,work[j],Vt.get_address(j,0),n,x,1);
 	delete [] work;
 }
+*/
 
 int main(int argc, char **argv)
 {
@@ -62,11 +65,10 @@ int main(int argc, char **argv)
 	int i;
 	Time_Series *s;
 	Time_Series *sptr;
-	double theta;
 	int n,m,mprime;
 
 
-	cout << "Enter file containing list of SAC ascii files for Z and R"<< endl;
+	cout << "Enter file containing list of SAC ascii files for Z "<< endl;
 	cin >> listfile;
 	ifstream inlist(listfile.c_str(), ios::in);
 	if(!inlist) 
@@ -77,17 +79,66 @@ int main(int argc, char **argv)
 	// Read the list of files and put them into a list container
 	do {
 		string *zp=new string;
-                string *rp=new string;
-		string& zf=*zp, rf=*rp;
-		inlist >> zf;
+		inlist >> *zp;
                 if(inlist.eof()) break;
-		inlist >> rf;
-		// It is necessary to reverse the list because of
-		// file order produced by Herrmann's programs
-		zfiles.push_back(zf);
-		rfiles.push_back(rf);
+		zfiles.push_back(*zp);
 	} while (! inlist.eof());
-	
+	inlist.close();
+	cout << "Found " << zfiles.size() << " files" << endl;
+
+	cout << "Enter file containing list of SAC ascii files for R "<< endl;
+	cin >> listfile;
+	inlist.open(listfile.c_str(), ios::in);
+	if(!inlist) 
+	{
+		cerr << "Cannot open file "<<listfile<<endl;
+		exit(1);
+	}
+	do {
+                string *rp=new string;
+		inlist >> *rp;
+                if(inlist.eof()) break;
+		rfiles.push_back(*rp);
+	} while (! inlist.eof());
+	inlist.close();
+	cout << "Found " << rfiles.size() << " files" << endl;
+	if(rfiles.size()!=zfiles.size())
+	{
+		cerr<<"Abort:  z and r lists are not equal size\n";
+		exit(-1);
+	}
+	cout <<"Enter file containing time lags in seconds"<<endl;
+	cin>>listfile;
+	inlist.open(listfile.c_str(), ios::in);
+	if(!inlist) 
+	{
+		cerr << "Cannot open file "<<listfile<<endl;
+		exit(1);
+	}
+	cout << "Enter file containing P wave polarization angles" << endl;
+	cin>>listfile;
+	ifstream anglein(listfile.c_str(), ios::in);
+	if(!anglein)
+	{
+		cerr << "Cannot open file "<<listfile<<endl;
+                exit(1);
+        }
+
+	n=rfiles.size();
+	double *lags=new double[n];
+	double *theta=new double[n];
+	for(i=0;i<n;++i)
+	{
+		inlist >> lags[i];
+		anglein >> theta[i];
+		theta[i]=rad(theta[i]);
+		if(inlist.eof() || anglein.eof())
+		{
+			cerr << "EOF encountered at line " << i <<endl;
+			cerr << "Expected to find " << n << "lines in file"<<endl;
+			exit(-1);
+		}
+	}
 	for(izf=zfiles.begin(),i=0;izf!=zfiles.end();++izf,++i)
 	{
 		try{
@@ -102,6 +153,7 @@ int main(int argc, char **argv)
                 z.push_back(sptr);
 		delete s;
 	}
+cout << "done reading verticals"<<endl;
 	for(irf=rfiles.begin(),i=0;irf!=rfiles.end();++irf,++i)
 	{
 		try{
@@ -124,7 +176,7 @@ int main(int argc, char **argv)
 		exit(1);
 	}
 	n=r.size();
-	m=z[0].ns+2*n;
+	m=z[0].ns+3*n;
 	mprime=z[0].ns;
 	cout << "Output matrix is of size "<< m<<" by " << n << endl;
 	
@@ -159,21 +211,18 @@ ofstream mout("amatrix.out");
 mout << A;
 mout.close();
 */
-	cout << "Enter theta angle(degrees) to rotate for ray coordinates" << endl;
-	cin >> theta;
-	theta = rad(theta);
 	
 	double *zwork=new double[mprime];
 	double *rwork=new double[mprime];
 	double *rhs=new double[mprime];
 	double wz,wr,damp;
 	
-	// rotate and load matrix
-	wz = cos(theta);
-	wr = sin(theta);
 	for(i=0;i<n;++i)
 	{
 		int i0;
+		int m_to_copy;
+		wz = cos(theta[i]);
+		wr = sin(theta[i]);
 		dcopy(mprime,z[i].s,1,zwork,1);
 		dcopy(mprime,r[i].s,1,rwork,1);
 // debug
@@ -182,12 +231,23 @@ if(i==0)
 for(int j=0;j<m;++j) cout << zwork[j] << "," << rwork[j] << endl;
 */
 		dscal(mprime,wz,zwork,1);
-		// this assumes input synthetics have one sample lag
-		// in the wrong direction for each successive trace 
-		i0=2*i;
+		i0=nint((lags[i]-lags[0])/z[i].dt);
+cout << "lag(s)="<<lags[i]<<" yields i0=" << i0 << endl;
+// temporary to fudge
+//i0-=i;
+//cout << i0<<endl;
 		ptr=A.get_address(i0,i);
-		dcopy(mprime,zwork,1,ptr,1);
-		daxpy(mprime,wr,rwork,1,ptr,1);
+		if(i0+mprime<m)
+			m_to_copy=mprime;
+		else
+		{
+			m_to_copy = m-i0;
+			cerr << "warning:  column "<<i<<" only copied "
+				<< m_to_copy << " of " << mprime 
+				<<" rows"<<endl;
+		}
+		dcopy(m_to_copy,zwork,1,ptr,1);
+		daxpy(m_to_copy,wr,rwork,1,ptr,1);
 		// This loads he surface l component as convolution
 		dcopy(mprime,A.get_address(0,0),1,Az.get_address(i,i),1);
 	}
@@ -200,8 +260,8 @@ mout.close();
 mout.open("azmatrix.out");
 mout << Az;
 mout.close();
-	wz=-sin(theta);
-	wr=cos(theta);
+	wz=-sin(theta[0]);
+	wr=cos(theta[0]);
 	dscal(mprime,wz,zwork,1);
 	dcopy(mprime,zwork,1,rhs,1);
 	daxpy(mprime,wr,rwork,1,rhs,1);
@@ -209,6 +269,7 @@ mout.close();
 	ofstream rhsout("rhs.out",ios::out);
 	for(i=0;i<m;++i) rhsout <<rhs[i] << ","<<A(i,0)<<","<<r[0].s[i]<<","<<z[0].s[i]<<endl;
 	rhsout.close();
+/*
 
 	// a very slow way to solve this for now, but bombproof
 	double *svalue=new double[n];
@@ -246,6 +307,7 @@ mout.close();
 		cout<<"Try again?  (y or n):";
 		cin >> test;
 	} while(strcmp(test,"n"));
+*/
 	return(0);
 }
 	
