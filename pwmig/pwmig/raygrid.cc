@@ -4,6 +4,8 @@
 #include "vmodel.h"
 #include "ray1d.h"
 #include "pf.h"
+using namespace std;
+using namespace SEISPP;
 #include "pwmig.h"
 /* Used below to copy a dmatrix defining a ray path into the ith, jth 
 grid line (vertical-like ) of the GCCgrid3d object raygrid.  

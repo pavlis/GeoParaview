@@ -1,0 +1,13 @@
+P_velocity_model3d_name testP
+S_velocity_model3d_name testS
+P_velocity_model1d_name testP1
+S_velocity_model1d_name testS1
+Parent_GCLgrid_Name test2dgrid
+Station_mdlist &Tbl{
+}
+Ensemble_mdlist &Tbl{
+}
+dbprocess_commands &Tbl{
+dbopen wfprocess
+}
+

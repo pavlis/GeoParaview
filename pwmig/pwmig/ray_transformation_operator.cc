@@ -306,7 +306,7 @@ Ray_Transformation_Operator::Ray_Transformation_Operator(GCLgrid& g,
 // Always need a copy constructor.  Not currently used in pwmig, 
 // but have learned the hard way a copy constructor is sometimes
 // implied.
-Ray_Transformation_Operator::Ray_Transformation_Operator(Ray_Transformation_Operator& pat)
+Ray_Transformation_Operator::Ray_Transformation_Operator(const Ray_Transformation_Operator& pat)
 {
 	npoints=pat.npoints;
 	U=pat.U;
