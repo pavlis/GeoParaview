@@ -2,6 +2,7 @@
 #define _SEISPP_H_
 #include <vector>
 #include "metadata.h"
+#include "pfstream.h"
 
 
 enum Time_Reference_Type {absolute,relative};
@@ -15,8 +16,8 @@ public:
 	double *s;
 	Time_Series() {s=NULL;dt=0.0; t0=0.0; ns=0; tref=absolute;};
 	Time_Series(int nsin) {dt=0.0; t0=0.0; ns=nsin;
-		tref=absolute; s = new double(nsin);};
-	~Time_Series() {  if(s!=NULL) delete s; };
+		tref=absolute; s = new double[nsin];};
+	~Time_Series() {  if(s!=NULL) delete [] s; };
 };
 
 // 
@@ -56,7 +57,7 @@ public:
 	// are after this transformation as the default assumes no
 	// Note this is routine does NOT return to standard before
 	// applying the transformation so this is accumulative.
-	void apply_transformation_matrix(a[3][3]);
+	void apply_transformation_matrix(double a[3][3]);
 };
 class Time_Series_Ensemble
 {
@@ -103,10 +104,10 @@ class Top_Mute
 {
 public:
 	double t0e, t1;  // t0e is end of to 0 zone, t1 time when weight goes to 1
-	Time_Reference reftype;   // from seispp is enum as absolute or relative
-	Top_Mute(){t0e=1.0; t1=2.0; reftype=relative};
+	 Time_Reference_Type reftype;   // from seispp is enum as absolute or relative
+	Top_Mute(){t0e=1.0; t1=2.0; reftype=relative;};
 	Top_Mute(Pf *pf);
-}
+};
 //
 //Helpers
 //

@@ -77,7 +77,7 @@ Metadata& Metadata::operator=(const Metadata& md)
 //
 // These functions get and convert values
 //
-double Metadata::get_double(string s) throw(Metadata_get_error)
+double Metadata::get_double(string s)
 {
 	void *result;
 	double val;
@@ -86,12 +86,12 @@ double Metadata::get_double(string s) throw(Metadata_get_error)
 
 	pftype_return = pfget(pf,(char *)s.c_str(),&result);
 	if(pftype_return != PFSTRING) 
-		throw Metadata_get_error("double",s,"");/
+		throw Metadata_get_error("double",s,"");
 	char_val=pfget_string(pf,(char *)s.c_str());
 	val = atof(char_val);
 	return(val);
 }
-int Metadata::get_int(string s)throw(Metadata_get_error)
+int Metadata::get_int(string s)
 {
 	void *result;
 	int val;
@@ -104,7 +104,7 @@ int Metadata::get_int(string s)throw(Metadata_get_error)
 	val = atoi(char_val);
 	return(val);
 }
-string Metadata::get_string(string s) throw(Metadata_get_error)
+string Metadata::get_string(string s) 
 {
 	void *result;
 	string val;
@@ -117,7 +117,7 @@ string Metadata::get_string(string s) throw(Metadata_get_error)
 	val = char_val; //= is overloaded for this case so is a simple assign
 	return(val);
 }
-bool Metadata::get_bool(string s)throw(Metadata_get_error)
+bool Metadata::get_bool(string s)
 {
 	void *result;
 	int val;
@@ -132,7 +132,7 @@ bool Metadata::get_bool(string s)throw(Metadata_get_error)
 	else 
 		return(false);
 }
-Tbl *Metadata::get_list(string s)throw(Metadata_get_error)
+Tbl *Metadata::get_list(string s)
 {
 	void *result;
 	int val;
@@ -144,7 +144,7 @@ Tbl *Metadata::get_list(string s)throw(Metadata_get_error)
 	t = pfget_tbl(pf,(char *)s.c_str());
 	return(t);
 }
-Arr *Metadata::get_map(string s)throw(Metadata_get_error)
+Arr *Metadata::get_map(string s)
 {
 	void *result;
 	int val;
@@ -192,14 +192,27 @@ void Metadata::put_metadata(string name, bool val)
 	else
 		pfput_boolean(pf,(char *)name.c_str(),0);
 }
-void Metadata::load_metadata(string mdin) throw(Metadata_load_error)
+void Metadata::load_metadata(string mdin) 
 {
 	int ierr;
 	// We might think this was needed:  if(pf!=NULL) pffree(pf);
 	// it is not because pfcompile checks for *pf==NULL and
 	// assumes it is valid and to be updated if nonzero.
 	// This is a handy way to deal with defaults
+	// The char * cast is necessary to keep the compiler
+	// from bitching about a const char
 	ierr = pfcompile((char *)mdin.c_str(),&pf);
+	if(ierr!=0) throw Metadata_load_error(ierr);
+}
+// near dup of above done for convenience
+void Metadata::load_metadata(char *mdin) 
+{
+	int ierr;
+	// We might think this was needed:  if(pf!=NULL) pffree(pf);
+	// it is not because pfcompile checks for *pf==NULL and
+	// assumes it is valid and to be updated if nonzero.
+	// This is a handy way to deal with defaults
+	ierr = pfcompile(mdin,&pf);
 	if(ierr!=0) throw Metadata_load_error(ierr);
 }
 
@@ -209,48 +222,60 @@ void Metadata::load_metadata(string mdin) throw(Metadata_load_error)
 //
 
 void  copy_selected_metadata(Metadata& mdin, Metadata& mdout,
-		                list<Metadata_typedef *>mdlist& mdlist)
+		                list<Metadata_typedef>& mdlist)
 {
-	Metadata_typedef *mdtdef;
-	list iterator i;
+	list<Metadata_typedef>::iterator i;
+	Metadata_typedef& mdti=*i;
+	int count;
 
-	for(i=mdlist.begin();i<mdlist.end();++i)
+	for(i=mdlist.begin(),count=0;i!=mdlist.end();++i,++count)
 	{
+		MDtype mdtest;
+		double r;
+		int iv;
+		string s;
+		Tbl *t;
+		Arr *a;
+		bool b;
+
+		mdtest = mdti.mdt;
 		try {
-			switch(mdlist[i].mdt)
+			switch(mdtest)
 			{
-			case REAL:
-				double r=mdin.get_double(mdt[i].tag);
-				mdout.put_metadata(mdt[i].tag,r);
+			case MDreal:
+				r=mdin.get_double(mdti.tag);
+				mdout.put_metadata(mdti.tag,r);
 				break;
-			case INTEGER:
-				int iv=mdin.get_int(mdt[i].tag);
-				mdout.put_metadata(mdt[i].tag,iv);
+			case MDint:
+				iv=mdin.get_int(mdti.tag);
+				mdout.put_metadata(mdti.tag,iv);
 				break;
-			case STRING:
-				string s=mdin.get_string(mdt[i].tag);
-				mdout.put_metadata(mdt[i].tag,s);
+			case MDstring:
+				s=mdin.get_string(mdti.tag);
+				mdout.put_metadata(mdti.tag,s);
 				break;
-			case LIST:
-				Tbl *t=mdin.get_list(mdt[i].tag);
-				mdout.put_metadata(mdt[i].tag,t);
+			case MDlist:
+				t=mdin.get_list(mdti.tag);
+				mdout.put_metadata(mdti.tag,t);
 				break;
-			case MAP:
-				Arr *a=mdin.get_map(mdt[i].tag);
-				mdout.put_metadata(mdt[i].tag,a);
+			case MDmap:
+				a=mdin.get_map(mdti.tag);
+				mdout.put_metadata(mdti.tag,a);
 				break;
-			case BOOLEAN:
-				bool b=mdin.get_bool(mdt[i].tag);
-				mdout.put_metadata(mdt[i].tag,b);
+			case MDboolean:
+				b=mdin.get_bool(mdti.tag);
+				mdout.put_metadata(mdti.tag,b);
 				break;
 			default:
-				elog_die(0,"Fatal: copy_selected_metadata was passed illegal type definition\nFatal error as this indicates a coding error that must be fixed\n");
+				cerr<<"Fatal: copy_selected_metadata was passed illegal type definition\nFatal error as this indicates a coding error that must be fixed" << endl;
+				exit(-1);
 			};
 		} catch( Metadata_error merr)
 		{
-			elog_complain(0,"Error in copy_selected_metadata at item %d of %d\nCopy truncated\n",
-					i,(int)mdlist.end());
-			mderr.log_error();
+			cerr << "Error in copy_selected_metadata at item ";
+			cerr << count << "with tag" << mdti.tag <<"\n" ;
+			cerr << "Copy truncated" << endl;
+			merr.log_error();
 			throw;
 		}
 	}

@@ -1,16 +1,19 @@
 #include "seispp.h"
-Three_Component_Seismogram::rotate_to_standard()
+#include "perf.h"
+void Three_Component_Seismogram::rotate_to_standard()
 {
-	if(component_are_cardinal) return;
+	double *work[3];
+	int i,j;
+	if(components_are_cardinal) return;
+	for(j=0;j<3;++j) work[j]=new double[ns];
 	if(components_are_orthogonal)
 	{
-		double work[3][ns];
 		//
 		//Use a daxpy algorithm.  tmatrix stores the
 		//forward transformation used to get current
 		//Use the transpose to get back
 		//
-		for(int i=0;i<3;++i)
+		for(i=0;i<3;++i)
 		{
 			dcopy(ns,x[0].s,1,work[i],1);
 			dscal(ns,tmatrix[0][i],work[i],1);
@@ -30,7 +33,11 @@ Three_Component_Seismogram::rotate_to_standard()
 		//
 		double a[9];
 		int ipivot[3];
-		double cond,det;
+		int info;
+		double det;
+		int asize=3;
+		double awork[10];
+		int ldwork=10;
 		a[0] = tmatrix[0][0];
 		a[1] = tmatrix[1][0];
 		a[2] = tmatrix[2][0];
@@ -40,10 +47,11 @@ Three_Component_Seismogram::rotate_to_standard()
 		a[6] = tmatrix[0][2];
 		a[7] = tmatrix[1][2];
 		a[8] = tmatrix[2][2];
-		//LINPACK matrix inversion using LU decomposition
-		dgeco(a,3,3,ipivot,&cond);
-		//Maybe should throw an exception when cond is bad
-	        dgedi(a,3,3,ipivot,&det,01);
+		//Perf lib matrix inversion routine using LU factorizatoin
+		// Note this is changed from parent code.  Untested.
+		dgetrf_(&asize,&asize,a,&asize,ipivot,&info);
+		//Probably should throw an exception info != 0
+		dgetri_(&asize,a,&asize,ipivot,awork,&ldwork,&info);
 		
 		tmatrix[0][0] = a[0];
 		tmatrix[1][0] = a[1];
@@ -59,7 +67,6 @@ Three_Component_Seismogram::rotate_to_standard()
 		//Above multiplies with a transpose without building
 		//it.  Here we have the transformation matrix
 		//
-		double work[3][ns];
 		for(i=0;i<3;++i)
 		{
 			dcopy(ns,x[0].s,1,work[i],1);
@@ -81,6 +88,7 @@ Three_Component_Seismogram::rotate_to_standard()
 				tmatrix[i][j]=0.0;
 
 	components_are_cardinal=true;
+	for(i=0;i<3;++i) delete [] work[i];
 }
 
 
@@ -122,7 +130,7 @@ Arguments:
 Author:  Gary L. Pavlis
 Written:  Sept. 1999
 */
-Three_Component_Seismogram::rotate(Spherical_Coordinate x)
+void Three_Component_Seismogram::rotate(Spherical_Coordinate xsc)
 {
 	int i;
 	double theta, phi;  /* corrected angles after dealing with signs */
@@ -136,30 +144,30 @@ Three_Component_Seismogram::rotate(Spherical_Coordinate x)
 	// this implies return to standard coordinates it should
 	// be ok.  Note implicit transformation to cardinal directions
 	//
-	if(x.theta == 0.0)return;
-       	if(x.theta == M_PI) 
+	if(xsc.theta == 0.0)return;
+       	if(xsc.theta == M_PI) 
 	{
 		//This will be left handed
 		tmatrix[2][2] = -1.0;
 		return;
 	}
 
-	if(x.theta < 0.0) 
+	if(xsc.theta < 0.0) 
 	{
-		theta = -(x.theta);
-		phi = x.phi + M_PI;
+		theta = -(xsc.theta);
+		phi = xsc.phi + M_PI;
 		if(phi > M_PI) phi -= (2.0*M_PI);
 	}
-	else if(x.theta > M_PI_2)
+	else if(xsc.theta > M_PI_2)
 	{
-		theta = x.theta - M_PI_2;
-		phi = x.phi + M_PI;
+		theta = xsc.theta - M_PI_2;
+		phi = xsc.phi + M_PI;
 		if(phi > M_PI) phi -= (2.0*M_PI);
 	}
 	else
 	{
-		theta = x.theta;
-		phi = x.phi;
+		theta = xsc.theta;
+		phi = xsc.phi;
 	}
         a = cos(phi);
         b = sin(phi);
@@ -171,12 +179,13 @@ Three_Component_Seismogram::rotate(Spherical_Coordinate x)
 	tmatrix[2][0] = d;
 	tmatrix[0][1] = -b;
 	tmatrix[1][1] = a;
-	tmatrix[2][1] = 0.0
+	tmatrix[2][1] = 0.0;
 	tmatrix[0][2] = -a*d;
 	tmatrix[1][2] = -b*d;
 	tmatrix[2][2] = c;
 
-	double work[3][ns];
+	double *work[3];
+	for(i=0;i<3;++i)work[i] = new double[ns];
 	for(i=0;i<3;++i)
 	{
 		dcopy(ns,x[0].s,1,work[i],1);
@@ -190,6 +199,7 @@ Three_Component_Seismogram::rotate(Spherical_Coordinate x)
 	//
 	components_are_orthogonal=true;
 	components_are_cardinal=false;
+	for(i=0;i<3;++i) delete [] work[i];
 }
 /* This routine takes a 3-d unit vector, nu, and converts it
 to a Spherical_Coordinate structure which is returned.  The 
@@ -197,22 +207,23 @@ input coordinates are assume to be standard, right handed
 cartesian coordinates in 1,2,3 order */
 Spherical_Coordinate unit_vector_to_spherical(double nu[3])
 {
-	Spherical_Coordinate x;
+	Spherical_Coordinate xsc;
 
-	x.radius = 1.0;
-	x.theta = acos(nu[2]);
-	x.phi = atan2(nu[1],nu[0]);
-	return(x);
+	xsc.radius = 1.0;
+	xsc.theta = acos(nu[2]);
+	xsc.phi = atan2(nu[1],nu[0]);
+	return(xsc);
 }
-Three_Component_Seismogram::rotate(double nu[3])
+void Three_Component_Seismogram::rotate(double nu[3])
 {
-	Spherical_Coordinate x=unit_vector_to_spherical(nu);
-	this->rotate(x);
+	Spherical_Coordinate xsc=unit_vector_to_spherical(nu);
+	this->rotate(xsc);
 }
-Three_Component_Seismogram::apply_transformation_matrix(a[3][3])
+void Three_Component_Seismogram::apply_transformation_matrix(double a[3][3])
 {
 	int i;
-	double work[3][ns];
+	double *work[3];
+	for(i=0;i<3;++i) work[i] = new double[3];
 	double twork[3];
 	for(i=0;i<3;++i)
 	{
@@ -233,4 +244,5 @@ Three_Component_Seismogram::apply_transformation_matrix(a[3][3])
 		tmatrix[1][i]=ddot(3,a[1],1,twork,1);
 		tmatrix[2][i]=ddot(3,a[2],1,twork,1);
 	}
+	 for(i=0;i<3;++i) delete [] work[i];
 }

@@ -118,7 +118,7 @@ vector<Time_Series *> *get_next_ensemble(Pfstream_handle *pfh, char *tag)
 			string fname=dir+"/"+dfile;
 			if((fp=fopen(fname.c_str(),"r")) == NULL) throw(fname);
 			if (foff>0)fseek(fp,(long)foff,SEEK_SET);
-			ts->s = new double(ts->ns);
+			ts->s = new double[ts->ns];
 			if(fread((void *)(ts[i].s),sizeof(double),ts[i].ns,fp)
 					!= (ts[i].ns) ) throw(fname);
 			fclose(fp);

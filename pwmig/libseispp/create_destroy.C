@@ -51,20 +51,20 @@ Three_Component_Seismogram::Three_Component_Seismogram(int nsin)
 // Ensemble constructors.  Both just create blank trace or 3c trace objects
 // and push them into a vector container.
 //
-Time_Series_Ensemble::Time_Series_Ensemble(int nts, int nsamp)
+Time_Series_Ensemble::Time_Series_Ensemble(int nensemble, int nsamples)
 {
-	for(int i=0; i<nts; ++i)
+	for(int i=0; i<nensemble; ++i)
 	{
-		Time_Series *ts = new Time_Series(nsamp);
+		Time_Series *ts = new Time_Series(nsamples);
 		tse.push_back(ts);
 	}
 }
-Three_Component_Ensemble::Three_Component_Ensemble(int nsta, int nsamp)
+Three_Component_Ensemble::Three_Component_Ensemble(int nstations, int nsamples)
 {
-	for(int i=0;i<nsta;++i)
+	for(int i=0;i<nstations;++i)
 	{
 		Three_Component_Seismogram *tcs 
-			= new Three_Component_Seismogram(nsamp);
+			= new Three_Component_Seismogram(nsamples);
 		tcse.push_back(tcs);
 	}
 }

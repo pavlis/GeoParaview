@@ -13,12 +13,12 @@ public:
 	Metadata& operator=(const Metadata& );
         ~Metadata();
 
-        double get_double(string) throw(Metadata_get_error);
-        int get_int(string) throw(Metadata_get_error);
-        string get_string(string) throw(Metadata_get_error);
-        bool get_bool(string) throw(Metadata_get_error);
-	Tbl *get_list(string) throw(Metadata_get_error);  // Antelope specific
-	Arr *get_map(string) throw(Metadata_get_error);  // Antelope specific
+        double get_double(string) ;
+        int get_int(string) ;
+        string get_string(string) ;
+        bool get_bool(string) ;
+	Tbl *get_list(string) ;  // Antelope specific
+	Arr *get_map(string) ;  // Antelope specific
 	//These put new metadata in
         void put_metadata(string,double);
         void put_metadata(string,int);
@@ -26,7 +26,8 @@ public:
         void put_metadata(string,char *);
         void put_metadata(string,bool);
 	// This compiles a large string with pfcompile to load a full pf
-        void load_metadata(string) throw(Metadata_get_error);
+        void load_metadata(string);
+        void load_metadata(char *);
 };
 
 .fi
@@ -140,4 +141,4 @@ are stored as strings in an Antelope pf structure.
 Gary L. Pavlis
 Indiana University
 pavlis@indiana.edu
-.\" $Id: metadata.3,v 1.2 2003/03/07 15:43:56 pavlis Exp $
+.\" $Id: metadata.3,v 1.3 2003/03/09 14:51:44 pavlis Exp $
