@@ -2,7 +2,6 @@
 #include <fstream>
 #include <string>
 #include <stdio.h>
-#include <sunmath.h>
 #include "stock.h"
 #include "pf.h"
 #include "metadata.h"
@@ -28,16 +27,16 @@ int main(int argc, char **argv)
 	double lat,lon;
 	double dx,dy,dz;
 	double dxutm,dyutm;
-	char *tomofile,*outfile;
+	char *tomofile,*dbname;
 	double vpvs=0.707;
-	bool save_S=fale;
+	bool save_S=false;
 
 	ios::sync_with_stdio();
 	elog_init(argc,argv);
 	if(argc<3) usage();
 	tomofile=argv[1];
-	outfile=argv[2];
-	for(int iarg=0;iarg<iargc;++iarg)
+	dbname=argv[2];
+	for(int iarg=0;iarg<argc;++iarg)
 	{
 		string sarg(argv[iarg]);
 		if(sarg=="-vpvs")
@@ -55,9 +54,15 @@ int main(int argc, char **argv)
 	char *pfname="rpitomo2db";
 	if(pfread(pfname,&pf))
 		elog_die(1,"pfread error\n");
-	Metadata control(pf);
+	Dbptr db;
+	if(dbopen(dbname,"r+",&db)==dbINVALID)
+	{
+		cerr << "Cannot open output database "<<dbname<<endl;
+		exit(-1);
+	}
 	
 	try {
+		Metadata control(pf);
 		double northing,easting;
 		double northing0,easting0;
 		double lat0,lon0;
@@ -128,7 +133,7 @@ int main(int argc, char **argv)
 		int nx0,ny0;  
 		nx0=nx/2;
 		ny0=ny/2;
-		GCLgrid3d *g=new GCLgrid3d(nx,ny,nz,string("RPItomogrid"),
+		GCLgrid3d *g=new GCLgrid3d(nx,ny,nz,gridname,
 			lat0,lon0,r0_ellipse(lat0),0.0,dx,dy,dz,nx0,ny0);
 		// use this grid to create an empty scalar field that will hold
 		// the velocity model we are going to input.
@@ -181,12 +186,13 @@ int main(int argc, char **argv)
 		// save field to database
 		string modelname;
 		modelname=modelbasename+"_P";
-		dbsave(db,gcldir,fielddir,modelname,dfile);
+		// Use the model name for the output data file name
+		dbsave(db,gclgdir,fielddir,modelname,modelname);
 		if(save_S)
 		{
-			modelname=modelbasename+"_P";
+			modelname=modelbasename+"_S";
 			vel *= vpvs;
-			dbsave(db,"",fielddir,modelname,dfile);
+			dbsave(db,"",fielddir,modelname,modelname);
 		}
 	}
 	catch (Metadata_get_error mderr)

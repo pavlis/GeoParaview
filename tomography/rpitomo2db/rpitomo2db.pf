@@ -13,7 +13,6 @@ northing0 885447.93
 grid3d_lat0 8.0
 grid3d_lon0 -67.5
 output_gridname test
-output_field_basename test
 field_directory vmodels
 grid_directory vmodels
 model_base_name
