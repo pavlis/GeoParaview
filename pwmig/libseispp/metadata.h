@@ -51,17 +51,24 @@ class Metadata
 {
 public:
         Metadata();
-	Metadata(const Metadata&);
+	Metadata(const Metadata&)
+		throw(Metadata_parse_error);
 	Metadata& operator=(const Metadata& );
         ~Metadata();
 
-        double get_double(string);
-        int get_int(string);
-        string get_string(string);
-        bool get_bool(string);
+        double get_double(string)
+		throw(Metadata_get_error);
+        int get_int(string)
+		throw(Metadata_get_error);
+        string get_string(string)
+		throw(Metadata_get_error);
+        bool get_bool(string)
+		throw(Metadata_get_error);
 	// The next two are antelope specific
-	Tbl *get_list(string);
-	Arr *get_map(string);
+	Tbl *get_list(string)
+		throw(Metadata_get_error);
+	Arr *get_map(string)
+		throw(Metadata_get_error);
 	//These put new metadata in
 	//These use the same name but depend on overloading
         void put_metadata(string,double);
@@ -72,8 +79,10 @@ public:
 	void put_metadata(string,Arr *);  // antelope map
 	void put_metadata(string,Tbl *);  // antelope list
 	// This compiles a large string with pfcompile to load a full pf
-        void load_metadata(string);
-	void load_metadata(char *);
+        void load_metadata(string)
+		throw(Metadata_parse_error);
+	void load_metadata(char *)
+		throw(Metadata_parse_error);
 	void print_all_metadata();
 private:
         Pf *pf;  // Antelope's pf handle
@@ -91,6 +100,6 @@ typedef struct Metadata_typedef {
 // Helpers
 //
 void copy_selected_metadata(Metadata& mdin, Metadata& mdout, 
-		list<Metadata_typedef>& mdlist);
+		list<Metadata_typedef>& mdlist) throw(Metadata_error);
 
 #endif
