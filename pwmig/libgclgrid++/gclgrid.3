@@ -1,0 +1,233 @@
+'\" te
+.TH gclgrid 3 "$Date: 2003/01/03 23:08:59 $"
+.SH NAME
+gclgrid - C++ Geographical Curvilinear Coordinate grid librarY
+.SH SYNOPSIS
+.nf
+#include "gclgrid.h"
+class GCLgrid;
+class GCLgrid3d;
+class GCLscalarfield:GCLgrid;
+class GCLvectorfield:GCLgrid;
+class GCLscalarfield3d:GCLgrid3d;
+class GCLvectorfield3d:GCLgrid3d;
+.fi
+.SH DESCRIPTION
+.LP
+A GCLgrid is defined as a 2d or 3D uniform grid 
+(i.e. squares in 2D and cubes in 3D) with a one-to-one 
+mapping into geographic coordinates on the earth.  
+The mapped grid does not need to be uniformly spaced 
+nor flat in any sense.  A GCLgrid (2d), for example, can,
+and often is a spherical surface at constant radius, but 
+it does not have to be.  On a spherical surface the spacing
+between nodes can only approximately be constant.  Similarly
+a GCLgrid3D may define a spherical shell broken into approximate
+cubes or it can be some more general shape.  The primary 
+restiction is that the library assumes that the mapping operator
+from a standard rectangle (2D) or box (3D) does not fold space.
+This is the "Curvilinear" modifier.  It means that the coordinate
+axes and all grid lines form a mesh of curves that never cross 
+along constant trajectories of the curvilinear axes (x1, x2, and x3).  
+Two type examples are a deformed box and a box warped into a 
+spherical shell.  
+
+The library centers on two critical algorithms:  lookup and interpolate.
+By lookup I mean give a point in space (on the earth) find the position
+of that point within the grid.  For uniformly divided box this is a 
+trivial calculation for a distorted grid the process is never simple.
+The GCLgrid library uses a search method that is a form of Newton's
+method. We compute vector direction for the local tangent to each 
+grid line by simple forward differences.  We then project the actual 
+position onto this vector direction and estimate the number of grid 
+points to jump to get to the new position.  An important efficiency
+element is that the interface always stored the previous index and 
+will normally start from the previously computed point.  This makes it
+relatively quick to search down a grid line to, for example, map one
+GCLgrid onto another.  The lookup function only has to make large 
+corrections when a large position shift is requested.  This is 
+important to realize as the lookup time for a grid that has significant
+distortion is drastically different for random access than sequential
+access along curved trajectories through space.  
+
+The interpolation methods are based on 8 point (corners of a box) 
+shape functions borrowed from finite element analysis.  Note that in
+this implementation this is true of both 2d and 3d grids.  These are
+used in 2d because a GCLgrid is a surface embedded in 3-space.  
+When the four points that define the region to be interpolated are 
+not coplanar a rectangular interpolator that assumes a 2D projection
+is problematic.
+The interpolate method should only be called after a successful lookup.
+.SH INTERFACE
+.nf
+class GCLgrid
+{
+	public:
+		char name[10];  // name assigned to this coordinate grid
+		double lat0, lon0, r0;  // geographical location of origin 
+		double azimuth_y;  // Azimuth of positive y axis 
+		double dx1_nom, dx2_nom;  // nominal grid spacing 
+		int n1,n2;  // grid size in each component direction
+		int i0, j0;  // origin location in grid 
+		double xlow, xhigh, ylow, yhigh, zlow, zhigh;// bounding box 
+		int cartesian_defined, geographic_defined;
+		double **x1, **x2, **x3; //cartesian coordinates of nodes
+		double **lat, **lon, **r;  //geographical coordinates of nodes
+
+		GCLgrid(){
+			n1=0;n2=0;x1=NULL;x2=NULL;x3=NULL;lat=NULL;lon=NULL;r=NULL;
+		};
+		GCLgrid(int n1size, int n2size);
+		GCLgrid(int n1size, int n2size, char *n, double la0, double lo0,
+			double radius0, double az, double dx1n, double dx2n, 
+			int iorigin, int jorigin);
+		GCLgrid(Dbptr db, char *nm);  // acquire from Antelope database 
+		GCLgrid(const GCLgrid&);  //standard copy constructor
+		GCLgrid& operator=(const GCLgrid& );
+		void dbsave(GCLgrid&, Dbptr, char *);
+		void lookup(double, double);
+		void reset_index() {ix1=i0; ix2=j0;};
+		void get_index(int *ind) {ind[0]=ix1; ind[1]=ix2;};
+		Geographic_point ctog(double, double, double);
+		Cartesian_point gtoc(double, double, double);
+		void GCLset_transformation_matrix();
+		~GCLgrid();
+};
+//3d version is identical except it requires 3 indexes instead of 2 for
+//coordinates.  We use inheritance to simply this description.
+class GCLgrid3d : public GCLgrid
+{
+	public:
+		double dx3_nom;
+		int n3;
+		int k0;
+		double ***x1, ***x2, ***x3;
+		double ***lat, ***lon, ***r;
+
+		GCLgrid3d(){
+			n1=0;n2=0;n3=0;
+			x1=NULL;x2=NULL;x3=NULL;lat=NULL;lon=NULL;r=NULL;
+		};
+		GCLgrid3d(int n1size, int n2size, int n3size);
+		GCLgrid3d(int n1size, int n2size, int n3size, 
+			char *n, double la0, double lo0,
+			double radius0, double az, 
+			double dx1n, double dx2n, double dx3n,
+			int iorigin, int jorigin);
+		GCLgrid3d(Dbptr db, char *nm); 
+		GCLgrid3d(const GCLgrid3d&); 
+		GCLgrid3d& operator=(const GCLgrid3d& );
+		void dbsave(GCLgrid3d&, Dbptr, char *);
+		void lookup(double, double, double);
+		void reset_index() {ix1=i0; ix2=j0; ix3=k0;};
+		void get_index(int *ind) {ind[0]=ix1; ind[1]=ix2; ind[2]=ix3;};
+		~GCLgrid3d();
+};	  		
+//
+//These are generic scalar and vector fields defined on a GCLgrid object
+//of 2 or 3d
+//
+class GCLscalarfield :  public GCLgrid
+{
+	public:
+		double **val;
+
+		GCLscalarfield();
+		GCLscalarfield(int, int);
+		GCLscalarfield(GCLgrid& );
+		GCLscalarfield& operator=(const GCLscalarfield&);
+		void operator+=(const GCLscalarfield&);
+		void operator*=(double);
+		double interpolate(double,double,double);
+		~GCLscalarfield();
+};
+class GCLvectorfield : public GCLgrid
+{
+	public:
+		int nv;
+		double ***val;
+
+		GCLvectorfield();
+		GCLvectorfield(int,int,int);
+		GCLvectorfield(GCLgrid &,int);
+		GCLvectorfield& operator=(const GCLvectorfield&);
+		void operator+=(const GCLvectorfield&);
+		void operator*=(double);
+		double *interpolate(double,double,double);
+		~GCLvectorfield();
+};
+class GCLscalarfield3d : public GCLgrid3d 
+{
+	public:
+		double ***val;
+
+		GCLscalarfield3d();
+		GCLscalarfield3d(int,int,int);
+		GCLscalarfield3d(GCLgrid3d &);
+		GCLscalarfield3d& operator=(const GCLscalarfield3d&);
+		void operator+=(const GCLscalarfield3d&);
+		void operator*=(double);
+		double interpolate(double,double,double);
+		~GCLscalarfield3d();
+};
+class GCLvectorfield3d : public GCLgrid3d
+{
+	public:
+		int nv;
+		double ****val;
+
+		GCLvectorfield3d();
+		GCLvectorfield3d(int,int,int,int);
+		GCLvectorfield3d(GCLgrid3d &,int);
+		GCLvectorfield3d& operator=(const GCLvectorfield3d&);
+		void operator+=(const GCLvectorfield3d&);
+		void operator*=(double);
+		double *interpolate(double,double,double);
+		~GCLvectorfield3d();
+};
+double r0_ellipse(double);
+double ****create_4dgrid_contiguous(int, int, int, int);
+double ***create_3dgrid_contiguous(int, int, int);
+double **create_2dgrid_contiguous(int, int);
+void GCLlookup_error_handler(int);
+.nf
+.fi
+.in
+.ft R
+.SH ERROR CONDITION
+The \fBlookup\fB functions throw the following error conditions:
+.IP 2
+A warning about a point in the grey area at the edge of the grid.  
+It means interpolation is possible, but is potentially subject to
+fairly large errors because we have to extrapolate instead of
+interpolate.  This error can be simply ignored or dealt with 
+some other way.  
+.IP 1
+The requested point is outside the bounds of this grid.  Index 
+position is undefined.  This condition should be caught as a nonfatal
+error as it should be common to ask for a point outside a defining
+box.
+.IP -1
+Convergence error.  The user should assume the point returned in
+the index is meaningless and handle the error appropriately.
+.IP -2
+One or more parts of the GCLgrid arrays are incomplete.  This should
+only happen if one creates a GCLgrid manually using an incomplete
+constructor.  
+The calling program should trap this condition and terminate the program
+as a coding error.  
+
+.SH RETURN VALUES
+.SH LIBRARY
+$(DBLIBS) -lgclgrid
+.SH "BUGS AND CAVEATS"
+This library is the author's first serious attempt at a C++
+package.  Some things may be done in an odd way as a result and
+the results should be viewed with a healthy dose of skepticism.
+.SH AUTHOR
+.nf
+Gary L. Pavlis
+Indiana University
+pavlis@indiana.edu
+.fi
+.\" $Id: gclgrid.3,v 1.1 2003/01/03 23:08:59 pavlis Exp $

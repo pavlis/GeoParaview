@@ -21,7 +21,7 @@ c------------------------------------------------------------
 
       subroutine fme_weights(xx,coord,fun)
       implicit none
-      integer i,itno,j,iv
+      integer i,itno,j
       double precision x(3),xx(3),xdum
       double precision coord(8,3)
       double precision der(3,8),fun(8),jac(3,3)
