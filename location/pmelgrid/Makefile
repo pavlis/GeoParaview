@@ -1,0 +1,14 @@
+BIN=pmelgrid
+PF=pmelgrid.pf
+CC=mpcc
+
+#MAN1=	pmelgrid.1
+cflags=-g -DMPI_SET -DBYPASS_DBADD -lmpi -mt
+ldflags=-L/opt/SUNWspro/lib
+ldlibs= -mt $(DBLIBS) $(F77LIBS) -xlic_lib=sunperf,fui,fai,fsu \
+    -ltrvltm -ldl -Bdynamic -lgenloc -lpfstream -lglputil -lm -dalign
+include $(ANTELOPEMAKE)  	# This line must appear following the definitions above, 
+
+OBJS=pmelgrid.o pfutilities.o
+$(BIN) : $(OBJS)
+	$(CC) $(CFLAGS) -o $@ $(OBJS) $(LDFLAGS) $(LDLIBS)

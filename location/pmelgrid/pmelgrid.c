@@ -9,6 +9,8 @@
 #include "db.h"
 #include "coords.h"
 #include "location.h"
+#include "pfstream.h"
+#include "pmelgrid.h"
 
 #ifdef MPI_SET
         #include <mpi.h>
@@ -144,6 +146,8 @@ void main(int argc, char **argv)
 	char *pfinfl=NULL;  /* input parameter file */
 	Pf *pf,*vpf;
 	Pf *pfi;
+	Pf_ensemble *pfe,*pfesc;
+	Pf *pfsc;
         /* Holds indexed list of stations with bad clocks problems 
         that should be used only with S-P type timing */
         Arr *badclocks;
@@ -165,6 +169,7 @@ void main(int argc, char **argv)
         parallel of vectors defining events with fixed coordinates */
         Arr *events_to_fix;
 	int nbcs;
+	FILE *fpo;
 
 	
 #ifdef MPI_SET
@@ -284,7 +289,6 @@ option which is know to cause problems\nrecenter set off\n");
 
 	while(pfi=pfread_stream(streamin)!=NULL)
 	{
-		Pf_enemble *pfe;
 		int nevents;
 		Tbl **ta;
 		Hypocenter hypocentroid;
@@ -325,7 +329,7 @@ option which is know to cause problems\nrecenter set off\n");
 					pfe->groups_end[i],
 					arr_phases,
 					stations);
-			evid[i]=pfget_in(pfe->pf[0],"evid");
+			evid[i]=pfget_int(pfe->pf[0],"evid");
 			ndata += maxtbl(ta[i]);
 		}
 		/* This function alters the phase handles by setting
@@ -418,14 +422,23 @@ option which is know to cause problems\nrecenter set off\n");
 		pfensemble_put_double(pfe,"sswrodgf",smatrix->sswrodgf);
 		pfensemble_put_int(pfe,"ndgf",smatrix->ndgf);
 		pfensemble_put_double(pfe,"sdobs",smatrix->rmsraw);
+		/* This inserts revised attributes into the pfe */
+		update_ensemble(pfe,pf,h0,ta);
 		/* now we write most results to primary output stream */
-  
-		pfstream_save_results(pfe,evid,h0,ta,smatrix??) // NEED TO DO pattern after dbpmel_save_results 
+		pfo=build_ensemble(NULL,pfe,"arrivals");
+		free_Pf_ensemble(pfe);
+		pfesc = build_sc_ensemble(gridid,smatrix,pf);
+		pfsc = build_ensemble(NULL,pfesc,"station_corrections");
+		free_Pf_ensemble(pfesc);
+		/* these three calls place data on output stream with
+		 * two main blocks -- one for arrivals the other for
+		 * path anomaly output tables */
+		fpo = open_pfstream_output(streamout);
+		pfwrite_stream(pfo,streamout,fpo,0);
+		pfwrite_stream(pfsc,streamout,fpo,1);
 		
-		pf_save_sc(pfe,smatrix,pf); //NEEDS TO BE DONE
 
-
-
+		/* memory cleanup */
 		for(i=0;i<nevents;++i)
 		{
 			freetbl(ta[i],free);
