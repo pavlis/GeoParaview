@@ -390,7 +390,8 @@ void main(int argc, char **argv)
 				if((chide!=0) && PF2DBSVerbose)
 				  elog_notify(0,"Cannot update id for table %s\n",
 					table);
-				dbadd_row_pfe(db,pfe->pf[j],tam);
+				if(pfget_boolean(pfe->pf[j],"data_valid"))
+				      dbadd_row_pfe(db,pfe->pf[j],tam);
 			}
 		}
 		table_list = keysarr(save_by_group);
@@ -424,7 +425,8 @@ void main(int argc, char **argv)
 				if((chide!=0) && PF2DBSVerbose && (j==0))
 				   elog_notify(0,"Cannot update id for table %s\n",
 					table);
-				dbadd_row_pfe(db,
+				if(pfget_boolean(pfe->pf[pfe->group_start[j]],"data_valid"))
+				    dbadd_row_pfe(db,
 					pfe->pf[pfe->group_start[j]],tam);
 			}
 		}
@@ -454,7 +456,8 @@ void main(int argc, char **argv)
 				elog_notify(0,"Cannot update id for table %s\n",
                                         table);
 			db = dblookup(db,0,table,0,0);
-			dbadd_row_pfe(db,pfe->pf[0],tam);
+			if(pfget_boolean(pfe->pf[0],"data_valid"))
+				dbadd_row_pfe(db,pfe->pf[0],tam);
 		}
 		freearr(pfearr,free_Pf_ensemble);
 	}
