@@ -157,7 +157,7 @@ void free_Pf_ensemble(Pf_ensemble *pfe)
 	{
 		for(i=0;i<(pfe->nmembers);++i)
 			if(pfe->pf[i] != NULL) pffree(pfe->pf[i]);
-		free(pfe->pf);
+		if(pfe->pf != NULL) free(pfe->pf);
 	}
 	if(pfe->ngroups>0)
 	{
@@ -500,3 +500,38 @@ void pfensemble_put_string(Pf_ensemble *pfe,char *name,char *value)
 	for(i=0;i<(pfe->nmembers);++i)
 		pfput_string(pfe->pf[i],name,value);
 }
+/* Simple little function that builds the group_records &Tbl 
+as a Pf from the contents of the Pfensemble structure.  This is
+necessary on outputs to define tables build with one row per
+group.
+*/
+Pf *pfensemble_convert_group(Pf_ensemble *pfe)
+{
+	Tbl *t;
+	int i;
+	char buf[50];
+	char *str;
+	Pf *pf;
+
+	pf = pfnew(PFFILE);
+	t=newtbl(0);
+	for(i=0;i<pfe->ngroups;++i)
+	{
+		sprintf(buf,"%d %d",pfe->group_start[i],
+					pfe->group_end[i]);
+		str=strdup(buf);
+		pushtbl(t,str);
+	}
+	pfput_tbl(pf,"group_records",t);
+	/* FUTURE PROBLEM LIKELY HERE:  currently pfput_tbl 
+	has a memory management irregularity that creates this
+	odd combo.  A new tbl is created and stored in the pf, but
+	the leaves of the pf list are not duplicated.  Thus we 
+	remove the tbl yet do not free the leaves.  A memory 
+	leak will occur here if this is repaired as I have suggested
+	to Dan Quinlan. */
+	freetbl(t,0);
+	return(pf);
+}	
+		
+

@@ -33,6 +33,7 @@ void pfensemble_put_time(Pf_ensemble *,char *,double);
 void pfensemble_put_int(Pf_ensemble *,char *,int);
 void pfensemble_put_string(Pf_ensemble *,char *,char *);
 Tbl *pfget_Attribute_map(Pf *,char *);
+Pf *pfensemble_convert_group(Pf_ensemble *);
 
 /* thread routines */
 Pfstream_handle *pfstream_start_read_thread(char *);

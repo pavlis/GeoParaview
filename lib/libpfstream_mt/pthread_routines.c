@@ -56,20 +56,23 @@ void *pfstream_write_data(void *arg)
 		Should not require user to have to do this */
 		itest = pfget(pf,"FINISHED",(void **)&pftest);
 		if(itest==PFINVALID)
+		{
 			fini=0;
+			pfput_boolean(pf,"FINISHED",0);
+		}
 		else
 			fini=pfget_boolean(pf,"FINISHED");
 		if(fini) 
 		{
 			fprintf(pfsc->fp,"%s\n",END_OF_DATA_SENTINEL);
 			fflush(pfsc->fp);
+			sleep(20);
 			fclose(pfsc->fp);
 			break;
 		}
 		pfout(pfsc->fp,pf);
 		fprintf(pfsc->fp,"%s\n", ENDPF_SENTINEL);
 		fflush(pfsc->fp);
-		fclose(pfsc->fp);
 		/* We have release the memory for pf here as the caller
 		is pushing this away a forgetting about it */
 		pffree(pf);
