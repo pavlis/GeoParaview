@@ -1,0 +1,82 @@
+stack_time_start 0.0
+stack_time_end 15.0
+data_time_window_start -10.0
+data_time_window_end 30.0
+waveform_directory ./pwstack
+pseudostation_grid_name test
+station_metadata &Tbl{
+    sta string
+    chan string
+    time real
+    endtime real
+    nsamp int
+    samprate real
+    dfile string
+    dir string
+	arrival.time real
+	arrival.iphase string
+	assoc.phase string
+    wfdisc.jdate int
+    calib real
+    	site.lat real
+    	site.lon real
+    	site.elev real
+    	site.refsta string
+    	site.dnorth real
+    	site.deast real
+    	sitechan.hang real
+    	sitechan.vang real
+    	hang real
+    	vang real
+}
+ensemble_metadata &Tbl{
+dir string
+evid int
+}
+stack_metadata &Tbl{
+wfprocess.pwfid int
+wfprocess.time real
+wfprocess.endtime real
+wfprocess.dir string
+wfprocess.dfile string
+wfprocess.foff int
+wfprocess.datatype string
+wfprocess.samprate real
+wfprocess.nsamp int
+wfprocess.algorithm string
+}
+Data_Top_Mute &Arr{
+Time_Reference_Type relative
+Zero_End_Time 1.0
+End_Time 5.0
+}
+Stack_Top_Mute &Arr{
+Time_Reference_Type relative
+Zero_End_Time 1.0
+End_Time 5.0
+}
+Slowness_Grid_Definition &Arr{
+Slowness_Grid_Name test
+uxlow -0.1
+uylow -0.1
+nux 21
+nuy 21
+dux 0.01
+duy 0.01
+}
+dbprocess_commands &Tbl{
+dbopen arrival
+dbleftjoin wfdisc
+dbjoin assoc
+dbjoin origin
+dbjoin event
+dbjoin sitechan
+dbjoin site
+dbsort evid sta chan
+dbgroup evid sta
+}
+depth_dependent_aperture &Tbl{
+0.0 10.0  100.0
+5.0 10.0  100.0
+30.0 40.0  200.0
+}

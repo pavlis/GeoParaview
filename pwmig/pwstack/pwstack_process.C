@@ -26,7 +26,7 @@ void vadd(int n, double *x,int  incx, double *y,int  incy)
 string virtual_station_name(int ix1, int ix2)
 {
 	char name[8];
-	sprintf(name,"03.3d%03.3d",ix1,ix2);
+	sprintf(name,"%03.3d%03.3d",ix1,ix2);
 	return(string(name));
 }
 /*
@@ -358,8 +358,13 @@ int pwstack_ensemble(Three_Component_Ensemble& indata,
 		stackout->put_metadata("wfprocess.timetype","r"); // always relative
 		stackout->put_metadata("wfprocess.dir",dir);
 		stackout->put_metadata("wfprocess.dfile",dfile);
+/*  These are not needed because the dbsave function always sets
+these attributes using attributes of the Time_Series class.
 		stackout->put_metadata("wfprocess.samprate",1.0/dt);
 		stackout->put_metadata("wfprocess.nsamp",nsout);
+		stackout->put_metadata("samprate",1.0/dt);
+		stackout->put_metadata("nsamp",nsout);
+*/
 		stackout->put_metadata("wfprocess.algorithm","pwstack");
 
 		apply_top_mute(*stackout,stackmute);

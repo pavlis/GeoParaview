@@ -16,11 +16,11 @@ string MakeDfileName(int evid, int x1, int x2)
 	string dfile;
 	ostringstream sbuf(dfile);
 	sbuf<<"pwstack_"<<evid<<"_"<<x1<<"_"<<x2;
-	return(dfile);
+	return(sbuf.str());
 }
 void usage()
 {
-        cbanner((char *)"$Revision: 1.12 $ $Date: 2005/01/22 15:40:25 $",
+        cbanner((char *)"$Revision: 1.13 $ $Date: 2005/01/22 22:16:37 $",
 		(char *)"dbin dbout [-v -V -pf pfname]",
                 (char *)"Gary Pavlis",
                 (char *)"Indiana University",
