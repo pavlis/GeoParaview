@@ -94,7 +94,11 @@ int getline(char *line,int maxline, int fd)
 	{
 		ierr=read(fd,line+i,1);
 		if(ierr<=0) return(ierr);
-		if(line[i]=='\n') return(i);
+		if(line[i]=='\n') 
+		{
+			line[i+1]='\0';
+			return(i);
+		}
 	}
 	return(maxline);
 }
@@ -107,7 +111,7 @@ Pf *pfstream_read(char *fname)
 	int space_in_buffer=BUFSIZE0;
 	int high_water_mark=0;
 	Pf *pf=NULL;
-	int linecount=0,ncread;
+	int linecount=0,ncread,ierr;
 
 	buffer=(char *)malloc(BUFSIZE0);
 	if(buffer==NULL) elog_die(0,"pfstream_read:  cannot malloc input buffer\n");
@@ -121,7 +125,7 @@ Pf *pfstream_read(char *fname)
 		if(ncread==MAXLINE)
 			elog_complain(0,"pfstream_read encountered a long line of length %d that exceeded the internal buffer size of %d\nData may be dropped\n",
 				ncread,MAXLINE);
-		if(!strcmp(line,ENDPF_SENTINEL) )break;
+		if(strstr(line,ENDPF_SENTINEL)!=NULL )break;
 
 		strcat(buffer,line);
 		high_water_mark=strlen(buffer);
@@ -136,7 +140,12 @@ Pf *pfstream_read(char *fname)
 	}
 	close(fd);
 	if(linecount<=0) return(NULL);
-	if(pfcompile(buffer,&pf)) pf=NULL;
+	ierr=pfcompile(buffer,&pf);
+	if(ierr!=0) 
+	{
+		elog_complain(1,"pfstream_read:  pfcompile failed\n");
+		pf=NULL;
+	}
 	free(buffer);
 	return(pf);
 }
@@ -149,6 +158,7 @@ pointers.  It is called by the ensemble input routine below */
 Pf_ensemble *create_Pf_ensemble(int nmembers,int ngroups)
 {
 	Pf_ensemble *pfe;
+	int i;
 
 	allot(Pf_ensemble *,pfe,1);
 	/* I intentionally set these null to start */
@@ -158,6 +168,8 @@ Pf_ensemble *create_Pf_ensemble(int nmembers,int ngroups)
 	{
 		allot(Pf **,pfe->pf,nmembers);
 		pfe->nmembers=nmembers;
+		/* explicit initialization a good idea here */
+		for(i=0;i<nmembers;++i) pfe->pf[i]=NULL;
 	}
 	else
 		pfe->nmembers=0;
@@ -194,8 +206,8 @@ void free_Pf_ensemble(Pf_ensemble *pfe)
 	normally does not duplicate the tbl entries read from
 	the parent file.  This assumes these tbl's were created
 	by a copy operation like that below */
-	freetbl(pfe->ensemble_keys,free);
-	freetbl(pfe->group_keys,free);
+	if(pfe->ensemble_keys!=NULL) freetbl(pfe->ensemble_keys,free);
+	if(pfe->group_keys!=NULL) freetbl(pfe->group_keys,free);
 	free(pfe);
 }
 
@@ -251,6 +263,22 @@ Pf_ensemble *pfget_Pf_ensemble(Pf *pfin,char *tag)
 	Tbl *list_keys;
 	int i;
 
+	/* We duplicate the elements of this tbl so 
+	we can release the space of the parent strings */
+	ttmp=pfget_tbl(pfin,"group_keys");
+	if(ttmp!=NULL)
+	{
+		pfe->group_keys=duptbl(ttmp,strdup);
+		freetbl(ttmp,0);
+	}
+	/* group_records is a Tbl containing secondary grouping of 
+	the ensemble.  If it is empty, we assume no grouping */
+	ttmp = pfget_tbl(pfin,"group_records");
+	if(ttmp==NULL)
+		ngroups=0;
+	else
+		ngroups=maxtbl(ttmp);
+
 	pferaw=NULL;
 
 	/*This extracts the data enclosed by "ensemble &Arr {" to "}" */
@@ -259,16 +287,10 @@ Pf_ensemble *pfget_Pf_ensemble(Pf *pfin,char *tag)
 	/* this loop takes apart the pieces of the ensemble tagged by unspecified keywords.*/
 	/* output will be in the order determined by the tags (normally numbers like 000000, 000001, etc.*/
 	list_keys=pfkeys(pferaw);
-	/* group_records is a Tbl containing secondary grouping of 
-	the ensemble.  If it is empty, we assume no grouping */
-	ttmp = pfget_tbl(pfin,"group_records");
-	if(ttmp=NULL)
-		ngroups=0;
-	else
-		ngroups=maxtbl(ttmp);
 	/* We now know the size of the Pf_ensemble and can create one */
 	nmembers=maxtbl(list_keys);
 	pfe=create_Pf_ensemble(nmembers,ngroups);
+	/* First we build the group array vectors */
 	if(ngroups>0)
 	{
 		for(i=0;i<maxtbl(ttmp);++i)
@@ -281,13 +303,8 @@ Pf_ensemble *pfget_Pf_ensemble(Pf *pfin,char *tag)
 			pfe->group_end[i]=ie;
 		}
 		freetbl(ttmp,0);
-		/* We duplicate the elements of this tbl so 
-		we can release the space of the parent strings */
-		ttmp=pfget_tbl(pfin,"group_keys");
-		pfe->group_keys=duptbl(ttmp,strdup);
-		freetbl(ttmp,0);
 	}
-	/* now the big work -- filling the Pf array */
+	/* now the big work -- filling the Pf vector */
 	for(i=0;i<maxtbl(list_keys);++i)
 	{
 		char *key;
@@ -361,15 +378,12 @@ Written:  September 2002
 
 int pfwrite_stream(Pf *pf, char *fname, FILE *fp, int close_on_return)
 {
-	int fd;
-
 	if(fp==NULL)
 	{
 		fp=open_pfstream_output(fname);
 		/* assume open_pfstream_output posted an error in ths condition*/
 		if(fp==NULL) return(-1);
 	}
-
 	pfout(fp,pf);
 	if(close_on_return) fclose(fp);
 	return(0);
@@ -404,7 +418,7 @@ Pf *build_ensemble(Pf *ensemble_pf,Pf_ensemble *pfe, char *tag)
 	char *hdrblock;
 	int hdrsize;
 	int i;
-	Pf *pfresult;
+	Pf *pfresult=NULL;
 	int npf;  /* useful shorthand */
 
 	npf=pfe->nmembers;
@@ -429,16 +443,16 @@ Pf *build_ensemble(Pf *ensemble_pf,Pf_ensemble *pfe, char *tag)
 	strcpy(pfimage,hdrblock);
 	strcat(pfimage,"\n");
 	strcat(pfimage,tag);
-	strcat(pfimage,"&Arr{\n");
+	strcat(pfimage," &Arr{\n");
+fprintf(stderr,"%s\n",pfimage);
 	for(i=0;i<npf;++i)
 	{
 		char key[16];
-		sprintf(key,"%0.5d &Arr{\n",i);
+		sprintf(key,"%0.5d ",i);
 		strcat(pfimage,key);
 		strcat(pfimage,blocks[i]);
-		strcat(pfimage,"}");
 	}
-	strcat(pfimage,"}");
+	strcat(pfimage,"}\n");
 
 	for(i=0;i<npf;++i) free(blocks[i]);
 	free(blocks);

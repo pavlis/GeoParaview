@@ -7,12 +7,12 @@ MAN3=
 MAN5=		# man pages for file formats
 
 cflags=-g
-ldlibs= $(DBLIBS)
+ldlibs= $(DBLIBS) 
 
 include $(ANTELOPEMAKE)  	
 
 
-OBJS=pfstream.o
+OBJS=pfstream.o pfdup.o
 $(LIB) : $(OBJS)
 	rm -f $@
 	$(AR) $(ARFLAGS) $@ $(LORDER) $(OBJS) $(TSORT)
