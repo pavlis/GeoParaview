@@ -8,9 +8,77 @@
 #include "glputil.h"
 void usage()
 {
-	banner(Program_Name, "$Revision: 1.3 $ $Date: 2001/08/01 13:05:32 $") ;
+	banner(Program_Name, "$Revision: 1.4 $ $Date: 2001/08/02 20:56:29 $") ;
 	elog_die(0,"usage:  %s db [-pf pfname]\n",Program_Name);
 }
+/* This is an internal definition of an event location object that holds
+all the things we need here.
+*/
+typedef struct evloc {
+	double lat, lon, z;
+	int evid;
+} EVENTlocation;
+/* This function loads up the full event catalog of EVENTlocation structures
+for the database view pointed to by db.  Note this should be a database
+view formed by event->origin subsetted with orid==prefor. 
+It returns a Tbl loaded with these pointers.  
+*/
+Tbl *load_full_catalog(Dbptr db)
+{
+	Tbl *t;
+	int nrecords;
+	int i;
+	EVENTlocation *e;
+
+	t = newtbl(0);
+	dbquery(db,dbRECORD_COUNT,&nrecords);
+	for(db.record=0;db.record<nrecords;++db.record)
+	{
+		allot(EVENTlocation *,e,1);
+		dbgetv(db,0,"origin.lat",&(e->lat),
+			"origin.lon",&(e->lon),
+			"origin.depth",&(e->z),
+			"evid",&(e->evid),0);
+		e->lat = rad(e->lat);
+		e->lon = rad(e->lon);
+		pushtbl(t,e);
+	}
+	return(t);
+}
+/* Scans a list of EVENTlocation structures stored in all
+and builds a list of pointers to EVENTlocation structures
+that have a distance < radius and with zmin<=z<zmax.
+Depths are assumed to be in km and lat, lon values are 
+all assumed to ahve been converted to radians.  
+Function returns a fresh list that should be freed when
+finished.  freed as freetbl(t,0), that is -- do not call 
+free on the pointers */
+
+Tbl *find_close_events(Tbl *all,double lat0,double lon0,
+	double zmin, double zmax, double radius)
+{
+	EVENTlocation *e;
+	int i;
+	double delta, azimuth;
+	Tbl *t;
+
+	t = newtbl(0);
+
+	for(i=0;i<maxtbl(all);++i)
+	{
+		e = (EVENTlocation *)gettbl(all,i);
+		/* it is wise to bypass the distance test if the
+		depth test is not satisfied */
+		if( ((e->z)>zmax) || ((e->z)<zmin) )continue;
+
+		dist(e->lat,e->lon,lat0,lon0,&delta,&azimuth);
+		delta = deg(delta);
+		if(deg2km(delta)<radius)pushtbl(t,e);
+	}
+	return(t);
+}
+
+
 /* This program is a companion to dbpmel.  It reads a gclgrid file and an input
 database and creates an css3.0 extension table called cluster that links
 events in the database to each grid point.  The recipe used to do this is 
@@ -31,13 +99,23 @@ usage:  cluster db [-pf pffile]
 
 Author:  Gary Pavlis
 Written:  July 2001
+Revised:  Revision 1.4 changed the algorithm because of a serious 
+performance problem in earlier versions.  Initial runs on database
+of the order of 8000 events took processing times of the order
+of 5 days (estimated, never let one go to completion).  That version
+used endless calls to dbsubset using the distance calculator 
+that is part of datascope's expression calculator.  To speed the
+code the ENTIRE catalog is now loaded into memory the distance
+calculation is all done with native binary quantities.  I 
+expect at least an order of magnitude increase in speed.
 */
 
 void main(int argc, char **argv)
 {
 	char *dbin;  /* Input db name */
-	Dbptr db,dbv,dbc,dbh,dbs;
-	int i,j,k;
+	Dbptr db,dbv,dbc,dbh;
+	Tbl *proctbl;  /* operations passed to dbprocess */
+	int i,j,k,ie;
 	char *pfin=NULL;
 	Pf *pf;
 
@@ -50,13 +128,15 @@ void main(int argc, char **argv)
 	double gridlat,gridlon,gridr,gridz;
 	double zmin,zmax;
 	double search_radius,search_radius_km;
-	char sstring[128];
 	int nrecs;
 	int evid;
 	double hypocen_lat,hypocen_lon,hypocen_z;
+	
+	EVENTlocation *e;
+	Tbl *allevents,*keepers;
 
 	elog_init(argc,argv);
-	elog_notify (0, "$Revision: 1.3 $ $Date: 2001/08/01 13:05:32 $") ;
+	elog_notify (0, "$Revision: 1.4 $ $Date: 2001/08/02 20:56:29 $") ;
 	if(argc<2) usage();
 
 	dbin = argv[1];
@@ -93,8 +173,8 @@ void main(int argc, char **argv)
 		elog_die(0,"Must have geographic components of GCLgrid object with name %s defined for %s to run\n",gridname,Program_Name);
 
 	if(grd == NULL) elog_die(0,"Problems in GCL3Dgrid_load_db\n");
-
-	dbv = dbform_working_view(db,pf,"working_view");
+	proctbl = strtbl("dbopen event","dbjoin origin","dbsubset orid==prefor",0);
+	dbv = dbprocess(db,proctbl,0);
 	dbquery(dbv,dbRECORD_COUNT,&nrecs);
 	if(nrecs<=0)
 		elog_die(0,"Working view is empty\nCheck event->origin join\n");
@@ -102,6 +182,9 @@ void main(int argc, char **argv)
 		elog_log(0,"Working view has %d events\n",nrecs);
 	dbc = dblookup(db,0,"cluster",0,0);
 	dbh = dblookup(db,0,"hypocentroid",0,0);
+
+	/* This loads up the full catalog  of events */
+	allevents = load_full_catalog(dbv);
 
 	/*3d looping */
 	elog_log(0,"Grid point hit counts (lat, long, count)\n");
@@ -124,16 +207,15 @@ void main(int argc, char **argv)
 			/* somewhat arbitrary ceiling */
 			if(zmin<-10.0) zmin=-10.0;
 			if(zmax < zmin)elog_die(0,"Grid setup problem:  depth floor computed as %lf km, which is above all earth's surface\n",zmax);
-			sprintf(sstring,
-			  "distance(%lf,%lf,origin.lat,origin.lon)<=%lf && depth>=%lf && depth<=%lf",
-				deg(grd->lat[i][j][k]),
-				deg(grd->lon[i][j][k]),
-				search_radius,zmin,zmax);
-			dbs =dbsubset(dbv,sstring,0);
-			dbquery(dbs,dbRECORD_COUNT,&nrecs);	
+
+			keepers = find_close_events(allevents,
+					grd->lat[i][j][k],grd->lon[i][j][k],
+					zmin,zmax,search_radius_km);
+
+			nrecs = maxtbl(keepers);
 			if(nrecs>=minimum_events) break;
 
-			dbfree(dbs);
+			freetbl(keepers,0);
 			search_radius_km += dr;
 		    }
 		    if(nrecs>=minimum_events) 
@@ -143,18 +225,18 @@ void main(int argc, char **argv)
 			hypocen_z = 0.0;
 			elog_log(0,"%lf %lf %d\n",deg(grd->lat[i][j][k]),
 			deg(grd->lon[i][j][k]),nrecs);
-			for(dbs.record=0;dbs.record<nrecs;++dbs.record)
+			for(ie=0;ie<nrecs;++ie)
 			{
 			/* We have to be careful about crossing
 			the equator or the prime meridian*/
 			int lon_is_positive;
 			double lat,lon,z;
 
-			dbgetv(dbs,0,"origin.lat",&lat,
-				"origin.lon",&lon,
-				"origin.depth",&z,
-				"evid",&evid,0);
-			if(dbs.record==0)
+			e = (EVENTlocation *)gettbl(keepers,i);
+			lat = deg(e->lat);
+			lon = deg(e->lon);
+			z = deg(e->z);
+			if(ie==0)
 			{
 				if(lon>0.0)
 					lon_is_positive=1;
@@ -179,10 +261,10 @@ void main(int argc, char **argv)
 			hypocen_z += z;
 			if(dbaddv(dbc,0,"gridname",gridname,
 				"gridid",gridid,
-				"evid",evid,0)<0) elog_die(0,"Error appending to cluster table for gridid %d and evid %d\n",
+				"evid",e->evid,
+					0)<0) elog_die(0,"Error appending to cluster table for gridid %d and evid %d\n",
 					gridid,evid);
 			}
-			dbfree(dbs);
 			hypocen_lat /= (double)nrecs;
 			hypocen_lon /= (double)nrecs;
 			hypocen_z /= (double)nrecs;
@@ -209,4 +291,5 @@ void main(int argc, char **argv)
 			    "Error updating hypocentroid table for grid point %d,%d,%d\n",
 					i,j,k);
 		}
+	freetbl(allevents,free);
 }

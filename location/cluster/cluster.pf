@@ -4,9 +4,4 @@ maximum_radius 80.0
 radius_step_size 5.0
 minimum_event_count 10
 depth_range 20.0
-GCLgrid_name kyghyz
-working_view &Tbl{
-dbopen event
-dbjoin origin
-dbsubset orid==prefor
-}
+GCLgrid_name kyrghyz
