@@ -11,7 +11,7 @@ cflags=-g
 include $(ANTELOPEMAKE)  	
 
 
-OBJS=	create_destroy.o dbsubs.o fme_interpolate.o method_subs.o
+OBJS=	create_destroy.o dbsubs.o ellipsoid.o fme_interpolate.o method_subs.o
 $(LIB) : $(OBJS)
 	rm -f $@
 	$(AR) $(ARFLAGS) $@ $(LORDER) $(OBJS) $(TSORT)
