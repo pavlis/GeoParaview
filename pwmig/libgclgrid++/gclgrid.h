@@ -105,8 +105,8 @@ class GCLscalarfield :  public GCLgrid
 		GCLscalarfield(int, int);
 		GCLscalarfield(GCLgrid& );
 		GCLscalarfield& operator=(const GCLscalarfield&);
-		GCLscalarfield operator+=(const GCLscalarfield&);
-		GCLscalarfield operator*=(double);
+		void operator+=(const GCLscalarfield&);
+		void operator*=(double);
 		double interpolate(double,double,double);
 		~GCLscalarfield();
 };
@@ -120,8 +120,8 @@ class GCLvectorfield : public GCLgrid
 		GCLvectorfield(int,int,int);
 		GCLvectorfield(GCLgrid &,int);
 		GCLvectorfield& operator=(const GCLvectorfield&);
-		GCLvectorfield operator+=(const GCLvectorfield&);
-		GCLvectorfield operator*=(double);
+		void operator+=(const GCLvectorfield&);
+		void operator*=(double);
 		double *interpolate(double,double,double);
 		~GCLvectorfield();
 };
@@ -134,8 +134,8 @@ class GCLscalarfield3d : public GCLgrid3d
 		GCLscalarfield3d(int,int,int);
 		GCLscalarfield3d(GCLgrid3d &);
 		GCLscalarfield3d& operator=(const GCLscalarfield3d&);
-		GCLscalarfield3d operator+=(const GCLscalarfield3d&);
-		GCLscalarfield3d operator*=(double);
+		void operator+=(const GCLscalarfield3d&);
+		void operator*=(double);
 		double interpolate(double,double,double);
 		~GCLscalarfield3d();
 };
@@ -149,8 +149,8 @@ class GCLvectorfield3d : public GCLgrid3d
 		GCLvectorfield3d(int,int,int,int);
 		GCLvectorfield3d(GCLgrid3d &,int);
 		GCLvectorfield3d& operator=(const GCLvectorfield3d&);
-		GCLvectorfield3d operator+=(const GCLvectorfield3d&);
-		GCLvectorfield3d operator*=(double);
+		void operator+=(const GCLvectorfield3d&);
+		void operator*=(double);
 		double *interpolate(double,double,double);
 		~GCLvectorfield3d();
 };

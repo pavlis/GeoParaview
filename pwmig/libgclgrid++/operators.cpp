@@ -1,5 +1,5 @@
 #include "gclgrid.h"
-GCLscalarfield3d GCLscalarfield3d::operator+=(const GCLscalarfield3d& g)
+void GCLscalarfield3d::operator+=(const GCLscalarfield3d& g)
 {
 	int i,j,k;
 	double valnew;
@@ -22,10 +22,9 @@ GCLscalarfield3d GCLscalarfield3d::operator+=(const GCLscalarfield3d& g)
 			}
 		}
 	}
-	return(*this);
 }
 
-GCLvectorfield3d GCLvectorfield3d::operator += (const GCLvectorfield3d& g)
+void GCLvectorfield3d::operator += (const GCLvectorfield3d& g)
 {
 	int i,j,k,l;
 	double *valnew;
@@ -48,9 +47,8 @@ GCLvectorfield3d GCLvectorfield3d::operator += (const GCLvectorfield3d& g)
 			}
 		}
 	}
-	return(*this);
 }
-GCLscalarfield GCLscalarfield::operator += (const GCLscalarfield& g)
+void GCLscalarfield::operator += (const GCLscalarfield& g)
 {
 	int i,j,k;
 	double valnew;
@@ -69,10 +67,9 @@ GCLscalarfield GCLscalarfield::operator += (const GCLscalarfield& g)
 			val[i][j]+=valnew;
 		}
 	}
-	return(*this);
 }
 
-GCLvectorfield GCLvectorfield::operator += (const GCLvectorfield& g)
+void GCLvectorfield::operator += (const GCLvectorfield& g)
 {
 	int i,j,k,l;
 	double *valnew;
@@ -92,18 +89,16 @@ GCLvectorfield GCLvectorfield::operator += (const GCLvectorfield& g)
 			delete valnew;
 		}
 	}
-	return(*this);
 }
-GCLscalarfield3d GCLscalarfield3d::operator *= (double c1)
+void GCLscalarfield3d::operator *= (double c1)
 {
 	int i,j,k;
 	for(i=0;i<n1;++i)
 		for(j=0;j<n2;++j)
 			for(k=0;k<n3;++k)
 				val[i][j][k]*=c1;
-	return(*this);
 }
-GCLvectorfield3d GCLvectorfield3d::operator *= (double c1)
+void GCLvectorfield3d::operator *= (double c1)
 {
 	int i,j,k,l;
 	for(i=0;i<n1;++i)
@@ -111,22 +106,19 @@ GCLvectorfield3d GCLvectorfield3d::operator *= (double c1)
 			for(k=0;k<n3;++k)
 				for(l=0;l<nv;++l)
 					val[i][j][k][l]*=c1;
-	return(*this);
 }
-GCLscalarfield GCLscalarfield::operator *= (double c1)
+void GCLscalarfield::operator *= (double c1)
 {
 	int i,j,k;
 	for(i=0;i<n1;++i)
 		for(j=0;j<n2;++j)
 			val[i][j]*=c1;
-	return(*this);
 }
-GCLvectorfield GCLvectorfield::operator *= (double c1)
+void GCLvectorfield::operator *= (double c1)
 {
 	int i,j,k,l;
 	for(i=0;i<n1;++i)
 		for(j=0;j<n2;++j)
 			for(l=0;l<nv;++l)
 				val[i][j][l]*=c1;
-	return(*this);
 }
