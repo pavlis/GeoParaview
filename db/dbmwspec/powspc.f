@@ -91,7 +91,7 @@ c  compute kspec discrete prolate spheroidal sequences for use as
 c  data windows along with the associated eigenvalues
 c
       rtol=1.d-8
-      atol=1.d-14
+      atol=1.d-13
       call rtpss(MXDATA,npts,kspec,bw,dpss,evalu1,iflag,work)
       call pssev(MXDATA,npts,kspec,bw,rtol,atol,dpss,evalu,evalu1)
       if(iflag.ne.0)then

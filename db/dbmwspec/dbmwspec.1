@@ -1,4 +1,4 @@
-.TH DBMWSPEC 1 # "$Date: 2001/05/22 12:37:44 $"
+.TH DBMWSPEC 1 # "$Date: 2001/05/22 18:54:22 $"
 .SH NAME
 dbmwspec \- computes multitaper spectral estimates for selected phases
 .SH SYNOPSIS
@@ -101,12 +101,16 @@ There are many.  The program is fairly verbose about problems.
 .SH "BUGS AND CAVEATS"
 .IP (1)
 The -correct option does not currently work.  
-.IP(2)
+.IP (2)
 There probably really should be an optional -sift parameter to subset 
 the input arrival table.  For now this can be done by using a 
 subsetted arrival table in dbin -- a common datascope hack. 
+.IP (3)
+I have conflicting reports that the scaling may be incorrect in
+this program.  To the best of my knowledge it is correct, but
+it is fair to warn you some would disagree with me.  
 .SH AUTHOR
 dbmwspec was written by Gary Pavlis, Indiana University.  All
 the real analytic stuff uses code in libmw courtesy of Frank
-Vernon and others.
-.\" $Id: dbmwspec.1,v 1.1 2001/05/22 12:37:44 pavlis Exp $
+Vernon and David Thomson.
+.\" $Id: dbmwspec.1,v 1.2 2001/05/22 18:54:22 pavlis Exp $

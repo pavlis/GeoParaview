@@ -173,7 +173,7 @@ void parse_spectra_windows(Pf *pf,Tbl **phases)
 	{
 		double start,end,tbwp;
 		line = gettbl(t,i);
-		sscanf(line, "%s %s %lg %lg %g",
+		sscanf(line, "%s %s %lg %lg %lf",
 		     phase, sname, &start, &end, &tbwp);
 		sps = (Spectra_phase_specification *)
 			 malloc(sizeof(Spectra_phase_specification));
