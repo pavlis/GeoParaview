@@ -37,14 +37,27 @@ void clear_station_corrections(Arr *);
 int initialize_station_corrections(Arr *,Arr *, Arr *,Hypocenter *);
 Dbptr dbform_working_view(Dbptr, Pf *, char *);
 Arr *dbpmel_load_stations(Dbptr, Pf *);
+
+#ifdef MPI_SET
+int dbpmel_process(Dbptr, Tbl *, Pf *, int, int);
+#else
 int dbpmel_process(Dbptr, Tbl *, Pf *);
+#endif
+
 int pmel(int, int *, Tbl **, Hypocenter *, Arr *,Hypocenter *,
 	SCMatrix *,Arr *, Location_options *, Pf *, Tbl **, Tbl **);
 
 SCMatrix *create_SCMatrix(Arr *, Arr *);
 Hypocenter db_load_initial(Dbptr,int);
+
+#ifdef BYPASS_DBADD
+int dbpmel_save_results(Dbptr, int, int *,Hypocenter *,
+        Tbl **, double, Location_options *, Pf *, FILE*);
+#else
 int dbpmel_save_results(Dbptr, int, int *,Hypocenter *,
 	Tbl **, double, Location_options *, Pf *);
+#endif
+
 void dbpmel_save_sc(int, Dbptr, SCMatrix *,Pf *);
 
 int compute_scref(SCMatrix *, Hypocenter *, Arr *, Arr *, Arr *);
@@ -55,3 +68,4 @@ int hypo_is_bad(Hypocenter *);
 int ftest_(float *, int *, float *, int *);
 char *get_fixlist(Arr *,int);
 Arr *load_calibration_events(Pf *);
+

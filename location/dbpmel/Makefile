@@ -1,17 +1,18 @@
-BIN=dbpmel
+BIN=dbpmel_mpi
 DATADIR=schemas
 DATA=genloc1.1
 PF=dbpmel.pf
+CC=mpcc
 
 #MAN1=	dbpmel.1
-cflags=-g
+cflags=-g -DMPI_SET -DBYPASS_DBADD -lmpi -mt
 ldflags=-L/opt/SUNWspro/lib
-ldlibs= -lgenloc -lglputil $(DBLIBS) $(F77LIBS) \
--ltrvltm -ldl -lm -xlic_lib=sunperf,fui,fai,fsu -dalign
+ldlibs= -mt $(DBLIBS) $(F77LIBS) -xlic_lib=sunperf,fui,fai,fsu \
+    -ltrvltm -ldl -Bdynamic -lgenloc -lglputil -lm -dalign
 include $(ANTELOPEMAKE)  	# This line must appear following the definitions above, 
 
 OBJS=dbpmel.o dbpmel_load_stations.o \
 	dbsubs.o fixlist_utilities.o \
-	pmel.o pmel_process.o scmatrixsubs.o mdebug.o
+	pmel.o pmel_process.o scmatrixsubs.o 
 $(BIN) : $(OBJS)
 	$(CC) $(CFLAGS) -o $@ $(OBJS) $(LDFLAGS) $(LDLIBS)

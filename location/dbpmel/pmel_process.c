@@ -1,6 +1,7 @@
 #include <math.h>
 #include <stdio.h>
-#include <sunperf.h>
+#include <unistd.h>
+#include </miscapps/forte6.2/SUNWspro/WS6U2/include/cc/sunperf.h>
 #include "stock.h"
 #include "arrays.h"
 #include "coords.h"
@@ -9,6 +10,36 @@
 #include "elog.h"
 #include "location.h"
 #include "dbpmel.h"
+
+#ifdef MPI_SET
+	#include <mpi.h>
+#endif
+
+#ifdef BYPASS_DBADD
+
+	/*
+	    If the macro "BYPASS_DBADD" is defined, then when 
+	    in the function dbpmel_save_results is called to 
+	    save the results of table assoc, we do not use
+	    dbadd call since that adds a lot of overhead for
+	    unknown reason, instead, we use direct UNIX file
+	    system call to update the flat-file database.
+	    The basic process is each process is writing to a
+	    separate file in temp director in the current working
+	    directory, after all processes are done with processing,
+	    process 0 will append all these results at the 
+	    end of the original assoc table and delete the 
+  	    temperary working directory.
+
+	    TEMPDIR is the name of the temperary working 
+	    directory, note, this name is relative to the 
+	    current working directory or the environmental
+	    variable PWD.
+	*/
+
+	#define TEMPDIR "temp"
+	#define MAXLEN 100
+#endif
 
 /* Simple little function to define the 3D reference model 
 used to compute bias components of solution.  It simply 
@@ -161,7 +192,12 @@ multiple channels.
 Author:  Gary Pavlis
 Written:  Fall 2000
 */
+
+#ifdef MPI_SET
+int dbpmel_process(Dbptr db, Tbl *gridlist,Pf *pf, int rank, int np)
+#else
 int dbpmel_process(Dbptr db, Tbl *gridlist,Pf *pf)
+#endif
 {
 	Pf *vpf;
 	Arr *arr_phase;
@@ -203,6 +239,48 @@ int dbpmel_process(Dbptr db, Tbl *gridlist,Pf *pf)
 	char *runname, *gridname;
 	int pmelfail;
 	Tbl *phaselist;
+
+#ifdef BYPASS_DBADD
+	FILE* fp;
+	char tempfilename[MAXLEN], shellcommand[MAXLEN], *longcommand; 		
+	int len;
+#endif
+
+#ifdef BYPASS_DBADD
+	
+	/*
+	    The statements from the following MPI_Barrier(..) 
+	    to the next one ensures the temperary working 
+	    directory is created by process 0 before any other 
+	    process tries to access it. The first MPI_Barrier(..)
+	    is really not necessary, but the second one is must.
+	*/
+        MPI_Barrier(MPI_COMM_WORLD);
+                
+        if (rank == 0)
+        {
+	    /*
+		Create the temperary working directory, if 
+		previously, there is a directory or file with
+	   	the same name, it will be silently deleted.
+	    */
+            len=2*strlen(TEMPDIR)+17;
+            longcommand=(char *)malloc(len*sizeof(char));
+            sprintf(longcommand, "rm -rf %s; mkdir %s", TEMPDIR,
+                TEMPDIR);
+            system(longcommand);
+            free(longcommand);
+        }
+                
+        MPI_Barrier(MPI_COMM_WORLD);
+
+	/*
+	    Create the temperary file for assoc table, note,
+	    this file is different for different processes.
+	*/
+	sprintf(tempfilename, "%s/temp%d", TEMPDIR, rank);
+	fp=fopen(tempfilename, "w+");
+#endif
 
 	initialize_hypocenter(&hypocentroid);
 	runname = pfget_string(pf,"pmel_run_name");
@@ -297,7 +375,20 @@ option which is know to cause problems\nrecenter set off\n");
 		int ndata;
 		int ierr;
 
+#ifdef MPI_SET
+	/*
+	    This is the part where each process is start
+	    doing different work. Each process will get a 
+	    portion of the global grid list and process
+	    it. Which portion depends on the rank of the
+	    current process.
+	*/
+	if (i%np == rank)
+	{
+#endif
+
 		gridid = (int)gettbl(gridlist,i);
+
 
 		dbputv(dbgs,0,"gridid",gridid,0);
 		dbevid_grp.record=dbALL;
@@ -396,6 +487,7 @@ option which is know to cause problems\nrecenter set off\n");
 		solution consistent with this fact */
 		dcopy(smatrix->ncol,smatrix->scref,1,smatrix->sc,1);
 		
+
 		/* This is the main processing routine.  It was 
 		intentionally built without any db hooks to make it
 		more portable */
@@ -414,7 +506,7 @@ option which is know to cause problems\nrecenter set off\n");
 		{
 			char *swork;
 			swork = (char *)gettbl(converge,k);
-			elog_log(0,"%s\n",swork);
+
 			/* The string ABORT in the convergence list
 			is used to flag a failure. */
 			if(strstr(swork,"ABORT")!=NULL) pmelfail=1;
@@ -422,15 +514,26 @@ option which is know to cause problems\nrecenter set off\n");
 		if(!pmelfail)
 		{
 			dbpmel_save_sc(gridid,db,smatrix,pf);
+
+
+#ifdef BYPASS_DBADD
+			if(dbpmel_save_results(db,nevents,evid,h0,
+                                ta,smatrix->sswrodgf,&o,pf,fp))
+#else
 			if(dbpmel_save_results(db,nevents,evid,h0,
 				ta,smatrix->sswrodgf,&o,pf))
+#endif
+
 			{
 				elog_notify(0,"Problems saving results\
 for cluster id %d\n",
 					gridid);
 			}
+
+
 			/* Missing function here should update
 			hypocentroid row */
+
 			if(dbaddv(dbcs,0,"gridid",gridid,
 				"gridname", gridname,
 				"pmelrun",runname,
@@ -446,11 +549,64 @@ for cluster id %d\n",
 		free(ta);
 		freetbl(converge,0);
 		freetbl(pmelhistory,free);
+
 		converge=NULL;
 		pmelhistory=NULL;
 		freetbl(reclist,0);
+
+#ifdef MPI_SET
+	}
+#endif
 	}
 	freearr(events_to_fix,0);
 	destroy_SCMatrix(smatrix);
+
+
+#ifdef BYPASS_DBADD
+
+	/*
+	    The MPI_Barrier(..) is to make sure process 0 deletes
+	    temperary files and directory after all the processes
+	    have finished working on them.	
+	*/
+	fclose(fp);
+	MPI_Barrier(MPI_COMM_WORLD);
+
+	if (rank==0)
+	{
+
+	    /*
+		Cat separate temperary files of different processes
+		together with test.assoc and form the complete
+		updated test.assoc table
+	    */
+	    longcommand=(char*)malloc((15+12*np)*sizeof(char)+15);
+
+	    sprintf(longcommand, "cat test.assoc ");	
+	    for(i=0; i<np; i++)
+	        sprintf(longcommand, "%s %s/temp%d", longcommand, TEMPDIR, 
+		    i);
+
+	    sprintf(longcommand, "%s > %s/temp", longcommand, TEMPDIR);
+	    system(longcommand); 		
+
+	    free(longcommand);
+
+	    /*
+		Replace the old test.assoc table using the updated one
+	    */
+	    sprintf(shellcommand, "mv %s/temp test.assoc", TEMPDIR);
+	    system(shellcommand);
+
+	    /*
+		Delete temperary working directory and files.
+	    */
+            sprintf(shellcommand, "rm -rf %s", TEMPDIR);   
+            system(shellcommand);
+
+	}
+#endif
+
+
 	return(0);
 }

@@ -10,6 +10,11 @@
 #include "location.h"
 #include "dbpmel.h"
 
+#ifdef MPI_SET
+	#include <mpi.h>
+#endif
+
+
 /* This small function parses an input string made up of
 a comma seperated list of integer ranges returning a Tbl
 of ints after expanding the full range defined by the 
@@ -149,6 +154,23 @@ void main(int argc, char **argv)
 	char *gridname;
 	Tbl *proctbl;
 
+#ifdef MPI_SET
+
+/*
+	Initialize the MPI parallel environment, MPI_Init
+	must be called before any other MPI call.
+	rank -- rank of a specific process
+	mp -- the total number of processes. This whole
+		process group is called MPI_COMM_WORLD
+*/
+	int rank, np;
+
+	MPI_Init(&argc, &argv);
+	MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+	MPI_Comm_size(MPI_COMM_WORLD, &np);
+#endif
+
+
 	/* Initialize the error log and write a version notice */
 	elog_init (argc, argv) ;
 	elog_log (0, "%s version %s\n", argv[0], version) ;
@@ -177,10 +199,11 @@ void main(int argc, char **argv)
 			usage();
 	}
 	/* set default this way*/
-	if(pfin == NULL) pfin = strdup("dbpmel");
+	if(pfin == NULL) pfin = (char *)strdup("dbpmel");
 	i = pfread(pfin,&pf);
 	if(i != 0) die(1,"Pfread error\n");
 	check_required_pf(pf);
+
 
 	/* Set up main database view.  This is a derived from code
 	in the related genloc program called relocate.
@@ -236,16 +259,33 @@ void main(int argc, char **argv)
 	pushtbl(sortkeys,"phase");
 	dbv = dbsort(dbv,sortkeys,dbSORT_UNIQUE,0);
 	dbquery(dbv, dbRECORD_COUNT, &nrows);
+
 	if(nrows != nrows_raw)
 		complain(0,"Input database has duplicate picks of one or more phases on multiple channels\n\
 Which picks will be used here is unpredictable\n\
 %d total picks, %d unique\nContinuing\n", nrows_raw, nrows);
 
 	elog_log(0,"Final working view has %d rows\n",nrows);
+
+#ifdef MPI_SET
+        if(dbpmel_process(dbv,gridlist,pf, rank, np))
+#else
 	if(dbpmel_process(dbv,gridlist,pf))
+#endif
 	{
 		elog_complain(0,"Errors in dbpmel_process\n");
 		exit(-1);
 	}
+
+
+#ifdef MPI_SET
+
+	/*
+	    Terminate the MPI parallel environment and perform 
+	    clean up. This MUST be called.
+	*/
+	MPI_Finalize();
+#endif
+
 	exit(0);
 }

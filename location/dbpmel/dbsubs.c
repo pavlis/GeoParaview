@@ -10,6 +10,11 @@
 #include "location.h"
 #include "dbpmel.h"
 
+#ifdef MPI_SET
+	#include <sys/time.h>
+	#include <mpi.h>
+#endif
+
 #define KMPERDEG 111.19
 
 Hypocenter db_load_initial(Dbptr dbv,int row)
@@ -87,6 +92,21 @@ Consequently I added an extension table that holds just hypo estimates
 with a link back to the parent grid.  
 */
 
+#ifdef BYPASS_DBADD
+/*
+	fp -- the temperary file pointer where test.assoc data
+	      is temperary put, this is only meaningful for 
+	      the MPI parallel version. 
+*/
+int dbpmel_save_results(Dbptr db,
+	int nevents,
+	int *evid,
+	Hypocenter *h,
+	Tbl **ta,
+	double sswrodf,
+	Location_options *o,
+        Pf *pf, FILE* fp)
+#else
 int dbpmel_save_results(Dbptr db,
 	int nevents,
 	int *evid,
@@ -95,7 +115,7 @@ int dbpmel_save_results(Dbptr db,
 	double sswrodf,
 	Location_options *o,
 	Pf *pf)
-
+#endif
 {
 	Dbptr dbe,dbo,dba,dboe; 
 	Dbptr dbes,dbos,dbas;
@@ -112,7 +132,7 @@ int dbpmel_save_results(Dbptr db,
 	int orid;
 	int nmatch;
 	double **C;
-	char *alg=strdup("dbpmel");
+	char *alg=(char *)strdup("dbpmel");
 	/* A collection of variables from assoc that have to be 
 	copied.  Earlier algorithm using dbget raw on a subset 
 	view failed so I have to copy by this mechanism */
@@ -120,6 +140,7 @@ int dbpmel_save_results(Dbptr db,
 	char timedef[2],slodef[2],azdef[2];
 	double azres,slores,emares;
 	int commid;
+
 
 	/* All of these are used repeatedly so we do one lookup at the
 	top */
@@ -226,6 +247,7 @@ record for orid %d prefor of event %d\n",
         		conf = 0.;
     		}
 		orid = dbnextid(dbo,"orid");
+
 		if(dbaddv(dboe,0,
                 	"orid", orid,
                 	"sxx",C[0][0],
@@ -261,6 +283,13 @@ record for orid %d prefor of event %d\n",
 				"time",h[i].time,
 				"algorithm",alg,
 				"auth",auth,0);
+
+/*
+		printf("Added to origin table: %8d %9.4lf %9.4lf %9.4lf"
+			" %17.5lf %-15s %-15s\n", orid, h[i].lat, 
+			h[i].lon, h[i].z, h[i].time, alg, auth);
+*/
+
 		if(dbadd(dbo,0)==dbINVALID)
 			elog_complain(0,"dbadd error for origin table\
 for new orid %d of evid %d\n",
@@ -292,6 +321,8 @@ found\nFail to create new assoc records for orid %d\n",
 			double delta,seaz,esaz,wgt;
 
 			a = (Arrival *)gettbl(ta[i],j);
+
+
 			/* This test is more rigorous than the actual
 			key for assoc (arid:orid), but it is safer */
 			dbputv(dbas,0,
@@ -312,6 +343,8 @@ found\nFail to create new assoc records for orid %d\n",
 				elog_complain(0,"Warning(save_results):  multiple rows in assoc match station %s and phase %s for evid %d\nCloning first found\n",
 					a->sta->name,a->phase->name,evid[i]);
 			}
+
+
 			dbs.record = (int)gettbl(match2,0);
 			/* These variables have to be copied so we
 			fetch them here */
@@ -339,8 +372,27 @@ found\nFail to create new assoc records for orid %d\n",
         		dist(rad(a->sta->lat),rad(a->sta->lon),
 				rad(h[i].lat),rad(h[i].lon), 
 				&delta,&seaz);
+
         		wgt = (double)((a->res.weighted_residual)
 				/(a->res.raw_residual));
+
+#ifdef BYPASS_DBADD
+		/*
+		    Using fprintf to directly write to the temperary
+		    file instead of using dbaddv to test.assoc
+		    since this is much faster (NOTE, we assume in 
+		    this case that the rows inserted all have 
+		    unique primary keys.)
+		*/
+                fprintf(fp, "%8d %8d %-6s %-8s %4.2lf %8.3lf %7.2lf "
+                        "%7.2lf %8.3lf %-1s %7.1lf %-1s %7.2lf %-1s "
+                        "%7.1lf %6.3lf %-15s %8d %17.5lf\n",
+                        a->arid, orid, a->sta->name, a->phase->name,
+                        belief, deg(delta), deg(seaz), deg(esaz),
+                        (double) a->res.raw_residual, timedef,
+                        azres, azdef, slores, slodef, emares, wgt, "-",
+                        -1, str2epoch("now"));		
+#else
 			if(dbaddv(dba,0,
 				"arid",a->arid,
 				"orid",orid,
@@ -362,14 +414,23 @@ found\nFail to create new assoc records for orid %d\n",
 					"Error adding to assoc table\
  for arid %d, orid %d, evid %d\n",
 					a->arid,orid,evid[i]);
+
+#endif
+
 		}
+
+
 		dbfree(dbs);
 		free_hook(&hooka2);
+
 	}
+
+
 	free_hook(&hooke);
 	free_hook(&hooko);
 	free_hook(&hooka);
 	free_matrix((char **)C,0,3,0);
+
 	return(0);
 }
 /* Saves results for one group of events tagged to gridid 
