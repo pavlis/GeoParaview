@@ -72,6 +72,8 @@ Tbl *pfget_Attribute_map(Pf *pf, char *name)
 				|| (!strcmp(type,"str"))
 				|| (!strcmp(type,"STR")) )
 			amap->type=DBSTR;
+		else if((!strcmp(type,"time")) || (!strcmp(type,"TIME")) )
+			amap->type=DBTIME;
 		else
 		{
 			elog_complain(0,"Syntax error:  unknown data type %s used to define Attribute mapping\n",

@@ -117,6 +117,25 @@ int db2pf(Dbptr db, Tbl *t, Pf *pf)
 			}
 			pfput_double(pf,m->oname,dattrib);
 			break;
+		case DBTIME:
+			if(dbgetv(db,0,m->dbname,&dattrib,0)==dbINVALID)
+			{
+				register_error(0,"dbgetv error for %s\n",
+					m->dbname);
+				++error_count;
+				break;
+			}
+			dnull=atof(nullvalue);
+			if(dattrib==dnull)
+			{
+				if(DB2PFS_verbose)
+					register_error(0,"Attribute %s is null\n",
+						m->dbname);
+				++error_count;
+				break;
+			}
+			pfput_time(pf,m->oname,dattrib);
+			break;
 		case DBINT:
 			if(dbgetv(db,0,m->dbname,&iattrib,0)==dbINVALID)
 			{
@@ -338,7 +357,7 @@ cause the program to abort.  Both contain pointers to Attribute_map*/
 			for(i=0,dbv.record=is_ensemble;i<nmembers;
 				++i,++dbv.record)
 			{
-				pfensemble[i]=pfnew(PFARR);
+				pfensemble[i]=pfnew(0);
 				ierr=db2pf(dbv,require,pfensemble[i]);
 				if(ierr!=0)
 				{
