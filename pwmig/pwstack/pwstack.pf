@@ -11,13 +11,13 @@ station_metadata &Tbl{
     endtime real
     nsamp int
     samprate real
-    dfile string
-    dir string
+    wfdisc.dfile string
+    wfdisc.dir string
 	arrival.time real
 	arrival.iphase string
 	assoc.phase string
     wfdisc.jdate int
-    calib real
+    wfdisc.calib real
     	site.lat real
     	site.lon real
     	site.elev real
@@ -34,15 +34,11 @@ dir string
 evid int
 }
 stack_metadata &Tbl{
-wfprocess.pwfid int
-wfprocess.time real
-wfprocess.endtime real
+pwfid int
 wfprocess.dir string
 wfprocess.dfile string
-wfprocess.foff int
 wfprocess.datatype string
-wfprocess.samprate real
-wfprocess.nsamp int
+wfprocess.timetype string
 wfprocess.algorithm string
 }
 Data_Top_Mute &Arr{

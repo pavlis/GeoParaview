@@ -123,7 +123,7 @@ int pwstack_ensemble(Three_Component_Ensemble& indata,
 	// Made a function to allow consistency between programs.
 	//
 	string sta=virtual_station_name(ix1,ix2);
-	int i,j;
+	int i,j,k;
 	vector<Three_Component_Seismogram>::iterator iv,ov;
 	int nsta = indata.tcse.size();
 	// This computes the output gather size.  It assumes all data have
@@ -231,9 +231,9 @@ int pwstack_ensemble(Three_Component_Ensemble& indata,
 	// Loop over slowness grid range storing results in new output ensemble
 	//
 
-	for(i=0;i<ugrid.nux;++i)
+	for(int iu=0;iu<ugrid.nux;++iu)
 	{
-	    for(j=0;j<ugrid.nuy;++j)
+	    for(int ju=0;ju<ugrid.nuy;++ju)
 	    {
 		double ux,uy,dux,duy;
 		int iend_this;
@@ -245,8 +245,8 @@ int pwstack_ensemble(Three_Component_Ensemble& indata,
 
 		dzero(nsout,&(stack_weight[0]),1);
 
-		ux = ugrid.ux(i);
-		uy = ugrid.uy(j);	
+		ux = ugrid.ux(iu);
+		uy = ugrid.uy(ju);	
 	
 		/* The input gather is assumed prealigned with the slowness
 		vector defined by raygath->ux,uy.  We use relative moveouts
@@ -358,11 +358,7 @@ int pwstack_ensemble(Three_Component_Ensemble& indata,
 		stackout->put_metadata("wfprocess.timetype","r"); // always relative
 		stackout->put_metadata("wfprocess.dir",dir);
 		stackout->put_metadata("wfprocess.dfile",dfile);
-/*  These are not needed because the dbsave function always sets
-these attributes using attributes of the Time_Series class.
-		stackout->put_metadata("wfprocess.samprate",1.0/dt);
-		stackout->put_metadata("wfprocess.nsamp",nsout);
-*/
+		stackout->put_metadata("wfprocess.datatype","3c");
 		stackout->put_metadata("samprate",1.0/dt);
 		stackout->put_metadata("nsamp",nsout);
 		stackout->put_metadata("wfprocess.algorithm","pwstack");
@@ -371,11 +367,8 @@ these attributes using attributes of the Time_Series class.
 
 
 		try{
-			dbsave(*stackout,dshandle.db,table_name,mdlout,am);
-			// dbsave updates the key pwfid.  We need to fetch
-			// it to cross link related tables
 			int pwfid;
-			dbgetv(dshandle.db,0,"pwfid",&pwfid,0);
+			pwfid=dbsave(*stackout,dshandle.db,table_name,mdlout,am);
 			// now fill in the special table for this program
 			dbstack.append();
 			dbstack.put("gridname",gridname);
