@@ -1,5 +1,6 @@
 #include <cstdio>
 #include <cstring>
+#include <string>
 #include "gclgrid.h"
 // Constructor creating a GCLgrid object by reading data from
 // an Antelope database.  Uses an extension table used to index
@@ -321,6 +322,153 @@ GCLgrid::GCLgrid(Dbptr db,char *gridname) throw(int)
 		throw 2;
 	}
 }
+//
+// This set of functions construct fields.  The algorithm
+// used is memory intensive because we end up creating\
+// two copies of the GCLgrid during creation.  We assume
+// the one is destroyed when it goes out of scope.
+//
+GCLscalarfield::GCLscalarfield(Dbptr db,
+		char *gclgname,
+		char *fieldname) throw(int)
+{
+	char sstring[40];
+	int foff;
+	char dir[65],dfile[36];
+	char filename[512];
+	Dbptr dbgrd;
+	FILE *fp;
+	int gridsize;
+
+	try{
+		GCLgrid g(db,gclgname);
+	} 
+	catch(int ierr)
+	{
+		throw(ierr);
+	}
+	// There might be a shortcut to this, but I can't figure
+	// out how it might work.  
+	strcpy(name, g.name);
+	lat0=g.lat0;
+	lon0=g.lon0;
+	r0=g.r0;
+	azimuth_y=g.azimuth_y;
+	dx1_nom=g.dx1_nom;
+	dx2_nom=g.dx2_nom;
+	n1=g.n1;
+	n2=g.n2;
+	i0=g.i0;
+	j0=g.j0;
+	x1low=g.x1low;
+	x1high=g.x1high;
+	x2low=g.x2low;
+	x2high=g.x2high;
+	x3low=g.x3low;
+	x3high=g.x3high;
+	cartesian_defined=g.cartesian_defined;
+	geographic_defined=g.geographic_defined;
+	dcopy(3,g.gtoc_rmatrix[0],1,gtoc_rmatrix[0],1);
+	dcopy(3,g.gtoc_rmatrix[1],1,gtoc_rmatrix[1],1);
+	dcopy(3,g.gtoc_rmatrix[2],1,gtoc_rmatrix[2],1);
+	dcopy(3,g.translation_vector,1,translation_vector,1);
+	// We don't waste this effort unless these arrays contain something
+	if(cartesian_defined)
+	{
+            for(i=0;i<n1;++i)
+                    for(j=0;j<n2;++j) x1[i][j]=g.x1[i][j];
+            for(i=0;i<n1;++i)
+                    for(j=0;j<n2;++j) x2[i][j]=g.x2[i][j];
+            for(i=0;i<n1;++i)
+                    for(j=0;j<n2;++j) x3[i][j]=g.x3[i][j];
+	}
+	if(geographic_defined)
+	{
+            for(i=0;i<n1;++i)
+                    for(j=0;j<n2;++j) lat[i][j]=g.lat[i][j];
+            for(i=0;i<n1;++i)
+                    for(j=0;j<n2;++j) lon[i][j]=g.lon[i][j];
+            for(i=0;i<n1;++i)
+                    for(j=0;j<n2;++j) r[i][j]=g.r[i][j];
+
+	}
+	db = dblookup(db,0,"gclfield",0,0);
+	if(db.record == dbINVALID)
+	{
+		elog_notify(0,"lookup failed for gclfield table.  Extension table probably not defined\n");
+	        throw 1;
+        }
+	sprintf(sstring,
+		"gridname =~ /%s/ && dimensions == 2 && fieldname =~ /%s/",
+		gclgname,fieldname);
+	dbgrd = dbsubset(dbgrd,sstring,0);
+	dbquery(dbgrd,dbRECORD_COUNT,&nrec);
+	if(nrec <= 0)
+	{
+		elog_notify(0,"%s grid with name %s not found in database\n",
+		                        base_message,gclgname);
+                throw 1;
+        }
+	if(dbextfile(dbgrd,"gclfield",filename) <=0)
+	{
+		elog_notify(0,"Cannot file external file for gclfield %s\n",fieldname);
+		throw 2;
+	}
+	fp = fopen(filename,"r");
+	if(fp == NULL)
+	{
+		elog_notify(0,"Cannot open file %s to read gclfield %s\n",
+				filename,gclfield);
+		throw 2;
+	}
+	dbfree(dbgrd);
+	gridsize = n1*n2;
+	val=create_2dgrid_contiguous(n1, n2);
+	if(fread(val[0],sizeof(double)gridsize,fp) != gridsize)
+	{
+		elog_notify(0,"Error reading field values from file %s\n",filename);
+		throw 2;
+	}
+}
+//  Will create the following using the above as a pattern when I know
+//  it at least compiles.
+//
+GCLscalarfield3d::GCLscalarfield3d(Dbptr db,
+		char *gclgname,
+		char *fieldname) throw(int)
+{
+	char sstring[40];
+	int foff;
+	char dir[65],dfile[36];
+	char filename[512];
+	Dbptr dbgrd;
+	FILE *fp;
+	int gridsize;
+}
+GCLvectorfield::GCLvectorfield(Dbptr db,
+		char *gclgname,
+		char *fieldname) throw(int)
+{
+	char sstring[40];
+	int foff;
+	char dir[65],dfile[36];
+	char filename[512];
+	Dbptr dbgrd;
+	FILE *fp;
+	int gridsize;
+}
+GCLvectorfield3d::GCLvectorfield3d(Dbptr db,
+		char *gclgname,
+		char *fieldname) throw(int)
+{
+	char sstring[40];
+	int foff;
+	char dir[65],dfile[36];
+	char filename[512];
+	Dbptr dbgrd;
+	FILE *fp;
+	int gridsize;
+}
 
 /* The following two parallel functions are the inverse of the load
 routines above.  That is, they take a db pointer and a pointer to 
@@ -380,31 +528,37 @@ void GCLgrid3d::dbsave(Dbptr db, char *dir) throw(int)
 	if(fwrite(x1[0][0],sizeof(double),gridsize,fp) != gridsize)
 	{
 		elog_notify(0,fwerr,filename);
+		fclose(fp);
 		throw 2;
 	}
 	if(fwrite(x2[0][0],sizeof(double),gridsize,fp) != gridsize)
 	{
 		elog_notify(0,fwerr,filename);
+		fclose(fp);
 		throw 2;
 	}
 	if(fwrite(x3[0][0],sizeof(double),gridsize,fp) != gridsize)
 	{
 		elog_notify(0,fwerr,filename);
+		fclose(fp);
 		throw 2;
 	}
 	if(fwrite(lat[0][0],sizeof(double),gridsize,fp) != gridsize)
 	{
 		elog_notify(0,fwerr,filename);
+		fclose(fp);
 		throw 2;
 	}
 	if(fwrite(lon[0][0],sizeof(double),gridsize,fp) != gridsize)
 	{
 		elog_notify(0,fwerr,filename);
+		fclose(fp);
 		throw 2;
 	}
 	if(fwrite(r[0][0],sizeof(double),gridsize,fp) != gridsize)
 	{
 		elog_notify(0,fwerr,filename);
+		fclose(fp);
 		throw 2;
 	}
 	fclose(fp);
@@ -476,6 +630,7 @@ void GCLgrid::dbsave(Dbptr db, char *dir) throw(int)
 	{
 		elog_notify(0,"Cannot open output file %s\nNothing save\n",
 			filename);
+		fclose(fp);
 		throw 2;
 	}
 	fseek(fp,0,SEEK_END);
@@ -488,31 +643,37 @@ void GCLgrid::dbsave(Dbptr db, char *dir) throw(int)
 	if(fwrite(x1[0],sizeof(double),gridsize,fp) != gridsize)
 	{
 		elog_notify(0,fwerr,filename);
+		fclose(fp);
 		throw 2;
 	}
 	if(fwrite(x2[0],sizeof(double),gridsize,fp) != gridsize)
 	{
 		elog_notify(0,fwerr,filename);
+		fclose(fp);
 		throw 2;
 	}
 	if(fwrite(x3[0],sizeof(double),gridsize,fp) != gridsize)
 	{
 		elog_notify(0,fwerr,filename);
+		fclose(fp);
 		throw 2;
 	}
 	if(fwrite(lat[0],sizeof(double),gridsize,fp) != gridsize)
 	{
 		elog_notify(0,fwerr,filename);
+		fclose(fp);
 		throw 2;
 	}
 	if(fwrite(lon[0],sizeof(double),gridsize,fp) != gridsize)
 	{
 		elog_notify(0,fwerr,filename);
+		fclose(fp);
 		throw 2;
 	}
 	if(fwrite(r[0],sizeof(double),gridsize,fp) != gridsize)
 	{
 		elog_notify(0,fwerr,filename);
+		fclose(fp);
 		throw 2;
 	}
 	fclose(fp);
@@ -548,4 +709,301 @@ void GCLgrid::dbsave(Dbptr db, char *dir) throw(int)
 		throw 1;
 	}
 	free(filename);
+}
+// The following are parallel to the above for 2d and 3d fields.  
+// All use a perhaps dangerous assumption if gclgdir is a NULL saving
+// the parent GCLgrid is bypassed.  When gclgdir is not null we use
+// a dynamic_cast operator to use the base class dbsave routine for the
+// parent GCLgrid object.  This allows multiple fields to be associated
+// with a single parent GCLgrid object.  Since these things can easily
+// get huge this is a good idea although it is more error prone if this
+// fact is not understood.  The output filename is created as fielddir+"/"+fieldname.
+// The gclfield table is keyed by the combination of the GCLgrid name and 
+// the fieldname.  Hence the fieldname must be unique or this routine
+// will throw an error by dbaddv.  The output stage that writes data in
+// is more forgiving because the file name, dfile, is passed as a separate 
+// argument.  
+void GCLscalarfield::dbsave(Dbptr db, 
+	char *gclgdir, 
+	char *fielddir, 
+	char *fieldname,
+	char *dfile) throw(int)
+{
+	int gridsize;
+	string filename;
+	FILE *fp;
+	long int fpos;
+	int foff;
+	int dimensions=2;
+	int nv=1;
+
+	//Save the parent GCLgrid when gclgdir is not NULL
+	if(gclgdir!=NULL)
+	{
+		try {
+			GCLgrid *g;
+			g = dynamic_cast<GCLgrid *> this;
+			g->dbsave(db,gclgdir);
+		}
+		catch(int dbserr)
+		{
+			throw(dbserr);
+		}
+	}
+	db = dblookup(db,0,"gclfield",0,0);
+	if(db.record == dbINVALID)
+	{
+		elog_notify(0,"lookup failed for gclfield table.  Extension table probably not defined\n");
+		throw 1;
+	}
+	//First create a filename and save the val array with a binary write
+	filename = ((string)gclgdir)+"/"+((string)dfile);
+
+	fp = fopen(filename.c_str(),"a+");
+	if(fp==NULL)
+	{
+		elog_notify(0,"Cannot open output file %s\nNothing save\n",
+			filename.c_str());
+		throw 2;
+	}
+	fseek(fp,0,SEEK_END);
+	/* The use of the int cast is unnecessary on some machines,
+	but may be problematic on current versions of solaris so I'll
+	be safe */
+	fpos = ftell(fp);
+	foff = (int)fpos;
+	gridsize = n1*n2;	
+	if(fwrite(val[0],sizeof(double),gridsize,fp) != gridsize)
+	{
+		elog_notify(char *)"fwrite error for file %s\n",filename);
+		fclose(fp);
+		throw 2;
+	}
+	fclose(fp);
+	if(dbaddv(db,0,
+		"gridname",name,
+		"dimensions",dimensions,
+		"nv",nv,
+		"dir",gclgdir,
+		"dfile",dfile,
+		"foff",foff,
+		"fieldname",fieldname,
+		0)  < 0)
+	{
+		elog_notify(0,"dbaddv error for 2d grid into gclfield table\n");
+		throw 1;
+	}
+}
+
+void GCLscalarfield3d::dbsave(Dbptr db, 
+	char *gclgdir, 
+	char *fielddir, 
+	char *fieldname,
+	char *dfile) throw(int)
+{
+	int gridsize;
+	string filename;
+	FILE *fp;
+	long int fpos;
+	int foff;
+	int dimensions=3;
+	int nv=1;
+
+	//Save the parent GCLgrid when gclgdir is not NULL
+	if(gclgdir!=NULL)
+	{
+		try {
+			GCLgrid3d *g;
+			g = dynamic_cast<GCLgrid3d *> this;
+			g->dbsave(db,gclgdir);
+		}
+		catch(int dbserr)
+		{
+			throw(dbserr);
+		}
+	}
+	db = dblookup(db,0,"gclfield",0,0);
+	if(db.record == dbINVALID)
+	{
+		elog_notify(0,"lookup failed for gclfield table.  Extension table probably not defined\n");
+		throw 1;
+	}
+	//First create a filename and save the val array with a binary write
+	filename = ((string)gclgdir)+"/"+((string)dfile);
+
+	fp = fopen(filename.c_str(),(char *)"a+");
+	if(fp==NULL)
+	{
+		elog_notify(0,"Cannot open output file %s\nNothing save\n",
+			filename.c_str());
+		throw 2;
+	}
+	fseek(fp,0,SEEK_END);
+	/* The use of the int cast is unnecessary on some machines,
+	but may be problematic on current versions of solaris so I'll
+	be safe */
+	fpos = ftell(fp);
+	foff = (int)fpos;
+	gridsize = n1*n2*n3;	
+	if(fwrite(val[0][0],sizeof(double),gridsize,fp) != gridsize)
+	{
+		elog_notify(char *)"fwrite error for file %s\n",filename);
+		fclose(fp);
+		throw 2;
+	}
+	fclose(fp);
+	if(dbaddv(db,0,
+		"gridname",name,
+		"dimensions",dimensions,
+		"nv",nv,
+		"dir",gclgdir,
+		"dfile",dfile,
+		"foff",foff,
+		"fieldname",fieldname,
+		0)  < 0)
+	{
+		elog_notify(0,"dbaddv error for 2d grid into gclfield table\n");
+		throw 1;
+	}
+}
+void GCLvectorfield::dbsave(Dbptr db, 
+	char *gclgdir, 
+	char *fielddir, 
+	char *fieldname,
+	char *dfile) throw(int)
+{
+	int gridsize;
+	string filename;
+	FILE *fp;
+	long int fpos;
+	int foff;
+	int dimensions=2;
+
+	//Save the parent GCLgrid when gclgdir is not NULL
+	if(gclgdir!=NULL)
+	{
+		try {
+			GCLgrid *g;
+			g = dynamic_cast<GCLgrid *> this;
+			g->dbsave(db,gclgdir);
+		}
+		catch(int dbserr)
+		{
+			throw(dbserr);
+		}
+	}
+	db = dblookup(db,0,"gclfield",0,0);
+	if(db.record == dbINVALID)
+	{
+		elog_notify(0,"lookup failed for gclfield table.  Extension table probably not defined\n");
+		throw 1;
+	}
+	//First create a filename and save the val array with a binary write
+	filename = ((string)gclgdir)+"/"+((string)dfile);
+
+	fp = fopen(filename.c_str(),"a+");
+	if(fp==NULL)
+	{
+		elog_notify(0,"Cannot open output file %s\nNothing save\n",
+			filename.c_str());
+		throw 2;
+	}
+	fseek(fp,0,SEEK_END);
+	/* The use of the int cast is unnecessary on some machines,
+	but may be problematic on current versions of solaris so I'll
+	be safe */
+	fpos = ftell(fp);
+	foff = (int)fpos;
+	gridsize = n1*n2*nv;	
+	if(fwrite(val[0],sizeof(double),gridsize,fp) != gridsize)
+	{
+		elog_notify(char *)"fwrite error for file %s\n",filename);
+		fclose(fp);
+		throw 2;
+	}
+	fclose(fp);
+	if(dbaddv(db,0,
+		"gridname",name,
+		"dimensions",dimensions,
+		"nv",nv,
+		"dir",gclgdir,
+		"dfile",dfile,
+		"foff",foff,
+		"fieldname",fieldname,
+		0)  < 0)
+	{
+		elog_notify(0,"dbaddv error for 2d grid into gclfield table\n");
+		throw 1;
+	}
+}
+
+void GCLvectorfield3d::dbsave(Dbptr db, 
+	char *gclgdir, 
+	char *fielddir, 
+	char *fieldname,
+	char *dfile) throw(int)
+{
+	int gridsize;
+	string filename;
+	FILE *fp;
+	long int fpos;
+	int foff;
+	int dimensions=3;
+
+	//Save the parent GCLgrid when gclgdir is not NULL
+	if(gclgdir!=NULL)
+	{
+		try {
+			GCLgrid3d *g;
+			g = dynamic_cast<GCLgrid3d *> this;
+			g->dbsave(db,gclgdir);
+		}
+		catch(int dbserr)
+		{
+			throw(dbserr);
+		}
+	}
+	db = dblookup(db,0,"gclfield",0,0);
+	if(db.record == dbINVALID)
+	{
+		elog_notify(0,"lookup failed for gclfield table.  Extension table probably not defined\n");
+		throw 1;
+	}
+	//First create a filename and save the val array with a binary write
+	filename = ((string)gclgdir)+"/"+((string)dfile);
+
+	fp = fopen(filename.c_str(),(char *)"a+");
+	if(fp==NULL)
+	{
+		elog_notify(0,"Cannot open output file %s\nNothing save\n",
+			filename.c_str());
+		throw 2;
+	}
+	fseek(fp,0,SEEK_END);
+	/* The use of the int cast is unnecessary on some machines,
+	but may be problematic on current versions of solaris so I'll
+	be safe */
+	fpos = ftell(fp);
+	foff = (int)fpos;
+	gridsize = n1*n2*n3*nv;	
+	if(fwrite(val[0][0],sizeof(double),gridsize,fp) != gridsize)
+	{
+		elog_notify(char *)"fwrite error for file %s\n",filename);
+		fclose(fp);
+		throw 2;
+	}
+	fclose(fp);
+	if(dbaddv(db,0,
+		"gridname",name,
+		"dimensions",dimensions,
+		"nv",nv,
+		"dir",gclgdir,
+		"dfile",dfile,
+		"foff",foff,
+		"fieldname",fieldname,
+		0)  < 0)
+	{
+		elog_notify(0,"dbaddv error for 2d grid into gclfield table\n");
+		throw 1;
+	}
 }
