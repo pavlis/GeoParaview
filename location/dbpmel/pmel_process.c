@@ -318,12 +318,14 @@ option which is know to cause problems\nrecenter set off\n");
 		gridid = (int)gettbl(gridlist,i);
 
 		dbputv(dbgs,0,"gridid",gridid,0);
+		dbevid_grp.record=dbALL;
 		dbmatches(dbgs,dbevid_grp,&grdidtbl,&grdidtbl,&hook,
 					&reclist);
 		nevents = maxtbl(reclist);
 		if(nevents<=0)
 		{
 			fprintf(stdout,"No data for gridid = %d\n",gridid);
+			freetbl(reclist,0);
 			continue;
 		}
 		allot(Tbl **,ta,nevents);
