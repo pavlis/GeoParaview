@@ -11,7 +11,6 @@ include $(ANTELOPEMAKE)
 OBJS=pwstack.o \
 	apsubs.o \
 	aperture.o \
-	out.o \
 	pwstack_process.o 
 $(BIN) : $(OBJS)
 	$(CXX) $(CXXFLAGS) -o $@ $(OBJS) $(LDFLAGS) $(LDLIBS)

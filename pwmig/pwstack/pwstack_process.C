@@ -135,10 +135,10 @@ int pwstack_ensemble(Three_Component_Ensemble *indata,
 
 	Three_Component_Seismogram *stackout;
 
-	int istart = SEISPP::nint(tstart/dt);
-	int iend = SEISPP::nint(tend/dt);
+	int istart = nint(tstart/dt);
+	int iend = nint(tend/dt);
 	int nsout = iend-istart+1;
-	int ismute = SEISPP::nint(mute.t1/dt);
+	int ismute = nint(mute.t1/dt);
 	int ismute_this, ie_this;
 	Datascope_Handle& dshandle=dynamic_cast<Datascope_Handle&>(dbh);
 	Datascope_Handle dbstack(dshandle);
@@ -258,9 +258,9 @@ int pwstack_ensemble(Three_Component_Ensemble *indata,
 			iv<indata->tcse.end();++iv,++i)
 		{
 			int is0, is, ismin, ns_to_copy; 
-			is0 = istart + SEISPP::nint( moveout[i]);
+			is0 = istart + nint( moveout[i]);
 			// need this to define latest front mute time
-			ismute_this = max(ismute+SEISPP::nint(moveout[i]),ismute_this);
+			ismute_this = max(ismute+nint(moveout[i]),ismute_this);
 			// This computes starting position for the input trace  
 			if(is0<0)
 			{ 
