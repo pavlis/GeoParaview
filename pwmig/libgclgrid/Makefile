@@ -10,7 +10,6 @@ cflags=-g -DSUNPERF
 ldflags=
 ldlibs=-L/opt/SUNWspro/lib $(DBLIBS) -lsunperf 
 
-include $(ANTELOPEMAKE)  	
 
 
 OBJS=	create_destroy.o dbsubs.o ellipsoid.o fme_interpolate.o method_subs.o

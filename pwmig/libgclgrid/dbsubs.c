@@ -20,7 +20,7 @@ GCL3Dgrid *GCL3Dgrid_load_db(Dbptr db,char *gridname)
 	char sstring[40];
 	char datatype[4];
 	char dir[65], dfile[36];
-	char *filename;  
+	char filename[512];  
 	int foff;
 	char *base_message="Cannot create GCL3Dgrid object: ";
 	char *read_error="fread failed";
@@ -31,14 +31,14 @@ GCL3Dgrid *GCL3Dgrid_load_db(Dbptr db,char *gridname)
 	int gridsize;  
 	FILE *fp;
 
-	dbgrd = dblookup(db,0,"gclgdsk",0,0); 
+	dbgrd = dblookup(db,0,"gclgdisk",0,0); 
 	if(dbgrd.record == dbINVALID) 
 	{
-		elog_notify(0,"%s gclgdsk table not defined in schema definition\n",base_message);
+		elog_notify(0,"%s gclgdisk table not defined in schema definition\n",base_message);
 		return(NULL);
 	}
 	sprintf(sstring,"gridname =~ /%s/ && dimensions == 3",gridname);
-	dbgrd = dbsubset(db,sstring,0);
+	dbgrd = dbsubset(dbgrd,sstring,0);
 	dbquery(dbgrd,dbRECORD_COUNT,&nrec);
 	if(nrec <= 0) 
 	{
@@ -52,8 +52,8 @@ GCL3Dgrid *GCL3Dgrid_load_db(Dbptr db,char *gridname)
 	/* We intentionally ignore the dimension field because the subset
 	should have assured we match the right record */
 	if(dbgetv(dbgrd,0,
-		"lat",&(g->lat),
-		"lon",&(g->lon),
+		"lat",&(g->lat0),
+		"lon",&(g->lon0),
 		"radius",&(g->r0),
 		"azimuth_y",&(g->azimuth_y),
 		"dx1nom",&(g->dx1_nom),
@@ -84,14 +84,17 @@ GCL3Dgrid *GCL3Dgrid_load_db(Dbptr db,char *gridname)
 			base_message);
 		return(NULL);
 	}
-	if(strcmp(cdef,"n") || strcmp(gdef,"n") )
+	if((!strcmp(cdef,"n")) || (!strcmp(gdef,"n")) )
 	{
 		free(g);
 		elog_notify(0,"%s Cartesian and Geographical mapping (cdefined and geodefined attributes) must both be defined for input\n",
 			base_message);
 		return(NULL);
 	}
-	if(!strcmp(datatype,"t8"))
+	if(strcmp(cdef,"n")) g->cartesian_defined=1;
+	if(strcmp(gdef,"n")) g->geographic_defined=1;
+
+	if(strcmp(datatype,"t8"))
 	{
 		free(g);
 		elog_notify(0,"%s data type %s not allowed.  Currently only support t8\n",
@@ -99,7 +102,7 @@ GCL3Dgrid *GCL3Dgrid_load_db(Dbptr db,char *gridname)
 		return(NULL);
 	}
 	/* Get the file name to read the gclgrid data from.*/
-	if(dbextfile(dbgrd,"gclgdsk",filename) <=0)
+	if(dbextfile(dbgrd,"gclgdisk",filename) <=0)
 	{
 		free(g);
 		elog_notify(0,"%s Cannot find grid file named %s in directory %s\n",
@@ -180,7 +183,7 @@ GCL2Dgrid *GCL2Dgrid_load_db(Dbptr db,char *gridname)
 	char sstring[40];
 	char datatype[4];
 	char dir[65], dfile[36];
-	char *filename;  
+	char filename[512];  
 	int foff;
 	char *base_message="Cannot create GCL2Dgrid object: ";
 	char *read_error="fread failed";
@@ -191,14 +194,14 @@ GCL2Dgrid *GCL2Dgrid_load_db(Dbptr db,char *gridname)
 	int gridsize;  
 	FILE *fp;
 
-	dbgrd = dblookup(db,0,"gclgdsk",0,0); 
+	dbgrd = dblookup(db,0,"gclgdisk",0,0); 
 	if(dbgrd.record == dbINVALID) 
 	{
-		elog_notify(0,"%s gclgdsk table not defined in schema definition\n",base_message);
+		elog_notify(0,"%s gclgdisk table not defined in schema definition\n",base_message);
 		return(NULL);
 	}
 	sprintf(sstring,"gridname =~ /%s/ && dimensions == 2",gridname);
-	dbgrd = dbsubset(db,sstring,0);
+	dbgrd = dbsubset(dbgrd,sstring,0);
 	dbquery(dbgrd,dbRECORD_COUNT,&nrec);
 	if(nrec <= 0) 
 	{
@@ -241,14 +244,16 @@ GCL2Dgrid *GCL2Dgrid_load_db(Dbptr db,char *gridname)
 			base_message);
 		return(NULL);
 	}
-	if(strcmp(cdef,"n") || strcmp(gdef,"n") )
+	if((!strcmp(cdef,"n")) || (!strcmp(gdef,"n")) )
 	{
 		free(g);
 		elog_notify(0,"%s Cartesian and Geographical mapping (cdefined and geodefined attributes) must both be defined for input\n",
 			base_message);
 		return(NULL);
 	}
-	if(!strcmp(datatype,"t8"))
+	if(strcmp(cdef,"n")) g->cartesian_defined=1;
+	if(strcmp(gdef,"n")) g->geographic_defined=1;
+	if(strcmp(datatype,"t8"))
 	{
 		free(g);
 		elog_notify(0,"%s data type %s not allowed.  Currently only support t8\n",
@@ -256,7 +261,7 @@ GCL2Dgrid *GCL2Dgrid_load_db(Dbptr db,char *gridname)
 		return(NULL);
 	}
 	/* Get the file name to read the gclgrid data from.*/
-	if(dbextfile(dbgrd,"gclgdsk",filename) <=0)
+	if(dbextfile(dbgrd,"gclgdisk",filename) <=0)
 	{
 		free(g);
 		elog_notify(0,"%s Cannot find grid file named %s in directory %s\n",
