@@ -4,7 +4,7 @@
 // in seispp.h.  The only exception is this, which is the copy
 // constructor
 //
-Time_Series::Time_Series(Time_Series& tsi)
+Time_Series::Time_Series(const Time_Series& tsi)
 {
 	int i;
         dt=tsi.dt;
@@ -15,7 +15,7 @@ Time_Series::Time_Series(Time_Series& tsi)
         s=new double[ns];
         for(i=0;i<tsi.ns;++i) s[i]=tsi.s[i];
 }
-Time_Series::Time_Series(Time_Series *tsi)
+Time_Series::Time_Series(const Time_Series *tsi)
 {
 	int i;
 
@@ -69,7 +69,7 @@ Three_Component_Seismogram::Three_Component_Seismogram(int nsin)
 	
 }
 Three_Component_Seismogram::Three_Component_Seismogram
-			(Three_Component_Seismogram& t3c)
+			(const Three_Component_Seismogram& t3c)
 {
 	int i,j;
 	md=Metadata(t3c.md);

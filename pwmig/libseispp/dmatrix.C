@@ -1,4 +1,5 @@
 #include <iostream>
+#include <math.h>
 #include "dmatrix.h"
 
 using namespace std;

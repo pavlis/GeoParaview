@@ -17,8 +17,8 @@ public:
 	Time_Series() {s=NULL;dt=0.0; t0=0.0; ns=0; tref=absolute;};
 	Time_Series(int nsin) {dt=0.0; t0=0.0; ns=nsin;
 		tref=absolute; s = new double[nsin];};
-	Time_Series(Time_Series&);
-	Time_Series(Time_Series *);
+	Time_Series(const Time_Series&);
+	Time_Series(const Time_Series *);
 	~Time_Series() {  if(s!=NULL) delete [] s; };
 	Time_Series& operator=(const Time_Series&);
 };
@@ -49,7 +49,7 @@ public:
 	Time_Series x[3];
 	Three_Component_Seismogram();
 	Three_Component_Seismogram(int nsamp);
-	Three_Component_Seismogram(Three_Component_Seismogram&);
+	Three_Component_Seismogram(const Three_Component_Seismogram&);
 	~Three_Component_Seismogram(){}; // intentionally null because default ok
 	void rotate_to_standard();
 	// This overloaded pair do the same thing for a vector
