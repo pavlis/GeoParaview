@@ -52,27 +52,28 @@ public:
 class dmatrix
 {
 public:
-  dmatrix(int nr, int nc, int stval);
-  dmatrix(const dmatrix& other);
+  dmatrix(int nr, int nc);
+  dmatrix(dmatrix& other);
   ~dmatrix();
   double &operator()(int rowindex, int colindex);
-  void operator=(const dmatrix& other);
-  void operator+=(const dmatrix& other);
-  void operator-=(const dmatrix& other);
-  friend dmatrix operator+(const dmatrix&, const dmatrix&);
-  friend dmatrix operator-(const dmatrix&, const dmatrix&);
-  friend dmatrix operator*(const dmatrix&, const dmatrix&);
-  friend dmatrix operator*(const double&, const dmatrix&);
-  friend dmatrix operator/(const dmatrix&, const double&);
-  friend dmatrix tr(const dmatrix&);
-  friend dmatrix inv(const dmatrix&);
-  double* get_address(int r, int c);
+  void operator=(dmatrix& other);
+  void operator+=(dmatrix& other);
+  void operator-=(dmatrix& other);
+  friend dmatrix operator+(dmatrix&, dmatrix&);
+  friend dmatrix operator-(dmatrix&, dmatrix&);
+  friend dmatrix operator*(dmatrix&, dmatrix&);
+  friend dmatrix operator*(double&, dmatrix&);
+  friend dmatrix operator/(dmatrix&, double&);
+  friend dmatrix tr(dmatrix&);
+  friend dmatrix inv(dmatrix&);
   friend ostream& operator<<(ostream&, dmatrix&);
   friend istream& operator>>(istream&, dmatrix&);
+  double* get_address(int r, int c);
+  void zero();
 private:
    double *ary;
    int length;
-   int nrr, ncc, matoff;
+   int nrr, ncc;
 };
 #endif
 
