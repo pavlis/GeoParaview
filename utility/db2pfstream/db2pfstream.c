@@ -19,6 +19,7 @@ but I wont' document that here and leave it to the man page.
 Author:  GAry Pavlis
 Written:  September 2002
 */
+#include <unistd.h>
 #include <stdio.h>
 #include <string.h>
 #include "stock.h"
@@ -50,19 +51,17 @@ Arguments:
 	pf - destination pf object.
 
 Returns:
-	normal return is 0 if there are no problems.  The routine checks
-	for null fields requested.  An error count is incremented each time
-	this occurs.  Thus a nonzero error count indicates a potential 
-	problem with missing data in the output pf.  This condition 
-	should be trapped if the attribute requested is essential.  This
-	is why the main program below groups attributes into required and
-	not required.  When verbose mode is on each null causes a 
-	message to be posted on the error log.  
+	The routine returns a Tbl list of attribute names that were null
+	on this database row.  This is used in dryrun mode to flag database
+	problems.  IMPORTANT:  a valid Tbl is always returned.  The caller
+	must free this list.  A test for now errors is maxtbl()==0.
 
 Author:  Gary L. Pavlis
 Written:  September 2002
+Modified:  march 2003
+Used to return only an int. It now returns a Tbl described above.
 */
-int db2pf(Dbptr db, Tbl *t, Pf *pf)
+Tbl *db2pf(Dbptr db, Tbl *t, Pf *pf)
 {
 	int i;  
 	char *nullvalue;
@@ -70,8 +69,9 @@ int db2pf(Dbptr db, Tbl *t, Pf *pf)
 	double dattrib, dnull;
 	char sattrib[128];
 	Attribute_map *m;
-	int error_count=0;
 	Dbptr dbf;
+	char *bad_attrib;
+	Tbl *error_list=newtbl(0);
 
 	for(i=0;i<maxtbl(t);++i)
 	{
@@ -83,18 +83,14 @@ int db2pf(Dbptr db, Tbl *t, Pf *pf)
 		case DBREAL:
 			if(dbgetv(db,0,m->dbname,&dattrib,0)==dbINVALID)
 			{
-				register_error(0,"dbgetv error for %s\n",
+				elog_die(0,"dbgetv error for %s\n",
 					m->dbname);
-				++error_count;
-				break;
 			}
 			dnull=atof(nullvalue);
 			if(dattrib==dnull)
 			{
-				if(DB2PFS_verbose)
-					register_error(0,"Attribute %s is null\n",
-						m->dbname);
-				++error_count;
+				bad_attrib=strdup(m->dbname);
+				pushtbl(error_list,bad_attrib);
 				break;
 			}
 			pfput_double(pf,m->pfname,dattrib);
@@ -102,18 +98,14 @@ int db2pf(Dbptr db, Tbl *t, Pf *pf)
 		case DBTIME:
 			if(dbgetv(db,0,m->dbname,&dattrib,0)==dbINVALID)
 			{
-				register_error(0,"dbgetv error for %s\n",
+				elog_die(0,"dbgetv error for %s\n",
 					m->dbname);
-				++error_count;
-				break;
 			}
 			dnull=atof(nullvalue);
 			if(dattrib==dnull)
 			{
-				if(DB2PFS_verbose)
-					register_error(0,"Attribute %s is null\n",
-						m->dbname);
-				++error_count;
+				bad_attrib=strdup(m->dbname);
+				pushtbl(error_list,bad_attrib);
 				break;
 			}
 			pfput_time(pf,m->pfname,dattrib);
@@ -121,18 +113,14 @@ int db2pf(Dbptr db, Tbl *t, Pf *pf)
 		case DBINT:
 			if(dbgetv(db,0,m->dbname,&iattrib,0)==dbINVALID)
 			{
-				register_error(0,"dbgetv error for %s\n",
+				elog_die(0,"dbgetv error for %s\n",
 					m->dbname);
-				++error_count;
-				break;
 			}
 			inull=atoi(nullvalue);
 			if(iattrib==inull)
 			{
-				if(DB2PFS_verbose)
-					register_error(0,"Attribute %s is null\n",
-						m->dbname);
-				++error_count;
+				bad_attrib=strdup(m->dbname);
+				pushtbl(error_list,bad_attrib);
 				break;
 			}
 			pfput_int(pf,m->pfname,iattrib);
@@ -141,26 +129,39 @@ int db2pf(Dbptr db, Tbl *t, Pf *pf)
 		default:
 			if(dbgetv(db,0,m->dbname,sattrib,0)==dbINVALID)
 			{
-				register_error(0,"dbgetv error for %s\n",
+				elog_die(0,"dbgetv error for %s\n",
 					m->dbname);
-				++error_count;
-				break;
 			}
 			/*conversion not necessary here since dbNULL
 			query returns a string for null value*/
 			if(!strcmp(sattrib,nullvalue))
 			{
-				if(DB2PFS_verbose)
-					register_error(0,"Attribute %s is null\n",
-						m->dbname);
-				++error_count;
+				bad_attrib=strdup(m->dbname);
+				pushtbl(error_list,bad_attrib);
 				break;
 			}
 			pfput_string(pf,m->pfname,sattrib);
 		}
 	}
-	return(error_count);
+	return(error_list);
 }
+void log_error_list(Tbl *t)
+{
+	int j;
+	char line[512];
+	int nt;
+	strcpy(line,"Problem attributes: ");
+	nt = maxtbl(t);
+	for(j=0;j<nt;++j)
+	{
+		char *tval;
+		tval = (char *)gettbl(t,j);
+		strcat(line,tval);
+		if(j<(nt-1))strcat(line,",");
+	}
+	elog_notify(0,line);
+}
+		
 /* see top of file for description of the main program here */
 	
 
@@ -185,7 +186,7 @@ cause the program to abort.  Both contain pointers to Attribute_map*/
 	Tbl *require,*passthrough;
 	Attribute_map *amap;
 	FILE *fp;
-	int ierr;
+	Tbl *error_list;
 	char *tag;
 	int sleep_time;  
 
@@ -251,7 +252,12 @@ cause the program to abort.  Both contain pointers to Attribute_map*/
 		if(group_keys==NULL)
 			grouping_on = 0;
 		else
-			grouping_on = 1;
+		{
+			if(maxtbl(group_keys)>0)
+				grouping_on = 1;
+			else
+				grouping_on = 0;
+		}
 	}
 	if(DB2PFS_verbose && ensemble_mode)
 	{
@@ -351,24 +357,35 @@ cause the program to abort.  Both contain pointers to Attribute_map*/
 				++i,++dbv.record)
 			{
 				pfe->pf[i]=pfnew(PFARR);
-				ierr=db2pf(dbv,require,pfe->pf[i]);
-				if(ierr!=0)
+				error_list=db2pf(dbv,require,pfe->pf[i]);
+				if(maxtbl(error_list)>0)
 				{
 				    if(dryrun)
-					elog_notify(0,"%d database errors in ensemble %d need to be fixed\n",
-						ierr,dbge.record);
+				    {
+					elog_log(0,"Ensemble %d at input database view record %d lacks required attributes\n",
+						dbge.record,dbv.record);
+					log_error_list(error_list);
+				    }
 				    else
 				    {
 					fprintf(fp,"%s\n",END_OF_DATA_SENTINEL);
 					fflush(fp);
-					elog_die(0,"%d database errors in ensemble %d\nCannot continue without required attributes\n",
-						ierr,dbge.record);
+					elog_log(0,"FATAL ERROR: ensemble %d at input database view record %d lacks required attributes\nOUTPUT DATA STREAM TRUNCATED\n",
+						i,dbv.record);
+					log_error_list(error_list);
+					exit(-1);
 				    }
 				}
-				ierr=db2pf(dbv,passthrough,pfe->pf[i]);
+				freetbl(error_list,free);
+				error_list=db2pf(dbv,passthrough,pfe->pf[i]);
 				if(DB2PFS_verbose)
-					elog_log(0,"%d errors in extracting passthrough parameters for ensemble %d\n",
-						ierr,dbge.record);
+				{
+					elog_log(0,"Warning:  null passthrough attributes for ensemble %d at row %d\n",
+						dbge.record,dbv.record);
+					log_error_list(error_list);
+				}
+				freetbl(error_list,free);
+				pfput_boolean(pfe->pf[i],"data_valid",1);
 			}
 			
 			if(grouping_on)
@@ -396,6 +413,7 @@ cause the program to abort.  Both contain pointers to Attribute_map*/
 				fflush(fp);
 			}
 			pffree(pfo_total);
+			if(grouping_on)freetbl(grp_records,free);
 		}
 	}
 	else
@@ -408,24 +426,33 @@ cause the program to abort.  Both contain pointers to Attribute_map*/
 		pfo=pfnew(PFARR);
 		for(dbv.record=0;dbv.record<nrecords;++dbv.record)
 		{
-			ierr=db2pf(dbv,require,pfo);
-			if(ierr!=0)
+			error_list=db2pf(dbv,require,pfo);
+			if(maxtbl(error_list)>0)
 			{
 			    if(dryrun)
-				elog_notify(0,"%d database errors for record %d need to be fixed\n",
-						ierr,dbv.record);
+			    {
+				elog_log(0,"Input database view at row %d lacks required parameters\n",
+					dbv.record);
+				log_error_list(error_list);
+			    }
 			    else
 			    {
 				fprintf(fp,"%s\n",END_OF_DATA_SENTINEL);
 				fflush(fp);
-				elog_die(0,"%d database errors in record %d\nCannot continue without required attributes\n",
-						ierr,dbv.record);
+				elog_log(0,"FATAL: input database view at row %d lacks required parameters\n",
+					dbv.record);
+				log_error_list(error_list);
+				exit(-1);
 			    }
 			}
-			ierr=db2pf(dbv,passthrough,pfo);
+			freetbl(error_list,free);
+			error_list=db2pf(dbv,passthrough,pfo);
+			pfput_boolean(pfo,"data_valid",1);
 			if(DB2PFS_verbose)
-				elog_log(0,"%d errors in extracting passthrough parameters for ensemble %d\n",
-						ierr,dbv.record);
+			{
+				elog_log(0,"Warning:  null passthrough attributes for row %d of input database view\n",
+					dbv.record);
+			}
 			if(!dryrun)
 			{
 				pfout(fp,pfo);

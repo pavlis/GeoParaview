@@ -1,4 +1,4 @@
-.TH DB2PFSTREAM 1 "$Date: 2002/11/12 04:09:12 $"
+.TH DB2PFSTREAM 1 "$Date: 2003/03/24 14:23:07 $"
 .SH NAME
 db2pfstream - build database view and send metadata as a pfstream
 .SH SYNOPSIS
@@ -8,7 +8,8 @@ db2pfstream  db file [-n -V -v -pf pffile -sift expression]
 .SH DESCRIPTION
 .LP
 db2pfstream is a generalized input function for a processing system
-based on a concept of a pfstream.  A pfstream is an encapsulated 
+based on a concept of a pfstream.  A pfstream is a way to 
+encapsulate
 pieces of metadata data that could be attached to an arbitrary 
 data object to define it.  This program is designed to build a 
 (potentially long) stream of these pf blocks and feed the results
@@ -33,7 +34,11 @@ required downstream are present in the database.
 .IP -V
 Print usage line and exit immediately doing nothing. 
 .IP -v
-Be verbose in output (most useful with -n is set).
+Be verbose in output.  This is most useful if the -n flag is set
+but it will create a lot of messages that may not matter.  The 
+primary difference is that when -v is set passthrough parameters
+(see parameter file description below) are checked for null values 
+and all nulls are listed. 
 .IP -pf
 Read from alternative parameter file pf instead of default.
 .IP -sift
@@ -42,6 +47,8 @@ database view before starting.  This is most useful if a processing
 stream is being driven by a scripting language to do something 
 like event based processing one event at a time or for manually
 spitting up flow between banks of processors.  
+Otherwise this can generally be done more easily by modification of
+the parameter file to set the input view.
 .SH FILES
 .LP
 Here is an example pfstream output file with 5 rows and 2 attributes
@@ -81,8 +88,108 @@ example &Arr{
 __EOF__
 __EOI__
 
+For more details see pfstream(5).
+
 .fi
 .SH PARAMETER FILE
+.LP
+The input parameter file can get fairly long.  This is an abbreviated
+example forming part of the commond arrival view used
+in catalog preparations.  Check the standard one for a larger example:
+.nf
+
+# Example parameter file
+sleep_time 30
+dbprocess_list	&Tbl{
+    dbopen event
+    dbjoin origin
+    dbjoin assoc
+    dbjoin arrival
+}
+ensemble_keys	&Tbl{
+    evid
+}
+ensemble_mode	true
+group_keys	&Tbl{
+}
+passthrough	&Tbl{
+    evname string evname
+    origin.jdate	int	origin.jdate
+    origin.nass	int	nass
+    origin.ndef	int	ndef
+    origin.ndp	int	ndp
+    grn	int 	grn
+    srn	int	srn
+    etype	string 	etype
+    review	string	review
+    depdp	real	depdp
+    dtype	string	dtype
+    mb	real	mb
+    mbid	int	mbid
+    ms	real	ms
+    msid	int	msid
+    ml	real	ml
+    mlid	int	mlid
+    auth	string	auth
+    origin.auth string origin.auth
+    commid	int	commid
+    origin.commid	int	origin.commid
+    arrival.commid	int	arrival.commid
+    algorithm string algorithm
+    belief	double  belief
+    assoc.delta double delta
+    assoc.seaz  double seaz
+    assoc.esaz  double esaz
+    assoc.timeres  double timeres
+    assoc.timedef  string timedef
+    assoc.azdef  string azdef
+    assoc.slodef  string slodef
+    assoc.azres	double azres
+    assoc.slores	double slores
+    assoc.emares	double emares
+    assoc.wgt double wgt
+    assoc.vmodel string vmodel
+    arrival.jdate int arrival.jdate
+    iphase	string	iphase
+    stassid int stassid
+    chanid int chanid
+    stype string stype
+    azimuth double azimuth
+    delaz double delaz
+    slow double slow
+    delslo double delslo
+    ema double ema
+    rect double rect
+    amp double amp
+    per double per
+    logat double logat
+    clip string clip
+    fm string fm
+    snr double snr
+    qual string qual
+    arrival.auth string arrival.auth
+}
+require	&Tbl{
+    evid	int	evid
+    orid	int	orid
+    prefor	int	prefor
+    origin.lat	real	origin.lat
+    origin.lon	real	origin.lon
+    origin.depth	real	origin.z
+    origin.time	time	origin.time
+    arid	int	arid
+    phase	string	phase
+    sta	string	sta
+    chan	string	chan
+    arrival.time	time	arrival.time
+    deltim	real	deltim
+}
+virtual_table_name	test_arrival_view
+
+
+
+
+.fi
 .LP
 \fIdbprocess_list\fR is a Tbl list that is passed directly to dbprocess
 to build the working view for this program.   This is a VERY important
@@ -135,7 +242,7 @@ data object.  It can be set to zero if the output is an
 ordinary file.  
 .SH "SEE ALSO"
 .nf
-pfstream2db(1)
+pfstream2db(1), pstream(3), pfstream(5)
 .fi
 .SH "BUGS AND CAVEATS"
 .LP
@@ -149,4 +256,4 @@ bidirectional communication capabilities of named pipes described
 in streamio(7).
 .SH AUTHOR
 Gary L. Pavlis, Indiana University (pavlis@indiana.edy)
-.\" $Id: db2pfstream.1,v 1.2 2002/11/12 04:09:12 pavlis Exp $
+.\" $Id: db2pfstream.1,v 1.3 2003/03/24 14:23:07 pavlis Exp $
