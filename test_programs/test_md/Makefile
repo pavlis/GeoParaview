@@ -1,7 +1,7 @@
 BIN=test_md
 ldlibs=-lseispp -ltrvltm -lpfstream -lbrttutil $(TRLIBS) $(DBLIBS) -lperf -lgclgrid
 
-include $(ANTELOPEMAKE)  	# This line must appear following the definitions above, 
+include $(ANTELOPEMAKE)  	
 OBJS=test_md.o
 $(BIN) : $(OBJS)
 	$(RM) $@
