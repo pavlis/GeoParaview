@@ -50,7 +50,7 @@ Arguments
 		each trace in the ensemble.
 	aperture - defines variable aperture stack weighting
 		(see above)
-	mdlist - defines metadata to copy from the raw data
+	mdlcopy - defines metadata to copy from the raw data
 		ensemble to each stack output
 	dir - directory to write output data into.  Assumed to 
 		exist (caller should make sure of this).  Output
@@ -78,8 +78,9 @@ int pwstack_ensemble(Three_Component_Ensemble *indata,
 	double tstart,
 	double tend,
 	Depth_Dependent_Aperture& aperture,
-	list<Metadata_typedef>& mdlist,
-	string dir,
+	Metadata_list& mdlcopy,
+	Metadata_list& mdlout,
+	Attribute_Map& am,
 	Database_Handle& dbh) 
 {
 	int i,j;
@@ -102,8 +103,7 @@ int pwstack_ensemble(Three_Component_Ensemble *indata,
 	int nsout = iend-istart+1;
 	int ismute = nint(mute.t1/dt);
 	int ismute_this, ie_this;
-	string tag="PWstack_output";  // for now this output tag is frozen as this constant
-	const string base_fname="PWSTACK";
+	Datascope_Handle& dshandle=dynamic_cast<Datascope_Handle&>(dbh);
 
 	if(istart>=indata->tcse[0].ns)
 		elog_die(0,(char *)"Irreconcilable window request:  Requested stack time window = %lf to %lf\nThis is outside range of input data\n",
@@ -124,14 +124,13 @@ int pwstack_ensemble(Three_Component_Ensemble *indata,
 		double lat,lon;
 		int ierr;
 		try{
-			lat = (*iv).x[0].get_double("lat");
-			lon = (*iv).x[0].get_double("lon");
+			lat = (*iv).get_double("lat");
+			lon = (*iv).get_double("lon");
 			// assume metadata store these in degrees so we have to convert
 			lat = rad(lat);
 			lon = rad(lon);
-			geographic_to_dne(lat0, lon0, lat, lon, dnorth+i, deast+i);
 			geographic_to_dne(lat0, lon0, lat, lon, &(dnorth[i]),&(deast[i]));
-			elev[i]=(*iv).x[0].get_double("elev");
+			elev[i]=(*iv).get_double("elev");
 		} catch (Metadata_error merr)
 		{
 			throw merr;
@@ -174,7 +173,7 @@ int pwstack_ensemble(Three_Component_Ensemble *indata,
 	vector <double>moveout(nsta);
 	dmatrix stack(3,nsout);
 	vector<double>stack_weight(nsout);
-	vector<double>twork(nsout);`
+	vector<double>twork(nsout);
 
 	double avg_elev,sum_wgt;  // computed now as weighted sum of station elevations
 	for(i=0,avg_elev=0.0,sum_wgt=0.0;i<nsout;++i)
@@ -197,6 +196,7 @@ int pwstack_ensemble(Three_Component_Ensemble *indata,
 		int ismin;
 		string dfile;
 		char buffer[128];
+		string table_name("pwfdisc");
 
 		stack.zero();
 
@@ -240,15 +240,15 @@ int pwstack_ensemble(Three_Component_Ensemble *indata,
 			{
 				dzero(nsout,&(twork[0]),1);
 				dzero(nsout,&(work[0]),1);
-				// ugly expression below is an is offset from
-				// start of vector component x[j] of 3c trace
-				dcopy(ns_to_copy,((*iv).x[j].s)+is,1,
+				// ugly expression below depends on data being
+				// stored in FORTRAN order in the dmatrix object
+				dcopy(ns_to_copy,(*iv).u.get_address(j,is),3,
 					&(twork[0]),1);
-				vscal(iend_this,weights.get_reference(i,0),nsta,&(twork[0]),1);
-				vscal(iend_this,weights.get_reference(i,0),nsta,&(twork[0]),1);
-				vadd(iend_this,&(twork[0]),1,stack.get_reference(j,0),3);
+				vscal(iend_this,weights.get_address(i,0),nsta,&(twork[0]),1);
+				vscal(iend_this,weights.get_address(i,0),nsta,&(twork[0]),1);
+				vadd(iend_this,&(twork[0]),1,stack.get_address(j,0),3);
 				// Need to accumulate the sum of weights to normalize
-				if(j==0) vadd(iend_this,weights[i],1,&(stack_weight[0]),1);
+				if(j==0) vadd(iend_this,weights.get_address(i,0),nsta,&(stack_weight[0]),1);
 			}
 		}
 		// normalize the stack.
@@ -264,10 +264,9 @@ int pwstack_ensemble(Three_Component_Ensemble *indata,
 		// Create the output stack as a 3c trace object and copy
 		// metadata from the input into the output object.
 		stackout = new Three_Component_Seismogram(nsout);
-// MODIFICATION NEEDED FOR THREE COMPONENT SEIS
-		for(j=0;j<3;++j) dcopy(nsout,stack[j],1,stackout->x[j].s,1);
-		copy_selected_metadata(indata->tcse[0].x[0].stackout->mdlist);
-		// Next we load the metadata into the stack varialbe to this code
+		stackout->u=stack;
+		copy_selected_metadata(dynamic_cast<Metadata&>(*indata),
+			dynamic_cast<Metadata&>(*stackout),mdlcopy);
 		stackout->put_metadata("ux",ux);
 		stackout->put_metadata("uy",uy);
 		stackout->put_metadata("dux",dux);
@@ -276,16 +275,16 @@ int pwstack_ensemble(Three_Component_Ensemble *indata,
 		// just keep a good estimate of elevation and deal with this in the
 		// migration algorithm. 
 		stackout->put_metadata("elev",avg_elev);
-		for(j=0;j<3;++j) apply_top_mute(stackout->x[j],stackmute);
+		apply_top_mute(*stackout,stackmute);
 
-		// save the results.  If the write function here fails we have to die
-		sprintf(buffer,"%s_%d_%d",base_fname.c_str(),i,j);
-		dfile=buffer;
-		try{pfstream_save_3cseis(stackout,tag,dir,dfile,pfsho);}
+		try{
+			dbsave(*stackout,dshandle.db,table_name,mdlout,am);
+		}
 		catch(seispp_error err)
 		{
 			err.log_error();
-			elog_die(0,"Aborting due to write failures\n");
+			cerr << "Write failure abort:  cannot continue"<<endl;
+			exit(-1);
 		}
 	    }
 	}

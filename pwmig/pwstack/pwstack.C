@@ -8,10 +8,11 @@
 using namespace std;
 using namespace SEISPP;
 
+bool Verbose;
 void usage()
 {
-        cbanner((char *)"$Revision: 1.7 $ $Date: 2004/08/26 13:20:13 $",
-		(char *)"dbin dbout [-V -pf pfname]",
+        cbanner((char *)"$Revision: 1.8 $ $Date: 2004/09/23 20:10:52 $",
+		(char *)"dbin dbout [-v -V -pf pfname]",
                 (char *)"Gary Pavlis",
                 (char *)"Indiana University",
                 (char *)"pavlis@indiana.edu") ;
@@ -54,6 +55,8 @@ int main(int argc, char **argv)
         {
 		if(!strcmp(argv[i],"-V"))
 			usage();
+		else if(!strcmp(argv[i],"-v"))
+			Verbose=true;
                 else if(!strcmp(argv[i],"-pf"))
                 {
                         ++i;
@@ -69,12 +72,9 @@ int main(int argc, char **argv)
         i = pfread(pfin,&pf);
         if(i != 0) die(1,(char *)"Pfread error\n");
 
-	if(dbopen(dbname_in,"r",&db))
+	if(dbopen(dbname_in,"r+",&db))
 		die(1,"Cannot open input database");
 
-        /* This utility causes the program to die if required parameters
-        are missing */
-        check_required_pf(pf);
 	// extract all the stuff we need for the main processing
 	// routine, pwstack_process, below
 	Rectangular_Slowness_Grid ugrid(pf,"Slowness_Grid_Definition");
@@ -93,7 +93,7 @@ int main(int argc, char **argv)
     	    Metadata_list station_mdl=pfget_mdlist(pf,"station_metadata");
     	    Metadata_list ensemble_mdl=pfget_mdlist(pf,"ensemble_metadata");
     	    Metadata_list stack_mdl=pfget_mdlist(pf,"ensemble_metadata");
-	    Attribute_Map am(pf,"Attribute_Map");
+	    Attribute_Map am;
     	    Depth_Dependent_Aperture aperture(pf,aperture_tag);
 	    Top_Mute mute(pf,string("Data_Top_Mute"));
 	    Top_Mute stackmute(pf,string("Stack_Top_Mute"));
@@ -112,7 +112,6 @@ int main(int argc, char **argv)
 		    dynamic_cast<Database_Handle&>(dbh),
 		    station_mdl, ensemble_mdl,am);
 		double lat0,lon0,ux0,uy0;
-		int iret;
 		lat0=din->get_double("lat0");
 		lon0=din->get_double("lon0");
 		// ux0 and uy0 are the incident wavefield's 
@@ -121,7 +120,7 @@ int main(int argc, char **argv)
 		ux0=din->get_double("ux0");
 		uy0=din->get_double("uy0");
 		try {
-		    iret = pwstack_ensemble(din,
+		    iret=pwstack_ensemble(din,
 			ugrid,
 			mute,
 			stackmute,
@@ -132,15 +131,17 @@ int main(int argc, char **argv)
 			ts,
 			te,
 			aperture,
+			station_mdl,
 			stack_mdl,
-			dir,
+			am,
 			dbho);
 		    if((iret<0) && (Verbose))
 			cout << "Ensemble number "<< i << " has no data in pseudoarray aperture"<<endl;
 		} catch (Metadata_error mderr1)
 		{
-			mderr1.log_error;
+			mderr1.log_error();
 			cerr << "Ensemble " << i << " data skipped" << endl;
+		}
 		delete din;
 	    }
 	} catch (seispp_error err)

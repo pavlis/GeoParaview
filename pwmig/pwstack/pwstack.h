@@ -46,6 +46,7 @@ int pwstack_ensemble(Three_Component_Ensemble *indata,
 	double tstart,
 	double tend,
 	Depth_Dependent_Aperture& aperture,
-	list<Metadata_typedef>& mdlist,
-	string dir,
-	Database_Handle& dbh) throw (seispp_error);
+	Metadata_list& mdlcopy,
+	Metadata_list& mdlout,
+	Attribute_Map& am,
+	Database_Handle& dbh);
