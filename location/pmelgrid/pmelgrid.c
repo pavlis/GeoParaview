@@ -2,7 +2,7 @@
 #include <stdlib.h>
 #include <strings.h>
 #include <unistd.h>
-#include <sunperf.h>
+#include <perf.h>
 #include "elog.h"
 #include "stock.h"
 #include "arrays.h"
@@ -141,7 +141,7 @@ void usage()
 	elog_die(0,"\n");
 }
 Pfstream_handle *pfshi, *pfsho;
-void main(int argc, char **argv)
+int main(int argc, char **argv)
 {
 	char *dbin;  /* Input db name */
 	Dbptr db;  /* input db pointer */
@@ -426,7 +426,7 @@ option which is know to cause problems\nrecenter set off\n");
 			if(strstr(swork,"ABORT")!=NULL) pmelfail=1;
 		}
 		/* This inserts revised attributes into the pfe */
-		update_ensemble(pfe,pf,h0,ta);
+		update_ensemble(pfe,pf,h0,ta,o);
 		/* We have to recreate the header block for pfe */
 		pfehead=pfensemble_convert_group(pfe);
 		/* This builds a separate structure for pmel extension
@@ -473,5 +473,5 @@ option which is know to cause problems\nrecenter set off\n");
 /*
 	pthread_exit(NULL);
 */
-	exit(0);
+	return(0);
 }

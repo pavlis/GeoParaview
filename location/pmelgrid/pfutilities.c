@@ -65,9 +65,9 @@ Tbl *pfextract_arrivals(Pf **pfall, int is, int ie,
                 }
 		a->arid = pfget_int(pf,"arid");
 		a->time = pfget_time(pf,"arrival.time");
-		a->deltat = pfget_double(pf,"deltim");
                 /* Here set set deltat to default when this is required */
-                if( (a->deltat) <= 0.0 ) a->deltat = (double)a->phase->deltat0;
+		a->deltat = pfget_double_wdef(pf,"deltim",
+			(double)a->phase->deltat0);
                 pushtbl(tout,a);
 	}
 	return(tout);
@@ -106,7 +106,8 @@ void update_ensemble(
 		Pf_ensemble *pfe,
 		Pf *controlpf,
 		Hypocenter *h,
-		Tbl **ta)
+		Tbl **ta,
+		Location_options o)
 {
 	int i,j,jj;
 	int narrival;
@@ -118,10 +119,18 @@ void update_ensemble(
 	char *auth;
 	double **C;
 	int gs, ge;  /* shorthand variables */
+	float emodel[4];
+	Tbl *utbl;
 
 	/* assume all the pf's have the same for this parameter*/
 	auth=pfget_string(controlpf,"author");
 	C = dmatrix(0,3,0,3);
+	
+	/* In pmel we don't handle slowness vectors, so this will be an
+	empty list.  It needs to be a valid tbl or the program will seg
+	fault, but it will be empty */
+	utbl=newtbl(0);
+
 	conf = pfget_double(controlpf,"confidence");
 	modtype = pfget_string(controlpf,"ellipse_type");
 	if(modtype == NULL)
@@ -150,6 +159,7 @@ void update_ensemble(
     	    int narrivals;
 	    if(h[i].used)
 	    {
+	    	predicted_errors(h[i],ta[i],utbl,o,C,emodel);
 		rc = project_covariance( C, model, &conf,
                             h[i].rms_weighted, h[i].degrees_of_freedom,
                             &smajax, &sminax, &strike, &sdepth, &stime );
@@ -263,6 +273,7 @@ void update_ensemble(
 	    }
 	}
 	free_matrix((char **)C,0,3,0);
+	freetbl(utbl,0);
 }
 Pf_ensemble *build_sc_ensemble(int gridid, SCMatrix *s, Pf *pf)
 {
