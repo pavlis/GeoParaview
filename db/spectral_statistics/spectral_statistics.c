@@ -70,6 +70,9 @@ char **argv;
 
 	int nparent,nratio,nnoise; /* number of records for different subsets*/
 
+	int nfreq;
+	double df,freq0;
+
 	int i;
 
 	FILE *fp;
@@ -93,9 +96,6 @@ char **argv;
 
 	int ns[MAX_FREQ];
 	float *s[MAX_FREQ];
-	/* Added to fix resample problem.  */
-	Spectrum pattern;
-	double df,freq0;
 
 
 
@@ -193,25 +193,21 @@ char **argv;
 	if(verbose)fprintf(stdout,"Writing results to output file %s\n");
 
 	/* Scan the data view to get the number of frequencies to use in work space */
-	for(dbratio.record=0,pattern.nfreq=0;
-		dbratio.record<nratio;++dbratio.record)
+	for(dbratio.record=0,nfreq=0;dbratio.record<nratio;++dbratio.record)
 	{
 		int nf_test;
-		if( dbgetv(dbratio,0,"nfreq",&nf_test,
-			0) == dbINVALID) die(0,"dbgetv error scanning input view of data subset\n");
-		pattern.nfreq=MAX(pattern.nfreq,nf_test);
+		if( dbgetv(dbratio,0,"nfreq",&nf_test,0) == dbINVALID) die(0,"dbgetv error scanning input view of data subset\n");
+		nfreq=MAX(nfreq,nf_test);
 	}
-	if(pattern.nfreq<=0) 
-		die(0,"Number of frequencies found in scanning input = %d is invalid\n",pattern.nfreq);
-	else if(verbose) fprintf(stdout,"Using %d frequencies in work space \n",pattern.nfreq);
+	if(nfreq<=0) 
+		die(0,"Number of frequencies found in scanning input = %d is invalid\n",nfreq);
+	else if(verbose) fprintf(stdout,"Using %d frequencies in work space \n",nfreq);
 
-	pattern.freq0 = freq0;
-	pattern.df = df;
-	for(i=0;i<pattern.nfreq;++i)
+	for(i=0;i<nfreq;++i)
 	{
 		allot(float *,s[i],nratio);
 	}
-	for(i=0;i<pattern.nfreq;++i) ns[i] = 0;
+	for(i=0;i<nfreq;++i) ns[i] = 0;
 
 	/* Now we enter main loop */
 	for(dbratio.record=0;dbratio.record<nratio;++dbratio.record)
@@ -229,11 +225,15 @@ char **argv;
 		/* This obscure line uses a standard safe floating point
 		equals test */
 
-		if( (pattern.nfreq != sr.nfreq)
-			&& ( (df - sr.df)/(df) != 0.0 )
-			&& ( (freq0 - sr.freq0)/(freq0) != 0.0 ) )
+		if( (nfreq != sr.nfreq)
+			&& ( (df - sr.df)/df != 0.0 )
+			&& ( (freq0 - sr.freq0)/freq0 != 0.0 ) )
 		{
-			sr = resample_spectrum(sr,pattern);
+			fprintf(stderr,"Warning:  parameter mismatch for row %d\n",
+				dbratio.record);
+			fprintf(stderr,"This entry will be skipped\n");
+			free(sr.spec);
+			continue;
 		}
 		/* We now find the associated noise spectrum using dbmatches, which 
 		finds the set of rows that match this sta:chan:orid */
@@ -248,7 +248,7 @@ char **argv;
 		else if(nmatches>1)
 		{
 			elog_notify(0,"Warning:  %d matches in noise list for sta:chan:orid=%s:%s:%d\nUsing first one found\n",
-				nmatches,sr.sta,sr.chan,orid);
+				sr.sta,sr.chan,orid);
 		}
 		
 		dbwork = copy_dbptr(dbnoise);
@@ -257,9 +257,9 @@ char **argv;
 		if(noise.spec == NULL)die(0,"read_spectrum failed on record %d of ratio view\n",
 					dbnoise.record);
 
-		if( (pattern.nfreq != noise.nfreq)
-			&& ( (df - noise.df)/(df) != 0.0 )
-			&& ( (freq0 - noise.freq0)/(freq0) != 0.0 ) )
+		if( (nfreq != noise.nfreq)
+			&& ( (df - noise.df)/df != 0.0 )
+			&& ( (freq0 - noise.freq0)/freq0 != 0.0 ) )
 		{
 			noise = resample_spectrum(noise,sr);
 		}
@@ -277,7 +277,7 @@ char **argv;
 		else if(nmatches>1)
 		{
 			elog_notify(0,"Warning:  %d matches in parent spectrum list for sta:chan:orid=%s:%s:%d\nUsing first one found\n",
-				nmatches,sr.sta,sr.chan,orid);
+				sr.sta,sr.chan,orid);
 		}
 		
 		dbwork = copy_dbptr(dbparent);
@@ -285,21 +285,15 @@ char **argv;
 		parent = read_spectrum(dbwork);
 		if(parent.spec == NULL)die(0,"read_spectrum failed on record %d of ratio view\n",
 					dbparent.record);
-		if( (pattern.nfreq != parent.nfreq)
-			&& ( (df - parent.df)/(df) != 0.0 )
-			&& ( (freq0 - parent.freq0)/(freq0) != 0.0 ) )
-		{
-			parent = resample_spectrum(parent,sr);
-		}
 		freetbl(matches,0);
-		
+ 
 
 		/* Convert parent.spec array values to signal-to-noise ratios */
-		for(i=0;i<parent.nfreq;++i) parent.spec[i] /= noise.spec[i];
+		for(i=0;i<nfreq;++i) parent.spec[i] /= noise.spec[i];
 
 		/* Now accumulate spectral ratio for each frequency, but
 		skipping frequencies where signal-to-noise is inadequate */
-		for(i=0;i<parent.nfreq;++i)
+		for(i=0;i<nfreq;++i)
 		{
 			if(parent.spec[i] > SN_CUTOFF)
 			{
@@ -315,7 +309,7 @@ char **argv;
 
 	/* Now loop through s and calculate statistics */
 	if(verbose)fprintf(stdout,"Freq  Median\n");
-	for(i=0;i<pattern.nfreq;++i)
+	for(i=0;i<nfreq;++i)
 	{
 		double freq;
 		float srmean,srmedian,sr1_4,sr3_4,srmin,srmax;
