@@ -1,19 +1,32 @@
+#include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
 #include "stock.h"
 #include "arrays.h"
 #include "pf.h"
+/* The list of calibration event info is stored in an associative
+array keyed by evid.  However, evid is an int while an Arr 
+is only keyed by character strings.  To standardize the process
+we use this function to generate the key from the integer evid.
+This probably should be generalized, but it is so trivial it
+probably isn't worth the trouble.
 
-/* compare function for pure integer keys for associative array*/
-int cmpint(int *i1,int *i2)
+Author G pavlis
+Written:  July 2001
+*/
+char *make_evid_key(int evid)
 {
-	if(i1<i2)
-		return(-1);
-	else if(i1==i2)
-		return(0);
-	else
-		return(1);
+	char *s;
+	/* The evid field is 8 bytes wide in css3.0 of datascope
+	so we make an 9 byte string */
+	s = (char *)malloc(9);
+	/* We just left justify the string and not worry about 
+	leading zeros.  This will not produce correct sort order
+	necessarily, but for the application here this doesn't matter.*/
+	sprintf(s,"%-9d",evid);
+	return(s);
 }
+
 /* This function creates an associative array keyed by an integer
 event id from a parameter file based descriptor &Tbl like this example:
 
@@ -29,11 +42,12 @@ Arr *load_calibration_events(Pf *pf)
 {
 	Tbl *t;
 	int evid;
+	char *evidstr;
 	char fix[5],*line;
 	Arr *a;
 	int i;
 
-	a = newarr(cmpint);
+	a = newarr(0);
 
 	t = pfget_tbl(pf,"pmel_calibration_events");
 	if(t==NULL) 
@@ -47,7 +61,9 @@ Arr *load_calibration_events(Pf *pf)
 		{
 			line = (char *)gettbl(t,i);
 			sscanf(line,"%d%s",&evid,fix);
-			setarr(a,(char *)evid,fix);
+			evidstr = make_evid_key(evid);
+			setarr(a,evidstr,fix);
+			free(evidstr);
 		}
 			
 	}
@@ -56,6 +72,9 @@ Arr *load_calibration_events(Pf *pf)
 char *get_fixlist(Arr *a,int evid)
 {
 	char *o;
-	o=(char *)getarr(a,(char *)evid);
+	char *key;
+	key = make_evid_key(evid);
+	o=(char *)getarr(a,key);
+	free(key);
 	return(o);
 }
