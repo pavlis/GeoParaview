@@ -194,7 +194,8 @@ Written:  Fall 2000
 */
 
 #ifdef MPI_SET
-int dbpmel_process(Dbptr db, Tbl *gridlist,Pf *pf, int rank, int np)
+int dbpmel_process(Dbptr db, Tbl *gridlist,Pf *pf, int rank, int np,
+		int argc, char ** argv)
 #else
 int dbpmel_process(Dbptr db, Tbl *gridlist,Pf *pf)
 #endif
