@@ -234,7 +234,7 @@ void main(int argc, char **argv)
 	pushtbl(sortkeys,"evid");
 	pushtbl(sortkeys,"sta");
 	pushtbl(sortkeys,"phase");
-	dbv = dbsort(dbv,sortkeys,dbUNIQUE,0);
+	dbv = dbsort(dbv,sortkeys,dbSORT_UNIQUE,0);
 	dbquery(dbv, dbRECORD_COUNT, &nrows);
 	if(nrows != nrows_raw)
 		complain(0,"Input database has duplicate picks of one or more phases on multiple channels\n\
