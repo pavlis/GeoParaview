@@ -1,0 +1,68 @@
+require &Arr{
+int &Tbl{
+pmel_maximum_sc_iterations 1 100
+}
+double &Tbl{
+pmel_initial_error_scale
+pmel_minimum_error_scale 
+pmel_F_test_critical_value 0.9 1.0
+pmel_svd_relative_cutoff 1.0  1.0E6
+pmel_sc_fraction_convergence_error 0.0000001 0.1
+}
+string &Tbl{
+}
+boolean &Tbl{
+use_all_stations
+use_dnorth_deast
+pmel_autodelete_high_rms
+pmel_cluster_mode
+}
+}
+       dbopen hypocentroid
+        dbsubset gridname==specified
+        dbjoin cluster
+
+dbpmel_dbview_definition &Tbl{
+	dbopen hypocentroid
+	dbsubset gridname=="tienshan"
+	dbjoin cluster
+	dbjoin event
+	dbjoin origin
+	dbsubset orid==prefor
+	dbjoin assoc
+	dbjoin arrival
+	dbjoin site
+	dbjoin hypocentroid
+	dbsort gridid evid
+}
+use_all_stations false
+use_dnorth_deast false
+pmel_auto_delete_high_rms true
+pmel_cluster_mode true
+pmel_initial_error_scale 10.0
+pmel_minimum_error_scale  1.0
+pmel_F_test_critical_value 0.95
+pmel_svd_relative_cutoff  100.0
+pmel_sc_fraction_convergence_error 0.001
+pmel_stations &Arr{
+AAK
+KBK
+UCH
+TKM2
+ULHL
+}
+#
+#  This contains a list of evids and coordinates to fix
+# x=ew, y=ns, z=up/down, t=origin time
+#
+pmel_calibration_events &Arr{
+10  xyzt
+11  xyz
+}
+#  This entry should eventually contain phase definition parameters
+#  for the 3d reference model between the curly brackets
+#
+3Dphase_definitions {
+
+}
+
