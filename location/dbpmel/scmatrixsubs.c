@@ -361,5 +361,7 @@ int compute_scref(SCMatrix *s, Hypocenter *h, Arr *stalist,
 			if(sc != NULL) s->scref[icol] -= (*sc);
 		}
 	}
+	freetbl(phskeys,0);
+	freetbl(stakeys,0);
 	return(ierr);
 }

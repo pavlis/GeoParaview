@@ -542,6 +542,11 @@ rhsnrm = dnrm2_(&nrows_S,bwork,&one);
 	total_ndgf = total_ndgf - nused;  /*use nused as svd truncation
 						will be the norm with
 						missing phases */
+	if(total_ndgf<=0)
+	{
+		pushtbl(sc_converge_reasons,"ABORT on insufficient data");
+		return(t);
+	}
 	sswrodgf = total_wssq/((double)total_ndgf);
 	escale = sqrt(sswrodgf);
 	if(escale<esmin) escale = esmin;

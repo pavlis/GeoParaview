@@ -1,6 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
-#include <string.h>
+#include <strings.h>
 #include "elog.h" 
 #include "stock.h"
 #include "arrays.h"
@@ -79,6 +79,47 @@ void get_gridid_range(Tbl *gridlist,int *gmin,int *gmax)
 	*gmin = gidmin;
 	*gmax = gidmax;
 }
+/* small companion function to main.  It basically dumps the contents of
+the parameter space, pf, to a special database table.  It is assumed
+to be called early on on execution so it is a fragile little program 
+that will die if you look at it wrong.  The checks against the string
+parameters are redundant because of the use of check_required_pf, but 
+since it is possible to mess this up by errors in pf double checks here
+are ok.
+*/
+
+void save_run_parameters(Dbptr db,Pf *pf)
+{
+	char *dir,*dfile;
+	char filename[512];
+	char *vm,*vm3d;
+	
+	dir = pfget_string(pf,"pmelrun_archive_directory");
+	if(dir==NULL)elog_die(0,"Parameter pmelrun_archive_directory not in parameter file\n");
+	if(makedir(dir))
+		elog_die(0,"makedir failed on directory %s\n",dir);
+	dfile = pfget_string(pf,"pmel_run_name");
+
+	
+	vm = pfget_string(pf,"travel_time_model");
+	vm3d=pfget_string(pf,"3Dreference_model");
+	if( (vm==NULL) || (vm3d==NULL) )
+		elog_die(0,"Missing required velocity model definitions\nCheck parameters travel_time model and 3Dreference_model\n");
+	db = dblookup(db,0,"pmelruns",0,0);
+	if(dbaddv(db,0,"pmelrun",dfile,
+		"vmodel",vm,
+		"vmodel3d",vm3d,
+		"dir",dir,
+		"dfile",dfile,0) < 0) elog_die(0,
+		   "dbaddv error on pmelrun table\nVerify schema extensions for dbpmel and that the pmel_run_name parameter is unique\n");
+
+	strcpy(filename,dir);
+	strcat(filename,"/");
+	strcat(filename,dfile);
+	if(pfwrite(filename,pf))
+		elog_die(0,"pfwrite error for file %s\n",filename);
+}
+	
 
 void usage()
 {
@@ -148,6 +189,12 @@ void main(int argc, char **argv)
 	gridname = pfget_string(pf,"gridname");
 	if(dbopen(dbin,"r",&db) == dbINVALID) 
 		elog_die(1,"Unable to open input database %s\n",dbin);
+	
+	/* We save the pf object into archive files that document the
+	complex state of this program.  This small function does this
+	and saves the results in a special db table */
+	save_run_parameters(db,pf);	
+		
 	db = dblookup(db,0,"hypocentroid",0,0);
 	sprintf(sstring,"gridid>=%d && gridid<=%d && (gridname=~/%s/)",gmin,gmax,gridname);
 	db = dbsubset(db,sstring,0);

@@ -14,6 +14,7 @@ string &Tbl{
 travel_time_model	
 pmel_run_name
 gridname
+pmelrun_archive_directory
 }
 boolean &Tbl{
 use_all_stations
@@ -24,6 +25,7 @@ pmel_cluster_mode
 }
 pmel_run_name test
 gridname kyrghyz
+pmelrun_archive_directory pmelruns
 
 dbpmel_dbview_definition &Tbl{
 dbsubset gridid<1000

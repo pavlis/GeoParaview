@@ -236,7 +236,54 @@ Attribute pmelrun
 		key in some of these tables.
         }
         ;
+Attribute tsc
+	Real ( 10 )
+	Format ( "%10.3lf" )
+	Units ( "Seconds" )
+	Description ( "Travel time station correction" )
+	Null ( "-1.0" )
+	Detail {
+		Station corrections are corrections added to a computed
+		travel time that are tagged to a particular receiver 
+		position.  
+		}
+	;
 
+Attribute tscref
+	Real ( 10 )
+	Format ( "%10.3lf" )
+	Units ( "Seconds" )
+	Description ( "Reference station correction" )
+	Null ( "-1.0" )
+	Detail {
+		Station corrections are corrections added to a computed
+		travel time that are tagged to a particular receiver 
+		position.  A reference station correction is a concept
+		used by pmel to denote a correction formed as the 
+		difference between two model realizations.  Normally
+		this would be a difference T3d - T1d where T3d is a
+		time computed for a 3D model and T1d is time computed
+		for a 1D reference model.  
+		}
+	;
+	
+Attribute tscbias
+	Real ( 10 )
+	Format ( "%10.3lf" )
+	Units ( "Seconds" )
+	Description ( "Bias component of station correction" )
+	Null ( "-1.0" )
+	Detail {
+		Station corrections are corrections added to a computed
+		travel time that are tagged to a particular receiver 
+		position.  A reference/bias station correction is a concept
+		used by pmel to denote a correction used as a bias
+		contribute.  That is, a bias is applied that is derived
+		from the reference corrections (tsref) and this is the
+		component of tsc derived from tsref.   
+		}
+	;
+		
 Attribute sswrodgf
 	Real ( 15 )
 	Format ( "%15.6lg" )
@@ -395,6 +442,18 @@ Relation cluster
 	}
 	;
 
+Relation gridscor
+	Fields (
+		sta phase gridname gridid pmelrun tsc tscref tscbias lddate )
+	Primary ( sta phase gridname gridid pmelrun )
+	Foreign ( gridid pmelrun )
+	Detail {
+		This is this one of two primary output tables of dbpmel.
+		It contains the station corrections computed for each
+		station/phase combination.
+	}
+	;
+	
 Relation gridstat
 	Fields ( gridname gridid pmelrun sswrodgf ndgf sdobs lddate )
 	Primary ( gridname gridid pmelrun )
@@ -410,7 +469,8 @@ Relation gridstat
 
 Relation hypocentroid
 	Fields (
-		gridname gridid dlat dlon depth hclat hclon hcdepth nass delta ztop zbot lddate
+		gridname gridid dlat dlon depth hclat hclon hcdepth 
+		nass delta ztop zbot lddate
 
 	)
 	Primary ( gridname gridid )
@@ -425,6 +485,21 @@ Relation hypocentroid
 		within a depth interval zupper to zlower.
 	}
 	;
+	
+Relation pmelruns
+	Fields (
+		pmelrun vmodel vmodel3d dir dfile lddate )
+	Primary ( pmelrun )
+	Detail {
+		This is a special working table for dbpmel that is 
+		used to save the large set of parameters that control
+		it's operation.  The run code, pmelrun, is used as a
+		key in several other tables to allow multiple runs
+		to be stored in a single database.
+	}
+	;
+	
+
 
 #
 #  These are copied from iceworm1.3  but I added time fields

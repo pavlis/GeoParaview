@@ -595,4 +595,53 @@ int dbpmel_save_hypos(Dbptr dbv,
 	freetbl(tu,free);
         return(0);
 }
+void dbpmel_save_sc(int gridid, Dbptr db,SCMatrix *s,Pf *pf)
+{
+	char *pmelrun,*gridname;
+	int *iptr;
+	int phacol;
+	Tbl *phaskeys,stakeys;
+	int i,j,icol;
+	char *phase,*sta;
+	
+	/* we assume these have been verified to be in pf through 
+	check_required_pf*/
+	pmelrun=pfget_string(pf,"pmel_run_name");
+	gridname = pfget_string(pf,"gridname");
+	
+        phskeys = keysarr(s->phase_index);
+        stakeys = keysarr(s->sta_index);
+        db = dblookup(db,0,"gridscor",0,0);
 
+        for(j=0;j<maxtbl(phskeys);++j)
+        {
+        	phase = (char *)gettbl(phskeys,j);
+		iptr = (int *)getarr(s->phase_index,phase);
+		phacol = *iptr;
+		for(i=0;i<maxtbl(stakeys);++i)
+		{
+			sta = (char *)gettbl(stakeys,i);
+			iptr = (int *)getarr(s->sta_index,sta);
+			icol = phacol + (*iptr);
+			/* This trap is probably superfluous, but better to
+			be paranoid */
+			if((icol>=0) && (icol<s->ncol))
+				dbaddv(db,0,"sta",sta,
+					"phase",phase,
+					"gridname",gridname,
+					"gridid",gridid,
+					"pmelrun",pmelrun,
+					"tsc",s->sc[icol],
+					"tscref",s->scref[icol],
+					"tscbias",s->scbias[icol],0);
+			}
+			else
+				elog_die(0,"dbpmel_save_sc:  computed index %d for accessing station correction vector is outside range of 1 to %d\nProbably access violation making continuation ill advised\n",
+					icol+1,s->ncol);
+		}
+	}
+	freetbl(phskeys,0);
+	freetbl(stakeys,0);
+}
+			
+	

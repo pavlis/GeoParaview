@@ -333,14 +333,18 @@ int dbpmel_process(Dbptr db, Tbl *gridlist,Pf *pf)
 		more portable */
 		converge=pmel(nevents,evid,ta,h0,
 			events_to_fix,&hypocentroid,smatrix,pf);
-		fprintf(stdout,"Cluster id=%d pmel convergence reason\n",
+		elog_log(0,"Cluster id=%d pmel convergence reason\n",
 			gridid);
-		for(k=0;k<maxtbl(converge);++k)
+		for(k=0,pmelfail=0;k<maxtbl(converge);++k)
 		{
 			char *swork;
 			swork = (char *)gettbl(converge,k);
 			elog_log(0,"%s\n",swork);
+			/* The string ABORT in the convergence list
+			is used to flag a failure. */
+			if(strstr(s,"ABORT")!=NULL) pmelfail=1;
 		}
+		dbpmel_save_sc(db,smatrix,pf);
 		dbpmel_save_hypos(db,reclist,nevents,h0,evid,ta,events_to_fix,pf);
 		if(dbaddv(dbcs,0,"gridid",gridid,
 				"gridname", gridname,
