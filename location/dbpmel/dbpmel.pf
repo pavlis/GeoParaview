@@ -18,22 +18,16 @@ pmel_autodelete_high_rms
 pmel_cluster_mode
 }
 }
-       dbopen hypocentroid
-        dbsubset gridname==specified
-        dbjoin cluster
-
 dbpmel_dbview_definition &Tbl{
 	dbopen hypocentroid
-	dbsubset gridname=="tienshan"
+dbsubset gridid<1000
+	dbsubset gridname=="kyghyz"
 	dbjoin cluster
 	dbjoin event
 	dbjoin origin
 	dbsubset orid==prefor
 	dbjoin assoc
 	dbjoin arrival
-	dbjoin site
-	dbjoin hypocentroid
-	dbsort gridid evid
 }
 use_all_stations false
 use_dnorth_deast false
@@ -62,7 +56,7 @@ pmel_calibration_events &Tbl{
 #  This entry should eventually contain phase definition parameters
 #  for the 3d reference model between the curly brackets
 #
-3Dphase_definitions {
+3Dphase_definitions &Tbl{
 
 }
-
+pmel_maximum_sc_iterations 5

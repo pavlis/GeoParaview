@@ -118,6 +118,7 @@ void main(int argc, char **argv)
 	/* We call this routine that uses dbprocess driven by the 
 	parameter file definition tagged by the Tbl dbpmel_dbview*/
 	dbv = dbform_working_view(db,pf,"dbpmel_dbview_definition");
+	dbquery(dbv, dbRECORD_COUNT, &nrows);
 
 	/* We can't use dbprocess for this join as the current 
 	form does not allow this use of mixed keys*/
