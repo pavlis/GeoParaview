@@ -1,11 +1,13 @@
 #include "stock.h"
+#include "coords.h"
 #include "arrays.h"
 #include "db.h"
 #include "elog.h"
 #include "pf.h"
+#include "gclgrid.h"
 void usage()
 {
-	banner(Program_Name, "$Revision: 1.1 $ $Date: 2001/07/08 23:31:21 $") ;
+	banner(Program_Name, "$Revision: 1.2 $ $Date: 2001/07/09 16:38:02 $") ;
 	elog_die(0,"usage:  %s db [-pf pfname]\n",Program_Name);
 }
 /* This program is a companion to dbpmel.  It reads a gclgrid file and an input
@@ -40,6 +42,7 @@ void main(int argc, char **argv)
 
 	char *gridname;
 	GCL3Dgrid *grd;
+	int gridid;
 	/* search control parameters */
 	double rmin, rmax, dr,dz;
 	int minimum_events;
@@ -48,11 +51,11 @@ void main(int argc, char **argv)
 	double search_radius,search_radius_km;
 	char sstring[128];
 	int nrecs;
-
+	int evid;
 	double hypocen_lat,hypocen_lon,hypocen_z;
 
 	elog_init(argc,argv);
-	elog_notify (0, "$Revision: 1.1 $ $Date: 2001/07/08 23:31:21 $") ;
+	elog_notify (0, "$Revision: 1.2 $ $Date: 2001/07/09 16:38:02 $") ;
 	if(argc<2) usage();
 
 	dbin = argv[1];
@@ -70,9 +73,6 @@ void main(int argc, char **argv)
 	}
 	if(pfin==NULL) pfin=strdup("cluster");
 	if(pfread(pfin,&pf)) elog_die(0,"pfread error for pffile=%s\n",pfin);
-four parameters:  minimum_radius, maximum_radius, radius_step_size, 
-and minumum_event_count.  The basic algorithm is that the radius is 
-
 	rmin=pfget_double(pf,"minimum_radius");
 	rmax=pfget_double(pf,"maximum_radius");
 	dr = pfget_double(pf,"radius_step_size");
@@ -166,7 +166,7 @@ and minumum_event_count.  The basic algorithm is that the radius is
 					hypocen_lon += (lon-360.0);
 			}
 			hypocen_lat += lat;
-			hypozen_z += z;
+			hypocen_z += z;
 			if(dbaddv(dbc,0,"gridname",gridname,
 				"gridid",gridid,
 				"evid",evid)<0) elog_die(0,"Error appending to cluster table for gridid %d and evid %d\n",
