@@ -1,0 +1,82 @@
+Attribute sname
+	String ( 4 )
+	Format ( "%-4s" ) 
+	Null  ( "-"  ) 
+	Description ( "spectral file type name" ) 
+	Detail {
+	    This field is a character string mnenonic for the time
+	    window with which spectrum defined by this record is defined.
+	    For example:  P1.0, S2.5, etc.
+	    }
+	;
+ 
+Attribute freq0
+	Real ( 15 )
+	Format ( "%15.6lg" )
+	Description ( "Frequency of first point in spectral file" )
+	Detail {
+		Most spectra have zero as the first frequency, but we
+		need to add this field to allow possibility of starting
+		at a nonzero value.
+		}
+	;
+
+Attribute sscale
+	Real ( 15 )
+	Format ( "%15.6lg" )
+	Description ( "Spectral scale factor " )
+	Detail {
+		Scale factor of this spectral file required to convert spectra
+		to unspecified standard units.  Included to allow individual
+		spectral codes to not worry heavily about scaling.  
+	}
+	;
+
+Attribute psid
+	Integer ( 8 )
+	Format ( "%8d" ) 
+	Range ( "psid > 0" ) 
+	Null  ( "NONULL"  ) 
+	Description ( "power spectra id" ) 
+	Detail {
+	    The key field is a unique identifier
+	    for a power spectral estimate similar to wfid.
+	    }
+	; 
+
+Attribute pstype
+	String ( 8 )
+	Format ( "%-8s" )
+	Description ( "Spectrum file type" )
+	Detail {
+		This attribute describes the type of estimate the file
+		associated with this relation points to.  Valid types
+		anticipated at this revision include:
+		sp1c - power spectrum estimate from single component
+		sp3c - total power estimate from 3 components
+		clow - lower confidence limit
+		chi  - upper confidence limit
+		low - lower bound of ensemble of spectral estimates
+		high - upper bound of ensemble of spectral estimates
+		1_4  - lower quartile of ensemble
+		3_4  - upper quartile of ensemble
+		}
+	;
+
+Relation psdisc		
+	Fields ( 
+	    sta chan sname arid time psid chanid jdate endtime phase auth freq0 nfreq 
+	    df rayleigh tbp sscale pstype datatype dir dfile foff
+	    )
+	Primary ( sta chan time sname pstype )
+	Alternate ( psid )
+
+	Description ( "Power spectra file header and descriptive information" ) 
+	Detail {
+		this relation provides a pointer (or index) to spectral
+		files stored on disk.  This would normally be expected
+		to be trace like data stored as binary floats.  Technically
+		though this relation allows integer binary formats.
+		Current code ignores this attribute.
+	    }
+	;
