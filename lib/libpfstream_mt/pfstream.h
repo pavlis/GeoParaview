@@ -15,6 +15,10 @@ typedef struct pfshand {
         pthread_t thread_id;
 } Pfstream_handle;
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 extern int DB2PFS_verbose;
 enum Dbtype {DBINT, DBREAL, DBTIME, DBSTR};
 
@@ -49,5 +53,10 @@ void pfput_time(Pf *,char *,double);
 /* this prototype declaration is necessary because pf.h does not 
 define it for some reason */
 Pf *pfdup(Pf *);
+
+#ifdef  __cplusplus
+}
+#endif
+
 
 
