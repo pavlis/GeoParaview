@@ -453,6 +453,7 @@ for cluster id %d\n",
 		freetbl(pmelhistory,free);
 		converge=NULL;
 		pmelhistory=NULL;
+		freetbl(reclist,0);
 	}
 	freearr(events_to_fix,0);
 	destroy_SCMatrix(smatrix);

@@ -93,6 +93,7 @@ void save_run_parameters(Dbptr db,Pf *pf)
 	char *dir,*dfile;
 	char filename[512];
 	char *vm,*vm3d;
+	int ierr;
 	
 	dir = pfget_string(pf,"pmelrun_archive_directory");
 	if(dir==NULL)elog_die(0,"Parameter pmelrun_archive_directory not in parameter file\n");
@@ -106,11 +107,12 @@ void save_run_parameters(Dbptr db,Pf *pf)
 	if( (vm==NULL) || (vm3d==NULL) )
 		elog_die(0,"Missing required velocity model definitions\nCheck parameters travel_time model and 3Dreference_model\n");
 	db = dblookup(db,0,"pmelruns",0,0);
-	if(dbaddv(db,0,"pmelrun",dfile,
+	ierr=dbaddv(db,0,"pmelrun",dfile,
 		"vmodel",vm,
 		"vmodel3d",vm3d,
 		"dir",dir,
-		"dfile",dfile,0) < 0) elog_die(0,
+		"dfile",dfile,0);
+	if(ierr < 0) elog_die(0,
 		   "dbaddv error on pmelrun table\nVerify schema extensions for dbpmel and that the pmel_run_name parameter is unique\n");
 
 	strcpy(filename,dir);

@@ -15,6 +15,7 @@ travel_time_model
 pmel_run_name
 gridname
 pmelrun_archive_directory
+author
 }
 boolean &Tbl{
 use_all_stations
@@ -36,6 +37,7 @@ dbsubset gridid<1000
 	dbjoin assoc
 	dbjoin arrival
 }
+author dbpmel:pavlis
 use_all_stations false
 use_dnorth_deast false
 pmel_autodelete_high_rms true

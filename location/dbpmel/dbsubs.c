@@ -105,31 +105,41 @@ int dbpmel_save_results(Dbptr db,
 	char *auth;
 	Arrival *a;
 	int orid;
+	int nmatch;
+	double **C;
+	char *alg=strdup("dbpmel");
+	/* A collection of variables from assoc that have to be 
+	copied.  Earlier algorithm using dbget raw on a subset 
+	view failed so I have to copy by this mechanism */
+	double belief;
+	char timedef[2],slodef[2],azdef[2];
+	double azres,slores,emares;
+	int commid;
 
 	/* All of these are used repeatedly so we do one lookup at the
 	top */
-	dbe = dblookup(dbo,0,"event",0,0);
-	dbo = dblookup(dbo,0,"origin",0,0);
-	dba = dblookup(dbo,0,"assoc",0,0);
-	dboe = dblookup(dbo,0,"origerr",0,0);
-	dbes = dblookup(dbo,0,"event",0,0);
-	dbos = dblookup(dbo,0,"origin",0,0);
-	dbas = dblookup(dbo,0,"assoc",0,0);
+	dbe = dblookup(db,0,"event",0,0);
+	dbo = dblookup(db,0,"origin",0,0);
+	dba = dblookup(db,0,"assoc",0,0);
+	dboe = dblookup(db,0,"origerr",0,0);
+	dbes = dblookup(db,0,"event",0,0);
+	dbos = dblookup(db,0,"origin",0,0);
+	dbas = dblookup(db,0,"assoc",0,0);
 	dbes.record = dbSCRATCH;
 	dbos.record = dbSCRATCH;
 	dbas.record = dbSCRATCH;
 
 	opat = strtbl("orid",0);
 	aspat = strtbl("orid",0);
-	aspat2 = strtbl("orid","sta","phase",0);
+	aspat2 = strtbl("arid","orid","sta",0);
 
 	auth = pfget_string(pf,"author");
 
+	C = dmatrix(0,3,0,3);
 	/* outer loop over nevents */
 	for(i=0;i<nevents;++i)
 	{		
     		double conf;
-		double C[3][3];
 		char *modtype;
 		int model;
 		double smajax,sminax,strike,sdepth,stime;
@@ -153,11 +163,18 @@ int dbpmel_save_results(Dbptr db,
 		freetbl(matches,0);
 		matches=NULL;
 
-		dbputv(dbos,0,"orid",orid,0);
+		dbputv(dbos,0,"orid",prefor,0);
 		dbo.record = dbALL;
-		if(dbmatches(dbos,dbo,&opat,&opat,&hooko,&matches)!=1)
+		nmatch=dbmatches(dbos,dbo,&opat,&opat,&hooko,&matches);
+		if(nmatch>1)
 			elog_complain(0,"WARNING:  multiple records in origin table match orid=%d.\nThis is a serious database problem that should be corrected.  Using first one found in table\n",
 				prefor);
+		else if(nmatch<=0)
+		{
+			elog_complain(0,"Cannot find matching origin\
+record for orid %d prefor of event %d\n",
+				prefor,evid[i]);
+		}
 		dbo.record = (int)gettbl(matches,0);
 		if(dbget(dbo,0)==dbINVALID)
 		{
@@ -189,7 +206,7 @@ int dbpmel_save_results(Dbptr db,
         		complain(0, "parameter ellipse_type %s incorrect (must be F_dist or chi_square)--default to chi_square", modtype );
         		model = CHI_SQUARE;
      		}
-    		rc = project_covariance( (double **)C, model, &conf,
+    		rc = project_covariance( C, model, &conf,
                              h[i].rms_weighted, h[i].degrees_of_freedom,
                              &smajax, &sminax, &strike, &sdepth, &stime );
 
@@ -203,6 +220,7 @@ int dbpmel_save_results(Dbptr db,
         		stime = -1;
         		conf = 0.;
     		}
+		orid = dbnextid(dbo,"orid");
 		if(dbaddv(dboe,0,
                 	"orid", orid,
                 	"sxx",C[0][0],
@@ -231,13 +249,12 @@ int dbpmel_save_results(Dbptr db,
 
 		/* This edits the scratch record and adds it to the end 
 		of the origin table */
-		orid = dbnextid(dbo,"orid");
 		dbputv(dbos,0,"orid",orid,
 				"lat",h[i].lat,
 				"lon",h[i].lon,
 				"depth",h[i].z,
 				"time",h[i].time,
-				"algorithm","dbpmel",
+				"algorithm",alg,
 				"auth",auth,0);
 		dbadd(dbo,0);
 
@@ -252,20 +269,32 @@ int dbpmel_save_results(Dbptr db,
 		complication to keep this from be very slow*/
 		dbputv(dbas,0,"orid",prefor,0);
 		dba.record = dbALL;
-		dbmatches(dbas,dba,&aspat,&aspat,&hooka,&matches);
+		nmatch=dbmatches(dbas,dba,&aspat,&aspat,&hooka,&matches);
+		if(nmatch<=0)
+		{
+			elog_notify(0,"No assoc records for orid %d\
+found\nFail to create new assoc records for orid %d\n",
+				prefor,orid);
+			freetbl(matches,0);
+			continue;
+		}
 		dbs = dblist2subset(dba,matches);
 	
 		for(j=0;j<maxtbl(ta[i]);++j)
 		{
-			int nmatch;
 			double delta,seaz,esaz,wgt;
+
 			a = (Arrival *)gettbl(ta[i],j);
-			dbputv(dbas,0,"orid",prefor,
-				"sta",a->sta->name,
-				"phase",a->phase->name,0);
+			/* This test is more rigorous than the actual
+			key for assoc (arid:orid), but it is safer */
+			dbputv(dbas,0,
+				"arid",a->arid,
+				"orid",prefor,
+				"sta",a->sta->name,0);
 			dbs.record = dbALL;
 			nmatch =dbmatches(dbas,dbs,&aspat2,&aspat2,&hooka2,&match2);
 			if(nmatch<=0)
+
 			{
 				elog_complain(0,"Cannot find station %s arrival for phase %s in assoc table for evid %d.\nArrival will not be associated\n",
 					a->sta->name,a->phase->name,evid[i]);
@@ -277,12 +306,22 @@ int dbpmel_save_results(Dbptr db,
 					a->sta->name,a->phase->name,evid[i]);
 			}
 			dbs.record = (int)gettbl(match2,0);
-			if(dbget(dbs,0)==dbINVALID)
+			/* These variables have to be copied so we
+			fetch them here */
+			if(dbgetv(dbs,0,"belief",&belief,
+				"timedef",timedef,
+				"slodef",slodef,
+				"azdef",azdef,
+				"azres",&azres,
+				"slores",&slores,
+				"emares",&emares,0)
+						==dbINVALID)
 			{
-				elog_complain(0,"dbget error on assoc table for orid %d\nData for evid %d will not be saved\n",
+				elog_complain(0,"dbgetv error on assoc table for orid %d\nData for evid %d will not be saved\n",
 				    prefor,evid[i]);
 				continue;
 			}
+
 			freetbl(match2,0);
 			match2=NULL;
 			/* It may be unnecessary to recompute these, but
@@ -295,19 +334,31 @@ int dbpmel_save_results(Dbptr db,
 				&delta,&seaz);
         		wgt = (double)((a->res.weighted_residual)
 				/(a->res.raw_residual));
-			dbaddv(dbas,"orid",orid,
+			dbaddv(dba,0,
+				"arid",a->arid,
+				"orid",orid,
+				"sta",a->sta->name,
+				"phase",a->phase->name,
+				"belief",belief,
+                                "timedef",timedef,
+                                "slodef",slodef,
+                                "azdef",azdef,
+                                "azres",azres,
+                                "slores",slores,
+                                "emares",emares,
 				"delta",deg(delta),
 				"seaz",deg(seaz),
 				"esaz",deg(esaz),
 				"timeres",(double) a->res.raw_residual,
 				"wgt",wgt,0);
-			dbadd(dbas,0);
 		}
+		dbfree(dbs);
+		free_hook(&hooka2);
 	}
 	free_hook(&hooke);
 	free_hook(&hooko);
 	free_hook(&hooka);
-	free_hook(&hooka2);
+	free_matrix((char **)C,0,3,0);
 	return(0);
 }
 /* Saves results for one group of events tagged to gridid 
