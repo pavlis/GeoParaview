@@ -7,7 +7,7 @@ ldlibs=-lseispp -ltrvltm $(TRLIBS) $(DBLIBS) -lperf -lgclgrid -ltrvltm
 CXX=g++ -g
 include $(ANTELOPEMAKE)  	
 OBJS=xcor_proto.o \
-	filter.o
+ 	filter.o
 $(BIN) : $(OBJS)
 	$(RM) $@
 	$(CXX) $(CCFLAGS) -o $@ $(OBJS) $(LDFLAGS) $(LDLIBS)

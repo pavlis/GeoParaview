@@ -178,17 +178,19 @@ cerr << "View size = "<<dbhi0.number_tuples() << endl;
 		list<string> group_keys;
 		if(gather_type=="source")
 		{
-			group_keys.push_back("cluster.gridid");
+			group_keys.push_back("gridid");
+			group_keys.push_back("sta");
 		}
 		else
 		{
 			group_keys.push_back("evid");
 		}
-		Datascope_Handle dbhi=dbhi0;
+		Datascope_Handle dbhi(dbhi0);
 		dbhi.group(group_keys);
 		dbhi.rewind();
 		for(int irec=0;irec<dbhi.number_tuples();++dbhi,++irec)
 		{
+			int arid;
 			//Attribute_Map amtest(string("test"));
 			vector<Three_Component_Seismogram>::iterator smember;
 			Three_Component_Ensemble cutdata;
@@ -201,6 +203,8 @@ cerr << "View size = "<<dbhi0.number_tuples() << endl;
 			{
 				if(!(d->tcse[i].live)) continue;
 				Three_Component_Seismogram tcs(d->tcse[i]);
+				arid = tcs.get_int("arrival.arid");
+				cout << arid <<" ";
 				int nsout;
 				for(j=0;j<3;++j)
 				{
@@ -229,6 +233,7 @@ cerr << "View size = "<<dbhi0.number_tuples() << endl;
 			cutdata = Arrival_Time_Reference(*d,akey,tw);
 			if(rotate_data)
 				rotate_ensemble(&cutdata,vp,vs,afst);
+			cout << endl;
 			output_data(&cutdata,component);
 			
 			delete d;
