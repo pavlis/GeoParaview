@@ -50,3 +50,6 @@ int pwstack_ensemble(Three_Component_Ensemble *indata,
 	Metadata_list& mdlout,
 	Attribute_Map& am,
 	Database_Handle& dbh);
+void save_stack(Three_Component_Seismogram& stack,
+        Database_Handle& dbhg,Metadata_list& mdl,  Attribute_Map& am);
+

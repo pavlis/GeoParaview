@@ -2,6 +2,7 @@
 #include "stock.h"
 #include "elog.h"
 #include "pf.h"
+#include "seispp.h"
 #include "glputil.h"
 #include "pwstack.h"
 
@@ -11,7 +12,7 @@ using namespace SEISPP;
 bool Verbose;
 void usage()
 {
-        cbanner((char *)"$Revision: 1.9 $ $Date: 2004/09/23 20:36:00 $",
+        cbanner((char *)"$Revision: 1.10 $ $Date: 2004/12/31 13:58:08 $",
 		(char *)"dbin dbout [-v -V -pf pfname]",
                 (char *)"Gary Pavlis",
                 (char *)"Indiana University",

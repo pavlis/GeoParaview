@@ -278,7 +278,10 @@ int pwstack_ensemble(Three_Component_Ensemble *indata,
 		apply_top_mute(*stackout,stackmute);
 
 		try{
-			dbsave(*stackout,dshandle.db,table_name,mdlout,am);
+			// Note mdlout only determines metadata saved to
+			// waveform index table. This routine writes 
+			// data to other tables also
+			save_stack(*stackout,dbh,mdlout,am);
 		}
 		catch(seispp_error err)
 		{
