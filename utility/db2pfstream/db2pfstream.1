@@ -1,0 +1,136 @@
+.TH DB2PFSTREAM 1 "$Date: 2002/10/02 14:43:16 $"
+.SH NAME
+db2pfstream - build database view and send metadata as a pfstream
+.SH SYNOPSIS
+.nf
+db2pfstream  db file [-n -V -v -pf pffile -sift expression]
+.fi
+.SH DESCRIPTION
+.LP
+db2pfstream is a generalized input function for a processing system
+based on a concept of a pfstream.  A pfstream is a encapsulated 
+pieces of metadata data that could be attached to an arbitrary 
+data object to define it.  This program is designed to build a 
+(potentially long) stream of these pf blocks and feed the results
+into an output file.  It is expected that file would normally be
+a fifo to allow the output of this program to feed directly into
+a secondary processing algorithm without actually taking up 
+space for the pf data.  This is intended as a simple data model
+for parallel processing algorithms that are data driven like
+most seismic applications.  
+.LP
+The \fBdb\fR and \fBfile\fR parameters are required.  
+db is assumed to be an antelope database and file is the output
+file name (can and would normally be a fifo created with 
+mkfifo).  The default assumes a parameter file exists 
+in PFPATH called db2pfstream.pf that controls most of what
+this program will do (see below).
+.SH OPTIONS
+.IP -n
+Run with no output.  Normal procedure should be to run this program
+with this flag set to verify all the database attributes that are
+required downstream are present in the database. 
+.IP -V
+Print usage line and exit immediately doing nothing. 
+.IP -v
+Be verbose in output (most useful with -n is set).
+.IP -pf
+Read from alternative parameter file pf instead of default.
+.IP -sift
+Apply a final subset condition \fIexpression\fR to the working
+database view before starting.  This is most useful if a processing
+stream is being driven by a scripting language to do something 
+like event based processing one event at a time or for manually
+spitting up flow between banks of processors.  
+.SH FILES
+#
+# Describe input and output files (but not down to bits).
+#
+.SH ENVIRONMENT
+#
+# Describe any special environment variables
+#
+.SH PARAMETER FILE
+.LP
+\fIdbprocess_list\fR is a Tbl list that is passed directly to dbprocess
+to build the working view for this program.   This is a VERY important
+parameter in two ways.  First, it defines the set of joins that will
+be needed to build the complete suite of attributes to be passed into
+the ouput stream.  Second, it must define the sort order properly to 
+provide the right grouping when ensemble output is requested (see below).
+.LP
+The boolean, \fIensemble_mode\fR, controls the basic output mode.
+If this parameter is false, the program writes pf's in single 
+object (row) mode.  That is, a block of parameters is written to 
+the output stream for each row in the input database view.  
+If \fIensemble_mode\fR is set true, the the output will be 
+blocks of paremeters with repeating names surrounded by the 
+parameter file block 
+.nf
+ensemble &Arr{
+   ... 
+}  
+.fi
+This format is described in more detail under FILES below.
+When \fIensemble_mode\fR is true this program searchs for 
+two lists called 
+\fIensemble_keys\fR and \fIgrouping_keys\fR. 
+The \fIensemble_keys\fR parameter defines the grouping 
+that defines one data object that is to be processed by
+a downstream algorithm.  That is, an ensemble is the basic
+unit of granularity of the algorithm that is to use these
+data.  (Note the ensemble is assumed to have only one 
+element/database row if ensemble_mode is false. )  That is,
+it defines the outer blocking of the pfstream. 
+The \fIgrouping_keys\fR is optional for an ensemble and 
+defines a secondary grouping of the ensemble.   
+A typical example of this might be an ensemble of 
+three-component seismograms with the gather defining
+the ensemble and the grouping defining the collections of
+three-components for each station.  
+.SH EXAMPLE
+#
+# This section should contain an example that the user can follow
+# verbatim.  For a command, this should show a sample command line and output.
+# Use the same fonts as in \fBSYNOPSIS\fR. What the user types in should
+# be bold, and program response or output should be roman. All commands 
+# should be preceded by a representative UNIX prompt.
+#
+# For a library, you might show an example program (This is usually only 
+# done for more complex routines or packages.)
+#
+.ft CW
+.in 2c
+.nf
+.fi
+.in
+.ft R
+.SH RETURN VALUES
+#
+# Describe the return values for each subroutine or command.  The usual
+# is to return 0 for normal execution and something else for errors.
+#
+.SH LIBRARY
+#
+# Indicate the libraries which need to be linked in (for library routines only)
+# in the form of the ldlibs Makefile line, eg "-ldb -lstock -lm"
+#
+.SH ATTRIBUTES
+MT-Safe ?
+.SH DIAGNOSTICS
+#
+# Describe error messages and give cautionary advice.
+.SH "SEE ALSO"
+.nf
+#
+# List related manual entries and section (lowercase, bold)., eg "file(1)"
+# or related documents
+.fi
+.SH "BUGS AND CAVEATS"
+#
+# Describe any shortcomings of the programs, known bugs, or surprising 
+# results.
+.SH AUTHOR
+# Put the author's name here (person who wrote the code) (roman).
+# This is just an id line from rcs.
+.\" $Id: db2pfstream.1,v 1.1 2002/10/02 14:43:16 pavlis Exp $
