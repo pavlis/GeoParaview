@@ -61,7 +61,7 @@ Spectrum s,pattern;
 		{
 			float grad,freq_grid;
 			is=(int)((freq-s.freq0)/s.df);
-			if(is>=s.nfreq)break;
+			if((is+1)>=s.nfreq)break;
 			grad = (s.spec[is+1]-s.spec[is])/s.df;
 			freq_grid = s.freq0+((double)is)*s.df;
 			work[i] = s.spec[is]

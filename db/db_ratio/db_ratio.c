@@ -9,12 +9,11 @@ the input parameter file.
 
 Usage:
 
-db_ratio dbin [-pf pffile -plot]
+db_ratio dbin [-pf pffile]
 
 where
 	dbin - input array database (unly psdisc is accessed)
 	pffile - alternate parameter file to default db_ratio.pf
-	-plot - turn on plotting (default is no plot)
 
 
 
@@ -50,7 +49,7 @@ REmoved plotting junk that just confused the code.
 
 void usage()
 {
-	fprintf(stderr,"Usage:  \n db_ratio db [-plot -pf pffile]\n");
+	fprintf(stderr,"Usage:  \n db_ratio db [-pf pffile]\n");
 }
 
 void free_spectrum_gather(Spectrum_gather g)
@@ -70,7 +69,8 @@ void spectral_ratio(float *s1,float *s2,int ns)
 		s1[i] = s1[i]/s2[i];
 }
 
-int save_median(Dbptr db,Spectrum *s,int ns,float *m[4],char *threec[6])
+int save_median(Dbptr db,Spectrum *s,int ns,int nfreq,
+	float *m[4],char *threec[6])
 {
 	int i,k;
 	int ii;
@@ -116,7 +116,7 @@ int save_median(Dbptr db,Spectrum *s,int ns,float *m[4],char *threec[6])
 		strcat(s[ii].dfile,s[ii].sname);
 		for(i=0;i<strlen(s[ii].dfile);++i) 
 			if(s[ii].dfile[i] == ' ') s[ii].dfile[i] = '0';
-		for(i=0;i<s[ii].nfreq;++i)
+		for(i=0;i<nfreq;++i)
 			s[ii].spec[i] = m[k][i];
 		if((ierr=save_spectrum(db,s+ii)) != 0) 
 			save_spectrum_error(s+ii,ierr);
@@ -149,7 +149,7 @@ int save_median(Dbptr db,Spectrum *s,int ns,float *m[4],char *threec[6])
 
 	for(i=0;i<strlen(s[isave].dfile);++i) 
 		if(s[isave].dfile[i] == ' ') s[isave].dfile[i] = '0';
-	for(i=0;i<s[isave].nfreq;++i)
+	for(i=0;i<nfreq;++i)
 		s[isave].spec[i] = m[3][i];
 	if((ierr=save_spectrum(db,s+isave)) != 0) 
 		save_spectrum_error(s+isave,ierr);
@@ -197,6 +197,7 @@ char **argv;
 
 	Spectrum spec[MAX_CHANNELS];
 	int ierr;
+	float *median[4];  /* Holds array medians for 3c and total */
 	
 	Station *current,*reference;
 
@@ -266,7 +267,7 @@ char **argv;
                 "dbjoin assoc",
                 "dbjoin arrival",
                 "dbjoin psdisc arid",
-		"dbsort evid phase sname sta psdisc.chan",0);
+		"dbsort evid arrival.iphase sname sta psdisc.chan",0);
         db = dbprocess(db,process_list,0);
 
 	dbquery(db,dbRECORD_COUNT,&nspec);
@@ -278,7 +279,6 @@ char **argv;
 	for(db.record=0; db.record<nspec;++db.record)
 	{
 		int k;  /* index for spec array */
-		float *median[4];  /* Holds array medians for 3c and total */
 		double slat,slon,sdepth,distance,azimuth,r0,r,ampfactor;
 		char phase[10],last_phase[10];
 
@@ -449,12 +449,8 @@ char **argv;
 		with station being the last index.  i.e. each 
 		frequency is stored in an adjacent element of the
 		chan arrays.*/
-		for(k=0;k<4;++k) if( (median[k]
-		  = (float *) calloc(gather.nfreq,sizeof(float))) == NULL)
-		{
-			fprintf(stderr,"Fatal (db_ratio):  Cannot alloc median array of size %d\n", gather.n1gather);
-			exit(1);
-		}
+		for(k=0;k<4;++k)
+			allot(float*,median[k],gather.nfreq);
 		for(k=0;k<4;++k)
 		{
 			int jj;
@@ -486,6 +482,9 @@ char **argv;
 				{
 				    if(strcmp(spec[j].sta,sta_denom))
 				    {
+					/* we have to alter nfreq if there is a mismatch */
+					if(spec[ratio_indices.chan1].nfreq<spec[j].nfreq)
+							spec[j].nfreq=spec[ratio_indices.chan1].nfreq;
 					spectral_ratio(spec[j].spec,spec[ratio_indices.chan1].spec,
 						spec[j].nfreq);
 					strcpy(spec[j].dir,outdir);
@@ -505,6 +504,8 @@ char **argv;
 				{
 				    if(strcmp(spec[j].sta,sta_denom))
 				    {
+					if(spec[ratio_indices.chan2].nfreq<spec[j].nfreq)
+                                                spec[j].nfreq=spec[ratio_indices.chan2].nfreq;
 					spectral_ratio(spec[j].spec,spec[ratio_indices.chan2].spec,
 						spec[j].nfreq);
 					strcpy(spec[j].dir,outdir);
@@ -524,6 +525,8 @@ char **argv;
 				{
 				    if(strcmp(spec[j].sta,sta_denom))
 				    {
+					if(spec[ratio_indices.chan3].nfreq<spec[j].nfreq)
+                                                spec[j].nfreq=spec[ratio_indices.chan3].nfreq;
 					spectral_ratio(spec[j].spec,spec[ratio_indices.chan3].spec,
 						spec[j].nfreq);
 					strcpy(spec[j].dir,outdir);
@@ -551,6 +554,8 @@ char **argv;
 		    {
 			if(spec[j].index >= 0)
 			{
+				if(gather.nfreq<spec[j].nfreq)
+					spec[j].nfreq = gather.nfreq;
 				spectral_ratio(spec[j].spec,
 					median[spec[j].index],spec[j].nfreq);
 				strcpy(spec[j].dir,outdir);
@@ -587,6 +592,8 @@ char **argv;
 			if(station_ratio)
 			{
 				if(ratio_indices.threeC < 0)  continue;
+				if(threeCspec[ratio_indices.threeC].nfreq<threeCspec[j].nfreq)
+					threeCspec[j].nfreq = threeCspec[ratio_indices.threeC].nfreq;
 				spectral_ratio(threeCspec[j].spec,
 					threeCspec[ratio_indices.threeC].spec,
 					threeCspec[j].nfreq);
@@ -596,6 +603,8 @@ char **argv;
 			/* Here we don't need to check index because we 
 			already figured out which stations don't have all
 			three components alive */
+				if(gather.nfreq<threeCspec[j].nfreq)
+					threeCspec[j].nfreq = gather.nfreq;
 				spectral_ratio(threeCspec[j].spec,median[3],threeCspec[j].nfreq);
 			}
 			strcpy(threeCspec[j].pstype,"3cpsr");
@@ -608,7 +617,7 @@ char **argv;
 		element of the spec array of structure.  This approach is
 		a little weird, but it is, to my mind, the easiest way 
 		to do this.  The function is defined above */
-		save_median(db,spec,n_spectra,median,threeC_channels);
+		save_median(db,spec,n_spectra,gather.nfreq,median,threeC_channels);
 
 		for(j=0;j<n3cspec;++j) free_spectrum(threeCspec[j]);
 		for(j=0;j<n_spectra;++j) free_spectrum(spec[j]);

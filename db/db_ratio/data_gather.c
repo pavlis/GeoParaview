@@ -71,6 +71,18 @@ found for chanid[2] and/or chanid[5].
 
 Author:  Gary Pavlis
 Written:  November 1994 
+Modified:  Nov-Dec 2001
+Added capability to automatically resample all data to a common frequency
+sampling rate.  This seriously complicates the algorithm and the right
+solution probably would have been to start from scratch.  A limitation
+this left without a major rewrite is that the size of the workspace
+used for the "gather" is reduced on the fly to the lowest common
+denominator.  That is, in mixed sample rate data with a fixed time
+window when the data resampled different sample rates yield a different
+number of frequencies.  To keep the algorithm under control this is
+reduced on the fly to the number for the lowest sample rate.  The
+only process this should effect strongly is when the median is used
+for the refererence rather than a reference station.  
 */
 
 Spectrum_gather data_gather(Spectrum *spec,
@@ -86,7 +98,7 @@ Spectrum_gather data_gather(Spectrum *spec,
         int i,j,k,l;
         /* test variables */
 	char laststa[10];
-        int nfreq;
+        int nfreq,nfreq_now;
         double df,freq0;
 	int first_chan;
 
@@ -96,7 +108,7 @@ Spectrum_gather data_gather(Spectrum *spec,
 	if(nspec<=0)
 	{
 		elog_notify(0,"data_gather:  no data to process\n");
-		sg.nfreq=-1;
+		sg.n1gather=-1;
 		return(sg);
 	}
         /* Scan for largest value of nfreq in group and use this to set 
@@ -122,7 +134,7 @@ Spectrum_gather data_gather(Spectrum *spec,
 		{
 			elog_notify(0,"Reference station %s spectrum not found in ensemble\n",
 				reference_station);
-			sg.nfreq=-1;
+			sg.n1gather=-1;
 			return(sg);
 		}
 		nfreq = spec[i].nfreq;
@@ -150,6 +162,7 @@ Spectrum_gather data_gather(Spectrum *spec,
 			sg.nfreq = -1;
 			return(sg);
 		}
+		for(j=0;j<nfreq*nstations;++j)sg.chan[i][j]=0.0;
         }
 
         strcpy(laststa,spec[0].sta);
@@ -182,6 +195,8 @@ Spectrum_gather data_gather(Spectrum *spec,
 		3-component assembly processing for this station.
 		First scan for inconsistent parameters, and mark them.
 		when they occur for any channel. */
+			if((i+1)==nspec) ++i;  /*without this last 
+						spec is dropped */
 			for(j=first_chan;j<i;++j)
 			{
 				if( (spec[j].nfreq != nfreq ) 
@@ -190,17 +205,14 @@ Spectrum_gather data_gather(Spectrum *spec,
 				{
 					spec[j]=resample_spectrum(spec[j],
 							pattern);
-/* OLD CODE`
-					for(k=0;k<6;++k)
-					{ 
-						if(index[k]==j) 
-						{
-							index[k]= (-1);
-							break;
-						}
+					if((spec[j].nfreq<sg.nfreq) && (spec[j].nfreq>0))
+					{
+						elog_log(0,
+						  "Reducing number of frequencies from %d to %d\n",
+							sg.nfreq,spec[j].nfreq);
+						sg.nfreq = spec[j].nfreq;
 					}
 
-END OLD CODE*/
 				}
 			}
 			/* Now copy appropriate spectra to sg.chan arrays.
@@ -225,7 +237,7 @@ END OLD CODE*/
 				threeC_index[k] = index[kk];
 
 				iused = index[kk];
-				for(j=0,l=sg.nstation[k];j<nfreq;
+				for(j=0,l=sg.nstation[k];j<spec[iused].nfreq;
 				   ++j,l+=sg.n1gather)
 					sg.chan[k][l] = spec[iused].sscale
 							* spec[iused].spec[j];
@@ -250,13 +262,15 @@ END OLD CODE*/
 				/* Beautifully obscure pointer code.  C you gotta 
 				love it ! */
 
-				for(l=0;l<nfreq;++l) threeCspec[*nthreeCspec].spec[l] = 0.0;
+				nfreq_now=threeCspec[*nthreeCspec].nfreq;
+				for(l=0;l<nfreq_now;++l) 
+					threeCspec[*nthreeCspec].spec[l] = 0.0;
 				for(k=0;k<3;++k)
-					for(l=0;l<nfreq;++l)
+					for(l=0;l<nfreq_now;++l)
 						threeCspec[*nthreeCspec].spec[l] 
 						  += (spec[threeC_index[k]].sscale
 						     * spec[threeC_index[k]].spec[l]);
-				for(j=0,l=sg.nstation[3];j<nfreq;++j,l+=sg.n1gather)
+				for(j=0,l=sg.nstation[3];j<nfreq_now;++j,l+=sg.n1gather)
 					sg.chan[3][l] = (threeCspec[*nthreeCspec].spec[j]);
 				++(sg.nstation[3]);
 				++(*nthreeCspec);
