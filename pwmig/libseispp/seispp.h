@@ -67,7 +67,7 @@ public:
 	//
 	int nts, nsamp;
 	Metadata md;
-	vector <Time_Series *> tse;
+	vector <Time_Series> tse;
 
 	Time_Series_Ensemble();
 	Time_Series_Ensemble(int ntsin, int nsampin);
@@ -88,7 +88,7 @@ class Three_Component_Ensemble
 public:
 	int nsta, nsamp;
 	Metadata md;
-	vector <Three_Component_Seismogram *> tcse;
+	vector <Three_Component_Seismogram> tcse;
 
 	Three_Component_Ensemble();
 	Three_Component_Ensemble(int nsta, int nsamp);

@@ -1,5 +1,4 @@
 #include <stdlib.h>
-#include <vector>
 #include <string>
 #include "stock.h"
 #include "pf.h"
@@ -20,7 +19,7 @@ using namespace std;
  * It can also terminate internally with input errors on the pfstream.
  * This is not very elegant, but appropriate for planned usage.
  */
-vector<Time_Series *> *get_next_ensemble(Pfstream_handle *pfh, char *tag)
+vector<Time_Series> *get_next_ensemble(Pfstream_handle *pfh, char *tag)
 		throw(string)
 {
 	Pf *pfin;
@@ -50,7 +49,7 @@ vector<Time_Series *> *get_next_ensemble(Pfstream_handle *pfh, char *tag)
 	// that if present.  We build a vector of 
 	// Time_Series objects in sequence.  They are built and pushed 
 	// at the bottom of this loop
-	vector <Time_Series *> *tse=new vector<Time_Series *>;
+	vector <Time_Series> *tse=new vector<Time_Series>;
 	for(i=0;i<pfe->nmembers;++i)
 	{
 		double samprate;
@@ -123,7 +122,7 @@ vector<Time_Series *> *get_next_ensemble(Pfstream_handle *pfh, char *tag)
 					!= (ts[i].ns) ) throw(fname);
 			fclose(fp);
 		}
-		tse->push_back(ts);
+		tse->push_back(*ts);
 	}
 	return(tse);
 }

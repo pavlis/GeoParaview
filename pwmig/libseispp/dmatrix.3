@@ -1,0 +1,94 @@
+'\" te
+.TH DMATRIX 3 "$Date: 2003/03/13 16:05:35 $"
+.SH NAME
+dmatrix - simple object class for double precision matrices
+.SH SYNOPSIS
+.nf
+class dmatrix
+{
+public:
+  dmatrix(int nr, int nc, int stval);
+  dmatrix(const dmatrix& other);
+  ~dmatrix();
+  double &operator()(int rowindex, int colindex);
+  void operator=(const dmatrix& other);
+  void operator+=(const dmatrix& other);
+  void operator-=(const dmatrix& other);
+  friend dmatrix operator+(const dmatrix&, const dmatrix&);
+  friend dmatrix operator-(const dmatrix&, const dmatrix&);
+  friend dmatrix operator*(const dmatrix&, const dmatrix&);
+  friend dmatrix operator*(const double&, const dmatrix&);
+  friend dmatrix operator/(const dmatrix&, const double&);
+  friend dmatrix tr(const dmatrix&);  // transpose matrix
+  friend dmatrix inv(const dmatrix&);  // compute inverse or pseudoinverse
+  friend ostream& operator<<(ostream&, dmatrix&);
+  friend istream& operator>>(istream&, dmatrix&);
+private:
+   int length;
+   double *ary;
+   int nrr, ncc, matoff;
+};
+.fi
+.SH DESCRIPTION
+.LP
+Matrix algebra is the at the core of many numerical methods.
+This is a simple class description to do basic matrix methods 
+without a huge concern about efficiency.  It is most useful
+for small problems where the convenience of the object description 
+is of more importance than the speed of the algorithm or the 
+richness of the tools available.  If you need a more sophisticated
+matrix toolbox get the source code for the Matrix Template Library
+toolbox  (http://www.osl.iu.edu/research/mtl/ ) or other similar
+packages out there on the web.
+.LP
+This is a bare-bones library with basic constructors and a few 
+basic operators.  The usage should be obvious, but a few routines
+can throw an exception that needs to be handled.  
+All exceptions are handled through a common interface and 
+any questionable use of operators that throw exceptions should
+be enclosed in a try-catch block of this form:
+.nf
+try {
+	code using dmatrix operator
+} catch (dmatrix_error& de)
+{
+	de.log_error()
+	--additional error handling code--
+}
+.fi
+The log_error function will post a descriptive message to stderr.  
+You can, of course, by pass this verbosity and handle the error by
+some other mechanism.  The following operatores throw exceptions:
+.nf
+() - index out of range
++,-, * for inconsistent sizes
+inv  for a singular matrix
+.fi
+.LP
+Note that the inv operator will quietly attempt to invert any matrix
+you give it.  If the matrix passed is not square it will attempt to 
+compute a pseudoinverse by the normal equation form.  This is done
+by a simple Gaussian elimination operation, so it will not yield the
+most numerically stable answers for matrices that are not square.  
+.SH DIAGNOSTICS
+.LP
+The log_print exception handler function will normally give a reasonable
+explanation for a problem.  You will typically need added output to 
+resolve which matrix is involved in a more complex program.
+.SH "BUGS AND CAVEATS"
+.LP
+The pseudoinverse computation is crude.  It should be done with an
+SVD, but that would tend to invalidate the simplicity element of this
+library.  If you want that, use MTL.  
+.SH AUTHOR
+.nf
+Robert Pavlis
+Pittsburg State University, Dept. of Chemistry
+rpavlis@pittstate.edu
+
+Contributed to Antelope by:  
+Gary Pavlis
+Indiana University
+pavlis@indiana.edu
+.fi
+.\" $Id: dmatrix.3,v 1.1 2003/03/13 16:05:35 pavlis Exp $
