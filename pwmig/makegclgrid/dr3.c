@@ -22,8 +22,11 @@
   
 */
 
+/*
 void dr3cros(a,b,c)
 double a[3],b[3],c[3];
+*/
+void dr3cros(double *a, double *b, double *c)
 {
    double d[3];
 
@@ -54,8 +57,11 @@ double a[3],b[3],c[3];
 
    ************************************************************ */
 
+/*
 void dr3mxv(a, b, c)
 double  a[9], b[3], c[3];
+*/
+void dr3mxv(double *a, double *b, double *c)
 {
 	double d[3];
 	int i;
@@ -78,8 +84,11 @@ double  a[9], b[3], c[3];
  */
 
 
+/*
 void            dr3sub(v1, v2, v3)
 double          v1[3], v2[3], v3[3];
+*/
+void dr3sub(double *v1, double *v2, double *v3)
 {
     int             i;
 
@@ -103,9 +112,12 @@ double          v1[3], v2[3], v3[3];
 
    ************************************************************ */
 
+/*
 void  dr3sxv(a, b, c)
 double a, b[3];
 double c[3];
+*/
+void dr3sxv(double a, double *b, double *c)
 {
 	c[0] = a * b[0];
 	c[1] = a * b[1];

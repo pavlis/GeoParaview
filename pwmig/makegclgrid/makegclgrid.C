@@ -5,22 +5,24 @@
 #include "pf.h"
 #include "db.h"
 #include "gclgrid.h"
+extern int GCLverbose=0;
 void usage(char *prog)
 {
 	elog_die(0,"Usage:  %s db [-pf pffile]\n",prog);
 }
-void main(int argc, char **argv)
+int main(int argc, char **argv)
 {
 	char *version="2.0 (January 2003)";
 	char *pfin=NULL;
 	Pf *pf;
 	Dbptr db;
 	char *dbname;
+	int i;
 	/* All of the following are duplicates of GCLgrid parameters,
 	but we use the simpler variables in their place in many place
 	to avoid all the strange pointer constructs */
 	double lat0, lon0,r0;
-	double azimuth_x, rotation_angle, azimuth_i;
+	double azimuth_x, rotation_angle, azimuth_y;
 	double dx1, dx2, dx3, dx1_rad, dx2_rad;
 	int n1, n2, n3;
 	int i0,j0,k0;
@@ -35,6 +37,9 @@ void main(int argc, char **argv)
 	double z0,z;
 	double x[3],x0[3];
 	char *dir;
+
+	// needed because we mix stdio and streams
+	ios::sync_with_stdio();
 
 	/* Initialize the error log and write a version notice */
         elog_init (argc, argv);
@@ -52,6 +57,8 @@ void main(int argc, char **argv)
                         if(i>=argc) usage(argv[0]);
                         pfin = argv[i];
                 }
+		if(!strcmp(argv[i],"-v"))
+			GCLverbose=1;
                 else
                         usage(argv[0]);
         }
@@ -77,6 +84,7 @@ void main(int argc, char **argv)
 	r0 = r0_ellipse(lat0);
 	azimuth_x = pfget_double(pf,"x_axis_azimuth");
 	rotation_angle = rad(90.0 - azimuth_x);
+	azimuth_y = -rotation_angle;
 	dx1 = pfget_double(pf,"delta_x1");
 	dx2 = pfget_double(pf,"delta_x2");
 	dx1_rad = dx1/r0;
@@ -104,16 +112,28 @@ void main(int argc, char **argv)
 	//write them out using the dbsave routines.  The 2d and 3d
 	//codes are exact parallels due to interface design
 	//
-	GCLgrid g = new GCLgrid(n1size, n2size, gridname,
+	GCLgrid g = GCLgrid(n1, n2, gridname,
 			lat0, lon0, r0, azimuth_y,
-			delta_x1, delta_x2, i0, j0);
-	g.dbsave(db,gridname);
-	delete g;
+			dx1, dx2, i0, j0);
+	try {
+		g.dbsave(db,dir);
+	}
+	catch (...)
+	{
+		elog_die(0,"dbsave failed for 2d grid\n");
+	};
+	delete &g;
 	if(create_3d) {
-	    GCLgrid3d g3d = new GCLgrid3d(n1size, n2size, n3size, gridname,
+	    GCLgrid3d g3d = GCLgrid3d(n1, n2, n3, gridname,
 			lat0, lon0, r0, azimuth_y,
-			delta_x1, delta_x2, delta_x3, i0, j0, k0);
-	    g3d.dbsave(db,gridname);
+			dx1, dx2, dx3, i0, j0);
+	    try {
+		g3d.dbsave(db,dir);
+	    }
+	    catch (...)
+	    {
+		elog_die(0,"dbsave failed for 3d grid\n");
+	    }
 	}
 	exit(0);
 }
