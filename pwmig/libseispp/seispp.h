@@ -61,11 +61,15 @@ public:
 class Time_Series_Ensemble
 {
 public:  
+	// These are nominal sizes.  Individual members should not be assumed
+	// necessarily to be the same
+	//
+	int nts, nsamp;
 	Metadata md;
 	vector <Time_Series *> tse;
 
 	Time_Series_Ensemble();
-	Time_Series_Ensemble(int nts, int nsamp);
+	Time_Series_Ensemble(int ntsin, int nsampin);
 	Time_Series_Ensemble(Pf_ensemble *pfe);
 	// This function is bad form, but I see no alernative
 	// It's purpose is to initialize the namespace for the 
@@ -81,8 +85,9 @@ private:
 class Three_Component_Ensemble
 {
 public:
+	int nsta, nsamp;
 	Metadata md;
-	vector <Three_Component_Seismogram> tcse;
+	vector <Three_Component_Seismogram *> tcse;
 
 	Three_Component_Ensemble();
 	Three_Component_Ensemble(int nsta, int nsamp);
@@ -91,5 +96,23 @@ public:
 private:
 	Tbl *mdlist;
 };
+//
+//  Mute definitions
+//
+class Top_Mute
+{
+public:
+	double t0e, t1;  // t0e is end of to 0 zone, t1 time when weight goes to 1
+	Time_Reference reftype;   // from seispp is enum as absolute or relative
+	Top_Mute(){t0e=1.0; t1=2.0; reftype=relative};
+	Top_Mute(Pf *pf);
+}
+//
+//Helpers
+//
+void apply_top_mute(Time_Series &ts,Top_Mute& mute);
+void apply_top_mute_ensemble(Time_Series_Ensemble& t, Top_Mute& mute);
+void apply_top_mute_3c_ensemble(Three_Component_Ensemble &t3c, Top_Mute& mute);
+
 
 #endif

@@ -28,6 +28,18 @@ Three_Component_Seismogram::Three_Component_Seismogram()
 //
 Three_Component_Seismogram::Three_Component_Seismogram(int nsin) 
 {
+	dt=0.0;
+	t0=0.0;
+	ns=0;
+	tref=absolute;
+	components_are_orthogonal=true;
+	components_are_cardinal=true;
+	for(int i=0;i<3;++i)
+		for(int j=0;j<3;++j)
+			if(i==j) 
+				tmatrix[i][i]=1.0;
+			else
+				tmatrix[i][j]=0.0;
 	for(int i=0; i<3;++i) 
 		x[i].s = new double(nsin);
 	

@@ -77,7 +77,7 @@ Metadata& Metadata::operator=(const Metadata& md)
 //
 // These functions get and convert values
 //
-double Metadata::get_double(string s) throw(int)
+double Metadata::get_double(string s) throw(Metadata_get_error)
 {
 	void *result;
 	double val;
@@ -85,36 +85,39 @@ double Metadata::get_double(string s) throw(int)
 	char *char_val;
 
 	pftype_return = pfget(pf,(char *)s.c_str(),&result);
-	if(pftype_return != PFSTRING) throw pftype_return;
+	if(pftype_return != PFSTRING) 
+		throw Metadata_get_error("double",s,"");/
 	char_val=pfget_string(pf,(char *)s.c_str());
 	val = atof(char_val);
 	return(val);
 }
-int Metadata::get_int(string s)throw(int)
+int Metadata::get_int(string s)throw(Metadata_get_error)
 {
 	void *result;
 	int val;
 	int pftype_return;
 	char *char_val;
 	pftype_return = pfget(pf,(char *)s.c_str(),&result);
-	if(pftype_return != PFSTRING) throw pftype_return;
+	if(pftype_return != PFSTRING) 
+		throw  Metadata_get_error("int",s,"");
 	char_val=pfget_string(pf,(char *)s.c_str());
 	val = atoi(char_val);
 	return(val);
 }
-string Metadata::get_string(string s)throw(int)
+string Metadata::get_string(string s) throw(Metadata_get_error)
 {
 	void *result;
 	string val;
 	int pftype_return;
 	char *char_val;
 	pftype_return = pfget(pf,(char *)s.c_str(),&result);
-	if(pftype_return != PFSTRING) throw pftype_return;
+	if(pftype_return != PFSTRING) 
+		throw  Metadata_get_error("string",s,"");
 	char_val=pfget_string(pf,(char *)s.c_str());
 	val = char_val; //= is overloaded for this case so is a simple assign
 	return(val);
 }
-bool Metadata::get_bool(string s)throw(int)
+bool Metadata::get_bool(string s)throw(Metadata_get_error)
 {
 	void *result;
 	int val;
@@ -129,25 +132,27 @@ bool Metadata::get_bool(string s)throw(int)
 	else 
 		return(false);
 }
-Tbl *Metadata::get_list(string s)throw(int)
+Tbl *Metadata::get_list(string s)throw(Metadata_get_error)
 {
 	void *result;
 	int val;
 	int pftype_return;
 	Tbl *t;
 	pftype_return = pfget(pf,(char *)s.c_str(),&result);
-	if(pftype_return != PFTBL) throw pftype_return;
+	if(pftype_return != PFTBL) 
+		throw  Metadata_get_error("Antelope Tbl",s,"");
 	t = pfget_tbl(pf,(char *)s.c_str());
 	return(t);
 }
-Arr *Metadata::get_map(string s)throw(int)
+Arr *Metadata::get_map(string s)throw(Metadata_get_error)
 {
 	void *result;
 	int val;
 	int pftype_return;
 	Arr *a;
 	pftype_return = pfget(pf,(char *)s.c_str(),&result);
-	if(pftype_return != PFARR) throw pftype_return;
+	if(pftype_return != PFARR) 
+		throw  Metadata_get_error("Antelope Arr",s,"");
 	a = pfget_arr(pf,(char *)s.c_str());
 	return(a);
 }
@@ -172,6 +177,14 @@ void Metadata::put_metadata(string name, char *val)
 {
 	pfput_string(pf,(char *)name.c_str(),val);
 }
+void Metadata::put_metadata(string name, Arr *val)
+{
+	pfput_arr(pf,(char *)name.c_str(),val);
+}
+void Metadata::put_metadata(string name, Tbl *val)
+{
+	pfput_tbl(pf,(char *)name.c_str(),val);
+}
 void Metadata::put_metadata(string name, bool val)
 {
 	if(val)
@@ -179,7 +192,7 @@ void Metadata::put_metadata(string name, bool val)
 	else
 		pfput_boolean(pf,(char *)name.c_str(),0);
 }
-void Metadata::load_metadata(string mdin) throw(int)
+void Metadata::load_metadata(string mdin) throw(Metadata_load_error)
 {
 	int ierr;
 	// We might think this was needed:  if(pf!=NULL) pffree(pf);
@@ -187,35 +200,58 @@ void Metadata::load_metadata(string mdin) throw(int)
 	// assumes it is valid and to be updated if nonzero.
 	// This is a handy way to deal with defaults
 	ierr = pfcompile((char *)mdin.c_str(),&pf);
-	if(ierr!=0) throw ierr;
-}
-//
-// Include an explicit error handler with this library
-// Handles errors thrown by get routines above
-//
-void get_metadata_error_handler(string name, int ecode)
-{
-	string base_message="get_metadata_by_name:  type conflict for parameter name=";
-	switch (ecode)
-	{
-	case PFFILE:
-		cerr << base_message << name << "\nParsed as a pffile\n";
-		break;
-	case PFTBL:
-		cerr << base_message << name << "\nParsed as pftbl, not currently supported\n";
-		break;
-	case PFARR:
-		cerr << base_message << name << "\nParsed as pfarr, not currently supported\n";
-		break;
-	case PFINVALID:
-		cerr << base_message << name << "\nParse failed and returned pfinvalid\nNo Metadata loaded\n";
-	default:
-		cerr << base_message << name << "\nUnrecognized error code\nFatal:  exiting\n";
-		exit(-1);
-	}
-}
-void load_metadata_error_handler(int ecode)
-{
-	elog_notify(0,(char *)"pfcompile failed in load_metadata\nWill continue but metadata may be incomplete\n");
+	if(ierr!=0) throw Metadata_load_error(ierr);
 }
 
+//
+//Sometimes we need to not copy all of the metadata from one object
+//to another.  This function allows selective copy driven by a list
+//
+
+void  copy_selected_metadata(Metadata& mdin, Metadata& mdout,
+		                list<Metadata_typedef *>mdlist& mdlist)
+{
+	Metadata_typedef *mdtdef;
+	list iterator i;
+
+	for(i=mdlist.begin();i<mdlist.end();++i)
+	{
+		try {
+			switch(mdlist[i].mdt)
+			{
+			case REAL:
+				double r=mdin.get_double(mdt[i].tag);
+				mdout.put_metadata(mdt[i].tag,r);
+				break;
+			case INTEGER:
+				int iv=mdin.get_int(mdt[i].tag);
+				mdout.put_metadata(mdt[i].tag,iv);
+				break;
+			case STRING:
+				string s=mdin.get_string(mdt[i].tag);
+				mdout.put_metadata(mdt[i].tag,s);
+				break;
+			case LIST:
+				Tbl *t=mdin.get_list(mdt[i].tag);
+				mdout.put_metadata(mdt[i].tag,t);
+				break;
+			case MAP:
+				Arr *a=mdin.get_map(mdt[i].tag);
+				mdout.put_metadata(mdt[i].tag,a);
+				break;
+			case BOOLEAN:
+				bool b=mdin.get_bool(mdt[i].tag);
+				mdout.put_metadata(mdt[i].tag,b);
+				break;
+			default:
+				elog_die(0,"Fatal: copy_selected_metadata was passed illegal type definition\nFatal error as this indicates a coding error that must be fixed\n");
+			};
+		} catch( Metadata_error merr)
+		{
+			elog_complain(0,"Error in copy_selected_metadata at item %d of %d\nCopy truncated\n",
+					i,(int)mdlist.end());
+			mderr.log_error();
+			throw;
+		}
+	}
+}

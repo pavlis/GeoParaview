@@ -8,21 +8,27 @@ class Metadata
 {
 public:
         Metadata();
-        Metadata(Metadata& md);
-        Metadata operator=(const Metadata& md);
+	Metadata(Metadata&);
+	Metadata(const Metadata&);
+	Metadata& operator=(const Metadata& );
         ~Metadata();
-        double get_metadata_by_name(string name);
-        int get_metadata_by_name(string name);
-        string get_metadata_by_name(string name);
-        bool get_metadata_by_name(string name);
-        void put_metadata_by_name(string name,double value);
-        void put_metadata_by_name(string name,int value);
-        void put_metadata_by_name(string name,string value);
-        void put_metadata_by_name(string name,char *value);
-        void put_metadata_by_name(string name,bool value);
-        void load_metadata(string name);
+
+        double get_double(string) throw(Metadata_get_error);
+        int get_int(string) throw(Metadata_get_error);
+        string get_string(string) throw(Metadata_get_error);
+        bool get_bool(string) throw(Metadata_get_error);
+	Tbl *get_list(string) throw(Metadata_get_error);  // Antelope specific
+	Arr *get_map(string) throw(Metadata_get_error);  // Antelope specific
+	//These put new metadata in
+        void put_metadata(string,double);
+        void put_metadata(string,int);
+        void put_metadata(string,string);
+        void put_metadata(string,char *);
+        void put_metadata(string,bool);
+	// This compiles a large string with pfcompile to load a full pf
+        void load_metadata(string) throw(Metadata_get_error);
 };
-void get_metadata_error_handler(int ierr) 
+
 .fi
 .SH DESCRIPTION
 .LP
@@ -75,21 +81,26 @@ library is based.  If anyone ever tried to replace that
 functionality with another approach this functionality should
 be maintained, however, as applications will depend on it.)
 .LP
-Metadata are retrieved by the overloaded \fIget_metadata_by_name\fR
+Metadata are retrieved by the get_type 
 functions.  The get routines will throw an exception if the requested
-parameter is not found in the Metadata space.  The function
-\fIget_metadata_error_handler\fR is supplied with the interface for
-convenience, but the user may and probably should write their own
-error handler.  The reason is that only the requesting algorithm 
-generally knows when a piece of metadata is essential or could
-be set to some stock value and what that stock value should be.  
-For this reason the \fIget_metadata_error_handler\fR does little
-more than post an error message to cerr and return.  The only time
-it will cause termination is if it returns an illegal error code
-since that normally would mean something is seriously wrong with
-the state of the running program.  In short, all calls to the
-get functions should be surrounded by a try block and appropriate
-catch handlers should deal with each error individually.  
+parameter is not found in the Metadata space.  As a result
+all get functions should be surrounded by a try block with
+the following catch clause:
+.nf
+try
+{
+	series of metadata get requests
+}
+catch ( Metadata_error& me)
+{
+	me.log_error();
+	error handling code
+}
+.fi
+The catch block can handle this error appropriately as some
+metadata requests require different actions.  
+As in all proper error handlers the program can abort, set
+a default and try to continue, or something else.  
 .LP
 The default parameter problem is so pervasive, on the other hand,
 that the Metadata interface uses a more elaborate model for trying
@@ -129,4 +140,4 @@ are stored as strings in an Antelope pf structure.
 Gary L. Pavlis
 Indiana University
 pavlis@indiana.edu
-.\" $Id: metadata.3,v 1.1 2003/01/22 15:28:34 pavlis Exp $
+.\" $Id: metadata.3,v 1.2 2003/03/07 15:43:56 pavlis Exp $

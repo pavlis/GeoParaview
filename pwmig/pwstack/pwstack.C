@@ -9,7 +9,7 @@
 
 void usage()
 {
-        cbanner("$Revision: 1.1 $ $Date: 2003/03/01 15:47:11 $",
+        cbanner("$Revision: 1.2 $ $Date: 2003/03/07 15:43:57 $",
 		"pfstreamin pfstreamout [-V -pf pfname]"
                 "Gary Pavlis",
                 "Indiana University",
@@ -24,7 +24,13 @@ int main(int argc, char **argv)
 	int sift=0;
         char subset_string[128];
 	Pf *pf;
+	Pf_ensemble *pfe;
 	Pfstream_handle *pfshi, *pfsho;
+
+	// This is the input data ensemble
+	Three_Component_Ensemble *din;
+	// This is the output ensemble built on a grid of plane waves
+	Three_Component_Ensemble *dout;
 
 
 	        /* Initialize the error log and write a version notice */
@@ -58,5 +64,25 @@ int main(int argc, char **argv)
         are missing */
         check_required_pf(pf);
 
+	// Start up reader and writer
+	pfshi = pfstream_start_read_thread(pfstreamin);
+	pfsho = pfstream_start_write_thread(pfstreamout);
+
+	// initialize read and write here.  May change so won't do just
+	// now
+
+	while ( (pfe = pfstream_get_next_ensemble(pfshi))!=NULL)
+	{
+		// may need to crack the data object here with something like
+		din = build_ensemble(pfe);
+		free_Pf_ensemble(pfe);
+
+		dout = pwstack_ensemble(din, pf);
+		// We can release the input data now
+		delete din;
+		// save output ensemble here 
+		delete dout;
+	}
+	// Residual cleanup here
 }	
 
