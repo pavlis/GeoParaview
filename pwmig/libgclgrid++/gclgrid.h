@@ -101,6 +101,8 @@ class GCLgrid3d : public GCLgrid
 		~GCLgrid3d();
 	private:
 		int ix1, ix2, ix3;
+		double gtoc_rmatrix[3][3];
+		double translation_vector[3];
 };	  		
 //
 //These are generic scalar and vector fields defined on a GCLgrid object
