@@ -429,9 +429,10 @@ Pf *build_ensemble(int ntags,...)
 			char key[16];
 			sprintf(key,"%0.5d ",i);
 			strcat(pfimage,key);
-			strcat(pfimage," &Arr{\n");
+			/*This assumes the "blocks" are PFARR's because
+			then the contents will begin with &Arr{ and end
+			with a "}" */
 			strcat(pfimage,blocks[i]);
-			strcat(pfimage,"}\n");
 		}
 		strcat(pfimage,"}\n}\n");
 	

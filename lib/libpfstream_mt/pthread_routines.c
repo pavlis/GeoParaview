@@ -31,13 +31,13 @@ void * pfstream_read_data(void *arg)
 
 	while( (pf=pfstream_read(pfsc->fp)) != NULL)
 	{
-elog_log(0,"Read next block\n");
 		pfput_boolean(pf,"FINISHED",0);
 		pmtfifo_push(pfsc->mtf,(void *)pf);
 	}
-	pf=pfnew(PFARR);
+	pf=pfnew(PFFILE);
 	pfput_boolean(pf,"FINISHED",1);
 	pmtfifo_push(pfsc->mtf,(void *)pf);
+	fclose(pfsc->fp);
 
 	return(NULL);
 }
@@ -45,15 +45,31 @@ elog_log(0,"Read next block\n");
 void *pfstream_write_data(void *arg)
 {
 	Pfstream_control *pfsc=(Pfstream_control *)arg;
-	Pf *pf;
+	Pf *pf,*pftest;
 	int fini;
+	int itest;  
 
 	while(1)
 	{
 		pmtfifo_pop(pfsc->mtf,(void **)(&pf));
-		fini=pfget_boolean(pf,"FINISHED");
-		if(fini) break;
+		/* this is a safe test if FINISHED is not set.  
+		Should not require user to have to do this */
+		itest = pfget(pf,"FINISHED",(void **)&pftest);
+		if(itest==PFINVALID)
+			fini=0;
+		else
+			fini=pfget_boolean(pf,"FINISHED");
+		if(fini) 
+		{
+			fprintf(pfsc->fp,"%s\n",END_OF_DATA_SENTINEL);
+			fflush(pfsc->fp);
+			fclose(pfsc->fp);
+			break;
+		}
 		pfout(pfsc->fp,pf);
+		fprintf(pfsc->fp,"%s\n", ENDPF_SENTINEL);
+		fflush(pfsc->fp);
+		fclose(pfsc->fp);
 		/* We have release the memory for pf here as the caller
 		is pushing this away a forgetting about it */
 		pffree(pf);
