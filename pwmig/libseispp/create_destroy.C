@@ -1,8 +1,32 @@
 #include "seispp.h"
 //
 // constructors for the Time_Series object are defined inline
-// in seispp.h
+// in seispp.h.  The only exception is this, which is the copy
+// constructor
 //
+Time_Series::Time_Series(Time_Series& tsi)
+{
+	int i;
+        dt=tsi.dt;
+        t0=tsi.t0;
+        ns=tsi.ns;
+        tref=tsi.tref;
+        md= Metadata(tsi.md);
+        s=new double[ns];
+        for(i=0;i<tsi.ns;++i) s[i]=tsi.s[i];
+}
+Time_Series::Time_Series(Time_Series *tsi)
+{
+	int i;
+
+        t0=tsi->t0;
+        ns=tsi->ns;
+        dt=tsi->dt;
+        tref=tsi->tref;
+        md= Metadata(tsi->md);
+        s=new double[ns];
+        for(i=0;i<tsi->ns;++i) s[i]=tsi->s[i];
+}
 // Default constructor for Three_Component_Seismogram could be 
 // done inline in seispp.h, but it is complication enough I put
 // it here
@@ -44,11 +68,25 @@ Three_Component_Seismogram::Three_Component_Seismogram(int nsin)
 		x[i].s = new double(nsin);
 	
 }
+Three_Component_Seismogram::Three_Component_Seismogram
+			(Three_Component_Seismogram& t3c)
+{
+	int i,j;
+	md=Metadata(t3c.md);
+        dt=t3c.dt;
+        t0=t3c.t0;
+        ns=t3c.ns;
+        tref=t3c.tref;
+        components_are_orthogonal=t3c.components_are_orthogonal;
+        components_are_cardinal=t3c.components_are_cardinal;
+	for(i=0;i<3;++i)
+		for(j=0;j<3;++j) tmatrix[i][j]=t3c.tmatrix[i][j];
+	for(i=0;i<3;++i) x[i]=Time_Series(t3c.x+i);
+}
 //No destructor is needed for current Three_Component_Seismogram object
 // because the Time_Series destructor and default deletions should
-// handle it fine.  It seems necessary to have a null function 
-// defined anyway.
-Three_Component_Seismogram::~Three_Component_Seismogram() {};
+// handle it fine.  
+
 //
 // Ensemble constructors.  Both just create blank trace or 3c trace objects
 // and push them into a vector container.

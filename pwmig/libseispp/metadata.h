@@ -34,16 +34,18 @@ public:
 	{ cerr<<"Error attempting to extract parameter" << name
 		<< " of type " << mdtype << "\n" << message << endl;};
 };
-class Metadata_load_error : public Metadata_error
+class Metadata_parse_error : public Metadata_error
 {
 public:
 	int error_code;
-	Metadata_load_error(int ierr){error_code=ierr;};
+	Metadata_parse_error(int ierr,const string mess)
+	{error_code=ierr;message=mess;};
 	virtual void log_error()
-	{cerr<<"pfcompile failed in load_metadata\nReturned code="
-		<<error_code<<endl;};
+	{cerr<<"pfcompile failed with return code="
+		<<error_code<<endl;
+	cerr<<message<<endl;
+	};
 };
-
 
 class Metadata
 {

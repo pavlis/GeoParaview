@@ -65,16 +65,18 @@ Metadata::Metadata(const Metadata& md)
 	ierr = pfcompile(pfstr,&pf);
 	// Just post this error and continue.  It should never happen, but
 	// at least we handle the return from pfcompile correctly.
-	if(ierr) cout << "Metadata copy constructor failure in pfcompile\n";
+	if(ierr) throw Metadata_parse_error(ierr,
+		"pfcompile error in copy constructor");
 	free(pfstr);
 }
 Metadata& Metadata::operator=(const Metadata& md)
 {
-	if(this != &md)
+	if(&md!=this)
 	{
-		pf = pfdup(md.pf);
+		if(pf!=NULL) pffree(pf);
+		pf=pfdup(md.pf);
 	}
-	return *this;
+	return(*this);
 }
 //
 // These functions get and convert values
@@ -204,7 +206,7 @@ void Metadata::load_metadata(string mdin)
 	// The char * cast is necessary to keep the compiler
 	// from bitching about a const char
 	ierr = pfcompile((char *)mdin.c_str(),&pf);
-	if(ierr!=0) throw Metadata_load_error(ierr);
+	if(ierr!=0) throw Metadata_parse_error(ierr,"Failure in load_metadata");
 }
 // near dup of above done for convenience
 void Metadata::load_metadata(char *mdin) 
@@ -215,7 +217,7 @@ void Metadata::load_metadata(char *mdin)
 	// assumes it is valid and to be updated if nonzero.
 	// This is a handy way to deal with defaults
 	ierr = pfcompile(mdin,&pf);
-	if(ierr!=0) throw Metadata_load_error(ierr);
+	if(ierr!=0) throw Metadata_parse_error(ierr,"Failure in load_metadata");
 }
 
 //
