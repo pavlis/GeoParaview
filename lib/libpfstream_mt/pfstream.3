@@ -41,6 +41,7 @@ need to describe a block of rows from the view.  At the level of this
 library I call this data object a Pf_ensemble.  A Pf_ensemble is basically
 a vector of pf pointers with one pf for each row of the database view.  
 The complete typedef is the following:
+.nf
 typedef struct Pf_ensemble {
 	Tbl *ensemble_keys;
 	Tbl *group_keys;
@@ -131,4 +132,4 @@ Gary L. Pavlis
 Indiana University
 pavlis@indiana.edu
 .fi
-.\" $Id: pfstream.3,v 1.1 2003/01/21 03:10:43 pavlis Exp $
+.\" $Id: pfstream.3,v 1.2 2003/01/22 14:10:34 pavlis Exp $
