@@ -1,4 +1,5 @@
 #include <math.h>
+#include <strings.h>
 #include "stock.h"
 #include "arrays.h"
 #include "coords.h"
@@ -87,14 +88,13 @@ Written:  October 2000
 Arr *dbpmel_load_stations(Dbptr db, Pf *pf)
 {
         Dbptr dbs;
-        int i,j,nrows;
+        int nrows;
         Tbl *sortkeys;
 	Arr *a,*out;
  	char staname[12];
 	double lat,lon,elev,dnorth,deast;
 	int useall,usednde;
 	Station *s;
-	SCMatrix smatrix;  
 	char laststa[12];
 	double lastlon,lastlat,lastelev,lastdn,lastde;
 

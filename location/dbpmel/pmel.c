@@ -1,5 +1,6 @@
 #include <math.h>
 #include <sunperf.h>
+#include <strings.h>
 #include "stock.h"
 #include "arrays.h"
 #include "elog.h"
@@ -68,7 +69,7 @@ void accumulate_sn_matrix(int m, double *U, int n1u, int nnull,
 	    {
 		ic = column_index[i];
 		snvector = sn + ic*n1sn;
-		dcopy(nnull,U,n1u,snvector,1);
+		dcopy(nnull,U+i,n1u,snvector,1);
 		dscal(nnull,w[i],snvector,1);
 	    }
 	}
@@ -226,7 +227,7 @@ Tbl *pmel(int nevents,
     int i,j,k;
     Tbl *tu;
     char *fix;
-    int retcode=0,locrcode;
+    int locrcode;
     double *A;  /* FORTRAN order matrix of equation of condition */
     double *U,*svalue,*Vt;  /* Used to store full SVD */
     double *wts;  /* used here as product of w and reswt */
@@ -262,7 +263,7 @@ Tbl *pmel(int nevents,
     /* Related to form_equations */
     Robust_statistics stats;
     float **Amatrix, *b, *r, *w, *reswt;
-    int nused,svdinfo;
+    int nused,svdinfo,retcode;
     /* hold residuals for station correction inversion */
     double *scrhs;
     /* holds station correction perturbation solved for in each interation */
@@ -317,9 +318,12 @@ int one=1;
     averaging of measurments from well located events.  Because
     ggnloc looks at tu it must at least be initialized.*/
     tu = newtbl(0);
-
+    /* This controls residual weight error scaling in a global sense */
+    escale = esinit;
+    o.min_error_scale = escale;
 
     /* Top of processing loop for this group */
+    elog_log(0,"Iteration  Nevents   Raw_rms  Escale   ndgf\n");
     do {
         Hypocenter *current_hypo;
         double current_wssq;
@@ -329,7 +333,8 @@ int one=1;
         ndata_used = 0;
         total_ndgf = 0;
 	nrows_S = 0;
-        for(i=0;i<nevents;++i)
+	sc_iterations = 0;
+        for(i=0,total_ssq_raw=0.0,total_wssq=0.0;i<nevents;++i)
         {
 	    fix = get_fixlist(fixarr,evid[i]);
 	    if(fix==NULL)
@@ -542,8 +547,8 @@ rhsnrm = dnrm2_(&nrows_S,bwork,&one);
 	if(escale<esmin) escale = esmin;
 	o.min_error_scale = escale;
 	total_rms_raw = sqrt(total_ssq_raw/((double)total_ndgf));
-	fprintf(stdout,"%d\t%lf\t%lf\t%d\n",
-		nev_used,total_rms_raw,escale,total_ndgf);
+	elog_log(0,"%d  %d  %lf  %lf  %d\n",
+		sc_iterations,nev_used,total_rms_raw,escale,total_ndgf);
 	if(sc_iterations>0)
 		if(ftest(sswrodgf, total_ndgf, s->sswrodgf, s->ndgf,
 			SSWR_TEST_LEVEL)==0)
@@ -551,7 +556,7 @@ rhsnrm = dnrm2_(&nrows_S,bwork,&one);
 	s->ndgf = total_ndgf;
 	s->sswrodgf = sswrodgf;
 	++sc_iterations;
-	if(sc_iterations<maxscit) pushtbl(sc_converge_reasons,
+	if(sc_iterations>maxscit) pushtbl(sc_converge_reasons,
 			"Hit station correction iteration limit");
     }
     while (maxtbl(sc_converge_reasons)<=0);

@@ -6,12 +6,14 @@ double &Tbl{
 pmel_initial_error_scale
 pmel_minimum_error_scale 
 pmel_F_test_critical_value 0.9 1.0
-pmel_svd_relative_cutoff 1.0  1.0E6
+pmel_svd_relative_cutoff 0.000001 1.0
 pmel_sc_fraction_convergence_error 0.0000001 0.1
 }
 string &Tbl{
 3Dreference_model
 travel_time_model	
+pmel_run_name
+gridname
 }
 boolean &Tbl{
 use_all_stations
@@ -20,10 +22,11 @@ pmel_autodelete_high_rms
 pmel_cluster_mode
 }
 }
+pmel_run_name test
+gridname kyrghyz
+
 dbpmel_dbview_definition &Tbl{
-	dbopen hypocentroid
 dbsubset gridid<1000
-	dbsubset gridname=="kyghyz"
 	dbjoin cluster
 	dbjoin event
 	dbjoin origin

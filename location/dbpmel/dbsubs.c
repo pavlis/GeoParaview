@@ -189,7 +189,6 @@ Written:  February 1997
 void save_origerr(int orid, Hypocenter h, double **C, Dbptr dbo)
 {
 	double sdobs; 
-	double lddate;
 	/* Intentionally ignored: smajax,sminax,strike,sdepth,stime,
 					conf,commid */
 
@@ -284,10 +283,8 @@ void save_assoc(Dbptr dbi, int is, int ie, int orid, char *vmodel,
 	Arrival *aptr;
 	Slowness_vector *uptr;
 
-	double r, w, reswt,uxresid, uyresid,uxpred,uypred,slowres;
+	double uxresid, uyresid,uxpred,uypred,slowres;
 	double stalat, stalon; 
-	double ux, uy;
-	double u,phi;  /* polar form of measured slowness vector */
 	double duphi;
 	int irec;
 

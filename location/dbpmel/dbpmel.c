@@ -95,7 +95,6 @@ void main(int argc, char **argv)
 	char *sift_exp;  /* sift expression for subset */
 	int sift = 0;  /* default is no sift.  */
 	Tbl *sortkeys;
-	int nevents;
 	/* db row variables */
 	int nrows, nrows_raw;
 
@@ -104,6 +103,8 @@ void main(int argc, char **argv)
 	int i;
 	int gmin,gmax;
 	char sstring[128];
+	char *gridname;
+	Tbl *proctbl;
 
 	/* Initialize the error log and write a version notice */
 	elog_init (argc, argv) ;
@@ -144,19 +145,26 @@ void main(int argc, char **argv)
 	to make sure station table is properly dynamic to account for
 	time changes.  With this setup, the stations can even move
 	around and this should still work.*/
+	gridname = pfget_string(pf,"gridname");
 	if(dbopen(dbin,"r",&db) == dbINVALID) 
-		die(1,"Unable to open input database %s\n",dbin);
+		elog_die(1,"Unable to open input database %s\n",dbin);
 	db = dblookup(db,0,"hypocentroid",0,0);
-	sprintf(sstring,"gridid>=%d && gridid<=%d",gmin,gmax);
+	sprintf(sstring,"gridid>=%d && gridid<=%d && (gridname=~/%s/)",gmin,gmax,gridname);
 	db = dbsubset(db,sstring,0);
 	dbquery(db, dbRECORD_COUNT, &nrows);
 	if(nrows<=0) 
-		elog_die(0,"No hypocentroid records in requested gridid range of %d to %d\n",
-				gmin,gmax);
-	/* We call this routine that uses dbprocess driven by the 
-	parameter file definition tagged by the Tbl dbpmel_dbview*/
-	dbv = dbform_working_view(db,pf,"dbpmel_dbview_definition");
+		elog_die(0,"No hypocentroid records in requested gridid range of %d to %d for grid called %s\n",
+				gmin,gmax,gridname);
+	/* This forms the working view for this program */
+	proctbl = strtbl("dbjoin cluster",
+		"dbjoin event",
+		"dbjoin origin",
+		"dbsubset orid==prefor",
+		"dbjoin assoc",
+		"dbjoin arrival",0);
+	dbv = dbprocess(db,proctbl,0);
 	dbquery(dbv, dbRECORD_COUNT, &nrows);
+	elog_log(0,"Raw working database view has %d rows\n",nrows);
 
 	/* Subset using sift_key if requested */
 	if(sift)
@@ -184,6 +192,7 @@ void main(int argc, char **argv)
 Which picks will be used here is unpredictable\n\
 %d total picks, %d unique\nContinuing\n", nrows_raw, nrows);
 
+	elog_log(0,"Final working view has %d rows\n",nrows);
 	if(dbpmel_process(dbv,gridlist,pf))
 	{
 		elog_complain(0,"Errors in dbpmel_process\n");

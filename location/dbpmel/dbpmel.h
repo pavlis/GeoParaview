@@ -20,7 +20,7 @@ typedef struct scmatrix {
 	int nsta;
 	int nrow,ncol;  /* ncol=nsta*nphases, but we keep it anyway*/
 	double rmsraw,sswrodgf;
-	double ndgf;
+	int ndgf;
 	double *scref;  /* Vector of length ncol of reference station 
 			corrections (used for bias correction projectors)*/
 	double *sc;  /* Holds a current estimate of path anomalies */

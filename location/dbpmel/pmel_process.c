@@ -129,7 +129,6 @@ Written:  Fall 2000
 */
 int dbpmel_process(Dbptr db, Tbl *gridlist,Pf *pf)
 {
-	Location_options o;
 	Pf *vpf;
 	Arr *arr_phase;
 	char *vmodel;
@@ -137,7 +136,7 @@ int dbpmel_process(Dbptr db, Tbl *gridlist,Pf *pf)
 	that should be used only with S-P type timing */
 	Arr *badclocks;
 	/* Hold station table.   We make the array table empty always. */
-	Arr *stations,*arrays=newarr(0);
+	Arr *stations;
 	int nbcs;
 	int i,j,k;
 	Tbl *grptbl;
@@ -165,11 +164,13 @@ int dbpmel_process(Dbptr db, Tbl *gridlist,Pf *pf)
 	SCMatrix *smatrix;
 	Tbl *converge;
 	Arr *arr_phase_3D;
+	/* needed for output db tables */
+	char *runname, *gridname;
 
 	initialize_hypocenter(&hypocentroid);
+	runname = pfget_string(pf,"pmel_run_name");
+	gridname = pfget_string(pf,"gridname");
 
-	/* DB is now set up correctly, now we turn to the parameter files */
-	o = parse_options_pf (pf);
 
 	/* This uses the same method of defining phase handles as dbgenloc*/
 	vmodel=pfget_string(pf,"travel_time_model");
@@ -235,7 +236,6 @@ int dbpmel_process(Dbptr db, Tbl *gridlist,Pf *pf)
 		int nevents;
 		int is,ie;
 		int ndata;
-		Dbptr dbhypo; 
 		int ierr;
 
 		gridid = (int)gettbl(gridlist,i);
@@ -257,7 +257,6 @@ int dbpmel_process(Dbptr db, Tbl *gridlist,Pf *pf)
 		for gridid:evid grouped parts of the working view. */
 		for(j=0,ndata=0;j<nevents;++j)
 		{
-			char testevid[12];
 			dbevid_grp.record = (int)gettbl(reclist,j);
 			dbgetv(dbevid_grp,0,"evid",evid+j,
 				"bundle",&dbbundle,0);
@@ -336,20 +335,26 @@ int dbpmel_process(Dbptr db, Tbl *gridlist,Pf *pf)
 			events_to_fix,&hypocentroid,smatrix,pf);
 		fprintf(stdout,"Cluster id=%d pmel convergence reason\n",
 			gridid);
-		fprintf(stdout,"sswr/dgf = %lf, dgf = %d, rawrms = %lf\n",
-			smatrix->sswrodgf,smatrix->ndgf,smatrix->rmsraw);
+		for(k=0;k<maxtbl(converge);++k)
+		{
+			char *swork;
+			swork = (char *)gettbl(converge,k);
+			elog_log(0,"%s\n",swork);
+		}
 		dbpmel_save_hypos(db,reclist,nevents,h0,evid,ta,events_to_fix,pf);
 		if(dbaddv(dbcs,0,"gridid",gridid,
-				"time",now(),
+				"gridname", gridname,
+				"pmelrun",runname,
 				"sswrodgf",smatrix->sswrodgf,
 				"ndgf",smatrix->ndgf,
-				"rawrms",smatrix->rmsraw,0) == dbINVALID)
+				"sdobs",smatrix->rmsraw,0) == dbINVALID)
 		{
 			elog_complain(0,"dbaddv error for gridid %d adding to gridstat table\n",
 				gridid);
 		}
 		for(k=0;k<nevents;++k) freetbl(ta[i],free);
 		free(ta);
+		freetbl(converge,free);
 	}
 	freearr(events_to_fix,0);
 	destroy_SCMatrix(smatrix);
