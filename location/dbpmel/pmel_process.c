@@ -229,6 +229,17 @@ int dbpmel_process(Dbptr db, Tbl *gridlist,Pf *pf)
 	/* This genloc routine defines location parameters.  These
 	are set globally here for the entire run.*/
 	o = parse_options_pf(pf);
+	/* Pmel is know to fail if this option is turned on */
+	if(((o.generalized_inverse)==PSEUDO_RECENTERED)
+		|| ((o.generalized_inverse)==DAMPED_RECENTERED) )
+	{
+		elog_notify(0,"parameter file specifies recenter\
+option which is know to cause problems\nrecenter set off\n");
+		if((o.generalized_inverse)==PSEUDO_RECENTERED)
+			o.generalized_inverse = PSEUDOINVERSE;
+		if((o.generalized_inverse)==DAMPED_RECENTERED)
+			o.generalized_inverse = DAMPED_INVERSE;
+	}
 
 
 	/* This uses the same method of defining phase handles as dbgenloc*/
@@ -447,7 +458,7 @@ for cluster id %d\n",
 				gridid);
 			}
 		}
-		for(k=0;k<nevents;++k) freetbl(ta[i],free);
+		for(k=0;k<nevents;++k) freetbl(ta[k],free);
 		free(ta);
 		freetbl(converge,free);
 		freetbl(pmelhistory,free);

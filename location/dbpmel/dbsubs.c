@@ -256,8 +256,10 @@ record for orid %d prefor of event %d\n",
 				"time",h[i].time,
 				"algorithm",alg,
 				"auth",auth,0);
-		dbadd(dbo,0);
-
+		if(dbadd(dbo,0)==dbINVALID)
+			elog_complain(0,"dbadd error for origin table\
+for new orid %d of evid %d\n",
+				orid,evid[i]);
 		/* The assoc tables is much more complex.  Rather than
 		do a row for row match against each arrival in ta, I
 		use a staged reduction.  Than is I first match the full
@@ -334,7 +336,7 @@ found\nFail to create new assoc records for orid %d\n",
 				&delta,&seaz);
         		wgt = (double)((a->res.weighted_residual)
 				/(a->res.raw_residual));
-			dbaddv(dba,0,
+			if(dbaddv(dba,0,
 				"arid",a->arid,
 				"orid",orid,
 				"sta",a->sta->name,
@@ -350,7 +352,11 @@ found\nFail to create new assoc records for orid %d\n",
 				"seaz",deg(seaz),
 				"esaz",deg(esaz),
 				"timeres",(double) a->res.raw_residual,
-				"wgt",wgt,0);
+				"wgt",wgt,0)==dbINVALID)
+					elog_complain(0,
+					"Error adding to assoc table\
+ for arid %d, orid %d, evid %d\n",
+					a->arid,orid,evid[i]);
 		}
 		dbfree(dbs);
 		free_hook(&hooka2);

@@ -14,7 +14,10 @@ to specify the confidence level of the ftest.  This interface routine
 ignores this and uses the fixed critical level fortran function */
 int ftest(double f1, int nu1, double f2, int nu2, double critical_value)
 {
-	if(ftest_(&f1,&nu1,&f2,&nu2))
+	float rf1,rf2;
+	rf1 = (float)f1;
+	rf2 = (float)f2;
+	if(ftest_(&rf1,&nu1,&rf2,&nu2))
 		return(1);
 	else
 		return(0);
@@ -247,16 +250,16 @@ int pmel(int nevents,
 
     int nr,nc;  /* Copies of s->nrow and s->ncol used for clarity*/
     /* These keep track of counts of data and events used in solution*/
-    int nev_used, ndata_used, total_ndgf,sc_iterations=0;
+    int nev_used, ndata_used, total_ndgf,total_ndgf2,sc_iterations=0;
     int hypo_iterations;
     int nrows_S, nnull;  /* nrows_S is an index to the current high water
 			mark as S is filled */
 
     /* These are total residual figures */
-    double total_rms_raw,total_ssq_raw, total_wssq;
+    double total_rms_raw,total_ssq_raw, total_wssq,total_wssq2;
     double rhsnrm;
     double *bwork;
-    double sswrodgf;
+    double sswrodgf,sswrodgf2;
     /* ggnloc output lists */
     Tbl *history=NULL, *reasons=NULL, *restbl=NULL;
     double escale;
@@ -270,7 +273,7 @@ int pmel(int nevents,
     /* Related to form_equations */
     Robust_statistics stats;
     float **Amatrix, *b, *r, *w, *reswt;
-    int nused,svdinfo,retcode;
+    int nused,svdinfo;
     /* hold residuals for station correction inversion */
     double *scrhs;
     /* holds station correction perturbation solved for in each interation */
@@ -278,9 +281,6 @@ int pmel(int nevents,
     double ds_over_s,ds_over_s_converge;
     Hypocenter *hypocen_history;
     double centroid_lat, centroid_lon, centroid_z;
-/* TEMPORARY FOR SUNPERF PROBLEM ON SOLAR 
-int one=1;
-*/
     /* initialize the output lists */
     if(*pmelhistory==NULL) *pmelhistory=newtbl(0);
     if(*sc_converge_reasons==NULL) *sc_converge_reasons=newtbl(0);
@@ -332,7 +332,9 @@ int one=1;
     o->min_error_scale = escale;
 
     /* Top of processing loop for this group */
-    elog_log(0,"Iteration  Nevents   Raw_rms  Escale   ndgf\n");
+    elog_log(0,"Iteration Raw_rms sswrodf Escale  ndgf  Nevents\
+ Nused\n");
+    sc_iterations = 0;
     do {
         Hypocenter *current_hypo;
         double current_wssq;
@@ -342,7 +344,7 @@ int one=1;
         ndata_used = 0;
         total_ndgf = 0;
 	nrows_S = 0;
-	sc_iterations = 0;
+	for(k=0;k<((s->nrow)*(s->ncol));++k) s->S[k]=0.0;
         for(i=0,total_ssq_raw=0.0,total_wssq=0.0,centroid_lat=0.0,
 		centroid_lon=0.0,centroid_z=0.0;i<nevents;++i)
         {
@@ -419,7 +421,7 @@ int one=1;
                 if(sc_iterations>0 && delete_bad)
                     if(ftest(current_wssq,
                          current_hypo->degrees_of_freedom,
-                         s->sswrodgf, s->ndgf,
+			(s->sswrodgf)*((double)(s->ndgf)),s->ndgf,
                          F_critical_value)) continue;
                       
                 total_ndgf += current_hypo->degrees_of_freedom;
@@ -468,11 +470,8 @@ int one=1;
 
 		/* Compute the svd of this matrix.  All we need here 
 		is the left singular vectors spanning the data space */
-		dmdbg_(A,&nc,&nc,&ncol_amatrix);
 		dgesvd('a','n',nrow_amatrix,ncol_amatrix,A,
 			nc, svalue, U, nc, Vt, nc, &svdinfo);
-		dmdbg_(A,&nc,&nrow_amatrix,&ncol_amatrix);
-		dmdbg_(U,&nc,&nc,&nc);
   		if(svdinfo) 
 		{
 		    elog_notify(0,"pmel:  svd error processing event number %d\n",i);
@@ -492,13 +491,18 @@ int one=1;
 						residuals,1);
 		}
 		nrows_S += nnull; 
-		dmdbg_(s->S,&(s->nrow),&nrows_S,&nc);
 		    
             }
             if(maxtbl(history))freetbl(history,free);
             if(maxtbl(reasons))freetbl(reasons,free);
             if(maxtbl(restbl))freetbl(restbl,free);
         }
+	if(nrows_S<=0)
+	{
+		elog_notify(0,"pmel:  Insufficient data to compute\
+station corrections\n");
+		return(-1);
+	}
 	/* Now we solve for station correction adjustments that 
 	are determinate from the available data. U is not actually
 	hit because we use the 'o' flag, but Vt is set*/
@@ -507,8 +511,7 @@ int one=1;
 	{
 	    elog_complain(0,"pmel:  svd error inverting station correction matrix\n");
 	    svd_error(svdinfo);
-	    retcode = -1;
-	    break;
+	    return(-1);
 	}
 	/* This is a pseudoinverse solver. It returns the number of
 	singular values used for the solution which we used below to
@@ -550,23 +553,13 @@ ds_over_s=dnrm2_(&nc,sc_solved,&one)/dnrm2_(&nc,s->scdata,&one);
 	if(ds_over_s<ds_over_s_converge)
 		pushtbl(*sc_converge_reasons,
 			"Small adjustment to station corrections");
-	/* To compute rms correctly we have to compute the null
-	space projection of the right hand side vector with the
-	left singular vectors used to compute the station correction.
-	This is necessary because of the way we form the solution.*/
-	if(data_space_null_project(s->S,nr,nused,nrows_S,scrhs,bwork))
-		elog_complain(0,"Problems in data_space_null_project\n");
-	rhsnrm = dnrm2(nrows_S,bwork,1);
-/*
-rhsnrm = dnrm2_(&nrows_S,bwork,&one);
-*/
-	total_wssq = rhsnrm*rhsnrm;
-	/*We alter the minimum error scale used in the locator
-	for m-estimators using global weighted rms using only
-	the global esmin as a floor */
-	total_ndgf = total_ndgf - nused;  /*use nused as svd truncation
-						will be the norm with
-						missing phases */
+	/* There are two variants on weighted rms: before and after
+	the current linear correction.  We compute them both. 
+	Before the current station correction vector applied is
+	produced through accumulation above in total_wssq.  The
+	linear corrected version is total_wssq2.  A critical thing
+	is that sometimes that later can be zero of have limited
+	degrees of freedom */
 	if(total_ndgf<=0)
 	{
 		pushtbl(*sc_converge_reasons,"ABORT on insufficient data");
@@ -576,15 +569,30 @@ rhsnrm = dnrm2_(&nrows_S,bwork,&one);
 	escale = sqrt(sswrodgf);
 	if(escale<esmin) escale = esmin;
 	o->min_error_scale = escale;
+	s->ndgf = total_ndgf;
+	s->sswrodgf = sswrodgf;
 	total_rms_raw = sqrt(total_ssq_raw/((double)total_ndgf));
-	elog_log(0,"%d  %d  %lf  %lf  %d\n",
-		sc_iterations,nev_used,total_rms_raw,escale,total_ndgf);
 	if(sc_iterations>0)
 		if(ftest(sswrodgf, total_ndgf, s->sswrodgf, s->ndgf,
 			SSWR_TEST_LEVEL)==0)
 		    pushtbl(*sc_converge_reasons,"No improvement in data fit");
-	s->ndgf = total_ndgf;
-	s->sswrodgf = sswrodgf;
+	/* now the second measure */
+	if(data_space_null_project(s->S,nr,nused,nrows_S,scrhs,bwork))
+		elog_complain(0,"Problems in data_space_null_project\n");
+	rhsnrm = dnrm2(nrows_S,bwork,1);
+	total_wssq2 = rhsnrm*rhsnrm;
+	total_ndgf2 = total_ndgf - nused;  /*use nused as svd truncation
+						will be the norm with
+						missing phases */
+	if(total_ndgf2<=0)
+		sswrodgf2=0.0;
+	else
+		sswrodgf2=total_wssq2/((double)total_ndgf2);
+	elog_log(0,"%d  %lf  %lf  %lf %lf %d %d %d %d\n",
+		sc_iterations,total_rms_raw,escale,
+			sswrodgf,sswrodgf2,
+			total_ndgf,total_ndgf2,nevents,nev_used);
+
 	/* compute the new hypocentroid 
 	initialize the new hypocentroid this way */
 	allot(Hypocenter *,hypocen_history,1);
@@ -602,6 +610,7 @@ rhsnrm = dnrm2_(&nrows_S,bwork,&one);
 	hypocen_history->number_data = nr;
 	hypocen_history->degrees_of_freedom = total_ndgf;
 	pushtbl(*pmelhistory,hypocen_history);
+	copy_hypocenter(hypocen_history,hypocen);
 	++sc_iterations;
 	if(sc_iterations>maxscit) pushtbl(*sc_converge_reasons,
 			"Hit station correction iteration limit");
