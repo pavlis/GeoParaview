@@ -1,0 +1,3 @@
+#!/bin/csh
+\rm temp.ps
+/opt/gmt/bin/psxy junk.xy -R0/180/0/70 -B5 -Jm0.02 -Sc0.01 > temp.ps

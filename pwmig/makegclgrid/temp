@@ -1,0 +1,31 @@
+	        /* Initialize the error log and write a version notice */
+        elog_init (argc, argv);
+        elog_log (0, "%s version %s\n", argv[0], version) ;
+
+        /* usual cracking of command line */
+        if(argc < 2) usage(argv[0]);
+        dbname = argv[1];
+
+        for(i=2;i<argc;++i)
+        {
+              if(!strcmp(argv[i],"-pf"))
+                {
+                        ++i;
+                        if(i>=argc) usage(argv[0]);
+                        pfin = argv[i];
+                }
+                else if(!strcmp(argv[i],"-sift"))
+                {
+                        ++i;
+                        if(i>=argc) usage(argv[0]);
+                        sift_exp = argv[i];
+                        sift = 1;
+                }
+                else
+                        usage(argv[0]);
+        }
+        /* this sets defaults */
+        if(pfin == NULL) pfin = strdup("pwstack");
+
+        i = pfread(pfin,&pf);
+        if(i != 0) die(1,"Pfread error\n");
