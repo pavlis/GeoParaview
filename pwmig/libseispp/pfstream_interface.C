@@ -8,29 +8,28 @@
 
 using namespace std;
 
-/*
- * Gets a Time_Series_Ensemble object from a pfstream.  gmdlist
- * is a list of names extracted from the input stream and placed into
- * the global metadata space for the ensemble.
- * This function is not very general but is a good illustration of
- * how we can load a generic object through a pfstream
- * Function returns NULL when the input is exhausted.  It throws 
- * a string exception containing a file name where i/o fails. 
- * It can also terminate internally with input errors on the pfstream.
- * This is not very elegant, but appropriate for planned usage.
+/* Gets a Time_Series_Ensemble object from a pfstream pfh.  The
+ * requested ensemble is assumed to be keyed by tag in the 
+ * input pfstream.  mdlist is a list of constant metadata to 
+ * copy one (the first actually) object to the ensemble metadata
+ * space.  
+ *
+ * Normal return is a valid pointer.  A NULL pointer is
+ * returned on end of input.
+ *
+ * This could be a constructor for a Time_Series_Ensemble but
+ * my view was it was too ugly to be made an intrinsic part 
+ * of the data object.
  */
-vector<Time_Series> *get_next_ensemble(Pfstream_handle *pfh, char *tag)
+Time_Series_Ensemble *get_next_ensemble(Pfstream_handle *pfh, 
+		char *tag,
+		list<Metadata_typedef>& mdlist)
 		throw(seispp_error)
 {
 	Pf *pfin;
 	Pf_ensemble *pfe;
+	vector<Time_Series>::iterator t0;  // used to select trace 0
 	int i;
-	char *pfstr;
-	string datasource;
-	string dfile, dir;
-	int foff;
-	Tbl *samples_raw;
-	int ns;
 
 	//  This routine gets the data required to construct this
 	//  from the input pfstream.  I returns everything 
@@ -44,85 +43,138 @@ vector<Time_Series> *get_next_ensemble(Pfstream_handle *pfh, char *tag)
 	if(pfe==NULL)
 	{
 		pffree(pfin);
-		return(NULL);
+		throw(seispp_error("get_next_ensemble: Failure parsing input pfstream"));
 	}
-	// For this type of ensemble groups are meaningless.  Just 
-	// build a simple vector of the results and discard anything like
-	// that if present.  We build a vector of 
-	// Time_Series objects in sequence.  They are built and pushed 
-	// at the bottom of this loop
-	vector <Time_Series> *tse=new vector<Time_Series>;
-	for(i=0;i<pfe->nmembers;++i)
+	Time_Series_Ensemble *tsptr=new Time_Series_Ensemble();
+	Time_Series_Ensemble& tseobj = *tsptr;
+	try{
+	    for(i=0;i<pfe->nmembers;++i)
+	    {
+		Time_Series *ts=new Time_Series(pfe->pf[i]);
+		tseobj.tse.push_back(*ts);
+		delete ts;
+	    }
+	    // copy the desired global metadata to the ensemble
+	    // metadata object
+	    //
+	    t0=tseobj.tse.begin();
+	    Time_Series& t0r = *t0;
+	    copy_selected_metadata(t0r.md,tseobj.md,mdlist);
+	}
+	catch(seispp_error serr)
 	{
-		double samprate;
-		double t0;
-		string stref;
-
-		// Intentionally construct an empty Time_Series object
-		Time_Series *ts=new Time_Series();
-		
-		pfstr = pf2string(pfe->pf[i]);
-		try{
-			ts->md.load_metadata((string)pfstr);
-			free(pfstr);
-		// Name space here is frozen.  Not elegant, but a starter
-		// We are extracting required parameters placed into the 
-		// Time_Series object.  
-			samprate = ts->md.get_double("samprate");
-			ts->dt = 1.0/samprate;
-			ts->t0 = ts->md.get_double("starttime");
-			ts->ns = ts->md.get_int("nsamp");
-			stref = ts->md.get_string("Time_Reference_Type");
-			if(stref == "relative")
-				ts->tref = relative;
-			else
-				ts->tref = absolute;
-			//  This allows data to be transmitted inline
-			//  through the pf or through external files
-			datasource = ts->md.get_string("datasource");
-			if(datasource == "external_files")
-			{
-				dir = ts->md.get_string("dir");
-				dfile = ts->md.get_string("dfile");
-				foff = ts->md.get_int("foff");
-			}
-			else
-			{
-				samples_raw = ts->md.get_list("time_series_samples");
-				ns = maxtbl(samples_raw);
-				for(int j=0;j<(ts->ns);++j)
-				{
-					char *ssr;
-					ssr = (char *)gettbl(samples_raw,j);
-					ts->s[j] = atof(ssr);
-				}
-			}
-		} 
-		// This catches multiple metadata_error objects throw by
-		// load_metadata and get routines above
-		catch(Metadata_error mde)
-		{
-			mde.log_error();
-			elog_die(0,(char *)"get_next_ensemble:  fatal problem handling metadata\n");
-		}
-		// I do this here because of the try/catch block.
-		// I want the function to throw an exception that
-		// can be caught be the caller an handled in the 
-		// event of i/o errors.  The above should only cause
-		// problems with usage errors.
-		if(datasource =="external_files")
-		{
-			FILE *fp;
-			string fname=dir+"/"+dfile;
-			if((fp=fopen(fname.c_str(),"r")) == NULL) throw(fname);
-			if (foff>0)fseek(fp,(long)foff,SEEK_SET);
-			ts->s = new double[ts->ns];
-			if(fread((void *)(ts[i].s),sizeof(double),ts[i].ns,fp)
-					!= (ts[i].ns) ) 
-				throw(seispp_error("fread error on file "+fname));
-			fclose(fp);
-		}
-		tse->push_back(*ts);
+		throw serr;
 	}
-	return(tse);
+	catch(Metadata_error mderr)
+	{
+		mderr.log_error();
+		throw seispp_error("get_next_ensemble: Problems building Time_Series_Ensemble object");
+	}
+	return(tsptr);
+}
+
+/*  This is a similar function or a three component ensemble.
+ *  Only a single list of metadata is passed and that list is
+ *  used to control copies to both the ensemble and individual
+ *  3c groups.  i.e. md of the ensemble will be the same
+ *  as md in each of the Three_Component_Seismogram objects.
+ *  Overloading can be used to add a more general version of
+ *  this with two different lists if wanted later, but for
+ *  now I see now reason for the mess this causes.
+ *
+ *  Author:  Gary Pavlis
+ *  Written:  May 2003
+ */
+
+Three_Component_Ensemble *get_next_3c_ensemble(Pfstream_handle *pfh, 
+		char *tag,
+		list<Metadata_typedef>& mdlist)
+		throw(seispp_error)
+{
+	Pf *pfin;
+	Pf_ensemble *pfe;
+	int i,j;
+	vector <Three_Component_Seismogram>::iterator t0;
+
+	//  This routine gets the data required to construct this
+	//  from the input pfstream.  I returns everything 
+	//  encapsulated in a single pf
+	pfin = pfstream_get_next_ensemble(pfh);
+	if(pfin==NULL) return(NULL);
+
+	// We next parse the input pf encapsulated in a single
+	// set of curly brackets into an ensemble
+	pfe = pfget_Pf_ensemble(pfin,tag);
+	if(pfe==NULL)
+	{
+		pffree(pfin);
+		throw(seispp_error("get_next_3c_ensemble:  Failure parsing input pfstream"));
+	}
+	if(pfe->ngroups<=0 || pfe->group_keys==NULL) 
+		throw(seispp_error("get_next_3c_ensemble:  Three-component traces required grouping of pfstream to define componets"));
+
+	Three_Component_Ensemble *tceptr=new Three_Component_Ensemble();
+	Three_Component_Ensemble& tceobj = *tceptr;
+	try{
+	// this is a bit prone to seg faults, but excessive error
+	// checking can also cause other problems
+	    for(i=0;i<pfe->ngroups;++i)
+	    {
+		    int is=pfe->group_start[i];
+		    int ie=pfe->group_end[i];
+		    Three_Component_Seismogram seis;
+		    if(ie-is+1<3)
+		    {
+			    cerr << "get_next_3c_ensemble: incomplete three-component group in input stream.  Found only "
+				    << ie-is+1 << "entries in group"<<endl;
+			    cerr << "Data skipped"<<endl;
+			    continue;
+		    }
+		    else if(ie-is+1>3)
+		    {
+			    cerr << "get_next_3c_ensemble (warning):  extra data in three-component grouping"<<endl;
+			    cerr << "Found " << ie-is+1 << "entries while looking for exactly three\nUsing first three in group"<<endl;
+		    }
+		    for(int jj=0,j=pfe->group_start[i];
+				    j<=pfe->group_end[i] && jj<3;++j,++jj)
+		    {
+			    seis.x[jj]=Time_Series(pfe->pf[j]);
+		    }
+
+		    try {
+		    	copy_selected_metadata(seis.x[0].md,
+				    seis.md,mdlist);
+			// assume all pieces of the ensemble have these
+			// defined so we can extract the global for the
+			// ensemble from the irst one in the list
+			seis.tref=seis.x[0].tref;
+			seis.components_are_cardinal
+				=seis.x[0].md.get_bool("components_are_orthogonal");
+			seis.components_are_cardinal
+				=seis.x[0].md.get_bool("components_are_cardinal");
+		    	tceobj.tcse.push_back(seis);
+		    }
+		    catch (Metadata_error mde)
+		    {
+			    mde.log_error();
+			    throw seispp_error("Error copying metadata\nEnsemble metadata may be incomplete\n");
+		    }
+	    }
+	    // copy the global metadata from the first 3c entry
+	    // using same list as for individual components
+	    //
+	    t0 = tceobj.tcse.begin();
+	    Three_Component_Seismogram& t0r = *t0;
+	    copy_selected_metadata(t0r.md,tceobj.md,mdlist);
+	}
+	catch(seispp_error serr)
+	{
+		throw serr;
+	}
+	catch(Metadata_error mderr)
+	{
+		mderr.log_error();
+		throw seispp_error("Problems building Time_Series_Ensemble object");
+	}
+	return(tceptr);
 }

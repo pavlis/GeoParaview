@@ -51,6 +51,10 @@ Arguments
 		ensemble to each stack output
 	pfsho - output stream handle.  Data are pushed to 
 		this routine for output.
+
+Normal return is 0.  Returns nonzero if stack was null.
+(This is not an exception as it will happen outside the boundaries 
+of an array and this case needs to be handled cleanly.
 */
 int pwstack_ensemble(Three_Component_Ensemble& indata,
 	Rectangular_Slowness_Grid& ugrid,
@@ -79,7 +83,7 @@ int pwstack_ensemble(Three_Component_Ensemble& indata,
 	int nsin = indata.tcse[0].ns;
 
 
-	Three_Component_Stack *stackout;
+	Three_Component_Seismogram *stackout;
 
 	int istart = nint(tstart/dt);
 	int iend = nint(tend/dt);
@@ -239,16 +243,12 @@ int pwstack_ensemble(Three_Component_Ensemble& indata,
 				if(stack_weight[i]>0)
 					stack[j][i]/=stack_weight[i];
 			}
-		// this syntax might be wrong.  Need memory for a special 
-		// 3c trace object inherited from Three_Component_Seismogram
-		// this object add a set of metadata needed to define it
-		stackout = new Three_Component_Stack(nsout);
+		// Create the output stack as a 3c trace object and copy
+		// metadata from the input into the output object.
+		stackout = new Three_Component_Seismogram(nsout);
 		for(j=0;j<3;++j) dcopy(nsout,stack[j],1,stackout->x[j].s,1);
 		copy_selected_metadata(indata.tcse[0].x[0].md,stackout->md,mdlist);
-		//MISSING
-		// somewhere here we need to load metadata for the stack object.
-		// What needs to be loaded and how requires some thought.
-		// putting this aside to work on it in background
+		// Next we load the metadata into the stack varialbe to this code
 		stackout->md.put_metadata("ux",ux);
 		stackout->md.put_metadata("uy",uy);
 		stackout->md.put_metadata("dux",dux);

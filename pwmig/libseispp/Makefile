@@ -7,13 +7,14 @@ cflags=-g
 ldlibs= -L/opt/SUNWspro/lib $(DBLIBS) -lperf
 
 include $(ANTELOPEMAKE)  	
-DLD=CC -G -Kpic
-CC=CC -Kpic
-AR=CC -xar
+#DLD=CC -G -Kpic
+#CC=CC -Kpic
+#AR=CC -xar
 
 
-OBJS=metadata.o create_destroy.o dmatrix.o operators.o pfstream_interface.o \
-rotate_procedures.o rotation.o
+OBJS=create_destroy.o dmatrix.o gaps.o \
+mdlist.o metadata.o mute.o operators.o pfstream_interface.o \
+rotate_procedures.o rotation.o statics.o ttime.o
 $(LIB) : $(OBJS)
 	rm -f $@
 #	$(AR) $(ARFLAGS) $@ $(LORDER) $(OBJS) $(TSORT)

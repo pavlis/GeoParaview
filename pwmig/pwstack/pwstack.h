@@ -20,23 +20,14 @@ public:
 		if(aperture!=NULL)delete [] aperture;
 		if(cutoff!=NULL)delete [] cutoff;
 	};
+	// pf constructor.  tag is keyword to hold list of values
+	Depth_Dependent_Aperture(Pf *pf,string tag) throw(string);
 	double get_aperture(double tnow);
 	double get_cutoff(double tnow);
-};
-class Three_Component_Stack : public Three_Component_Seismogram
-{
-public:
-	int end_top_mute_zone;
-	int last_valid_sample;
-	int nstack;
-	Three_Component_Stack();
-	Three_Component_Stack(int nsamp);  // needs a parameterized constructor
 };
 
 void geographic_to_dne(double lat0, double lon0, double lat, double lon, 
 		double *dnorth, double *deast);
-void pfget_aperture_parameters(Pf *pf,string tag,
-                Depth_Dependent_Aperture& d);
 void geographic_to_dne(double lat0, double lon0,
         double lat, double lon, double *dnorth, double *deast);
 int compute_pseudostation_weights(int nsta, double *dnorth, double *deast,

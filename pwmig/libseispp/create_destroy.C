@@ -1,8 +1,7 @@
 #include "seispp.h"
 //
-// constructors for the Time_Series object are defined inline
-// in seispp.h.  The only exception is this, which is the copy
-// constructor
+// simple constructors for the Time_Series object are defined inline
+// in seispp.h.  First the copy constructors
 //
 Time_Series::Time_Series(const Time_Series& tsi)
 {
@@ -39,12 +38,75 @@ Time_Series::Time_Series(const Time_Series *tsi)
 	else
 		s=NULL;
 }
+//
+// This much more complex example uses a Pf to build a time series
+// It does this by using external files parsed from dir and dfile
+//
+
+Time_Series::Time_Series(Pf *pf)
+{
+	char *pfstr;
+	string stref;
+	string dfile, dir;
+	int foff;
+	FILE *fp;
+	string dtype;
+
+	s=NULL;  // explictly necessary to avoid problems when an error is thrown
+	pfstr = pf2string(pf);
+	try {
+		md.load_metadata((string)pfstr);
+		free(pfstr);
+		// Names space is frozen.  Not as general as it
+		// probably should be, but until proven necessary 
+		// will do it the easy way
+		dt = 1.0/md.get_double("samprate");
+		t0 = md.get_double("starttime");
+	        ns = md.get_int("nsamp");
+		stref = md.get_string("Time_Reference_Type");
+		if(stref == "relative")
+			tref = relative;
+		else
+			tref = absolute;
+		dtype = md.get_string("datatype");
+		if(dtype!="t4") 
+			throw(seispp_error("Unsupported datatype:  pf constructor only supports t4 data with external files"));
+		dir = md.get_string("dir");
+		dfile = md.get_string("dfile");
+		foff = md.get_int("foff");
+		string fname=dir+"/"+dfile;
+		if((fp=fopen(fname.c_str(),"r")) == NULL) 
+			throw("Open failure for file "+fname);
+		if (foff>0)fseek(fp,(long)foff,SEEK_SET);
+		s = new double[ns];
+		if(fread((void *)(s),sizeof(double),ns,fp)
+				!= ns ) 
+		{
+			delete [] s;  // memory leak possible without this
+			throw(seispp_error("fread error on file "+fname));
+		}
+		fclose(fp);
+	}
+	catch (Metadata_error mderr)
+	{
+		// We can land here if the object is only partially constructed
+		// A NULL value of s is handled correctly in the destructor
+		// so we clear s before returning with anexception
+		//
+		if(s!=NULL) delete [] s;
+		mderr.log_error();
+		throw seispp_error("Constructor for Time_Series object failed");
+
+	}
+}
+
 // Default constructor for Three_Component_Seismogram could be 
 // done inline in seispp.h, but it is complication enough I put
 // it here
 //
 Three_Component_Seismogram::Three_Component_Seismogram()
 {
+	live = false;
 	dt=0.0;
 	t0=0.0;
 	ns=0;

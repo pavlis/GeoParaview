@@ -6,44 +6,41 @@
 #include "pwstack.h"
 using namespace std;
 //
-// Loads data defined by a pf into a Depth_Dependent_Aperture object.
-// This could be done as a constructor, but having a C object in 
-// the pf as an arg to a constructor seems problematic even though
-// I've done it elsewhere
+// Pf-based constrructor for Depth_Dependent_Aperture object.
+//
 //  Arguments:
 //	pf - input parameter file "object"
 //	tag - name identifying the Tbl defining the designed input
-//      d - returned object (assumed created with default constructor.)
 //
 //  This routine throws an exception with a message string if the required
-// information from the pf cannot be retrieved.  Caller should arrane
-// for a catch( string s) 
-void pfget_aperture_parameters(Pf *pf,string tag,
-		Depth_Dependent_Aperture& d) 
+// information from the pf cannot be retrieved.  
+// This should probably normally be fatal.  A more complex return
+// to the error was deemed unnesseary since this is a specialized
+// object for pwstack
+//
+//  Author:  Gary L. Pavlis
+//
+
+Depth_Dependent_Aperture::Depth_Dependent_Aperture(Pf *pf,string tag)
+		throw (string)
 {
 	Tbl *t;
 
 	t = pfget_tbl(pf,(char *)tag.c_str());
 	if(t==NULL) throw "Aperture definition missing from parameter file";
-	// Note this assumes d was created with the default constructor
-	// that sets the entries null.  To avoid a memory leak we clear these
-	// vectors if the entries aren't NULL
-	if(d.t != NULL) delete [] d.t;
-	if(d.aperture != NULL) delete [] d.aperture;
-	if(d.cutoff != NULL) delete [] d.cutoff;
-	d.npoints = maxtbl(t);
-	d.t=new double[d.npoints];
-	d.aperture=new double[d.npoints];
-	d.cutoff=new double[d.npoints];
+	npoints = maxtbl(t);
+	t=new double[npoints];
+	aperture=new double[npoints];
+	cutoff=new double[npoints];
 
 	for(int i=0;i<maxtbl(t);++i)
 	{
 		char *tline;
 		tline = (char *)gettbl(t,i);
 		istrstream instr(tline);
-		instr >> d.t[i];
-		instr >> d.aperture[i];
-		instr >> d.cutoff[i];
+		instr >> t[i];
+		instr >> aperture[i];
+		instr >> cutoff[i];
 	}
 }
 double linear_interpolate_irregular(int npts, double *x, double *y, 

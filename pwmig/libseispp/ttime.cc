@@ -5,27 +5,28 @@
 
 #include "coords.h"
 #include "tt.h"
+#include "seispp.h"
 
 double Hypocenter::distance(double lat0, double lon0)
 {
-	double dist, az;
+	double epidist, az;
 
-	dist(lat,lon,lat0,lon0,&dist, &az);
-	return(dist);
+	dist(lat,lon,lat0,lon0,&epidist, &az);
+	return(epidist);
 }
 
 double Hypocenter::esaz(double lat0, double lon0)
 {
-	double dist, az;
+	double epidist, az;
 
-	dist(lat,lon,lat0,lon0,&dist, &az);
+	dist(lat,lon,lat0,lon0,&epidist, &az);
 	return(az);
 }
 double Hypocenter::seaz(double lat0, double lon0)
 {
-	double dist, az;
+	double epidist, az;
 
-	dist(lat0,lon0,lat0,lon0,&dist, &az);
+	dist(lat0,lon0,lat,lon,&epidist, &az);
 	return(az);
 }
 
@@ -48,7 +49,7 @@ string tterror_code_translation(int ierr)
 		break;
 	case -2:
 		s="Error in parameters passed to travel time function";
-		breeak;
+		break;
 	case -3:
 		s="Requested travel time method function not found";
 		break;
@@ -94,11 +95,12 @@ double Hypocenter::phasetime(double lat0, double lon0, double elev, string phase
 	p.source.name[0]='\0';
 	p.receiver.name[0]='\0';
 	// the 0 in the mode arg means compute only the time
-	ierr = ttcalc(method,model,phase.c_str(),0,p,&tt,&h);
+	ierr = ttcalc(method,model,
+			(char *)phase.c_str(),0,&p,&tt,&h);
 	if(ierr) 
 	{
 		string mess;
-		mess = tterror_code_translation(ierr)
+		mess = tterror_code_translation(ierr);
 		freetbl(tt,0);
 		free_hook(&h);
 		throw seispp_error(mess);
@@ -109,9 +111,11 @@ double Hypocenter::phasetime(double lat0, double lon0, double elev, string phase
 		if(t==NULL) 
 			throw seispp_error("ttcalc function returned an empty list of times");
 	}	
+	// this temporary is needed to prevent as small leak
+	double tret = t->value;
 	freetbl(tt,0);
 	free_hook(&h);
-	return(t.value);
+	return(tret);
 }
 
 double Hypocenter::ptime(double lat0, double lon0, double elev)
@@ -151,11 +155,11 @@ Slowness_vector  Hypocenter::phaseslow(double lat0, double lon0, double elev, st
 	p.source.name[0]='\0';
 	p.receiver.name[0]='\0';
 	// the 0 in the mode arg means compute only the time
-	ierr = ucalc(method,model,phase.c_str(),0,p,&tt,&h);
+	ierr = ucalc(method,model,(char *)phase.c_str(),0,&p,&tt,&h);
 	if(ierr) 
 	{
 		string mess;
-		mess = tterror_code_translation(ierr)
+		mess = tterror_code_translation(ierr);
 		freetbl(tt,0);
 		free_hook(&h);
 		throw seispp_error(mess);
@@ -168,11 +172,11 @@ Slowness_vector  Hypocenter::phaseslow(double lat0, double lon0, double elev, st
 		if(u==NULL) 
 			throw seispp_error("Returned list of computed slowness vectors was empty");
 	}	
-	freetbl(tt,0);
-	free_hook(&h);
 	uout.ux=u->ux;
 	uout.uy=u->uy;
-	return(u);
+	freetbl(tt,0);
+	free_hook(&h);
+	return(uout);
 }
 Slowness_vector Hypocenter::pslow(double lat0, double lon0, double elev)
 		throw(seispp_error)
@@ -181,7 +185,7 @@ Slowness_vector Hypocenter::pslow(double lat0, double lon0, double elev)
 	Slowness_vector u;
 
 	try{
-		u = this->phasetime(lat0,lon0,elev,phs);
+		u = this->phaseslow(lat0,lon0,elev,phs);
 	} catch (seispp_error tte)
 	{
 		throw tte;
