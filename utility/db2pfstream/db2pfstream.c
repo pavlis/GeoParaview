@@ -163,6 +163,7 @@ int db2pf(Dbptr db, Tbl *t, Pf *pf)
 /* see top of file for description of the main program here */
 	
 
+int DB2PFS_verbose;
 main(int argc, char **argv)
 {
 	Dbptr db, dbv, dbge, dbgg;

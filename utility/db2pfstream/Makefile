@@ -15,7 +15,7 @@ CLEAN=
 cflags=
 fflags=
 ldflags=
-ldlibs=$(DBLIBS)
+ldlibs=-lglputil  -xlic_lib=sunperf,fui,fai,fsu $(DBLIBS)
 
 include $(ANTELOPEMAKE)
 
