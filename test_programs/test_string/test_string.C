@@ -11,6 +11,13 @@ int main(int argc, char **argv)
 	string db_attribute_name,db_table_name,internal_name,s4;
 	const string white(" \t\n");
 
+cout << "position of test2 string =" << stmp.find("test2")<<endl;
+int ifoo=stmp.find("foo");
+cout << "what find returns for a substring not in string "
+	<< ifoo << endl;
+cout << stmp.size()<< endl;
+cout << stmp.capacity()<<endl;
+
         if((current=stmp.find_first_not_of(white,0)) != 0)
         {
                 stmp.erase(0,current);
