@@ -1,7 +1,7 @@
-#include <cstdio>
-#include <cstring>
 #include <string>
+#include <cstdio>
 #include "gclgrid.h"
+using namespace std;
 // Constructor creating a GCLgrid object by reading data from
 // an Antelope database.  Uses an extension table used to index
 // GCLgrid objects.  This is the 3d version.  The 2d Version 
@@ -16,34 +16,40 @@
 //completely so this condition must be caught and handled.  The
 //details are assumed to be told to the user through messages
 //written through the antelope elog mechanism.
-GCLgrid3d::GCLgrid3d(Dbptr db, char *gridname) throw(int)
+// Feb 2003:  Removed throw function prototypes and function
+// declarations.  Although the compiler allowed this I found 
+// on reading that this is ignored for a constructor anyway.  
+// They stil throw a simple int, which is not very elegant, ut
+// since constructors are primitive I see no reason why this
+// shouldn't work.  It is as described in the man page.
+GCLgrid3d::GCLgrid3d(Dbptr db, char *gridname) 
 {
 	Dbptr dbgrd;
-	char sstring[40];
+	char sstring[80];
 	char datatype[4];
 	char dir[65], dfile[36];
 	char filename[512];  
 	int foff;
-	char *base_message="Cannot create GCL3Dgrid object: ";
-	char *read_error="fread failed";
+	char *base_message=(char *)"Cannot create GCL3Dgrid object: ";
+	char *read_error=(char *)"fread failed";
 	int nrec;
 	char cdef[2],gdef[2];
 	int retcode;
 	int gridsize;  
 	FILE *fp;
 
-	dbgrd = dblookup(db,0,"gclgdisk",0,0); 
+	dbgrd = dblookup(db,0,(char *)"gclgdisk",0,0); 
 	if(dbgrd.record == dbINVALID) 
 	{
-		elog_notify(0,"%s gclgdisk table not defined in schema definition\n",base_message);
+		elog_notify(0,(char *)"%s gclgdisk table not defined in schema definition\n",base_message);
 		throw 1;
 	}
-	sprintf(sstring,"gridname =~ /%s/ && dimensions == 3",gridname);
+	sprintf(sstring,(char *)"gridname =~ /%s/ && dimensions == 3",gridname);
 	dbgrd = dbsubset(dbgrd,sstring,0);
 	dbquery(dbgrd,dbRECORD_COUNT,&nrec);
 	if(nrec <= 0) 
 	{
-		elog_notify(0,"%s grid with name %s not found in database\n",
+		elog_notify(0,(char *)"%s grid with name %s not found in database\n",
 			base_message,gridname);
 		throw 1;
 	}
@@ -79,7 +85,7 @@ GCLgrid3d::GCLgrid3d(Dbptr db, char *gridname) throw(int)
 		"foff",&foff,
 		0) == dbINVALID)
 	{
-		elog_notify(0,"%s dbgetv error reading gclgdisk table\n",
+		elog_notify(0,(char *)"%s dbgetv error reading gclgdisk table\n",
 			base_message);
 		throw 1;
 	}
@@ -90,7 +96,7 @@ GCLgrid3d::GCLgrid3d(Dbptr db, char *gridname) throw(int)
 	azimuth_y = rad(azimuth_y);
 	if(!strcmp(cdef,"n") || !strcmp(gdef,"n") )
 	{
-		elog_notify(0,"%s Cartesian and Geographical mapping (cdefined and geodefined attributes) must both be defined for input\n",
+		elog_notify(0,(char *)"%s Cartesian and Geographical mapping (cdefined and geodefined attributes) must both be defined for input\n",
 			base_message);
 		throw 1;
 	}
@@ -101,21 +107,22 @@ GCLgrid3d::GCLgrid3d(Dbptr db, char *gridname) throw(int)
 	}
 	if(strcmp(datatype,"t8"))
 	{
-		elog_notify(0,"%s data type %s not allowed.  Currently only support t8\n",
+		elog_notify(0,(char *)"%s data type %s not allowed.  Currently only support t8\n",
 			base_message, datatype);
 		throw 2;
 	}
 	/* Get the file name to read the gclgrid data from.*/
-	if(dbextfile(dbgrd,"gclgdisk",filename) <=0)
+	dbgrd.record = 0;
+	if(dbextfile(dbgrd,0,filename) <=0)
 	{
-		elog_notify(0,"%s Cannot find grid file named %s in directory %s\n",
+		elog_notify(0,(char *)"%s Cannot find grid file named %s in directory %s\n",
 			base_message,dfile,dir);
 		throw 2;
 	}
 	fp = fopen(filename,"r");
 	if(fp == NULL)
 	{
-		elog_notify(0,"%s file %s cannot be openned for read\n",
+		elog_notify(0,(char *)"%s file %s cannot be openned for read\n",
 			base_message,filename);
 		throw 2;
 	}
@@ -134,71 +141,72 @@ GCLgrid3d::GCLgrid3d(Dbptr db, char *gridname) throw(int)
 	gridsize = (n1)*(n2)*(n3);
 	if(fread(x1[0][0],sizeof(double),gridsize,fp) != gridsize)
 	{
-		elog_notify(0,"%s %s reading x1\n",
+		elog_notify(0,(char *)"%s %s reading x1\n",
 			base_message,read_error);
 		throw 2;
 	}
 	if(fread(x2[0][0],sizeof(double),gridsize,fp) != gridsize)
 	{
-		elog_notify(0,"%s %s reading x2\n",
+		elog_notify(0,(char *)"%s %s reading x2\n",
 			base_message,read_error);
 		throw 2;
 	}
 	if(fread(x3[0][0],sizeof(double),gridsize,fp) != gridsize)
 	{
-		elog_notify(0,"%s %s reading x3\n",
+		elog_notify(0,(char *)"%s %s reading x3\n",
 			base_message,read_error);
 		throw 2;
 	}
 	if(fread(lat[0][0],sizeof(double),gridsize,fp) != gridsize)
 	{
-		elog_notify(0,"%s %s reading latitude\n",
+		elog_notify(0,(char *)"%s %s reading latitude\n",
 			base_message,read_error);
 		throw 2;
 	}
 	if(fread(lon[0][0],sizeof(double),gridsize,fp) != gridsize)
 	{
-		elog_notify(0,"%s %s reading longitude\n",
+		elog_notify(0,(char *)"%s %s reading longitude\n",
 			base_message,read_error);
 		throw 2;
 	}
 
 	if(fread(r[0][0],sizeof(double),gridsize,fp) != gridsize)
 	{
-		elog_notify(0,"%s %s reading radius\n",
+		elog_notify(0,(char *)"%s %s reading radius\n",
 			base_message,read_error);
 		throw 2;
 	}
+	set_transformation_matrix();
 }
 /* close companion to the above for 2d grid */
-GCLgrid::GCLgrid(Dbptr db,char *gridname) throw(int)
+GCLgrid::GCLgrid(Dbptr db,char *gridname) 
 {
 	Dbptr dbgrd;
-	char sstring[40];
+	char sstring[80];
 	char datatype[4];
 	char dir[65], dfile[36];
 	char filename[512];  
 	int foff;
-	char *base_message="Cannot create GCL2Dgrid object: ";
-	char *read_error="fread failed";
+	char *base_message=(char *)"Cannot create GCL2Dgrid object: ";
+	char *read_error=(char *)"fread failed";
 	int nrec;
 	char cdef[2],gdef[2];
 	int retcode;
 	int gridsize;  
 	FILE *fp;
 
-	dbgrd = dblookup(db,0,"gclgdisk",0,0); 
+	dbgrd = dblookup(db,0,(char *)"gclgdisk",0,0); 
 	if(dbgrd.record == dbINVALID) 
 	{
-		elog_notify(0,"%s gclgdisk table not defined in schema definition\n",base_message);
+		elog_notify(0,(char *)"%s gclgdisk table not defined in schema definition\n",base_message);
 		throw 1;
 	}
-	sprintf(sstring,"gridname =~ /%s/ && dimensions == 2",gridname);
+	sprintf(sstring,(char *)"gridname =~ /%s/ && dimensions == 2",gridname);
 	dbgrd = dbsubset(dbgrd,sstring,0);
 	dbquery(dbgrd,dbRECORD_COUNT,&nrec);
 	if(nrec <= 0) 
 	{
-		elog_notify(0,"%s grid with name %s not found in database\n",
+		elog_notify(0,(char *)"%s grid with name %s not found in database\n",
 			base_message,gridname);
 		throw 1;
 	}
@@ -207,31 +215,31 @@ GCLgrid::GCLgrid(Dbptr db,char *gridname) throw(int)
 	/* We intentionally ignore the dimension field because the subset
 	should have assured we match the right record */
 	if(dbgetv(dbgrd,0,
-		"lat",&(lat0),
-		"lon",&(lon0),
-		"radius",&(r0),
-		"azimuth_y",&(azimuth_y),
-		"dx1nom",&(dx1_nom),
-		"dx2nom",&(dx2_nom),
-		"n1",&(n1),
-		"n2",&(n2),
-		"xlow",&(x1low),
-		"xhigh",&(x1high),
-		"ylow",&(x2low),
-		"yhigh",&(x2high),
-		"zlow",&(x3low),
-		"zhigh",&(x3high),
-		"i0",&(i0),
-		"j0",&(j0),
-		"cdefined",cdef,
-		"geodefined",gdef,
-		"datatype",datatype,
-		"dir",dir,
-		"dfile",dfile,
-		"foff",&foff,
+		(char *)"lat",&(lat0),
+		(char *)"lon",&(lon0),
+		(char *)"radius",&(r0),
+		(char *)"azimuth_y",&(azimuth_y),
+		(char *)"dx1nom",&(dx1_nom),
+		(char *)"dx2nom",&(dx2_nom),
+		(char *)"n1",&(n1),
+		(char *)"n2",&(n2),
+		(char *)"xlow",&(x1low),
+		(char *)"xhigh",&(x1high),
+		(char *)"ylow",&(x2low),
+		(char *)"yhigh",&(x2high),
+		(char *)"zlow",&(x3low),
+		(char *)"zhigh",&(x3high),
+		(char *)"i0",&(i0),
+		(char *)"j0",&(j0),
+		(char *)"cdefined",cdef,
+		(char *)"geodefined",gdef,
+		(char *)"datatype",datatype,
+		(char *)"dir",dir,
+		(char *)"dfile",dfile,
+		(char *)"foff",&foff,
 		0) == dbINVALID)
 	{
-		elog_notify(0,"%s dbgetv error reading gclgdisk table\n",
+		elog_notify(0,(char *)"%s dbgetv error reading gclgdisk table\n",
 			base_message);
 		throw 1;
 	}
@@ -241,9 +249,9 @@ GCLgrid::GCLgrid(Dbptr db,char *gridname) throw(int)
 	lon0 = rad(lon0);
 	azimuth_y = rad(azimuth_y);
 
-	if(!strcmp(cdef,"n") || !strcmp(gdef,"n") )
+	if(!strcmp(cdef,(char *)"n") || !strcmp(gdef,(char *)"n") )
 	{
-		elog_notify(0,"%s Cartesian and Geographical mapping (cdefined and geodefined attributes) must both be defined for input\n",
+		elog_notify(0,(char *)"%s Cartesian and Geographical mapping (cdefined and geodefined attributes) must both be defined for input\n",
 			base_message);
 		throw 1;
 	}
@@ -254,21 +262,22 @@ GCLgrid::GCLgrid(Dbptr db,char *gridname) throw(int)
 	}
 	if(strcmp(datatype,"t8"))
 	{
-		elog_notify(0,"%s data type %s not allowed.  Currently only support t8\n",
+		elog_notify(0,(char *)"%s data type %s not allowed.  Currently only support t8\n",
 			base_message, datatype);
 		throw 2;
 	}
 	/* Get the file name to read the gclgrid data from.*/
-	if(dbextfile(dbgrd,"gclgdisk",filename) <=0)
+	dbgrd.record = 0;
+	if(dbextfile(dbgrd,0,filename) <=0)
 	{
-		elog_notify(0,"%s Cannot find grid file named %s in directory %s\n",
+		elog_notify(0,(char *)"%s Cannot find grid file named %s in directory %s\n",
 			base_message,dfile,dir);
 		throw 2;
 	}
 	fp = fopen(filename,"r");
 	if(fp == NULL)
 	{
-		elog_notify(0,"%s file %s cannot be openned for read\n",
+		elog_notify(0,(char *)"%s file %s cannot be openned for read\n",
 			base_message,filename);
 		throw 2;
 	}
@@ -286,41 +295,42 @@ GCLgrid::GCLgrid(Dbptr db,char *gridname) throw(int)
 	gridsize = (n1)*(n2);
 	if(fread(x1[0],sizeof(double),gridsize,fp) != gridsize)
 	{
-		elog_notify(0,"%s %s reading x1\n",
+		elog_notify(0,(char *)"%s %s reading x1\n",
 			base_message,read_error);
 		throw 2;
 	}
 	if(fread(x2[0],sizeof(double),gridsize,fp) != gridsize)
 	{
-		elog_notify(0,"%s %s reading x2\n",
+		elog_notify(0,(char *)"%s %s reading x2\n",
 			base_message,read_error);
 		throw 2;
 	}
 	if(fread(x3[0],sizeof(double),gridsize,fp) != gridsize)
 	{
-		elog_notify(0,"%s %s reading x3\n",
+		elog_notify(0,(char *)"%s %s reading x3\n",
 			base_message,read_error);
 		throw 2;
 	}
 	if(fread(lat[0],sizeof(double),gridsize,fp) != gridsize)
 	{
-		elog_notify(0,"%s %s reading latitude\n",
+		elog_notify(0,(char *)"%s %s reading latitude\n",
 			base_message,read_error);
 		throw 2;
 	}
 	if(fread(lon[0],sizeof(double),gridsize,fp) != gridsize)
 	{
-		elog_notify(0,"%s %s reading longitude\n",
+		elog_notify(0,(char *)"%s %s reading longitude\n",
 			base_message,read_error);
 		throw 2;
 	}
 
 	if(fread(r[0],sizeof(double),gridsize,fp) != gridsize)
 	{
-		elog_notify(0,"%s %s reading radius\n",
+		elog_notify(0,(char *)"%s %s reading radius\n",
 			base_message,read_error);
 		throw 2;
 	}
+	set_transformation_matrix();
 }
 //
 // This set of functions construct fields.  The algorithm
@@ -330,144 +340,212 @@ GCLgrid::GCLgrid(Dbptr db,char *gridname) throw(int)
 //
 GCLscalarfield::GCLscalarfield(Dbptr db,
 		char *gclgname,
-		char *fieldname) throw(int)
+		char *fieldname) : GCLgrid(db, gclgname) 
 {
-	char sstring[40];
+	char sstring[80];
 	int foff;
-	char dir[65],dfile[36];
 	char filename[512];
 	Dbptr dbgrd;
 	FILE *fp;
 	int gridsize;
+	int nrec;
 
-	try{
-		GCLgrid g(db,gclgname);
-	} 
-	catch(int ierr)
-	{
-		throw(ierr);
-	}
-	// There might be a shortcut to this, but I can't figure
-	// out how it might work.  
-	strcpy(name, g.name);
-	lat0=g.lat0;
-	lon0=g.lon0;
-	r0=g.r0;
-	azimuth_y=g.azimuth_y;
-	dx1_nom=g.dx1_nom;
-	dx2_nom=g.dx2_nom;
-	n1=g.n1;
-	n2=g.n2;
-	i0=g.i0;
-	j0=g.j0;
-	x1low=g.x1low;
-	x1high=g.x1high;
-	x2low=g.x2low;
-	x2high=g.x2high;
-	x3low=g.x3low;
-	x3high=g.x3high;
-	cartesian_defined=g.cartesian_defined;
-	geographic_defined=g.geographic_defined;
-	dcopy(3,g.gtoc_rmatrix[0],1,gtoc_rmatrix[0],1);
-	dcopy(3,g.gtoc_rmatrix[1],1,gtoc_rmatrix[1],1);
-	dcopy(3,g.gtoc_rmatrix[2],1,gtoc_rmatrix[2],1);
-	dcopy(3,g.translation_vector,1,translation_vector,1);
-	// We don't waste this effort unless these arrays contain something
-	if(cartesian_defined)
-	{
-            for(i=0;i<n1;++i)
-                    for(j=0;j<n2;++j) x1[i][j]=g.x1[i][j];
-            for(i=0;i<n1;++i)
-                    for(j=0;j<n2;++j) x2[i][j]=g.x2[i][j];
-            for(i=0;i<n1;++i)
-                    for(j=0;j<n2;++j) x3[i][j]=g.x3[i][j];
-	}
-	if(geographic_defined)
-	{
-            for(i=0;i<n1;++i)
-                    for(j=0;j<n2;++j) lat[i][j]=g.lat[i][j];
-            for(i=0;i<n1;++i)
-                    for(j=0;j<n2;++j) lon[i][j]=g.lon[i][j];
-            for(i=0;i<n1;++i)
-                    for(j=0;j<n2;++j) r[i][j]=g.r[i][j];
-
-	}
-	db = dblookup(db,0,"gclfield",0,0);
+	db = dblookup(db,0,(char *)"gclfield",0,0);
 	if(db.record == dbINVALID)
 	{
-		elog_notify(0,"lookup failed for gclfield table.  Extension table probably not defined\n");
+		elog_notify(0,(char *)"lookup failed for gclfield table.  Extension table probably not defined\n");
 	        throw 1;
         }
 	sprintf(sstring,
 		"gridname =~ /%s/ && dimensions == 2 && fieldname =~ /%s/",
 		gclgname,fieldname);
-	dbgrd = dbsubset(dbgrd,sstring,0);
+	dbgrd = dbsubset(db,sstring,0);
 	dbquery(dbgrd,dbRECORD_COUNT,&nrec);
 	if(nrec <= 0)
 	{
-		elog_notify(0,"%s grid with name %s not found in database\n",
-		                        base_message,gclgname);
+		elog_notify(0,(char *)"Grid with name=%s and fieldname= %s not found in database\n",
+		                        gclgname,fieldname);
                 throw 1;
         }
-	if(dbextfile(dbgrd,"gclfield",filename) <=0)
+	dbgrd.record = 0;
+	if(dbextfile(dbgrd,0,filename) <=0)
 	{
-		elog_notify(0,"Cannot file external file for gclfield %s\n",fieldname);
+		elog_notify(0,(char *)"Cannot file external file for gclfield %s\n",fieldname);
 		throw 2;
 	}
 	fp = fopen(filename,"r");
 	if(fp == NULL)
 	{
-		elog_notify(0,"Cannot open file %s to read gclfield %s\n",
-				filename,gclfield);
+		elog_notify(0,(char *)"Cannot open file %s to read gclfield %s\n",
+				filename,fieldname);
 		throw 2;
 	}
 	dbfree(dbgrd);
 	gridsize = n1*n2;
 	val=create_2dgrid_contiguous(n1, n2);
-	if(fread(val[0],sizeof(double)gridsize,fp) != gridsize)
+	if(fread(val[0],sizeof(double),gridsize,fp) != gridsize)
 	{
-		elog_notify(0,"Error reading field values from file %s\n",filename);
+		elog_notify(0,(char *)"Error reading field values from file %s\n",filename);
 		throw 2;
 	}
 }
-//  Will create the following using the above as a pattern when I know
-//  it at least compiles.
+//
+// Similar constructor for a 3D scalar field
 //
 GCLscalarfield3d::GCLscalarfield3d(Dbptr db,
 		char *gclgname,
-		char *fieldname) throw(int)
+		char *fieldname) : GCLgrid3d(db, gclgname) 
 {
-	char sstring[40];
+	char sstring[80];
 	int foff;
-	char dir[65],dfile[36];
 	char filename[512];
 	Dbptr dbgrd;
 	FILE *fp;
 	int gridsize;
+	int nrec;
+
+	db = dblookup(db,0,(char *)"gclfield",0,0);
+	if(db.record == dbINVALID)
+	{
+		elog_notify(0,(char *)"lookup failed for gclfield table.  Extension table probably not defined\n");
+	        throw 1;
+        }
+	sprintf(sstring,
+		"gridname =~ /%s/ && dimensions == 3 && fieldname =~ /%s/",
+		gclgname,fieldname);
+	dbgrd = dbsubset(db,sstring,0);
+	dbquery(dbgrd,dbRECORD_COUNT,&nrec);
+	if(nrec <= 0)
+	{
+		elog_notify(0,(char *)"Grid with name=%s and fieldname= %s not found in database\n",
+		                        gclgname,fieldname);
+                throw 1;
+        }
+	dbgrd.record = 0;
+	if(dbextfile(dbgrd,0,filename) <=0)
+	{
+		elog_notify(0,(char *)"Cannot open external file %s for gclfield %s\n",
+			filename,fieldname);
+		throw 2;
+	}
+	fp = fopen(filename,"r");
+	if(fp == NULL)
+	{
+		elog_notify(0,(char *)"Cannot open file %s to read gclfield %s\n",
+				filename,fieldname);
+		throw 2;
+	}
+	dbfree(dbgrd);
+	gridsize = n1*n2*n3;
+	val=create_3dgrid_contiguous(n1, n2, n3);
+	if(fread(val[0][0],sizeof(double),gridsize,fp) != gridsize)
+	{
+		elog_notify(0,(char *)"Error reading field values from file %s\n",filename);
+		throw 2;
+	}
 }
 GCLvectorfield::GCLvectorfield(Dbptr db,
 		char *gclgname,
-		char *fieldname) throw(int)
+		char *fieldname)  : GCLgrid(db, gclgname)
 {
-	char sstring[40];
+	char sstring[80];
 	int foff;
-	char dir[65],dfile[36];
 	char filename[512];
 	Dbptr dbgrd;
 	FILE *fp;
 	int gridsize;
+	int nrec;
+
+	db = dblookup(db,0,(char *)"gclfield",0,0);
+	if(db.record == dbINVALID)
+	{
+		elog_notify(0,(char *)"lookup failed for gclfield table.  Extension table probably not defined\n");
+	        throw 1;
+        }
+	sprintf(sstring,
+		"gridname =~ /%s/ && dimensions == 2 && fieldname =~ /%s/",
+		gclgname,fieldname);
+	dbgrd = dbsubset(db,sstring,0);
+	dbquery(dbgrd,dbRECORD_COUNT,&nrec);
+	if(nrec <= 0)
+	{
+		elog_notify(0,(char *)"Grid with name=%s and fieldname= %s not found in database\n",
+		                        gclgname,fieldname);
+                throw 1;
+        }
+	dbgrd.record = 0;
+	if(dbextfile(dbgrd,0,filename) <=0)
+	{
+		elog_notify(0,(char *)"Cannot file external file for gclfield %s\n",fieldname);
+		throw 2;
+	}
+	fp = fopen(filename,"r");
+	if(fp == NULL)
+	{
+		elog_notify(0,(char *)"Cannot open file %s to read gclfield %s\n",
+				filename,fieldname);
+		throw 2;
+	}
+	dbfree(dbgrd);
+	gridsize = n1*n2*nv;
+	val=create_3dgrid_contiguous(n1, n2, nv);
+	if(fread(val[0][0],sizeof(double),gridsize,fp) != gridsize)
+	{
+		elog_notify(0,(char *)"Error reading field values from file %s\n",filename);
+		throw 2;
+	}
 }
 GCLvectorfield3d::GCLvectorfield3d(Dbptr db,
 		char *gclgname,
-		char *fieldname) throw(int)
+		char *fieldname)  : GCLgrid3d(db, gclgname)
 {
-	char sstring[40];
+	char sstring[80];
 	int foff;
 	char dir[65],dfile[36];
 	char filename[512];
 	Dbptr dbgrd;
 	FILE *fp;
 	int gridsize;
+	int nrec;
+
+	db = dblookup(db,0,(char *)"gclfield",0,0);
+	if(db.record == dbINVALID)
+	{
+		elog_notify(0,(char *)"lookup failed for gclfield table.  Extension table probably not defined\n");
+	        throw 1;
+        }
+	sprintf(sstring,
+		"gridname =~ /%s/ && dimensions == 3 && fieldname =~ /%s/",
+		gclgname,fieldname);
+	dbgrd = dbsubset(db,sstring,0);
+	dbquery(dbgrd,dbRECORD_COUNT,&nrec);
+	if(nrec <= 0)
+	{
+		elog_notify(0,(char *)"Grid with name=%s and fieldname= %s not found in database\n",
+		                        gclgname,fieldname);
+                throw 1;
+        }
+	dbgrd.record = 0;
+	if(dbextfile(dbgrd,0,filename) <=0)
+	{
+		elog_notify(0,(char *)"Cannot file external file for gclfield %s\n",fieldname);
+		throw 2;
+	}
+	fp = fopen(filename,"r");
+	if(fp == NULL)
+	{
+		elog_notify(0,(char *)"Cannot open file %s to read gclfield %s\n",
+				filename,fieldname);
+		throw 2;
+	}
+	dbfree(dbgrd);
+	gridsize = n1*n2*n3*nv;
+	val=create_4dgrid_contiguous(n1, n2, n3,nv);
+	if(fread(val[0][0][0],sizeof(double),gridsize,fp) != gridsize)
+	{
+		elog_notify(0,(char *)"Error reading field values from file %s\n",filename);
+		throw 2;
+	}
 }
 
 /* The following two parallel functions are the inverse of the load
@@ -489,33 +567,30 @@ changed.
 void GCLgrid3d::dbsave(Dbptr db, char *dir) throw(int)
 {
 	FILE *fp;
-	char *filename;
+	string filename;
 	int fssize;
 	long int fpos;
 	int foff;
 	int gridsize;
 	int dimensions=3;
-	char *fwerr="fwrite error on file %s";
-	char cdef[2]="d",gdef[2]="d";
+	char *fwerr=(char *)"fwrite error on file %s";
+	char *cdef=(char *)"d",*gdef=(char *)"d";
 
-	db = dblookup(db,0,"gclgdisk",0,0);
+	db = dblookup(db,0,(char *)"gclgdisk",0,0);
 	if(db.record == dbINVALID)
 	{
-		elog_notify(0,"lookup failed for gclgdisk table.  Extension table probably not defined\n");
+		elog_notify(0,(char *)"lookup failed for gclgdisk table.  Extension table probably not defined\n");
 		throw 1;
 	}
-	/*Save the data first so that in the event of a failure we don't 		have to patch the database afterwards. */
-	fssize = strlen(dir) + strlen(name) + 1;
-	allot(char *,filename,fssize);
-	
-	strcpy(filename,dir);
-	strcat(filename,"/");
-	strcat(filename,name);
-	fp = fopen(filename,"a+");
+	/*Save the data first so that in the event of a failure we don't 		
+	have to patch the database afterwards.   The data are always 
+	saved in a file with the name of the grid*/
+	filename = ((string)dir)+"/"+((string)name);
+	fp = fopen(filename.c_str(),"a+");
 	if(fp==NULL)
 	{
-		elog_notify(0,"Cannot open output file %s\nNothing save\n",
-			filename);
+		elog_notify(0,(char *)"Cannot open output file %s\nNothing save\n",
+			filename.c_str());
 		throw 2;
 	}
 	fseek(fp,0,SEEK_END);
@@ -527,37 +602,37 @@ void GCLgrid3d::dbsave(Dbptr db, char *dir) throw(int)
 	gridsize = (n1)*(n2)*(n3);
 	if(fwrite(x1[0][0],sizeof(double),gridsize,fp) != gridsize)
 	{
-		elog_notify(0,fwerr,filename);
+		elog_notify(0,fwerr,filename.c_str());
 		fclose(fp);
 		throw 2;
 	}
 	if(fwrite(x2[0][0],sizeof(double),gridsize,fp) != gridsize)
 	{
-		elog_notify(0,fwerr,filename);
+		elog_notify(0,fwerr,filename.c_str());
 		fclose(fp);
 		throw 2;
 	}
 	if(fwrite(x3[0][0],sizeof(double),gridsize,fp) != gridsize)
 	{
-		elog_notify(0,fwerr,filename);
+		elog_notify(0,fwerr,filename.c_str());
 		fclose(fp);
 		throw 2;
 	}
 	if(fwrite(lat[0][0],sizeof(double),gridsize,fp) != gridsize)
 	{
-		elog_notify(0,fwerr,filename);
+		elog_notify(0,fwerr,filename.c_str());
 		fclose(fp);
 		throw 2;
 	}
 	if(fwrite(lon[0][0],sizeof(double),gridsize,fp) != gridsize)
 	{
-		elog_notify(0,fwerr,filename);
+		elog_notify(0,fwerr,filename.c_str());
 		fclose(fp);
 		throw 2;
 	}
 	if(fwrite(r[0][0],sizeof(double),gridsize,fp) != gridsize)
 	{
-		elog_notify(0,fwerr,filename);
+		elog_notify(0,fwerr,filename.c_str());
 		fclose(fp);
 		throw 2;
 	}
@@ -594,42 +669,36 @@ void GCLgrid3d::dbsave(Dbptr db, char *dir) throw(int)
 		"foff",foff,
 		0) < 0)
 	{
-		elog_notify(0,"dbaddv error for 3d grid into gclgdisk table\n");
+		elog_notify(0,(char *)"dbaddv error for 3d grid into gclgdisk table\n");
 		throw 1;
 	}
-	free(filename);
 }
 /* Parallel routine for 2d*/
 void GCLgrid::dbsave(Dbptr db, char *dir) throw(int)
 {
 	FILE *fp;
-	char *filename;
+	string filename;
 	int fssize;
 	long int fpos;
 	int foff;
 	int gridsize;
 	int dimensions=2;
-	char *fwerr="fwrite error on file %s";
+	char *fwerr=(char *)"fwrite error on file %s";
 	char cdef[2]="d",gdef[2]="d";
 
-	db = dblookup(db,0,"gclgdisk",0,0);
+	db = dblookup(db,0,(char *)"gclgdisk",0,0);
 	if(db.record == dbINVALID)
 	{
-		elog_notify(0,"lookup failed for gclgdisk table.  Extension table probably not defined\n");
+		elog_notify(0,(char *)"lookup failed for gclgdisk table.  Extension table probably not defined\n");
 		throw 1;
 	}
 	/*Save the data first so that in the event of a failure we don't 		have to patch the database afterwards. */
-	fssize = strlen(dir) + strlen(name) + 1;
-	allot(char *,filename,fssize);
-	
-	strcpy(filename,dir);
-	strcat(filename,"/");
-	strcat(filename,name);
-	fp = fopen(filename,"a+");
+	filename = ((string)dir)+"/"+((string)name);
+	fp = fopen(filename.c_str(),"a+");
 	if(fp==NULL)
 	{
-		elog_notify(0,"Cannot open output file %s\nNothing save\n",
-			filename);
+		elog_notify(0,(char *)"Cannot open output file %s\nNothing save\n",
+			filename.c_str());
 		fclose(fp);
 		throw 2;
 	}
@@ -642,37 +711,37 @@ void GCLgrid::dbsave(Dbptr db, char *dir) throw(int)
 	gridsize = (n1)*(n2);
 	if(fwrite(x1[0],sizeof(double),gridsize,fp) != gridsize)
 	{
-		elog_notify(0,fwerr,filename);
+		elog_notify(0,fwerr,filename.c_str());
 		fclose(fp);
 		throw 2;
 	}
 	if(fwrite(x2[0],sizeof(double),gridsize,fp) != gridsize)
 	{
-		elog_notify(0,fwerr,filename);
+		elog_notify(0,fwerr,filename.c_str());
 		fclose(fp);
 		throw 2;
 	}
 	if(fwrite(x3[0],sizeof(double),gridsize,fp) != gridsize)
 	{
-		elog_notify(0,fwerr,filename);
+		elog_notify(0,fwerr,filename.c_str());
 		fclose(fp);
 		throw 2;
 	}
 	if(fwrite(lat[0],sizeof(double),gridsize,fp) != gridsize)
 	{
-		elog_notify(0,fwerr,filename);
+		elog_notify(0,fwerr,filename.c_str());
 		fclose(fp);
 		throw 2;
 	}
 	if(fwrite(lon[0],sizeof(double),gridsize,fp) != gridsize)
 	{
-		elog_notify(0,fwerr,filename);
+		elog_notify(0,fwerr,filename.c_str());
 		fclose(fp);
 		throw 2;
 	}
 	if(fwrite(r[0],sizeof(double),gridsize,fp) != gridsize)
 	{
-		elog_notify(0,fwerr,filename);
+		elog_notify(0,fwerr,filename.c_str());
 		fclose(fp);
 		throw 2;
 	}
@@ -705,10 +774,9 @@ void GCLgrid::dbsave(Dbptr db, char *dir) throw(int)
 		"foff",foff,
 		0) < 0)
 	{
-		elog_notify(0,"dbaddv error for 2d grid into gclgdisk table\n");
+		elog_notify(0,(char *)"dbaddv error for 2d grid into gclgdisk table\n");
 		throw 1;
 	}
-	free(filename);
 }
 // The following are parallel to the above for 2d and 3d fields.  
 // All use a perhaps dangerous assumption if gclgdir is a NULL saving
@@ -742,7 +810,7 @@ void GCLscalarfield::dbsave(Dbptr db,
 	{
 		try {
 			GCLgrid *g;
-			g = dynamic_cast<GCLgrid *> this;
+			g = dynamic_cast<GCLgrid *> (this);
 			g->dbsave(db,gclgdir);
 		}
 		catch(int dbserr)
@@ -750,19 +818,19 @@ void GCLscalarfield::dbsave(Dbptr db,
 			throw(dbserr);
 		}
 	}
-	db = dblookup(db,0,"gclfield",0,0);
+	db = dblookup(db,0,(char *)"gclfield",0,0);
 	if(db.record == dbINVALID)
 	{
-		elog_notify(0,"lookup failed for gclfield table.  Extension table probably not defined\n");
+		elog_notify(0,(char *)"lookup failed for gclfield table.  Extension table probably not defined\n");
 		throw 1;
 	}
 	//First create a filename and save the val array with a binary write
-	filename = ((string)gclgdir)+"/"+((string)dfile);
+	filename = ((string)fielddir)+"/"+((string)dfile);
 
 	fp = fopen(filename.c_str(),"a+");
 	if(fp==NULL)
 	{
-		elog_notify(0,"Cannot open output file %s\nNothing save\n",
+		elog_notify(0,(char *)"Cannot open output file %s\nNothing save\n",
 			filename.c_str());
 		throw 2;
 	}
@@ -775,22 +843,24 @@ void GCLscalarfield::dbsave(Dbptr db,
 	gridsize = n1*n2;	
 	if(fwrite(val[0],sizeof(double),gridsize,fp) != gridsize)
 	{
-		elog_notify(char *)"fwrite error for file %s\n",filename);
+		elog_notify(0,(char *)"fwrite error for file %s\n",
+			filename.c_str());
 		fclose(fp);
 		throw 2;
 	}
 	fclose(fp);
 	if(dbaddv(db,0,
-		"gridname",name,
-		"dimensions",dimensions,
-		"nv",nv,
-		"dir",gclgdir,
-		"dfile",dfile,
-		"foff",foff,
-		"fieldname",fieldname,
+		(char *)"gridname",name,
+		(char *)"dimensions",dimensions,
+		(char *)"nv",nv,
+		(char *)"dir",fielddir,
+		(char *)"dfile",dfile,
+		(char *)"foff",foff,
+		(char *)"fieldname",fieldname,
 		0)  < 0)
 	{
-		elog_notify(0,"dbaddv error for 2d grid into gclfield table\n");
+		elog_notify(0,
+		  (char *)"dbaddv error for 2d grid into gclfield table\n");
 		throw 1;
 	}
 }
@@ -814,7 +884,7 @@ void GCLscalarfield3d::dbsave(Dbptr db,
 	{
 		try {
 			GCLgrid3d *g;
-			g = dynamic_cast<GCLgrid3d *> this;
+			g = dynamic_cast<GCLgrid3d *> (this);
 			g->dbsave(db,gclgdir);
 		}
 		catch(int dbserr)
@@ -822,19 +892,21 @@ void GCLscalarfield3d::dbsave(Dbptr db,
 			throw(dbserr);
 		}
 	}
-	db = dblookup(db,0,"gclfield",0,0);
+	db = dblookup(db,0,(char *)"gclfield",0,0);
 	if(db.record == dbINVALID)
 	{
-		elog_notify(0,"lookup failed for gclfield table.  Extension table probably not defined\n");
+		elog_notify(0,
+		 (char *)"lookup failed for gclfield table.  Extension table probably not defined\n");
 		throw 1;
 	}
 	//First create a filename and save the val array with a binary write
-	filename = ((string)gclgdir)+"/"+((string)dfile);
+	filename = ((string)fielddir)+"/"+((string)dfile);
 
 	fp = fopen(filename.c_str(),(char *)"a+");
 	if(fp==NULL)
 	{
-		elog_notify(0,"Cannot open output file %s\nNothing save\n",
+		elog_notify(0,
+			(char *)"Cannot open output file %s\nNothing save\n",
 			filename.c_str());
 		throw 2;
 	}
@@ -847,7 +919,8 @@ void GCLscalarfield3d::dbsave(Dbptr db,
 	gridsize = n1*n2*n3;	
 	if(fwrite(val[0][0],sizeof(double),gridsize,fp) != gridsize)
 	{
-		elog_notify(char *)"fwrite error for file %s\n",filename);
+		elog_notify(0,(char *)"fwrite error for file %s\n",
+			filename.c_str());
 		fclose(fp);
 		throw 2;
 	}
@@ -856,13 +929,14 @@ void GCLscalarfield3d::dbsave(Dbptr db,
 		"gridname",name,
 		"dimensions",dimensions,
 		"nv",nv,
-		"dir",gclgdir,
+		"dir",fielddir,
 		"dfile",dfile,
 		"foff",foff,
 		"fieldname",fieldname,
 		0)  < 0)
 	{
-		elog_notify(0,"dbaddv error for 2d grid into gclfield table\n");
+		elog_notify(0,
+		  (char *)"dbaddv error for 2d grid into gclfield table\n");
 		throw 1;
 	}
 }
@@ -884,7 +958,7 @@ void GCLvectorfield::dbsave(Dbptr db,
 	{
 		try {
 			GCLgrid *g;
-			g = dynamic_cast<GCLgrid *> this;
+			g = dynamic_cast<GCLgrid *> (this);
 			g->dbsave(db,gclgdir);
 		}
 		catch(int dbserr)
@@ -892,10 +966,11 @@ void GCLvectorfield::dbsave(Dbptr db,
 			throw(dbserr);
 		}
 	}
-	db = dblookup(db,0,"gclfield",0,0);
+	db = dblookup(db,0,(char *)"gclfield",0,0);
 	if(db.record == dbINVALID)
 	{
-		elog_notify(0,"lookup failed for gclfield table.  Extension table probably not defined\n");
+		elog_notify(0,
+		 (char *)"lookup failed for gclfield table.  Extension table probably not defined\n");
 		throw 1;
 	}
 	//First create a filename and save the val array with a binary write
@@ -904,7 +979,8 @@ void GCLvectorfield::dbsave(Dbptr db,
 	fp = fopen(filename.c_str(),"a+");
 	if(fp==NULL)
 	{
-		elog_notify(0,"Cannot open output file %s\nNothing save\n",
+		elog_notify(0,
+			(char *)"Cannot open output file %s\nNothing save\n",
 			filename.c_str());
 		throw 2;
 	}
@@ -917,22 +993,23 @@ void GCLvectorfield::dbsave(Dbptr db,
 	gridsize = n1*n2*nv;	
 	if(fwrite(val[0],sizeof(double),gridsize,fp) != gridsize)
 	{
-		elog_notify(char *)"fwrite error for file %s\n",filename);
+		elog_notify(0,(char *)"fwrite error for file %s\n",
+			filename.c_str());
 		fclose(fp);
 		throw 2;
 	}
 	fclose(fp);
 	if(dbaddv(db,0,
-		"gridname",name,
-		"dimensions",dimensions,
-		"nv",nv,
-		"dir",gclgdir,
-		"dfile",dfile,
-		"foff",foff,
-		"fieldname",fieldname,
+		(char *)"gridname",name,
+		(char *)"dimensions",dimensions,
+		(char *)"nv",nv,
+		(char *)"dir",fielddir,
+		(char *)"dfile",dfile,
+		(char *)"foff",foff,
+		(char *)"fieldname",fieldname,
 		0)  < 0)
 	{
-		elog_notify(0,"dbaddv error for 2d grid into gclfield table\n");
+		elog_notify(0,(char *)"dbaddv error for 2d grid into gclfield table\n");
 		throw 1;
 	}
 }
@@ -955,7 +1032,7 @@ void GCLvectorfield3d::dbsave(Dbptr db,
 	{
 		try {
 			GCLgrid3d *g;
-			g = dynamic_cast<GCLgrid3d *> this;
+			g = dynamic_cast<GCLgrid3d *> (this);
 			g->dbsave(db,gclgdir);
 		}
 		catch(int dbserr)
@@ -963,10 +1040,10 @@ void GCLvectorfield3d::dbsave(Dbptr db,
 			throw(dbserr);
 		}
 	}
-	db = dblookup(db,0,"gclfield",0,0);
+	db = dblookup(db,0,(char *)"gclfield",0,0);
 	if(db.record == dbINVALID)
 	{
-		elog_notify(0,"lookup failed for gclfield table.  Extension table probably not defined\n");
+		elog_notify(0,(char *)"lookup failed for gclfield table.  Extension table probably not defined\n");
 		throw 1;
 	}
 	//First create a filename and save the val array with a binary write
@@ -975,7 +1052,7 @@ void GCLvectorfield3d::dbsave(Dbptr db,
 	fp = fopen(filename.c_str(),(char *)"a+");
 	if(fp==NULL)
 	{
-		elog_notify(0,"Cannot open output file %s\nNothing save\n",
+		elog_notify(0,(char *)"Cannot open output file %s\nNothing save\n",
 			filename.c_str());
 		throw 2;
 	}
@@ -988,22 +1065,23 @@ void GCLvectorfield3d::dbsave(Dbptr db,
 	gridsize = n1*n2*n3*nv;	
 	if(fwrite(val[0][0],sizeof(double),gridsize,fp) != gridsize)
 	{
-		elog_notify(char *)"fwrite error for file %s\n",filename);
+		elog_notify(0,(char *)"fwrite error for file %s\n",
+			filename.c_str());
 		fclose(fp);
 		throw 2;
 	}
 	fclose(fp);
 	if(dbaddv(db,0,
-		"gridname",name,
-		"dimensions",dimensions,
-		"nv",nv,
-		"dir",gclgdir,
-		"dfile",dfile,
-		"foff",foff,
-		"fieldname",fieldname,
+		(char *)"gridname",name,
+		(char *)"dimensions",dimensions,
+		(char *)"nv",nv,
+		(char *)"dir",fielddir,
+		(char *)"dfile",dfile,
+		(char *)"foff",foff,
+		(char *)"fieldname",fieldname,
 		0)  < 0)
 	{
-		elog_notify(0,"dbaddv error for 2d grid into gclfield table\n");
+		elog_notify(0,(char *)"dbaddv error for 2d grid into gclfield table\n");
 		throw 1;
 	}
 }

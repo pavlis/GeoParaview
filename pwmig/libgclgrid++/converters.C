@@ -3,7 +3,7 @@
 #include "gclgrid.h"
 
 
-void GCLgrid::GCLset_transformation_matrix()
+void GCLgrid::set_transformation_matrix()
 {
 	double pole_lat, pole_lon;
 	double x0[3], xpole[3], xcros[3];

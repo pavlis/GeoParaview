@@ -376,22 +376,22 @@ GCLgrid3d& GCLgrid3d::operator=(const GCLgrid3d& g)
 		r=create_3dgrid_contiguous(n1,n2,n3);
 		for(i=0;i<n1;++i)
 			for(j=0;j<n2;++j) 
-				for(k=0;k<n3;++k) x1[i][j]=g.x1[i][j];
+				for(k=0;k<n3;++k) x1[i][j][k]=g.x1[i][j][k];
 		for(i=0;i<n1;++i)
 			for(j=0;j<n2;++j) 
-				for(k=0;k<n3;++k) x2[i][j]=g.x2[i][j];
+				for(k=0;k<n3;++k) x2[i][j][k]=g.x2[i][j][k];
 		for(i=0;i<n1;++i)
 			for(j=0;j<n2;++j) 
-				for(k=0;k<n3;++k) x3[i][j]=g.x3[i][j];
+				for(k=0;k<n3;++k) x3[i][j][k]=g.x3[i][j][k];
 		for(i=0;i<n1;++i)
 			for(j=0;j<n2;++j) 
-				for(k=0;k<n3;++k) lat[i][j]=g.lat[i][j];
+				for(k=0;k<n3;++k) lat[i][j][k]=g.lat[i][j][k];
 		for(i=0;i<n1;++i)
 			for(j=0;j<n2;++j) 
-				for(k=0;k<n3;++k) lon[i][j]=g.lon[i][j];
+				for(k=0;k<n3;++k) lon[i][j][k]=g.lon[i][j][k];
 		for(i=0;i<n1;++i)
 			for(j=0;j<n2;++j) 
-				for(k=0;k<n3;++k) r[i][j]=g.r[i][j];
+				for(k=0;k<n3;++k) r[i][j][k]=g.r[i][j][k];
 	
 	}
 	return *this;
@@ -543,7 +543,7 @@ GCLgrid::GCLgrid(int n1in, int n2in,
 	// This function standarizes setting the tranformation from geo to cartesian
 	// This then sets the Cartesian section
 	//
-	GCLset_transformation_matrix();
+	set_transformation_matrix();
 	Cartesian_point cpt;
 	for(i=0;i<n1;++i) 
 	    for(j=0;j<n2;++j)
@@ -705,7 +705,7 @@ GCLgrid3d::GCLgrid3d(int n1in, int n2in, int n3in,
 	//
 	// This function standarizes setting the tranformation from geo to cartesian
 	//
-	GCLset_transformation_matrix();
+	set_transformation_matrix();
 	Cartesian_point cpt;
 	for(i=0;i<n1;++i) 
 	    for(j=0;j<n2;++j)

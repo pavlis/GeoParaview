@@ -1,6 +1,5 @@
 #ifndef _GCLGRID_H_
 #define _GCLGRID_H_
-#endif
 #include <stdlib.h>
 #include "stock.h"
 #include "db.h"
@@ -43,7 +42,7 @@ class GCLgrid
 		GCLgrid(int n1size, int n2size, char *n, double la0, double lo0,
 			double radius0, double az, double dx1n, double dx2n, 
 			int iorigin, int jorigin);
-		GCLgrid(Dbptr db, char *nm) throw(int);  // acquire from Antelope database 
+		GCLgrid(Dbptr db, char *nm);  // acquire from Antelope database 
 		GCLgrid(const GCLgrid&);  //standard copy constructor
 		GCLgrid& operator=(const GCLgrid& );
 		void dbsave(Dbptr, char *) throw(int);
@@ -52,7 +51,7 @@ class GCLgrid
 		void get_index(int *ind) {ind[0]=ix1; ind[1]=ix2;};
 		Geographic_point ctog(double, double, double);
 		Cartesian_point gtoc(double, double, double);
-		void GCLset_transformation_matrix();
+		void set_transformation_matrix();
 		double depth(int,int);
 		~GCLgrid();
 		//
@@ -64,10 +63,11 @@ class GCLgrid
 		friend class GCLvectorfield;
 		friend class GCLscalarfield3d;
 		friend class GCLvectorfield3d;
-	private:
-		int ix1, ix2;
+	protected:
 		double gtoc_rmatrix[3][3];
 		double translation_vector[3];
+	private:
+		int ix1, ix2;
 };
 //3d version is identical except it requires 3 indexes instead of 2 for
 //coordinates.  We use inheritance to simply this description.
@@ -90,7 +90,7 @@ class GCLgrid3d : public GCLgrid
 			double radius0, double az, 
 			double dx1n, double dx2n, double dx3n,
 			int iorigin, int jorigin);
-		GCLgrid3d(Dbptr db, char *nm) throw(int); 
+		GCLgrid3d(Dbptr db, char *nm); 
 		GCLgrid3d(const GCLgrid3d&); 
 		GCLgrid3d& operator=(const GCLgrid3d& );
 		void dbsave(Dbptr, char *) throw(int);
@@ -101,8 +101,6 @@ class GCLgrid3d : public GCLgrid
 		~GCLgrid3d();
 	private:
 		int ix1, ix2, ix3;
-		double gtoc_rmatrix[3][3];
-		double translation_vector[3];
 };	  		
 //
 //These are generic scalar and vector fields defined on a GCLgrid object
@@ -116,7 +114,7 @@ class GCLscalarfield :  public GCLgrid
 		GCLscalarfield();
 		GCLscalarfield(int, int);
 		GCLscalarfield(GCLgrid& );
-		GCLscalarfield(Dbptr, char *, char *);
+		GCLscalarfield(Dbptr db, char *grdnm, char *fn);
 		GCLscalarfield& operator=(const GCLscalarfield&);
 		void dbsave(Dbptr,char *,char *,char *, char *) throw(int);
 		void operator+=(const GCLscalarfield&);
@@ -133,7 +131,7 @@ class GCLvectorfield : public GCLgrid
 		GCLvectorfield();
 		GCLvectorfield(int,int,int);
 		GCLvectorfield(GCLgrid &,int);
-		GCLvectorfield(Dbptr, char *, char *);
+		GCLvectorfield(Dbptr db, char *grdnm, char *fn); 
 		GCLvectorfield& operator=(const GCLvectorfield&);
 		void dbsave(Dbptr, char *,char *, char *, char *) throw(int);
 		void operator+=(const GCLvectorfield&);
@@ -149,7 +147,7 @@ class GCLscalarfield3d : public GCLgrid3d
 		GCLscalarfield3d();
 		GCLscalarfield3d(int,int,int);
 		GCLscalarfield3d(GCLgrid3d &);
-		GCLscalarfield3d(Dbptr, char *, char *);
+		GCLscalarfield3d(Dbptr db, char *grdnm, char *fn);
 		GCLscalarfield3d& operator=(const GCLscalarfield3d&);
 		void dbsave(Dbptr, char *,char *, char *, char *) throw(int);
 		void operator+=(const GCLscalarfield3d&);
@@ -166,7 +164,7 @@ class GCLvectorfield3d : public GCLgrid3d
 		GCLvectorfield3d();
 		GCLvectorfield3d(int,int,int,int);
 		GCLvectorfield3d(GCLgrid3d &,int);
-		GCLvectorfield3d(Dbptr, char *, char *);
+		GCLvectorfield3d(Dbptr db, char *grdnm, char *fn); 
 		GCLvectorfield3d& operator=(const GCLvectorfield3d&);
 		void dbsave(Dbptr, char *,char *, char *, char *) throw(int);
 		void operator+=(const GCLvectorfield3d&);
@@ -197,3 +195,4 @@ void fme_weights_ (double *, double *, double *);
 }
 #endif
 
+#endif
