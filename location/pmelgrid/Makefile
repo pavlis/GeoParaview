@@ -9,7 +9,9 @@ ldflags=-L/opt/SUNWspro/lib
 ldlibs= $(DBLIBS)  -lperf \
     -ltrvltm -ldl -Bdynamic -lgenloc -lpfstream -lglputil -lpmel -lbrttutil -lm -dalign
 include $(ANTELOPEMAKE)  	# This line must appear following the definitions above, 
+#CC=insure
 
-OBJS=pmelgrid.o pfutilities.o
+#OBJS=pmelgrid.o pfutilities.o
+OBJS=pmelgrid.o pfutilities.o pfdup.o
 $(BIN) : $(OBJS)
 	$(CC) $(CFLAGS) -o $@ $(OBJS) $(LDFLAGS) $(LDLIBS)

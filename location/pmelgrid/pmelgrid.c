@@ -79,6 +79,8 @@ void save_run_parameters(Dbptr db,Pf *pf)
 	strcat(filename,dfile);
 	if(pfwrite(filename,pf))
 		elog_die(0,"pfwrite error for file %s\n",filename);
+	free(dir);  free(dfile);
+	free(vm); free(vm3d);
 }
 /* Small function to extract the hypocentroid information from this 
 Pfensemble.  Assumption is that all members of the ensemble share
@@ -451,7 +453,6 @@ option which is know to cause problems\nrecenter set off\n");
 		for(i=0;i<nevents;++i)
 		{
 			freetbl(ta[i],free);
-			free(h0+i);
 		}
 		free(ta);
 		free(h0);
@@ -471,6 +472,9 @@ option which is know to cause problems\nrecenter set off\n");
 		sleep(10);
 	}
 	sleep(30);
+	/* would be destroyed on input anyway, but get's it out of 
+	the leak list */
+	destroy_SCmatrix(smatrix);
 /*
 	pthread_exit(NULL);
 */
