@@ -6,7 +6,9 @@ INCLUDE=gclgrid.h
 MAN3=
 MAN5=		# man pages for file formats
 
-cflags=-g
+cflags=-g -DSUNPERF
+ldflags=
+ldlibs=-L/opt/SUNWspro/lib $(DBLIBS) -lsunperf 
 
 include $(ANTELOPEMAKE)  	
 

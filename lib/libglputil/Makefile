@@ -7,6 +7,7 @@ MAN3=
 MAN5=		# man pages for file formats
 
 cflags=-g
+ldlibs= $(DBLIBS)
 
 include $(ANTELOPEMAKE)  	
 

@@ -51,6 +51,35 @@ Tbl *parse_gridlist_string(char *gstr)
 	} while((sp = strtok(NULL,","))!=NULL);
 	return(t);
 }
+/* This small functions scans the gridlist tbl to get the maximum
+and minimum gridid values.  These are used to subset the working view
+automatically to reduce the size of the working view (found to be
+excessive otherwise .
+
+gmin and gmax are returned as the maximum and minimum grid id
+
+Author:  Gary Pavlis
+Written: July 2001
+*/
+void get_gridid_range(Tbl *gridlist,int *gmin,int *gmax)
+{
+	int gidmin,gidmax;
+	int gridid;
+	int i;
+	
+	if(maxtbl(gridlist)<=0) elog_die(0,"Empty grid id list\nProbable usage error\n");
+	gidmin = (int)gettbl(gridlist,0);
+	gidmax = gidmin;
+	for(i=1;i<maxtbl(gridlist);++i)
+	{
+		gridid = (int)gettbl(gridlist,i);
+		gidmin = MIN(gidmin,gridid);
+		gidmax = MAX(gidmax,gridid);
+	}
+	*gmin = gidmin;
+	*gmax = gidmax;
+}
+
 void usage()
 {
 	elog_die(0,"Usage:  dbpmel db gridlist [-sift expression -pf file]\n\twhere gridlist is a comma seperated list of grid points\n");
@@ -66,7 +95,6 @@ void main(int argc, char **argv)
 	char *sift_exp;  /* sift expression for subset */
 	int sift = 0;  /* default is no sift.  */
 	Tbl *sortkeys;
-	Tbl *joinkey1, *joinkey2;
 	int nevents;
 	/* db row variables */
 	int nrows, nrows_raw;
@@ -74,6 +102,8 @@ void main(int argc, char **argv)
 	Pf *pf;
 	char *version="1.0";
 	int i;
+	int gmin,gmax;
+	char sstring[128];
 
 	/* Initialize the error log and write a version notice */
 	elog_init (argc, argv) ;
@@ -82,6 +112,7 @@ void main(int argc, char **argv)
 	if(argc < 3) usage();
 	dbin = argv[1];
 	gridlist = parse_gridlist_string(argv[2]);
+	get_gridid_range(gridlist,&gmin,&gmax);
 	
 	for(i=3;i<argc;++i)
 	{
@@ -115,23 +146,17 @@ void main(int argc, char **argv)
 	around and this should still work.*/
 	if(dbopen(dbin,"r",&db) == dbINVALID) 
 		die(1,"Unable to open input database %s\n",dbin);
+	db = dblookup(db,0,"hypocentroid",0,0);
+	sprintf(sstring,"gridid>=%d && gridid<=%d",gmin,gmax);
+	db = dbsubset(db,sstring,0);
+	dbquery(db, dbRECORD_COUNT, &nrows);
+	if(nrows<=0) 
+		elog_die(0,"No hypocentroid records in requested gridid range of %d to %d\n",
+				gmin,gmax);
 	/* We call this routine that uses dbprocess driven by the 
 	parameter file definition tagged by the Tbl dbpmel_dbview*/
 	dbv = dbform_working_view(db,pf,"dbpmel_dbview_definition");
 	dbquery(dbv, dbRECORD_COUNT, &nrows);
-
-	/* We can't use dbprocess for this join as the current 
-	form does not allow this use of mixed keys*/
-	joinkey1 = newtbl(0);
-	joinkey2 = newtbl(0);
-	pushtbl(joinkey1,"arrival.sta");
-	pushtbl(joinkey1,"arrival.time");
-	pushtbl(joinkey2,"sta");
-	pushtbl(joinkey2,"ondate::offdate");
-	dbv = dbjoin ( dbv, dblookup(db,0,"site",0,0),
-			&joinkey1,&joinkey2,0,0,0);
-	if(dbv.table == dbINVALID)
-		die(1,"cluster->event->origin->assoc->arrival->site join failed\n");
 
 	/* Subset using sift_key if requested */
 	if(sift)

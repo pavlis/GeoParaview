@@ -55,7 +55,7 @@ void check_required_pf(Pf *pf)
 			testtbl = pfget_tbl(pf_required,"int");
 			for(j=0;j<maxtbl(testtbl);++j)
 			{
-				line = gettbl(testtbl,i);
+				line = gettbl(testtbl,j);
 				nitems = sscanf(line,"%s%d%d",name,&ilowcheck,
 							&ihighcheck);
 				itest = pfget_int(pf,name);
@@ -73,7 +73,7 @@ void check_required_pf(Pf *pf)
 			testtbl = pfget_tbl(pf_required,"double");
 			for(j=0;j<maxtbl(testtbl);++j)
 			{
-				line = gettbl(testtbl,i);
+				line = gettbl(testtbl,j);
 				nitems = sscanf(line,"%s%lg%lg",name,&dlowcheck,
 							&dhighcheck);
 				dtest = pfget_double(pf,name);
@@ -91,7 +91,7 @@ void check_required_pf(Pf *pf)
 			testtbl = pfget_tbl(pf_required,"boolean");
 			for(j=0;j<maxtbl(testtbl);++j)
 			{
-				line = gettbl(testtbl,i);
+				line = gettbl(testtbl,j);
 				itest = pfget_boolean(pf,line);
 			}
 		}
@@ -100,7 +100,7 @@ void check_required_pf(Pf *pf)
 			testtbl=pfget_tbl(pf_required,"string");
 			for(j=0;j<maxtbl(testtbl);++j)
 			{
-				line = gettbl(testtbl,i);
+				line = gettbl(testtbl,j);
 				ctest = pfget_string(pf,line);
 				if(ctest == NULL)
 					die(0,"Missing required string variable = %s\n",

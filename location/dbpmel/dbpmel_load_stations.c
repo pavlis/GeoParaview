@@ -97,14 +97,15 @@ Arr *dbpmel_load_stations(Dbptr db, Pf *pf)
 	SCMatrix smatrix;  
 
 	/*We first scan the site table for moving stations*/
-	sortkeys = strtbl("sta","ondate:offdate",0);
+	sortkeys = strtbl("sta","ondate::offdate",0);
 	dbs = dblookup(db,0,"site",0,0);
 	dbs = dbsort(dbs,sortkeys,0,0);
 	dbquery(dbs,dbRECORD_COUNT,&nrows);
+	if(nrows <=0) elog_die(0,"Site table is empty\nFix database\n");
 
 	out = newarr(0);
 
-	useall = pfget_boolean(pf,"use_all_station");
+	useall = pfget_boolean(pf,"use_all_stations");
 	usednde = pfget_boolean(pf,"use_dnorth_deast");
 	/* The associate array a uses only the keys here */
 	a = pfget_arr(pf,"pmel_stations");

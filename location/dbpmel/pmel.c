@@ -265,6 +265,8 @@ Tbl *pmel(int nevents,
     /* holds station correction perturbation solved for in each interation */
     double *sc_solved;
     double ds_over_s,ds_over_s_converge;
+/* TEMPORARY FOR SUNPERF PROBLEM ON SOLAR */
+int one=1;
 
     nr = s->nrow;
     nc = s->ncol;
@@ -499,7 +501,11 @@ Tbl *pmel(int nevents,
 	It is intentional to divide by scdata as adjustments
 	only happen in the subspace covered by scdata. If we used the
 	full vector s->sc it can be artificially large */
+/*
 	ds_over_s = dnrm2(nc,sc_solved,1)/dnrm2(nc,s->scdata,1);
+*/
+ds_over_s=dnrm2_(&nc,sc_solved,&one)/dnrm2_(&nc,s->scdata,&one);
+
 	if(ds_over_s<ds_over_s_converge)
 		pushtbl(sc_converge_reasons,
 			"Small adjustment to station corrections");
@@ -509,7 +515,10 @@ Tbl *pmel(int nevents,
 	This is necessary because of the way we form the solution.*/
 	if(data_space_null_project(s->S,nr,nused,nrows_S,scrhs,bwork))
 		elog_complain(0,"Problems in data_space_null_project\n");
+/*
 	rhsnrm = dnrm2(nrows_S,bwork,1);
+*/
+rhsnrm = dnrm2_(&nrows_S,bwork,&one);
 	total_wssq = rhsnrm*rhsnrm;
 	/*We alter the minimum error scale used in the locator
 	for m-estimators using global weighted rms using only

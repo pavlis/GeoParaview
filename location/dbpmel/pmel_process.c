@@ -9,19 +9,22 @@
 #include "location.h"
 #include "dbpmel.h"
 
-/* Simple little function to read the 3D reference model pf 
-like the normal phase description in genloc, but nested inside
-of the label  
-3Dphase_definitions {  all the phase description stuff }
+/* Simple little function to define the 3D reference model 
+used to compute bias components of solution.  It simply 
+uses the same mechanism used in dbgenloc to access a set of
+standard models.  
 */
 Arr *parse_3D_phase(Pf *pf)
 {
-	Pf *pf3d;
 	Arr *a;
+	Pf *pf3d;
+	char *vmodel;
 
-	if(pfget(pf,"3Dphase_definitions",(void**)(&pf3d)) != PFSTRING)
-		die(0,"pf error reading 3Dphase_definition block\n");
+	vmodel = pfget_string(pf,"3Dreference_model");
+	if(pfload("GENLOC_MODELS","tables/genloc",vmodel,&pf3d) != 0)
+		elog_die(0,"pfload failed on 3Dreference model %s\n",vmodel);
 	a = parse_phase_parameter_file(pf3d);
+	pffree(pf3d);
 	return(a);
 }
 
@@ -127,6 +130,7 @@ Written:  Fall 2000
 int dbpmel_process(Dbptr db, Tbl *gridlist,Pf *pf)
 {
 	Location_options o;
+	Pf *vpf;
 	Arr *arr_phase;
 	char *vmodel;
 	/* Holds indexed list of stations with bad clocks problems 
@@ -137,6 +141,7 @@ int dbpmel_process(Dbptr db, Tbl *gridlist,Pf *pf)
 	int nbcs;
 	int i,j,k;
 	Tbl *grptbl;
+	Tbl *grdidtbl;
 	Dbptr dbevid_grp;  /* dbgroup pointers */
 	/* Used by dbmatches */
 	static Hook *hook=NULL;
@@ -165,7 +170,15 @@ int dbpmel_process(Dbptr db, Tbl *gridlist,Pf *pf)
 
 	/* DB is now set up correctly, now we turn to the parameter files */
 	o = parse_options_pf (pf);
- 	arr_phase = parse_phase_parameter_file(pf);
+
+	/* This uses the same method of defining phase handles as dbgenloc*/
+	vmodel=pfget_string(pf,"travel_time_model");
+	if(pfload("GENLOC_MODELS", "tables/genloc", vmodel, &vpf) != 0)
+		elog_die(0,"pfload failed reading working velocity model %s\n",
+			vmodel);
+ 	arr_phase = parse_phase_parameter_file(vpf);
+	pffree(vpf);
+
 	/* We want to explicitly clear the station corrections in the 
 	phase handle list if any were set by the above function.  If not,
 	we have a real mess with corrections in corrections.  */
@@ -198,7 +211,6 @@ int dbpmel_process(Dbptr db, Tbl *gridlist,Pf *pf)
 	S-P code unless it is necessary. */
 	nbcs = cntarr(badclocks);
 
-	vmodel = pfget_string(pf,"velocity_model_name");
 
 	events_to_fix = load_calibration_events(pf);
 
@@ -207,9 +219,8 @@ int dbpmel_process(Dbptr db, Tbl *gridlist,Pf *pf)
 	gridids and the record list from dbmatches is the set
 	of group pointers for the collection of events matching
 	a given gridid.*/
-	grptbl = newtbl(2);
-	pushtbl(grptbl,"gridid");
-	pushtbl(grptbl,"evid");
+	grptbl = strtbl("gridid","evid",0);
+	grdidtbl = strtbl("gridid",0);  /* used below */
 	dbevid_grp = dbgroup(db,grptbl,EVIDGRP,1);
 	if(dbevid_grp.record == dbINVALID)
 		die(0,"dbgroup failed on gridid:evid bundling\n");
@@ -230,7 +241,7 @@ int dbpmel_process(Dbptr db, Tbl *gridlist,Pf *pf)
 		gridid = (int)gettbl(gridlist,i);
 
 		dbputv(dbgs,0,"gridid",gridid,0);
-		dbmatches(dbgs,dbevid_grp,&grptbl,&grptbl,&hook,
+		dbmatches(dbgs,dbevid_grp,&grdidtbl,&grdidtbl,&hook,
 					&reclist);
 		nevents = maxtbl(reclist);
 		if(nevents<=0)

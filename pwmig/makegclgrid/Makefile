@@ -3,8 +3,8 @@ INCLUDE=
 PF=makegclgrid.pf
 #MAN1=		# man pages for commands
 
-cflags=-g
-ldlibs=-xlic_lib=sunperf $(DBLIBS) -lgclgrid
+cflags=-g -DSUNPERF
+ldlibs= $(DBLIBS) -lgclgrid -xlic_lib=sunperf
 
 include $(ANTELOPEMAKE)
 DIRS=
