@@ -11,7 +11,7 @@ using namespace SEISPP;
 bool Verbose;
 void usage()
 {
-        cbanner((char *)"$Revision: 1.8 $ $Date: 2004/09/23 20:10:52 $",
+        cbanner((char *)"$Revision: 1.9 $ $Date: 2004/09/23 20:36:00 $",
 		(char *)"dbin dbout [-v -V -pf pfname]",
                 (char *)"Gary Pavlis",
                 (char *)"Indiana University",
@@ -47,7 +47,7 @@ int main(int argc, char **argv)
         elog_init (argc, argv);
 
         /* usual cracking of command line */
-        if(argc < 3) usage();
+        if(argc < 2) usage();
         dbname_in = argv[1];
         dbname_out = argv[2];
 
