@@ -2,12 +2,14 @@
 #include <stdlib.h>
 #include <strings.h>
 #include <unistd.h>
+#include <sunperf.h>
 #include "elog.h"
 #include "stock.h"
 #include "arrays.h"
 #include "pf.h"
 #include "db.h"
 #include "coords.h"
+#include "brttutil.h"
 #include "location.h"
 #include "pmel.h"
 #include "pfstream.h"
@@ -174,6 +176,7 @@ void main(int argc, char **argv)
 	/* These are used for pmtfifo implementation.  They are analagous
 	to a FILE * abstraction. */
 	Pfstream_handle *pfshi, *pfsho;
+	char *streamin, *streamout;
 	
 #ifdef MPI_SET
 
@@ -194,13 +197,13 @@ void main(int argc, char **argv)
 
 	if(argc<4) usage();
 	dbin=argv[1];
-	/* launch read and write threads */
-	pfshi = Pfstream_start_read_thread(argv[2]);
-	if(pfshi==NULL) elog_die(1,"Read from %s thread create failed\n",argv[2]);
-	pfsho = Pfstream_start_write_thread(argv[3]);
-	if(pfsho==NULL) elog_die(1,"Read from %s thread create failed\n",argv[2]);
 	streamin=argv[2];
-	streamout = argv[3];	
+	streamout=argv[3];
+	/* launch read and write threads */
+	pfshi = pfstream_start_read_thread(streamin);
+	if(pfshi==NULL) elog_die(1,"Read from %s thread create failed\n",argv[2]);
+	pfsho = pfstream_start_write_thread(streamout);
+	if(pfsho==NULL) elog_die(1,"Read from %s thread create failed\n",argv[2]);
 
 	for(i=4;i<argc;++i)
 	{

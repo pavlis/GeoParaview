@@ -1,6 +1,9 @@
 #include "stock.h"
+#include "coords.h"
+#include "brttutil.h"
 #include "pf.h"
 #include "location.h"
+#include "pmel.h"
 #include "pfstream.h"
 /* This function takes a vector Pf *'s from is to ie and 
  * builds an output list of Arrival objects.  This should be
@@ -46,8 +49,7 @@ Tbl *pfextract_arrivals(Pf **pfall, int is, int ie,
                 a->sta = (Station *) getarr(stations,sta);
                 if(a->sta == NULL)
                 {
-                        register_error(0,"Warning (read_arrivals):  Can't find coordin
-ates for station %s\n%s phase arrival for this station skipped\n",
+                        register_error(0,"Warning (read_arrivals):  Can't find coordinates for station %s\n%s phase arrival for this station skipped\n",
                                 sta, phase_name);
                         free(a);
                         continue;
@@ -56,14 +58,13 @@ ates for station %s\n%s phase arrival for this station skipped\n",
                 a->phase = (Phase_handle *) getarr(phases,phase_name);
                 if(a->phase == NULL)
                 {
-                        register_error(0,"Warning (read_arrivals):  No phase handle fo
-r phase name %s\nArrival for station %s skipped\n",
+                        register_error(0,"Warning (read_arrivals):  No phase handle for phase name %s\nArrival for station %s skipped\n",
                                 phase_name,sta);
                         free(a);
                         continue;
                 }
 		a->arid = pfget_int(pf,"arid");
-		a->time = str2epoch(pfget_string(pf,"arrival.time"));
+		a->time = pfget_time(pf,"arrival.time");
 		a->deltat = pfget_double(pf,"deltim");
                 /* Here set set deltat to default when this is required */
                 if( (a->deltat) <= 0.0 ) a->deltat = (double)a->phase->deltat0;
@@ -146,6 +147,7 @@ void update_ensemble(
 	{
 		double delta,seaz,esaz,wgt;
 		Arrival *a;
+		int narrivals;
 
 		rc = project_covariance( C, model, &conf,
                             h[i].rms_weighted, h[i].degrees_of_freedom,
@@ -164,7 +166,7 @@ void update_ensemble(
 		 * is defined by the arrivals connected to one evid.
 		 * i.e. alll pfe->pf's in this group have copies of the
 		 * same parameters -- like a joined db table */
-		for(j=pfe->groups_start[i];j<=pfe->groups;++j)
+		for(j=pfe->group_start[i];j<=pfe->group_end[i];++j)
 		{
 			/* These are in saved in origerr */
 			pfput_double(pfe->pf[j],"sxx",C[0][0]);
@@ -177,14 +179,13 @@ void update_ensemble(
 			pfput_double(pfe->pf[j],"stx",C[0][3]);
 			pfput_double(pfe->pf[j],"sty",C[1][3]);
 			pfput_double(pfe->pf[j],"stz",C[2][3]);
-			pfput_double(pfe->pf[j],"sdobs",h[i].rms_raw,
-			pfput_double(pfe->pf[j],"smajax",smajax,
-			pfput_double(pfe->pf[j],"sminax",sminax,
-			pfput_double(pfe->pf[j],"strike",strike,
-			pfput_double(pfe->pf[j],"sdepth",sdepth,
-			pfput_double(pfe->pf[j],"stime",stime,
-			pfput_double(pfe->pf[j],"conf",conf,
-
+			pfput_double(pfe->pf[j],"sdobs",h[i].rms_raw);
+			pfput_double(pfe->pf[j],"smajax",smajax);
+			pfput_double(pfe->pf[j],"sminax",sminax);
+			pfput_double(pfe->pf[j],"strike",strike);
+			pfput_double(pfe->pf[j],"sdepth",sdepth);
+			pfput_double(pfe->pf[j],"stime",stime);
+			pfput_double(pfe->pf[j],"conf",conf);
 			/* These are saved in origin */
 			pfput_double(pfe->pf[j],"origin.lat",h[i].lat);
 			pfput_double(pfe->pf[j],"origin.lon",h[i].lon);
@@ -196,8 +197,8 @@ void update_ensemble(
 		/*This is a somewhat different loop to create assoc.
 		* it is more complex because of searching described below */
 	        narrivals=maxtbl(ta[i]);
-		gs = pfe->groups_start[i];
-		ge = pfe->groups_end[i];
+		gs = pfe->group_start[i];
+		ge = pfe->group_end[i];
 		for(j=gs,jj=0;jj<narrivals;++j,++jj)
 		{
 			int arid_pfe=-1;
@@ -216,9 +217,9 @@ void update_ensemble(
 				++j;
 			}
 			while ((arid_pfe!=a->arid) 
-				&& (j<=ge );
+				&& (j<=ge ));
 
-			if(j>ge)
+			if((j>ge)&&(arid_pfe!=a->arid))
 			{
 				elog_notify(0,"pfstream_save_results:  arid mismatch\nDid not find arid %d in Pf_ensemble\n",
 					a->arid);
@@ -261,6 +262,7 @@ Pf_ensemble *build_sc_ensemble(int gridid, SCMatrix *s, Pf *pf)
 	int *iptr;
 	Pf_ensemble *pfesc;
 	int nsc;
+	char *str;
 
 	/* this will cause the program to die if these aren't defined */
 	pmelrun=pfget_string(pf,"pmel_run_name");
@@ -270,11 +272,29 @@ Pf_ensemble *build_sc_ensemble(int gridid, SCMatrix *s, Pf *pf)
 	 * of these tbl's as iterators */
 	phskeys = keysarr(s->phase_index);
 	stakeys = keysarr(s->sta_index);
-	nsc = maxtbl(phskey)*maxtbl(stakeys);
+	nsc = maxtbl(phskeys)*maxtbl(stakeys);
 	pfesc = create_Pf_ensemble(nsc,0);
-	/* This may not be necessary, but it won't hurt to set it */
-	pfesc->ensemble_keys=strtbl("sta","phase",
-			"gridname","gridid","pmelrun",0);
+	/* The constructor just called does not initialize the pf members so
+	we need to create empty pf struct for each member */
+	for(i=0;i<nsc;++i) pfesc->pf[i]=pfnew(PFARR);
+	/* Ugly ugly memory problem.  BIG MAINTENANCE HEADACHE.  
+	The ensemble_keys list is placed in a dynamic structure that is later
+	released.  This means we have to allot the memory for the strings that
+	define the keys here to avoid seg faults caused by trying to 
+	release this later.  That is, I once tried doing the following with
+	strtbl, but it lead to a seg fault when the free_Pf_ensemble routine
+	called freetbl.  Ouch.  */
+	pfesc->ensemble_keys=newtbl(5);
+	str=strdup("sta");
+	pushtbl(pfesc->ensemble_keys,str);
+	str=strdup("phase");
+	pushtbl(pfesc->ensemble_keys,str);
+	str=strdup("gridname");
+	pushtbl(pfesc->ensemble_keys,str);
+	str=strdup("gridid");
+	pushtbl(pfesc->ensemble_keys,str);
+	str=strdup("pmelrun");
+	pushtbl(pfesc->ensemble_keys,str);
 
 	for(j=0,ii=0;j<maxtbl(phskeys);++j)
 	{
