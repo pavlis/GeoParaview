@@ -6,7 +6,7 @@ double &Tbl{
 pmel_initial_error_scale
 pmel_minimum_error_scale 
 pmel_F_test_critical_value 0.9 1.0
-pmel_svd_relative_cutoff 0.000001 1.0
+pmel_svd_relative_cutoff 0.0000000001 1.0
 pmel_sc_fraction_convergence_error 0.0000001 0.1
 }
 string &Tbl{
@@ -43,14 +43,53 @@ pmel_cluster_mode true
 pmel_initial_error_scale 10.0
 pmel_minimum_error_scale  1.0
 pmel_F_test_critical_value 0.95
-pmel_svd_relative_cutoff  100.0
+pmel_svd_relative_cutoff  0.001
 pmel_sc_fraction_convergence_error 0.001
 pmel_stations &Arr{
 AAK
+AHQI  
+AKSU  
+AML   
+ANA   
+ARA   
+ATUS  
+BCHU  
+BGK2  
+CHAT  
+CHM   
+DGE   
+EKS2  
+ERPT  
+HARA  
+HLQI  
+KAI   
+KAR   
+KARL  
+KASH  
+KAZ   
 KBK
-UCH
+KDJ   
+KENS  
+KHA   
+KOPG  
+KSA   
+KZA   
+MAK   
+MAKZ  
+NRN   
+PDG   
+PIQG  
+POGR  
+TERE  
+TGMT  
+TKM   
 TKM2
+TLG   
+UCH   
 ULHL
+USP   
+WQIA  
+XIKR  
 }
 #
 #  This contains a list of evids and coordinates to fix
@@ -60,8 +99,8 @@ pmel_calibration_events &Tbl{
 10  xyzt
 11  xyz
 }
-3Dreference_model taup/test
-travel_time_model	taup/iasp91
+3Dreference_model ttlvz/iasp91
+travel_time_model	ttlvz/iasp91
 pmel_maximum_sc_iterations 5
 #
 # This is copied from dbgenloc.pf -- it probably has unnecessary

@@ -277,6 +277,10 @@ int initialize_station_corrections(Arr *pha,Arr *pha3D, Arr *sa,Hypocenter *hc)
 for each station/phase defined in the structure s for the hypocenter
 location h.  The reference is computed as the travel time difference
 between the model computed with the phase handles pha and pha3D.  
+In this program, however, these have already been computed and stored
+in an associative array found in the phase handle *pha.  Thus the
+primary task here is indexing this list and placing the values in
+the right position of the vector in the SCMatrix s->scref.  
 
 Arguments:
 	s - Station correction structure used internally by dbpmel
@@ -291,6 +295,11 @@ Returns 0 for no problems.  Positive number is the count of the
 number of problems in computing travel times.  
 
 Author:  G pavlis
+Revision:  Original did redundant travel time calculation.  
+Now it just grabs station corrections from pha.  This is
+somewhat of a future software maintenance worry as it assumes
+that the station correction array in pha has been set up to contain
+the reference station corrections.  
 */
 int compute_scref(SCMatrix *s, Hypocenter *h, Arr *stalist,
 	Arr *pha, Arr *pha3D)
@@ -341,27 +350,106 @@ int compute_scref(SCMatrix *s, Hypocenter *h, Arr *stalist,
 				++ierr;
 				continue;
 			}
-			x.sta = sta;
-			x.slat = h->lat;
-			x.slon = h->lon;
-			x.sz = h->z;
-			x.rlat = sobj->lat;
-			x.rlon = sobj->lon;
-			x.rz = -(sobj->elev);
-			t = phand->ttcalc(x,phase,RESIDUALS_ONLY);
-			t3d = p3dhand->ttcalc(x,phase,RESIDUALS_ONLY);
-			s->scref[icol]=(t.time)-(t3d.time);
-			/* We actually apply any station corrections defined
-			in the phase handle for either model */
 			sc = (double *)getarr(phand->time_station_corrections,
-				sta);
-			if(sc != NULL) s->scref[icol] += (*sc);
-			sc = (double *)getarr(p3dhand->time_station_corrections,
-				sta);
-			if(sc != NULL) s->scref[icol] -= (*sc);
+					sta);
+			if(sc != NULL)
+			{
+				s->scref[icol]=*sc;
+			}
+			else
+			{
+				elog_complain(0,"WARNING: compute_scref\
+lookup failed searching for station correction for %s\n\
+Attempting recovery.  Inconsistency likely\n", sta);
+ 
+				x.sta = sta;
+				x.slat = h->lat;
+				x.slon = h->lon;
+				x.sz = h->z;
+				x.rlat = sobj->lat;
+				x.rlon = sobj->lon;
+				x.rz = -(sobj->elev);
+				t = phand->ttcalc(x,phase,RESIDUALS_ONLY);
+				t3d = p3dhand->ttcalc(x,phase,RESIDUALS_ONLY);
+				s->scref[icol]=(t.time)-(t3d.time);
+				/* We actually apply any station corrections defined
+				in the phase handle for either model */
+				sc = (double *)getarr(phand->time_station_corrections,
+					sta);
+				if(sc != NULL) s->scref[icol] += (*sc);
+				sc = (double *)getarr(p3dhand->time_station_corrections,
+					sta);
+				if(sc != NULL) s->scref[icol] -= (*sc);
+			}
 		}
 	}
 	freetbl(phskeys,0);
 	freetbl(stakeys,0);
+	return(ierr);
+}
+/* This is kind of the inverse of the above routines.  Once a new
+set of station corrections are computed they need to be stored in
+the time_station_correction array in the phase handles to be actually
+used.  Because of how travel time calculators work in genloc the
+station corrections cannot be applied any other way.  It is a bit
+complex this way, but an example of the dark side of using objects
+is programming.
+
+arguments:
+s - SCMatrix used by pmel
+pha - phase handles for reference model (station corrections are
+updated in these)
+
+Returns 0 for all ok.  Positive number is a count of errors encountered
+in update attempt .
+
+Author:  G Pavlis
+Written:  August 2001
+First draft has a dohhh because I neglected to realize I had to have
+this function.  Logic gap discovered in testing phase.
+*/
+int update_scarr(SCMatrix *s,Arr *pha)
+{
+	Tbl *phskeys,*stakeys;
+	int i,j;
+	char *phase,*sta;
+	int *iptr,iphacol,icol;
+	Phase_handle *phand;
+	double *sc; 
+	int ierr=0;
+
+	phskeys = keysarr(pha);
+	stakeys = keysarr(s->sta_index);
+
+	for(j=0;j<maxtbl(phskeys);++j)
+	{
+		phase = (char *)gettbl(phskeys,j);
+		iptr = (int *)getarr(s->phase_index,phase);
+		iphacol = *iptr;
+		phand = (Phase_handle *)getarr(pha,phase);
+		if(phand == NULL)
+		{
+			elog_notify(0,"Cannot update station correction for phase %s\n",
+				phase);
+			++ierr;
+			continue;
+		}
+		for(i=0;i<maxtbl(stakeys);++i)
+		{
+			sta = gettbl(stakeys,i);
+			iptr = (int *)getarr(s->sta_index,sta);
+			icol = iphacol + (*iptr);
+			sc = (double *)getarr(phand->time_station_corrections,
+					sta);
+			if(sc != NULL)
+				*sc = s->sc[icol];
+			else
+			{
+				++ierr;
+				elog_notify(0,"update_scarr:  lookup failed for station%s\nCannot update station correction for phase %s\n",
+					sta,phase);
+			}
+		}
+	}
 	return(ierr);
 }

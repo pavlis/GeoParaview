@@ -5,6 +5,7 @@
 #include "arrays.h"
 #include "elog.h"
 #include "location.h"
+#include "glputil.h"
 #include "dbpmel.h"
 #define SSWR_TEST_LEVEL 0.99
 /* This is a temporary interface function for the ftest fortran routine.
@@ -203,8 +204,14 @@ Arguments:
         in location.h)  It also is the primary input and output
 	workspace.  The sc vector within s is the primary output
 	along with the rms parameters also stored there.
+    phase_arr - associative array of phase handles.   The station
+	correction field of these objects are altered by pmel.
     pf - parameter file pointer (used to parse options for 
         ggnloc.
+    sc_converge_history - contains a list of stings describing reason
+	pmel broke the convergence loop 
+    pmelhistory - list of hypocentroids (pointers to Hypocenter
+	objects) summarizing convergence history.  
 
 Returns a pointer to a Tbl that contains a stack of character strings
 that describe reasons for breaking the main iteration loop.
@@ -214,16 +221,19 @@ Author:  Gary Pavlis
 Written:  October 2000
 */
 
-Tbl *pmel(int nevents,
+int pmel(int nevents,
     int *evid,
         Tbl **ta,
             Hypocenter *h0, 
 		Arr *fixarr,
                     Hypocenter *hypocen,
                         SCMatrix *s,
-                            Pf *pf)
+			    Arr *phase_arr,
+				Location_options *o,
+                                	Pf *pf,
+					    Tbl **sc_converge_reasons,
+					        Tbl **pmelhistory)
 {
-    Location_options o;
     int i,j,k;
     Tbl *tu;
     char *fix;
@@ -249,9 +259,6 @@ Tbl *pmel(int nevents,
     double sswrodgf;
     /* ggnloc output lists */
     Tbl *history=NULL, *reasons=NULL, *restbl=NULL;
-    /* convergence of station correction push one or more messages
-    onto this list */
-    Tbl *sc_converge_reasons;
     double escale;
     /* These are pmel control parameters parsed from pf */
     double esmin,esinit;
@@ -269,9 +276,14 @@ Tbl *pmel(int nevents,
     /* holds station correction perturbation solved for in each interation */
     double *sc_solved;
     double ds_over_s,ds_over_s_converge;
+    Hypocenter *hypocen_history;
+    double centroid_lat, centroid_lon, centroid_z;
 /* TEMPORARY FOR SUNPERF PROBLEM ON SOLAR 
 int one=1;
 */
+    /* initialize the output lists */
+    if(*pmelhistory==NULL) *pmelhistory=newtbl(0);
+    if(*sc_converge_reasons==NULL) *sc_converge_reasons=newtbl(0);
 
     nr = s->nrow;
     nc = s->ncol;
@@ -296,10 +308,7 @@ int one=1;
     allot(float *,reswt,nc);
     Amatrix = matrix(0,nc-1,0,3);
 
-    sc_converge_reasons = newtbl(0);
-    /* This builds the large structure o that defines all the 
-    options to the locator*/
-    o = parse_options_pf (pf);
+    *sc_converge_reasons = newtbl(0);
 
     /* We now extract parameters from pf specific to pmel */
     esmin = pfget_double(pf,"pmel_minimum_error_scale");
@@ -320,7 +329,7 @@ int one=1;
     tu = newtbl(0);
     /* This controls residual weight error scaling in a global sense */
     escale = esinit;
-    o.min_error_scale = escale;
+    o->min_error_scale = escale;
 
     /* Top of processing loop for this group */
     elog_log(0,"Iteration  Nevents   Raw_rms  Escale   ndgf\n");
@@ -334,12 +343,13 @@ int one=1;
         total_ndgf = 0;
 	nrows_S = 0;
 	sc_iterations = 0;
-        for(i=0,total_ssq_raw=0.0,total_wssq=0.0;i<nevents;++i)
+        for(i=0,total_ssq_raw=0.0,total_wssq=0.0,centroid_lat=0.0,
+		centroid_lon=0.0,centroid_z=0.0;i<nevents;++i)
         {
 	    fix = get_fixlist(fixarr,evid[i]);
 	    if(fix==NULL)
 	    {
-		for(j=0;j<4;++j)o.fix[j]=0;
+		for(j=0;j<4;++j)o->fix[j]=0;
 		ncol_amatrix = 4;
 	    }
 	    else
@@ -347,26 +357,26 @@ int one=1;
 		ncol_amatrix = 4;
 		if(strstr(fix,"x")!=NULL) 
 		{
-			o.fix[0]=1;
+			o->fix[0]=1;
 			--ncol_amatrix;
 		}
  		if(strstr(fix,"y")!=NULL)
 		{
-			o.fix[1]=1;
+			o->fix[1]=1;
 			--ncol_amatrix;
 		}
 		if(strstr(fix,"z")!=NULL)
 		{
-			o.fix[2]=1;
+			o->fix[2]=1;
 			--ncol_amatrix;
 		}
 		if(strstr(fix,"t")!=NULL)
 		{
-			o.fix[3]=1;
+			o->fix[3]=1;
 			--ncol_amatrix;
 		}
 	    }
-            locrcode=ggnloc(h0[i],ta[i],tu,o,
+            locrcode=ggnloc(h0[i],ta[i],tu,*o,
                 &history,&reasons,&restbl);
             if(locrcode < 0)
             {
@@ -395,6 +405,9 @@ int one=1;
                 /* We use this hypocenter even if we 
                 skip this event due to high rms */
                 copy_hypocenter(current_hypo,h0+i);
+		centroid_lat += current_hypo->lat;
+		centroid_lon += current_hypo->lon;
+		centroid_z += current_hypo->z;
 
                 /* This tests for high rms relative to
                 the rest of the group and discards events
@@ -419,12 +432,12 @@ int one=1;
                 /* Now we turn to the station correction
                 accumulation*/
 		nrow_amatrix = maxtbl(ta[i]);
-		stats = form_equations(ALL,*current_hypo,ta[i],tu,o,
+		stats = form_equations(ALL,*current_hypo,ta[i],tu,*o,
 				Amatrix,b,r,w,reswt,&nused);
 		for(j=0;j<nrow_amatrix;++j)
 		{
 		    wts[j] = ((double)w[j])*((double)reswt[j]);
-		    residuals[j] = (double)r[j];
+		    residuals[j] = (double)b[j];
 		}
 		if(cluster_mode)
 		{
@@ -432,7 +445,7 @@ int one=1;
 			to the current_hypo value to keep from having
 			absurdly large residuals */
 		    hypocen->time=current_hypo->time;
-		    stats = form_equations(ALL,*hypocen,ta[i],tu,o,
+		    stats = form_equations(ALL,*hypocen,ta[i],tu,*o,
 				Amatrix,b,r,w,reswt,&nused);
 		    /* We want these equations weighted by the ones
 		    computed from the actual hypocenter, not the hypocentroid.
@@ -455,8 +468,11 @@ int one=1;
 
 		/* Compute the svd of this matrix.  All we need here 
 		is the left singular vectors spanning the data space */
+		dmdbg_(A,&nc,&nc,&ncol_amatrix);
 		dgesvd('a','n',nrow_amatrix,ncol_amatrix,A,
 			nc, svalue, U, nc, Vt, nc, &svdinfo);
+		dmdbg_(A,&nc,&nrow_amatrix,&ncol_amatrix);
+		dmdbg_(U,&nc,&nc,&nc);
   		if(svdinfo) 
 		{
 		    elog_notify(0,"pmel:  svd error processing event number %d\n",i);
@@ -476,6 +492,7 @@ int one=1;
 						residuals,1);
 		}
 		nrows_S += nnull; 
+		dmdbg_(s->S,&(s->nrow),&nrows_S,&nc);
 		    
             }
             if(maxtbl(history))freetbl(history,free);
@@ -511,8 +528,16 @@ int one=1;
 	if(model_space_null_project(Vt,nc,nused,nc,s->scref,s->scbias))
 		elog_complain(0,"sc matrix size error\n");
 	dcopy(nc,s->scdata,1,s->sc,1);
-	daxpy(nc,1.0,s->scref,1,s->sc,1);
+	for(k=0;k<nc;++k)s->sc[k] += s->scbias[k];
 
+	/* This routine updates the active list of station corrections
+	in the phase handles.  */
+	if(update_scarr(s,phase_arr))
+	{
+		elog_complain(0,"%d problems updating station \
+corrections %d during iteration %d\n",
+			sc_iterations);
+	}
 	/* Test for small correction vector relative to norm s.
 	It is intentional to divide by scdata as adjustments
 	only happen in the subspace covered by scdata. If we used the
@@ -523,7 +548,7 @@ ds_over_s=dnrm2_(&nc,sc_solved,&one)/dnrm2_(&nc,s->scdata,&one);
 */
 
 	if(ds_over_s<ds_over_s_converge)
-		pushtbl(sc_converge_reasons,
+		pushtbl(*sc_converge_reasons,
 			"Small adjustment to station corrections");
 	/* To compute rms correctly we have to compute the null
 	space projection of the right hand side vector with the
@@ -544,27 +569,44 @@ rhsnrm = dnrm2_(&nrows_S,bwork,&one);
 						missing phases */
 	if(total_ndgf<=0)
 	{
-		pushtbl(sc_converge_reasons,"ABORT on insufficient data");
-		return(t);
+		pushtbl(*sc_converge_reasons,"ABORT on insufficient data");
+		return(-1);
 	}
 	sswrodgf = total_wssq/((double)total_ndgf);
 	escale = sqrt(sswrodgf);
 	if(escale<esmin) escale = esmin;
-	o.min_error_scale = escale;
+	o->min_error_scale = escale;
 	total_rms_raw = sqrt(total_ssq_raw/((double)total_ndgf));
 	elog_log(0,"%d  %d  %lf  %lf  %d\n",
 		sc_iterations,nev_used,total_rms_raw,escale,total_ndgf);
 	if(sc_iterations>0)
 		if(ftest(sswrodgf, total_ndgf, s->sswrodgf, s->ndgf,
 			SSWR_TEST_LEVEL)==0)
-		    pushtbl(sc_converge_reasons,"No improvement in data fit");
+		    pushtbl(*sc_converge_reasons,"No improvement in data fit");
 	s->ndgf = total_ndgf;
 	s->sswrodgf = sswrodgf;
+	/* compute the new hypocentroid 
+	initialize the new hypocentroid this way */
+	allot(Hypocenter *,hypocen_history,1);
+	copy_hypocenter(hypocen,hypocen_history);
+	hypocen_history->lat0 = hypocen_history->lat;
+	hypocen_history->lon0 = hypocen_history->lon;
+	hypocen_history->z0 = hypocen_history->z;
+	hypocen_history->lat = centroid_lat/((double)nev_used);
+	hypocen_history->lon = centroid_lon/((double)nev_used);
+	hypocen_history->z = centroid_z/((double)nev_used);
+	/* This is a convenient place to store these, but they aren't
+	totally consistent with the concept of a hypocentroid */
+	hypocen_history->rms_raw = total_rms_raw;
+	hypocen_history->rms_weighted=sswrodgf;
+	hypocen_history->number_data = nr;
+	hypocen_history->degrees_of_freedom = total_ndgf;
+	pushtbl(*pmelhistory,hypocen_history);
 	++sc_iterations;
-	if(sc_iterations>maxscit) pushtbl(sc_converge_reasons,
+	if(sc_iterations>maxscit) pushtbl(*sc_converge_reasons,
 			"Hit station correction iteration limit");
     }
-    while (maxtbl(sc_converge_reasons)<=0);
+    while (maxtbl(*sc_converge_reasons)<=0);
     free(A);
     free(U);
     free(Vt);
@@ -581,5 +623,5 @@ rhsnrm = dnrm2_(&nrows_S,bwork,&one);
     free(reswt);
     free_matrix((char **)Amatrix,0,nc-1,0);
     freetbl(tu,free);
-    return(sc_converge_reasons);
+    return(0);
 }

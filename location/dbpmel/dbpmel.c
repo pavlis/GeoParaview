@@ -187,7 +187,7 @@ void main(int argc, char **argv)
 	time changes.  With this setup, the stations can even move
 	around and this should still work.*/
 	gridname = pfget_string(pf,"gridname");
-	if(dbopen(dbin,"r",&db) == dbINVALID) 
+	if(dbopen(dbin,"r+",&db) == dbINVALID) 
 		elog_die(1,"Unable to open input database %s\n",dbin);
 	
 	/* We save the pf object into archive files that document the

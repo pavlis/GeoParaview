@@ -11,6 +11,6 @@ include $(ANTELOPEMAKE)  	# This line must appear following the definitions abov
 
 OBJS=dbpmel.o dbpmel_load_stations.o \
 	dbsubs.o fixlist_utilities.o ftest.o shape.o \
-	pmel.o pmel_process.o scmatrixsubs.o
+	pmel.o pmel_process.o scmatrixsubs.o mdebug.o
 $(BIN) : $(OBJS)
 	$(CC) $(CFLAGS) -o $@ $(OBJS) $(LDFLAGS) $(LDLIBS)

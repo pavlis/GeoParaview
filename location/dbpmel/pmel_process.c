@@ -1,5 +1,6 @@
 #include <math.h>
 #include <stdio.h>
+#include <sunperf.h>
 #include "stock.h"
 #include "arrays.h"
 #include "coords.h"
@@ -80,6 +81,57 @@ int load_hypocentroid(Dbptr dbv,int rec, Hypocenter *h)
 	h->z = depth;
 	return(0);
 }
+/* Edits the array of phase handles to keep only phases
+named in the keeplist Tbl of phase names strings.  This 
+is complicated by the fact that keeplist is a simple
+list.  The algorithm used converts the keeplist to a
+temporary associative array then passes through the 
+array of phase handles calling the free routine on 
+phases not found in the keeplist. 
+
+Author:  G Pavlis
+Written:  August 2001
+*/
+void edit_phase_handle(Arr *a,Tbl *keeplist)
+{
+	Tbl *akeys;
+	Arr *akeeper;
+	int *dummy;  /* used purely as a placeholder in akeeper*/
+	char *phase;
+	int i,n;
+	Phase_handle *ph;
+
+	n = maxtbl(keeplist);
+	if(n<=0) 
+		elog_die(0,"List of phases to keep is empty.\n\
+Check phases_to_keep parameter setting\n");
+	akeeper = newarr(0);
+	for(i=0;i<maxtbl(keeplist);++i)
+	{
+		phase = (char *)gettbl(keeplist,i);
+		setarr(akeeper,phase,dummy);
+		ph = (Phase_handle *)getarr(a,phase);
+		if(ph==NULL)elog_die(0,
+			"Don't know how to handle required phase %s\n",
+				phase);
+	}
+	akeys = keysarr(a);
+	for(i=0;i<maxtbl(akeys);++i)
+	{
+		phase = gettbl(akeys,i);
+		if(getarr(akeeper,phase) == NULL)
+		{
+			ph = (Phase_handle *)getarr(a,phase);
+			free_phase_handle(ph);
+			delarr(a,phase);
+		}
+	}
+
+	freearr(akeeper,0);
+	freetbl(akeys,0);
+}
+
+
 #define EVIDGRP "evidgroup"
 /* this is the main processing routine for dbpmel.  It takes an input
 list of grid point, which are defined by integers gridid that are
@@ -135,6 +187,7 @@ int dbpmel_process(Dbptr db, Tbl *gridlist,Pf *pf)
 	/* Holds indexed list of stations with bad clocks problems 
 	that should be used only with S-P type timing */
 	Arr *badclocks;
+	Location_options o;
 	/* Hold station table.   We make the array table empty always. */
 	Arr *stations;
 	int nbcs;
@@ -162,14 +215,20 @@ int dbpmel_process(Dbptr db, Tbl *gridlist,Pf *pf)
 	correction elements.  WARNING: it is built up in pieces below,
 	and later modifications most handle this carefully.*/
 	SCMatrix *smatrix;
-	Tbl *converge;
+	Tbl *converge=NULL,*pmelhistory=NULL;
 	Arr *arr_phase_3D;
 	/* needed for output db tables */
 	char *runname, *gridname;
+	int pmelfail;
+	Tbl *phaselist;
 
 	initialize_hypocenter(&hypocentroid);
 	runname = pfget_string(pf,"pmel_run_name");
 	gridname = pfget_string(pf,"gridname");
+
+	/* This genloc routine defines location parameters.  These
+	are set globally here for the entire run.*/
+	o = parse_options_pf(pf);
 
 
 	/* This uses the same method of defining phase handles as dbgenloc*/
@@ -189,6 +248,13 @@ int dbpmel_process(Dbptr db, Tbl *gridlist,Pf *pf)
 	a (presumed) 3D model.  Not really required 3D, but we call it that
 	anyway.*/
 	arr_phase_3D = parse_3D_phase(pf);
+
+	/* We have edit the array of phase handles to a list we select. 
+	This way the user doesn't have to be concerned that the arr_phase and
+	arr_phase_3d lists are one to one. */
+	phaselist = pfget_tbl(pf,"phases_to_use");
+	edit_phase_handle(arr_phase,phaselist);
+	edit_phase_handle(arr_phase_3D,phaselist);
 
 	/* load the station table and use it to create the station
 	indexes for the smatrix structure and setup the result
@@ -283,6 +349,7 @@ int dbpmel_process(Dbptr db, Tbl *gridlist,Pf *pf)
 		{
 			elog_complain(0,"Error loading hypocentroid from working view for gridid=%d;  Skipping to next gridid in processing list\n",
 				gridid);
+			for(k=0;k<nevents;++k) freetbl(ta[i],free);
 			continue;
 		}
 
@@ -316,10 +383,6 @@ int dbpmel_process(Dbptr db, Tbl *gridlist,Pf *pf)
 		smatrix->nrow = ndata;
 		for(k=0;k<(ndata*(smatrix->ncol));++k) smatrix->S[k]=0.0;
 
-		/* This routine creates an initializes the station
-		correction matrix to 0s. note it assumes the nrow and ncol
-		components are already set.*/
-
 		/* This computes the set of reference station corrections
 		for this group of events */
 		ierr = compute_scref(smatrix, &hypocentroid,stations,
@@ -328,11 +391,28 @@ int dbpmel_process(Dbptr db, Tbl *gridlist,Pf *pf)
 		{
 			elog_notify(0,"%d errors in compute_scref\n",ierr);
 		}
+		/* It is necessary to initialize the sc vector in smatrix
+		to the contents of the reference station corrections to make
+		the results internally consistent.  pmel internally uses the
+		station corrections in the phase handles in computing travel 
+		times and sc is used to as the work vector to store the
+		current estimates.  The reference corrections are always the
+		starting solution and this copy is required to keep the
+		solution consistent with this fact */
+		dcopy(smatrix->ncol,smatrix->scref,1,smatrix->sc,1);
+		
 		/* This is the main processing routine.  It was 
 		intentionally built without any db hooks to make it
 		more portable */
-		converge=pmel(nevents,evid,ta,h0,
-			events_to_fix,&hypocentroid,smatrix,pf);
+		if(pmel(nevents,evid,ta,h0,
+			events_to_fix,&hypocentroid,smatrix,
+			arr_phase,&o,pf,&converge,&pmelhistory))
+		{
+			elog_log(0,
+			  "No solution from pmel for cluster id = %d\n",
+				gridid);
+			continue;
+		}
 		elog_log(0,"Cluster id=%d pmel convergence reason\n",
 			gridid);
 		for(k=0,pmelfail=0;k<maxtbl(converge);++k)
@@ -342,23 +422,37 @@ int dbpmel_process(Dbptr db, Tbl *gridlist,Pf *pf)
 			elog_log(0,"%s\n",swork);
 			/* The string ABORT in the convergence list
 			is used to flag a failure. */
-			if(strstr(s,"ABORT")!=NULL) pmelfail=1;
+			if(strstr(swork,"ABORT")!=NULL) pmelfail=1;
 		}
-		dbpmel_save_sc(db,smatrix,pf);
-		dbpmel_save_hypos(db,reclist,nevents,h0,evid,ta,events_to_fix,pf);
-		if(dbaddv(dbcs,0,"gridid",gridid,
+		if(!pmelfail)
+		{
+			dbpmel_save_sc(gridid,db,smatrix,pf);
+			if(dbpmel_save_results(db,nevents,evid,h0,
+				ta,smatrix->sswrodgf,&o,pf))
+			{
+				elog_notify(0,"Problems saving results\
+for cluster id %d\n",
+					gridid);
+			}
+			/* Missing function here should update
+			hypocentroid row */
+			if(dbaddv(dbcs,0,"gridid",gridid,
 				"gridname", gridname,
 				"pmelrun",runname,
 				"sswrodgf",smatrix->sswrodgf,
 				"ndgf",smatrix->ndgf,
 				"sdobs",smatrix->rmsraw,0) == dbINVALID)
-		{
-			elog_complain(0,"dbaddv error for gridid %d adding to gridstat table\n",
+			{
+				elog_complain(0,"dbaddv error for gridid %d adding to gridstat table\n",
 				gridid);
+			}
 		}
 		for(k=0;k<nevents;++k) freetbl(ta[i],free);
 		free(ta);
 		freetbl(converge,free);
+		freetbl(pmelhistory,free);
+		converge=NULL;
+		pmelhistory=NULL;
 	}
 	freearr(events_to_fix,0);
 	destroy_SCMatrix(smatrix);
