@@ -43,6 +43,7 @@ void _init()
 //
 Metadata::Metadata()
 {
+	if(Metadata_defaults_pf==NULL)_init();
 	pf=pfdup(Metadata_defaults_pf);
 };
 Metadata::~Metadata()
@@ -58,6 +59,7 @@ Metadata::Metadata(const Metadata& md)
 	// the contents of md.pf on top of the defaults.  This is the
 	// way in the current pf library to do this.  An ugly solution
 	// in terms of memory because of the conversion to and from a string
+	if(Metadata_defaults_pf==NULL)_init();
         pf=pfdup(Metadata_defaults_pf);
 	pfstr = pf2string(md.pf);
 	ierr = pfcompile(pfstr,&pf);

@@ -46,7 +46,9 @@ Three_Component_Seismogram::Three_Component_Seismogram(int nsin)
 }
 //No destructor is needed for current Three_Component_Seismogram object
 // because the Time_Series destructor and default deletions should
-// handle it fine.
+// handle it fine.  It seems necessary to have a null function 
+// defined anyway.
+Three_Component_Seismogram::~Three_Component_Seismogram() {};
 //
 // Ensemble constructors.  Both just create blank trace or 3c trace objects
 // and push them into a vector container.

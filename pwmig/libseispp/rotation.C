@@ -119,16 +119,14 @@ return an identity matrix because there is no way to determine a
 horizontal rotation direction.  
 
 Arguments:
-	x - spherical coordinate structure defining unit vector used
+	xsc - spherical coordinate structure defining unit vector used
 		to define the transform (radius is ignored).  Angles
 		are assumed in radians.
-	u - vector to hold output transformation.  Transformation matrix
-		is stored in fortran order with column 1 of the
-		transformation matrix being u[0], u[1], and u[2];
-		column 2 starts with u[3], etc.  
 
 Author:  Gary L. Pavlis
 Written:  Sept. 1999
+Modified:  Feb 2003
+Original was plain C.  Adapted to C++ for seismic processing
 */
 void Three_Component_Seismogram::rotate(Spherical_Coordinate xsc)
 {

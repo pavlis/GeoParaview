@@ -12,7 +12,7 @@ include $(ANTELOPEMAKE)
 DLD=CC -G -Kpic
 
 
-OBJS=create_destroy.o dmatrix.o metadata.o pfstream_interface.o \
+OBJS=metadata.o create_destroy.o dmatrix.o pfstream_interface.o \
 rotate_procedures.o rotation.o
 $(LIB) : $(OBJS)
 	rm -f $@

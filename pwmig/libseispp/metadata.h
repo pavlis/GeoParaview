@@ -6,6 +6,10 @@
 #include "stock.h"
 #include "arrays.h"
 #include "pf.h"
+// This line can be removed for Antelope 4.5
+extern "C" {
+Pf *pfdup(Pf *);
+}
 using namespace std;
 //
 // This follows a method of inherited objects as a way to build
@@ -45,7 +49,6 @@ class Metadata
 {
 public:
         Metadata();
-	Metadata(Metadata&);
 	Metadata(const Metadata&);
 	Metadata& operator=(const Metadata& );
         ~Metadata();
