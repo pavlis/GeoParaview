@@ -139,7 +139,7 @@ GCLgrid3d *Build_GCLraygrid(bool fixed_u_mode,
 	GCLgrid3d *rgptr = new GCLgrid3d(parent.n1, parent.n2, base_ray.npts);
 	GCLgrid3d& raygrid = *rgptr;
 	// clone these parent grid variable
-	strcpy(raygrid.name,parent.name);
+	raygrid.name=parent.name;
 	raygrid.lat0=parent.lat0;
 	raygrid.lon0=parent.lon0;
 	raygrid.r0=parent.r0;

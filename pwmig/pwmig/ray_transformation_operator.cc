@@ -1,3 +1,4 @@
+#include <float.h>
 #include "coords.h"
 #include "dmatrix.h"
 #include "gclgrid.h"

@@ -16,7 +16,7 @@ using namespace INTERPOLATOR1D;
 
 void usage()
 {
-        cbanner((char *)"$Revision: 1.9 $ $Date: 2004/12/06 13:31:50 $",
+        cbanner((char *)"$Revision: 1.10 $ $Date: 2005/02/07 13:33:06 $",
                 (char *)"db  [-V -pf pfname]",
                 (char *)"Gary Pavlis",
                 (char *)"Indiana University",
@@ -420,10 +420,14 @@ vector<double> compute_domega_for_path(Slowness_vector& u0,double dux, double du
 	// project these into the GCLgrid coordinate system
 	//
 	try {
-		pathdx1 = GCLgrid_Ray_project(g,raydx1, udx1.azimuth(),ix1,ix2);
-		pathdx2 = GCLgrid_Ray_project(g,raydx2, udx2.azimuth(),ix1,ix2);
-		pathdy1 = GCLgrid_Ray_project(g,raydy1, udy1.azimuth(),ix1,ix2);
-		pathdy2 = GCLgrid_Ray_project(g,raydy2, udy2.azimuth(),ix1,ix2);
+		pathdx1 = GCLgrid_Ray_project_down(g,raydx1, udx1.azimuth(),ix1,ix2,
+				g.n3-1);
+		pathdx2 = GCLgrid_Ray_project_down(g,raydx2, udx2.azimuth(),ix1,ix2,
+				g.n3-1);
+		pathdy1 = GCLgrid_Ray_project_down(g,raydy1, udy1.azimuth(),ix1,ix2,
+				g.n3-1);
+		pathdy2 = GCLgrid_Ray_project_down(g,raydy2, udy2.azimuth(),ix1,ix2,
+				g.n3-1);
 	}  catch (GCLgrid_error err)
 	{
 		err.log_error();
@@ -603,8 +607,11 @@ int main(int argc, char **argv)
 		double dz=control.get_double("ray_trace_depth_increment");
 		// Create a database handle for reading data objects
 		dbopen(const_cast<char *>(dbname.c_str()),"r+",&db);
-		if(db.record == dbINVALID) die(1,"Cannot open database %s\n",dbname);
-		
+		if(db.record == dbINVALID)
+		{
+			cerr << "Cannot open database " << dbname <<endl;
+			exit(-1);
+		}
 		GCLscalarfield3d Vp3d(db,const_cast<char *>(Pmodel3d_name.c_str()),
 			const_cast<char *>(pvfnm.c_str()) );
 		GCLscalarfield3d Vs3d(db,const_cast<char*>(Smodel3d_name.c_str()),
