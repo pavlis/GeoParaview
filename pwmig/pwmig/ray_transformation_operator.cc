@@ -51,7 +51,7 @@ L,R,T
 */
 
 
-dmatrix *Ray_Transformation_Operator::apply(dmatrix& in)
+dmatrix Ray_Transformation_Operator::apply(dmatrix& in)
 {
 	int i,j;
 	double *p;
@@ -67,8 +67,7 @@ dmatrix *Ray_Transformation_Operator::apply(dmatrix& in)
 			<< nrow << "X" << ncol << endl;
 		exit(-1);
 	}
-	dmatrix *optr=new dmatrix(nrow,ncol);
-	dmatrix& out=*optr;
+	dmatrix out(nrow,ncol);
 
 	// my dmatrix class doesn't know about matrix vector multiply
 	// so I hand code this using an admittedly opaque approach
@@ -85,7 +84,7 @@ dmatrix *Ray_Transformation_Operator::apply(dmatrix& in)
 		out(1,i)=p[3]*work[0]+p[4]*work[1]+p[5]*work[2];
 		out(2,i)=p[6]*work[0]+p[7]*work[1]+p[8]*work[2];
 	}
-	return(optr);
+	return(out);
 }
 // Simple constuctor 
 Ray_Transformation_Operator::Ray_Transformation_Operator(int np)
@@ -95,6 +94,7 @@ Ray_Transformation_Operator::Ray_Transformation_Operator(int np)
         {
                 dmatrix *dmtp = new dmatrix(3,3);
                 U.push_back(*dmtp);
+		delete dmtp;
         }
 }
 /* Constructor for simple case with all matrices going to surface R,T,L coordinates.

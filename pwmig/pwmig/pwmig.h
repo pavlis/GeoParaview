@@ -9,7 +9,7 @@ public:
 	Ray_Transformation_Operator(GCLgrid&g, dmatrix& path,double azimuth,
 					dmatrix& nup);
 	Ray_Transformation_Operator(const Ray_Transformation_Operator& pat);
-	dmatrix *apply(dmatrix& in);
+	dmatrix apply(dmatrix& in);
 private:
 	vector<dmatrix> U;
 };

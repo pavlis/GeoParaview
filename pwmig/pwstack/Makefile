@@ -5,7 +5,10 @@ DATA=pwmig1.1
 
 #MAN1=pwstack.1
 cflags=-g
-ldflags=-lseispp -lgclgrid -ltrvltm -lpfstream -lbrttutil $(TRLIBS) $(DBLIBS) -lperf -lgclgrid
+# Use the following for Solaris
+#ldflags=-lseispp -lgclgrid -ltrvltm -lpfstream -lbrttutil $(TRLIBS) $(DBLIBS) -lperf -lgclgrid
+# Following is required to work with g++ 3.2.3
+ldflags=-shared -lseispp -lgclgrid -ltrvltm -lpfstream -lbrttutil $(TRLIBS) $(DBLIBS) -lperf -lgclgrid
 
 
 include $(ANTELOPEMAKE) 

@@ -17,7 +17,7 @@ using namespace INTERPOLATOR1D;
 
 void usage()
 {
-        cbanner((char *)"$Revision: 1.12 $ $Date: 2005/03/18 16:08:56 $",
+        cbanner((char *)"$Revision: 1.13 $ $Date: 2005/04/04 22:23:26 $",
                 (char *)"db  [-V -pf pfname]",
                 (char *)"Gary Pavlis",
                 (char *)"Indiana University",
@@ -61,7 +61,7 @@ vector<double> compute_gridttime(GCLscalarfield3d& V3d,
 	int ix1, int ix2,
 		Velocity_Model_1d& V1d, 
 			GCLgrid3d& raygrid,
-				dmatrix path)
+				dmatrix& path)
 {
 
 	// test to be sure the grids are congruent or paths will not mesh
@@ -74,7 +74,14 @@ vector<double> compute_gridttime(GCLscalarfield3d& V3d,
 	if(times.size()!= path.columns())
 	{
 		double vel,dt;
-		for(int k=times.size();k<path.columns();++k)
+		int k,kstart;
+		// Watch for special case when stations is outside
+		// the 3d model completely
+		if(times.size()<=0)
+			kstart=1;
+		else
+			kstart=times.size();
+		for(k=kstart;k<path.columns();++k)
 		{
 			vel=V1d.getv(raygrid.depth(ix1,ix2,k));
 			dt = raydist(&raygrid,ix1,ix2,k)/vel;
@@ -323,7 +330,7 @@ outside the 3d model and revert to a 1d model automatically
 */
 
 double compute_lag(GCLgrid3d& raygrid, int ix1, int ix2,
-	dmatrix path, 
+	dmatrix& path, 
 		Slowness_vector u, 
 			GCLscalarfield3d& Vp, 
 				Velocity_Model_1d& Vp1d, 
@@ -636,6 +643,14 @@ int main(int argc, char **argv)
 		}
 		GCLscalarfield3d Vp3d(db,vmodel_grid_name,Pmodel3d_name);
 		GCLscalarfield3d Vs3d(db,vmodel_grid_name,Smodel3d_name);
+		/*  DEBUG fix to correct endian problem -- Hack fix */
+		for(int ig=0;ig<Vp3d.n1;++ig)
+			for(int jg=0;jg<Vp3d.n2;++jg)
+				for(int kg=0;kg<Vp3d.n3;++kg)
+				{
+					Vp3d.val[ig][jg][kg]=8.0;
+					Vp3d.val[ig][jg][kg]=4.5;
+				}
 		Velocity_Model_1d Vp1d(db,Pmodel1d_name,pvfnm);
 		Velocity_Model_1d Vs1d(db,Smodel1d_name,svfnm);
 		GCLgrid parent(db,const_cast<char*>(parent_grid_name.c_str()) );
@@ -663,8 +678,8 @@ int main(int argc, char **argv)
 		Metadata_list mdens=pfget_mdlist(pf,"Ensemble_mdlist");
 		Datascope_Handle dbh(db,pf,"dbprocess_commands");
 		dbh.rewind();
-		for(int record=0;record<dbh.number_tuples();++dbh,++record)
-		//DEBUGfor(int record=0;record<1;++dbh,++record)
+		//for(int record=0;record<dbh.number_tuples();++dbh,++record)
+		for(int record=0;record<1;++dbh,++record)
 		{
 			double dt; // useful shorthard
 			// first read in the next ensemble
@@ -716,8 +731,8 @@ cout << "DEBUG:  processing ensemble "<<record<<endl;
 			// loop through the ensemble associating each trace with a 
 			// point in the raygrid and interpolating to get time to depth.
 
-			for(is=0;is<pwdata->tcse.size();++is)
-			//DEBUG for(is=0;is<3;++is)
+			//for(is=0;is<pwdata->tcse.size();++is)
+			for(is=0;is<3;++is)
 			{
 				// convenient shorthand variables.  ns is data length
 				// while n3 is the ray path onto which data are mapped
@@ -828,7 +843,7 @@ cout << "DEBUG:  processing member "<<is<<"=("<<i<<","<<j<<")"<<endl;
 						*pathptr,ustack.azimuth());
 				}
 				Ray_Transformation_Operator& trans_operator=*troptr;
-				trans_operator.apply(work);
+				work=trans_operator.apply(work);
 				// done with these now
 				delete pathptr;
 				delete troptr;
@@ -875,12 +890,14 @@ cout << "DEBUG:  processing member "<<is<<"=("<<i<<","<<j<<")"<<endl;
 		// dfile is generated as base+tag+evid
 		//
 
+/*
 		dfile=MakeDfileName(dfilebase+string("_data"),evid);
 		migrated_image.dbsave(db,"",fielddir,dfile,dfile);
 		dfile=MakeDfileName(dfilebase+string("_wt"),evid);
 		weights.dbsave(db,"",fielddir,dfile,dfile);
 		dfile=MakeDfileName(dfilebase+string("_omega"),evid);
 		omega.dbsave(db,"",fielddir,dfile,dfile);
+*/
 		//INCOMPLETE 
 		// zero field values so when we loop back they can
 		// be reused
@@ -903,10 +920,16 @@ cout << "DEBUG:  processing member "<<is<<"=("<<i<<","<<j<<")"<<endl;
 	catch (seispp_error seer)
 	{
 		seer.log_error();
+		die(1,"seispp library function error\n");
+	}
+	catch (int ierr)
+	{
+		die(1,"Something threw a simple int exception of %d\n",
+			ierr);
 	}
 	catch (...)
 	{
-		cerr << "Unhandled exception was thrown" << endl;
+		die(1,"Unhandled exception was thrown\n");
 	}
 }
 
