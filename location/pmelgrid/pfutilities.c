@@ -204,6 +204,11 @@ void update_ensemble(
 			pfput_time(pfe->pf[j],"origin.time",h[i].time);
 			pfput_string(pfe->pf[j],"algorithm","pmelgrid");
 			pfput_string(pfe->pf[j],"auth",auth);
+			/* for emodel table if desired */
+			pfput_double(pfe->pf[j],"emodelx",(double)emodel[0]);
+			pfput_double(pfe->pf[j],"emodely",(double)emodel[1]);
+			pfput_double(pfe->pf[j],"emodelz",(double)emodel[2]);
+			pfput_double(pfe->pf[j],"emodelt",(double)emodel[3]);
 			/* special Boolean to mark these records ok*/
 			pfput_boolean(pfe->pf[j],"data_valid",1);
 		}
