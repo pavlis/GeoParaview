@@ -1,39 +1,46 @@
+#include <strstream>
 #include "stock.h"
+#include "arrays.h"
 #include "pf.h"
 #include "seispp.h"
+#include "pwstack.h"
+using namespace std;
 //
 // Loads data defined by a pf into a Depth_Dependent_Aperture object.
 // This could be done as a constructor, but having a C object in 
 // the pf as an arg to a constructor seems problematic even though
 // I've done it elsewhere
+//  Arguments:
+//	pf - input parameter file "object"
+//	tag - name identifying the Tbl defining the designed input
+//      d - returned object (assumed created with default constructor.)
 //
+//  This routine throws an exception with a message string if the required
+// information from the pf cannot be retrieved.  Caller should arrane
+// for a catch( string s) 
 void pfget_aperture_parameters(Pf *pf,string tag,
 		Depth_Dependent_Aperture& d) 
-				throw(pferror pferr)
 {
 	Tbl *t;
 
-	t = pfget_tbl(pf,(char *)tag);
-	if(t==NULL)
-	{
-		pferr.name=tag;
-		pferr.pftype = PFTBL;
-		pferr.message = "Aperture definition missing from parameter file";
-		throw(pferr);
-	}
+	t = pfget_tbl(pf,(char *)tag.c_str());
+	if(t==NULL) throw "Aperture definition missing from parameter file";
 	// Note this assumes d was created with the default constructor
-	// that sets the entries null.  If the parameterized constuctor
-	// were called this will create a memory leak.
+	// that sets the entries null.  To avoid a memory leak we clear these
+	// vectors if the entries aren't NULL
+	if(d.t != NULL) delete [] d.t;
+	if(d.aperture != NULL) delete [] d.aperture;
+	if(d.cutoff != NULL) delete [] d.cutoff;
 	d.npoints = maxtbl(t);
-	new double d.t=double[d.npoints];
-	new double d.aperture=double[d.npoints];
-	new double d.cutoff=double[d.npoints];
+	d.t=new double[d.npoints];
+	d.aperture=new double[d.npoints];
+	d.cutoff=new double[d.npoints];
 
 	for(int i=0;i<maxtbl(t);++i)
 	{
 		char *tline;
 		tline = (char *)gettbl(t,i);
-		istream instr(tline);
+		istrstream instr(tline);
 		instr >> d.t[i];
 		instr >> d.aperture[i];
 		instr >> d.cutoff[i];

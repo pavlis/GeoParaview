@@ -2,18 +2,20 @@
 #include "stock.h"
 #include "elog.h"
 #include "pf.h"
+#include "glputil.h"
 #include "pfstream.h"
+#include "pwstack.h"
 #ifdef MPI_SET
         #include <mpi.h>
 #endif
 
 void usage()
 {
-        cbanner("$Revision: 1.2 $ $Date: 2003/03/07 15:43:57 $",
-		"pfstreamin pfstreamout [-V -pf pfname]"
-                "Gary Pavlis",
-                "Indiana University",
-                "pavlis@indiana.edu") ;
+        cbanner((char *)"$Revision: 1.3 $ $Date: 2003/03/13 16:06:39 $",
+		(char *)"pfstreamin pfstreamout [-V -pf pfname]",
+                (char *)"Gary Pavlis",
+                (char *)"Indiana University",
+                (char *)"pavlis@indiana.edu") ;
 	exit(-1);
 }
 int main(int argc, char **argv)
@@ -24,7 +26,7 @@ int main(int argc, char **argv)
 	int sift=0;
         char subset_string[128];
 	Pf *pf;
-	Pf_ensemble *pfe;
+	Pf *pfnext;
 	Pfstream_handle *pfshi, *pfsho;
 
 	// This is the input data ensemble
@@ -58,7 +60,7 @@ int main(int argc, char **argv)
         if(pfin == NULL) pfin = strdup("pwstack");
 
         i = pfread(pfin,&pf);
-        if(i != 0) die(1,"Pfread error\n");
+        if(i != 0) die(1,(char *)"Pfread error\n");
 
         /* This utility causes the program to die if required parameters
         are missing */
@@ -71,17 +73,17 @@ int main(int argc, char **argv)
 	// initialize read and write here.  May change so won't do just
 	// now
 
-	while ( (pfe = pfstream_get_next_ensemble(pfshi))!=NULL)
+	while ( (pfnext = pfstream_get_next_ensemble(pfshi))!=NULL)
 	{
 		// may need to crack the data object here with something like
-		din = build_ensemble(pfe);
-		free_Pf_ensemble(pfe);
+		//din = build_input_ensemble(pfnext);
+		pffree(pfnext);
 
-		dout = pwstack_ensemble(din, pf);
+		//dout = pwstack_ensemble(din, pf);
 		// We can release the input data now
-		delete din;
+		//delete din;
 		// save output ensemble here 
-		delete dout;
+		//delete dout;
 	}
 	// Residual cleanup here
 }	

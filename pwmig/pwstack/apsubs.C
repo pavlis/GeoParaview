@@ -1,3 +1,7 @@
+#include <math.h>
+#include "coords.h"
+#include "stock.h"
+#include "pf.h"
 #define RADIUS_EARTH 6378.164
 /* For plane wave moveout computations a local cartesian coordinate
 system is used wrt to a particular origin.  This approximation is
@@ -11,28 +15,24 @@ distances become unimportant.  this function is used to computer
 vector distances in this context.
 
 Arguments:
-	nsta - number of stations to process = length of lat and lon vectors
-			(see below).
 	lat0, lon0 - origin to compute dnorth deast from
-	lat, lon - vectors of length nsta of station coordinates to be 
-		converted.
-	dnorth, deast - vectors of length nsta to contain the results 
-		(These are geographic dirctions +north and + east
-		respectively)
+		(IN RADIANS)
+	lat, lon - lat an lon of point to be converted to dnorth deast
+	dnorth, deast - output dnorth, deast vector
 
 Author:  G Pavlis
 Written:  June 2000
 */
 void geographic_to_dne(double lat0, double lon0,
-	double *lat, double *lon, double *dnorth, double *deast)
+	double lat, double lon, double *dnorth, double *deast)
 {
 	double azimuth;
 	double d; 
 
-	dist(rad(lat0),rad(lon0),rad(lat[i]),rad(lon[i]),&d,&azimuth);
+	dist(lat0,lon0,lat,lon,&d,&azimuth);
 	d *= RADIUS_EARTH;
-	deast = d*sin(azimuth);
-	dnorth = d*cos(azimuth);
+	*deast = d*sin(azimuth);
+	*dnorth = d*cos(azimuth);
 
 }
 /* This function computes pseudostation weights for a 2d Gaussian function
@@ -52,17 +52,19 @@ of this is not a problem for computing these weights or even for computing
 moveout.  The reason is that coherence is lost before this approximation
 becomes a problem.
 
+Returns count of nonzero weights.
+
 Author:  G Pavlis
 Written:  June 2000
 Modified:  Converted to C++ and assimilated into new a working implementation
 in March 2003
 */
-void compute_pseudostation_weights(int nsta, double *dnorth, double *deast, 
-		double aperture, double cutoff, double *w);
-	double *lat, double *lon, Pf *pf)
+int compute_pseudostation_weights(int nsta, double *dnorth, double *deast, 
+		double aperture, double cutoff, double *w)
 {
 	int i;
 	double distance, azimuth, denom;
+	int count=0;
 
 	denom = 2.0*aperture*aperture;
 
@@ -72,20 +74,23 @@ void compute_pseudostation_weights(int nsta, double *dnorth, double *deast,
 		if(distance>cutoff)
 			w[i] = 0.0;
 		else
+		{
 			w[i] = exp(-distance*distance/denom);
+			++count;
+		}
 	}
+	return(count);
 }
 /* Computes vector of nsta moveout corrections for slowness vector\
  * (ux,uy) using local coordinates stored in parallel deast, dnorth
  * vectors (both assumed length nsta).
+ * Assumes moveout has been allocated previusly.
  */
 void compute_pwmoveout(int nsta,double *deast, double *dnorth,
 		double ux, double uy, double *moveout)
 {
 	int i;
 
-	allot(double *,moveout,nsta);
 	for(i=0;i<nsta;++i)
-		moveout[i] = ux*deast + uy*dnorth;
-	return(moveout);
+		moveout[i] = ux*deast[i] + uy*dnorth[i];
 }
