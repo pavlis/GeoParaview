@@ -10,6 +10,7 @@ using namespace std;
 using namespace SEISPP;
 #include "resample.h"
 #include "perf.h"
+#include "filter++.h"
 /* This is a core program that will eventually be a generalized
 time-domain cross correlation gizmo.  For now it simply does i/o 
 and writes output that will be passed to matlab for processing.  
@@ -154,8 +155,18 @@ int main(int argc, char **argv)
 		double target_samprate=md.get_double("target_samprate");
 		double dtout=1.0/target_samprate;
 		Resampling_Definitions rd(pf);
-
-
+		string filter_spec=md.get_string("filter");
+		bool filter_data;
+/*
+		Time_Invariant_Filter filter;
+		if(filter_spec=="none")
+			filter_data=false;
+		else
+		{
+			filter_data=true;
+			filter=Time_Invariant_Filter(filter_spec);
+		}
+*/
 		if(dbopen(const_cast<char *>(dbname.c_str()),"r",&db))
                       die(0,"dbopen failed on database %s",dbname.c_str());
 		Datascope_Handle dbhi0(db,pf,tag);
@@ -191,9 +202,6 @@ cerr << "View size = "<<dbhi0.number_tuples() << endl;
 			for(i=0;i<d->tcse.size();++i)
 			{
 				Three_Component_Seismogram tcs(d->tcse[i]);
-				cout << tcs.get_string("sta") 
-					<< " has dt " 
-					<< tcs.dt << endl;
 				int nsout;
 				for(j=0;j<3;++j)
 				{
@@ -207,14 +215,13 @@ cerr << "View size = "<<dbhi0.number_tuples() << endl;
 						nsout = tsdec.s.size();
 						tcs.u=dmatrix(3,nsout);
 					}
-cerr << i << "," << j << "ns="<<d->tcse[i].ns<<" nsout="<<nsout<<endl;
-cerr << "t0in="<<d->tcse[i].t0<<" t0resampled="<< tsdec.t0<<endl;
 					dcopy(nsout,&(tsdec.s[0]),1,
 							tcs.u.get_address(j,0),3);
 				}
 				tcs.dt=dtout;
 				d->tcse[i]=tcs;
 			}
+//			if(filter_data) Filter_Ensemble(*d,filter);
 			
 			cutdata = Arrival_Time_Reference(*d,akey,tw);
 			if(rotate_data)
