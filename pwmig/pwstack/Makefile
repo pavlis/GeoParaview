@@ -1,7 +1,5 @@
 BIN=pwstack
 PF=pwstack.pf
-CC=CC
-LD=CC
 
 #MAN1=pwstack.1
 cflags=-g
@@ -14,4 +12,4 @@ OBJS=pwstack.o \
 	create_destroy.o \
 	pwstack_process.o 
 $(BIN) : $(OBJS)
-	$(CC) $(CFLAGS) -o $@ $(OBJS) $(LDFLAGS) $(LDLIBS)
+	$(CXX) $(CFLAGS) -o $@ $(OBJS) $(LDFLAGS) $(LDLIBS)

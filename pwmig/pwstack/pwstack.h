@@ -1,15 +1,4 @@
 #include "seispp.h"
-class Rectangular_Slowness_Grid
-{
-public:
-	string name;
-	double uxlow, uylow;
-	double dux, duy;
-	int nux, nuy;
-	Rectangular_Slowness_Grid(Pf *);
-	double ux(int i) {return(uxlow+i*dux);};
-	double uy(int i) {return(uylow+i*duy);};
-};
 
 class Depth_Dependent_Aperture
 {

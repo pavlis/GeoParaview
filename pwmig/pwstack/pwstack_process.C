@@ -1,5 +1,5 @@
 #include <sunmath.h>
-#include <sunperf.h>
+#include <perf.h>
 #include "coords.h"
 #include "pwstack.h"
 

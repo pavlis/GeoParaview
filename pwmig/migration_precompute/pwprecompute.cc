@@ -1,10 +1,14 @@
 #include <iostream>
+#include "gclgrid.h"
 #include "dmatrix.h"
 #include "seispp.h"
+#include "vmodel.h"
+#include "ray1d.h"
+#include "pf.h"
 
 void usage()
 {
-        cbanner((char *)"$Revision: 1.1 $ $Date: 2003/05/18 13:17:06 $",
+        cbanner((char *)"$Revision: 1.2 $ $Date: 2003/05/24 14:45:04 $",
                 (char *)"db [-V -pf pfname]",
                 (char *)"Gary Pavlis",
                 (char *)"Indiana University",
@@ -14,15 +18,18 @@ void usage()
 // careless but fast application of a 3d vector translation v from each coordinate
 // in a 3xN matrix stored in path.  i.e. assumed to stay inline in this program
 // where the bounds are known and fixed so no error checking is needed.
-void translate_path(dmatrix *path,double *v)
+void translate_path(dmatrix& path,double *v)
 {
 	int i;
-	for(i=0;i<path->nc;++i)
+	int *msize;
+	msize = path.size();
+	for(i=0;i<msize[1];++i)
 	{
 		path(0,i)-= v[0];
 		path(1,i)-= v[1];
 		path(2,i)-= v[2];
 	}
+	delete [] msize;
 }
 // copies parameters of a parent GCLgrid, parent, to ray geometry
 // GCLgrid3d object.  Pointers are intentional to avoid passing 
@@ -30,7 +37,7 @@ void translate_path(dmatrix *path,double *v)
 
 void clone_parent_grid_properties(GCLgrid *parent, GCLgrid3d *rays)
 {
-	rays->name=strdup(parent->name);
+	strcpy(rays->name,parent->name);
 	rays->lat0=parent->lat0;
 	rays->lon0=parent->lon0;
 	rays->r0=parent->r0;
@@ -70,17 +77,17 @@ void copy_path(dmatrix *path,GCLgrid3d *g,int i, int j)
 	Geographic_point geo;
 	int k,kk;
 	// assume we already checked that grid size is consistent with columns in path
-	for(k=0;k<g->n3;;++k)
-	for(k=0,kk=(g->n3)-1;k<g->n3;;++k,--k)
+	for(k=0;k<g->n3;++k)
+	for(k=0,kk=(g->n3)-1;k<g->n3;++k,--k)
 	{
-		g->x1[i][j][kk]=(*path(0,k));
-		g->x2[i][j][kk]=(*path(1,k));
-		g->x3[i][j][kk]=(*path(2,k));
+		g->x1[i][j][kk]=(*path)(0,k);
+		g->x2[i][j][kk]=(*path)(1,k);
+		g->x3[i][j][kk]=(*path)(2,k);
 	}
-	// now we have to et the geo points 
+	// now we have to get the geo points 
 	for(k=0;k<g->n3;++i)
 	{
-		geo=ctog(g->x1[i][j][k],g->x2[i][j][k],g->x3[i][j][k]);
+		geo=(*g).ctog(g->x1[i][j][k],g->x2[i][j][k],g->x3[i][j][k]);
 		g->lat[i][j][k] = geo.lat;
 		g->lon[i][j][k] = geo.lon;
 		g->r[i][j][k] = geo.r;
@@ -99,16 +106,18 @@ int main(int argc, char **argv)
 	double dt;  // sample interval of time steps desired
 	// target depths and time.  note tmax should be > n*dt 
 	// as 1d to 3d conversion will cause errors otherwise
-	double zmax, double tmax;  
+	double zmax, tmax;  
 	char *griddir;  // directory to store GCLgrid coordinates
 	char *fielddir;  // write 1d travel times here
 	char *dfile;  // file to store results (all results are placed in this same file)
 	char *Pfieldname="1D-Pwave_travel_times";
 	char *Sfieldname="1D-Swave_travel_times";
-	char Pbase_grid_name[8];  // used as base name for output grids in form XXXXXXXX_III_JJJ with III and JJJ index I and J
-	char Sbase_grid_name[8];  // same for S
+	char *Pbase_grid_name;  // used as base name for output grids in form XXXXXXXX_III_JJJ with III and JJJ index I and J
+	char *Sbase_grid_name;  // same for S
+	char *modname;  // 1D Velocity model name 
+	Pf *pf;
 
-	ios::sync_to_stdio();
+	ios::sync_with_stdio();
 	elog_init(argc,argv);
 
         if(argc < 2) usage();
@@ -149,11 +158,12 @@ int main(int argc, char **argv)
 	dfile = pfget_string(pf,"Travel_time_field_filename");
 	Pbase_grid_name = pfget_string(pf,"P_slowness_grid_base_name");
 	Sbase_grid_name = pfget_string(pf,"S_slowness_grid_base_name");
+	modname=pfget_string(pf,"1d_velocity_model_name");
 
 	try{
 		GCLgrid pstat(db,gridname);
-		Velocity_Model Vp(db,modname,"P");
-		Velocity_Model Vs(db,modname,"S");
+		Velocity_Model_1d Vp(db,modname,"P");
+		Velocity_Model_1d Vs(db,modname,"S");
 		if(!pstat.cartesian_defined || !pstat.geographic_defined)
 			die(1,"GCLgrid must have both cartesian and geographic components\n");
 		// These are the main outputs that define ray geometry.  They are created now
@@ -186,13 +196,12 @@ int main(int argc, char **argv)
 				dmatrix Pcoords(),Scoords();  //hold P and S ray paths referenced at origin
 				double xp[3];  // Cartesian coordinate used for translation vector
 
-				Praygrid.name
 				sprintf(Praygrid.name,"%s_%d_%d", Pbase_grid_name,i,j);
 				sprintf(Sraygrid.name,"%s_%d_%d", Sbase_grid_name,i,j);
 
 				u=hypot(ugrid.ux(i),ugrid.uy(j));  // slowness magnitude
-				Pray0=new RayPathSphere(Vp,u,zmax,tmax,dt,"t");
-				Sray0=new RayPathSphere(Vs,u,zmax,tmax,dt,"t");
+				Pray0=new RayPathSphere(&Vp,u,zmax,tmax,dt,"t");
+				Sray0=new RayPathSphere(&Vs,u,zmax,tmax,dt,"t");
 				// This is heavy handed but given that this program
 				// would always be run offline standalone it is 
 				// the right approach
@@ -264,7 +273,7 @@ int main(int argc, char **argv)
 		gcldberr.log_error();
 		die(1,"GCLerrors cannot be recovered.  Check database\n");
 	}
-	catch (Velocity_Model_dberror vmdbe)
+	catch (Velocity_Model_1d_dberror vmdbe)
 	{
 		vmdbe.log_error();
 		die(1,"Check database and parameter file and try again\n");

@@ -119,7 +119,7 @@ vector<Time_Series> *get_next_ensemble(Pfstream_handle *pfh, char *tag)
 			ts->s = new double[ts->ns];
 			if(fread((void *)(ts[i].s),sizeof(double),ts[i].ns,fp)
 					!= (ts[i].ns) ) 
-				throw(seispp_error("fread error on file "+fname);
+				throw(seispp_error("fread error on file "+fname));
 			fclose(fp);
 		}
 		tse->push_back(*ts);

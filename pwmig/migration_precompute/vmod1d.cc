@@ -2,7 +2,7 @@
 #include "db.h"
 #include "vmodel.h"
 
-double Velocity_Model::getv(double zin)
+double Velocity_Model_1d::getv(double zin)
 {
 	double dz;
 	for(int i=1;i<nlayers;++i)
@@ -19,8 +19,8 @@ double Velocity_Model::getv(double zin)
 // database constructor. 
 // property must be P or S.  Errors are thrown for a range of
 // likely problems.
-Velocity_Model::Velocity_Model(Dbptr db,string name,string property)
-    throw(Velocity_Model_dberror)
+Velocity_Model_1d::Velocity_Model_1d(Dbptr db,string name,string property)
+    throw(Velocity_Model_1d_dberror)
 {
 	Dbptr dbs1,dbs2;
 	Tbl *sortkeys;
@@ -34,7 +34,7 @@ Velocity_Model::Velocity_Model(Dbptr db,string name,string property)
 
 		db=dblookup(db,0,"mod1d",0,0);
 		if(db.table==dbINVALID) 
-			throw(Velocity_Model_dberror(name,
+			throw(Velocity_Model_1d_dberror(name,
 				"dbopen failure for mod1d table"));
 		// this builds a subset condition like this:
 		// (modname=~/name/ && (paramname=~/Pvelocity/)
@@ -48,7 +48,7 @@ Velocity_Model::Velocity_Model(Dbptr db,string name,string property)
 			if(dbs1.record!=dbINVALID) dbfree(dbs1);
 			if(dbs2.record!=dbINVALID) dbfree(dbs2);
 			freetbl(sortkeys,0);
-			throw(Velocity_Model_dberror(name,
+			throw(Velocity_Model_1d_dberror(name,
 			  "Error forming working view for P velocity"));
 		}
 		z=new double[nlayers];
@@ -65,7 +65,7 @@ Velocity_Model::Velocity_Model(Dbptr db,string name,string property)
 				freetbl(sortkeys,0);
 				delete [] v;
 				delete [] z;
-				throw(Velocity_Model_dberror(name,
+				throw(Velocity_Model_1d_dberror(name,
 				  "dbgetv error reading P velocities"));
 			}
 		}
@@ -75,7 +75,7 @@ Velocity_Model::Velocity_Model(Dbptr db,string name,string property)
 	}
 	else
 	{
-		throw(Velocity_Model_dberror(name,
+		throw(Velocity_Model_1d_dberror(name,
 		 "Coding error:  property passed to database constructor must be either P or S"));
 	}
 }

@@ -69,6 +69,7 @@ public:
   double* get_address(int r, int c);
   friend ostream& operator<<(ostream&, dmatrix&);
   friend istream& operator>>(istream&, dmatrix&);
+  int *size(){int *s=new int[2];s[0]=nrr;s[1]=ncc;return(s);};
 private:
    double *ary;
    int length;

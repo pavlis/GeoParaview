@@ -38,10 +38,11 @@
  * tmax large.
  */
 
-RayPathSphere::RayPathSphere(Velocity_Model& vmod,
+RayPathSphere::RayPathSphere(Velocity_Model_1d *vmptr,
 		double u, double zmax, double tmax,
 		double del, const string mode)
 {
+	Velocity_Model_1d& vmod=vmptr;
 	list <double> ddlist;
 	list <double> dzlist;
 	list <double> dtlist;
@@ -153,4 +154,17 @@ dmatrix GCLgrid_Ray_gtoc(GCLgrid& grid, RayPathSphere& path)
 	}
 	return(pathout);
 }
-
+void RayPathSphere::operator=(const RayPathSphere& other)
+{
+	if(&other==this) return;
+	npts=other.npts;
+	if(r!=NULL) delete [] r;
+	if(delta!=NULL) delete [] delta;
+	if(t!=NULL) delete [] t;
+	r=new double[npts];
+	delta=new double[npts];
+	t=new double[npts];
+	dcopy(npts,other.r,1,r,1);
+	dcopy(npts,other.delta,1,delta,1);
+	dcopy(npts,other.t,1,t,1);
+}

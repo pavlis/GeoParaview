@@ -119,7 +119,8 @@ class seispp_error
 {
 public:
 	string message;
-	seispp_error(const string mess){message=mess};);
+	seispp_error(){message="seispp library error\n";};
+	seispp_error(const string mess){message=mess;};
 	virtual void log_error(){cerr << "seispp error: "<<message<<endl;};
 };
 
@@ -138,7 +139,7 @@ class Slowness_vector
 {
 public:
 	double ux,uy;   // base vector stored as components in s/km units
-	double mag(){return(hypot(ux,uy);};
+	double mag(){return(hypot(ux,uy));};
 	double azimuth(){
 		double phi;
 		phi=M_PI_2-atan2(uy,ux);
@@ -156,6 +157,17 @@ public:
 			return(phi);
 	};
 };
+class Rectangular_Slowness_Grid
+{
+public:
+	string name;
+	double uxlow, uylow;
+	double dux, duy;
+	int nux, nuy;
+	Rectangular_Slowness_Grid(Pf *);
+	double ux(int i) {return(uxlow+i*dux);};
+	double uy(int i) {return(uylow+i*duy);};
+};
 // An assignment operator is not necessary for this object as it
 //stands since it is constructed of simple types.
 class Hypocenter
@@ -163,13 +175,13 @@ class Hypocenter
 public:
 	double lat,lon,z;
 	double time;
-	Hypocenter(){method=strdup("tttaup"); model=strdup("iasp91"););  // default
+	Hypocenter(){method=strdup("tttaup"); model=strdup("iasp91");};  // default
 	double distance(double lat0, double lon0);
 	double esaz(double lat0, double lon0);
 	double seaz(double lat0, double lon0);
 	double ptime(double lat0, double lon0, double elev);
 	Slowness_vector pslow(double lat0, double lon0, double elev);
-	double phasetime(double lat0, lon0, double elev, string phase);
+	double phasetime(double lat0, double lon0, double elev, string phase);
 	Slowness_vector phaseslow(double lat0, double lon0, double elev, string phase);
 	void tt_setup(string meth, string mod); // change default method:model
 private:

@@ -51,9 +51,9 @@ class Metadata
 {
 public:
         Metadata();
-	Metadata(const Metadata&);
-	Metadata& operator=(const Metadata& )
+	Metadata(const Metadata&)
 		throw(Metadata_parse_error);
+	Metadata& operator=(const Metadata& );
         ~Metadata();
 
         double get_double(string) throw(Metadata_get_error);
@@ -92,6 +92,7 @@ typedef struct Metadata_typedef {
 // Helpers
 //
 void copy_selected_metadata(Metadata& mdin, Metadata& mdout, 
-		list<Metadata_typedef>& mdlist);
+		list<Metadata_typedef>& mdlist)
+			throw(Metadata_error);
 
 #endif
