@@ -381,6 +381,7 @@ int pwstack_ensemble(Three_Component_Ensemble& indata,
 			int pwfid;
 			int rec;
 			rec=dbsave(*stackout,dshandle.db,table_name,mdlout,am);
+			delete stackout;
 			// negative rec means nothings saved.  
 			// skip silently because this happens when 
 			// marked dead

@@ -14,7 +14,7 @@ bool Verbose;
 
 void usage()
 {
-        cbanner((char *)"$Revision: 1.17 $ $Date: 2005/02/03 02:12:33 $",
+        cbanner((char *)"$Revision: 1.18 $ $Date: 2005/02/07 13:30:17 $",
 		(char *)"dbin dbout [-v -V -pf pfname]",
                 (char *)"Gary Pavlis",
                 (char *)"Indiana University",
@@ -156,7 +156,8 @@ int main(int argc, char **argv)
 		// Release this potentially large memory area
 		delete din;
 		double lat0,lon0,elev0,ux0,uy0;
-		for(i=0;i<stagrid.n1;++i) for(j=0;j<stagrid.n2;++j)
+		//for(i=0;i<stagrid.n1;++i) for(j=0;j<stagrid.n2;++j)
+		for(i=5;i<stagrid.n1;++i) for(j=0;j<stagrid.n2;++j)
 		{
 			lat0=stagrid.lat(i,j);
 			lon0=stagrid.lon(i,j);
