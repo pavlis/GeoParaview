@@ -2,7 +2,7 @@ ensemble_mode true
 ensemble_keys &Tbl{
 gridid
 }
-grouping_keys &Tbl{
+group_keys &Tbl{
 evid
 }
 #
@@ -26,21 +26,21 @@ dbjoin arrival
 #
 require &Tbl{
 gridid	int	gridid
-hypocentroid.hclat	real	hypocentroid.hclat
-hypocentroid.hclon	real	hypocentroid.hclon
-hypocentroid.hcdepth	real	hypocentroid.hcdepth
+hypocentroid.hclat	real	hypocentroid.lat
+hypocentroid.hclon	real	hypocentroid.lon
+hypocentroid.hcdepth	real	hypocentroid.z
 evid	int	evid
 orid	int	orid
 prefor	int	prefor
 origin.lat	real	origin.lat
 origin.lon	real	origin.lon
-origin.depth	real	origin.depth
-origin.time	real	origin.time
+origin.depth	real	origin.z
+origin.time	time	origin.time
 arid	int	arid
 phase	string	phase
 sta	string	sta
 chan	string	chan
-arrival.time	real	arrival.time
+arrival.time	time	arrival.time
 iphase	string	iphase
 deltim	real	deltim
 }
@@ -48,8 +48,12 @@ deltim	real	deltim
 # incomplete list for a test
 #
 passthrough &Tbl{
+gridname string gridname
+hypocentroid.dlat real  grid.lat
+hypocentroid.dlon real  grid.lon
+hypocentroid.depth real  grid.depth
 origin.jdate	int	origin.jdate
-nass	int	nass
+origin.nass	int	nass
 ndef	int	ndef
 ndp	int 	ndp
 grn	int 	grn
@@ -64,6 +68,13 @@ ms	real	ms
 msid	int	msid
 ml	real	ml
 mlid	int	mlid
-origin.algorithm	string	algorithm
 auth	string	auth
+belief	double  belief
+assoc.delta double delta
+assoc.seaz  double seaz
+assoc.esaz  double esaz
+assoc.timeres  double timeres
+assoc.timedef  string timedef
+assoc.wgt double wgt
+chan	string	chan
 }

@@ -24,6 +24,7 @@ Written:  September 2002
 #include "stock.h"
 #include "db.h"
 #include "elog.h"
+#include "pfstream.h"
 #include "db2pfstream.h"
 #include "glputil.h"
 
@@ -38,8 +39,8 @@ void usage()
 
 /* Output an ensemble to stream fp.  Writes header block using pfhead
 then writes npfe pieces with separators defined by a simple numbering
-scheme.  Blocks is terminated with __EOF___, which pf(5) says is treated
-as and end of file for a stream.  
+scheme.  Blocks is terminated with ENDPF_SENTINEL defined in pfstream.h
+as a marker to define the end of one ensemble
 */
 void pfensemble_to_stream(Pf *pfhead,Pf **pfensemble,int npfe,FILE *fp)
 {
@@ -52,7 +53,7 @@ void pfensemble_to_stream(Pf *pfhead,Pf **pfensemble,int npfe,FILE *fp)
 		pfout(fp,pfensemble[i]);
 		fprintf(fp,"}\n");
 	}
-	fprintf(fp,"__EOF__\n");
+	fprintf(fp,"}\n%s\n",ENDPF_SENTINEL);
 }
 
 /*  This function adds a list of attributes stored in one
@@ -258,7 +259,7 @@ cause the program to abort.  Both contain pointers to Attribute_map*/
 		if(ensemble_keys==NULL)
 			elog_die(0,
 			 "ensemble_mode is on, but no grouping keys defined\nCheck parameter file\n");
-		group_keys=pfget_tbl(pf,"grouping_keys");
+		group_keys=pfget_tbl(pf,"group_keys");
 		if(group_keys==NULL)
 			grouping_on = 0;
 		else
@@ -326,7 +327,7 @@ cause the program to abort.  Both contain pointers to Attribute_map*/
 
 		pfo_head=pfnew(0);
 		pfput_tbl(pfo_head,"ensemble_keys",ensemble_keys);
-		if(grouping_on) pfput_tbl(pfo_head,"grouping_keys",group_keys);
+		if(grouping_on) pfput_tbl(pfo_head,"group_keys",group_keys);
 	
 
 		dbquery(dbge,dbRECORD_COUNT,&number_ensembles);
@@ -382,7 +383,7 @@ cause the program to abort.  Both contain pointers to Attribute_map*/
 				     dbget_range(db_bundle_2,&isg,&ieg);
 				     grp_records=malloc(30);
 				     sprintf(grp_records,"%d %d",
-					isg-is_ensemble,ieg-is_ensemble);
+					isg-is_ensemble,ieg-is_ensemble-1);
 				     pushtbl(grplist,grp_records);
 				     ++dbgg.record;
 				}

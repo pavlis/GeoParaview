@@ -4,7 +4,7 @@ DLIB=$(LIB:.a=$(DSUFFIX))
 DATADIR=
 DATA=
 INCLUDE=
-PF=
+PF=db2pfstream.pf
 
 MAN1=db2pfstream.1
 MAN3=
@@ -16,7 +16,7 @@ cflags=-g
 fflags=
 ldflags=
 #ldlibs=-lglputil  -xlic_lib=sunperf,fui,fai,fsu $(DBLIBS)
-ldlibs=-lglputil  -xlic_lib=sunperf $(DBLIBS)
+ldlibs=-lglputil  -xlic_lib=sunperf $(DBLIBS) -lpfstream
 
 include $(ANTELOPEMAKE)
 

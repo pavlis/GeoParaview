@@ -36,13 +36,13 @@ Tbl *pfget_Attribute_map(Pf *pf, char *name)
 	int i;
 
 	t=pfget_tbl(pf,name);
-	nlist=maxtbl(t);
-	if(nlist<=0)
+	if(t==NULL)
 	{
 		elog_complain(0,"parameter %s to define Attribute_map not in parameter file\n",name);
 		freetbl(t,0);
 		return(NULL);
 	}
+	nlist=maxtbl(t);
 	tout=newtbl(nlist);
 	for(i=0;i<nlist;++i)
 	{
