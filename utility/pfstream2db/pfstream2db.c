@@ -147,7 +147,7 @@ int dbadd_row_pfe(Dbptr db, Pf *pf, Tbl *t)
 
 		m = (Attribute_map *)gettbl(t,i);
 		itest=pfget(pf,m->pfname,(void **)&test);
-		if(itest==NULL) 
+		if(itest==PFINVALID) 
 		{
 			if(PF2DBSVerbose)
 			  elog_notify(0,
@@ -278,6 +278,7 @@ void main(int argc, char **argv)
 	char *streamin;
 	Arr *table_map;
 	Arr *required_newids;
+	Pfstream_handle *pfshi;
 	
 
 	PF2DBSVerbose=0;
@@ -334,15 +335,16 @@ void main(int argc, char **argv)
 	required_newids=pfget_arr(pf,"newids_required");
 	if(required_newids==NULL)
 		required_newids=newarr(0);
-	/* We have to open the input stream without exclusive access
-	priveleges to guarantee a fifo is kept open until the last 
-	data block is transmitted.  The read routine in the while
-	loop below opens and closes the file for each block.  This
-	will cause the last block of data to be flushed and lost when
-	the writer we are feeding from terminates.  */
-	fd = open(streamin,O_RDONLY);
 
-	while((pfis=pfstream_read(streamin))!=NULL)
+	/* This uses the Pfstream library multithreaded read method.
+	The following routine launches a reader thread to handle
+	input while the loop below does the reformatting to put things
+	into the output. */
+	pfshi = pfstream_start_read_thread(streamin);
+        if(pfshi==NULL) 
+		elog_die(1,"Read from %s thread create failed\n",argv[2]);
+
+	while((pfis=pfstream_get_next_ensemble(pfshi))!=NULL)
 	{
 		char *pftable,*table;
 		Tbl *tam;  /* list of Attribute maps */
