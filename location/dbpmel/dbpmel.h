@@ -31,8 +31,11 @@ typedef struct scmatrix {
 
 
 /* Function prototypes */
-Arr *dbpmel_load_stations(Dbptr, Pf *);
-int create_Smatrix(SCMAtrix *, Arr *);
+int check_required_pf(Pf *);
+int create_Smatrix(SCMatrix *, Arr *);
 void clear_station_corrections(Arr *);
 int initialize_station_corrections(Arr *,Arr *, Arr *,Hypocenter *);
-int pmel(int, Tbl **, Hypocenter *, SCMatrix *, Pf *);
+Dbptr dbform_working_view(Dbptr, Pf *, char *);
+Arr *dbpmel_load_stations(Dbptr, Pf *);
+int dbpmel_process(Dbptr, Tbl *, Pf *);
+Tbl *pmel(int, Tbl **, Hypocenter *, char **,Hypocenter *,SCMatrix *,Pf *);

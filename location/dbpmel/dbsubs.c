@@ -90,7 +90,7 @@ int save_origin(Dbptr dbi, int is, int ie, int depth_fixed,
 	char *auth;
 	
 
-	/* these are intentionally left null: ndp,depdp,commid
+	/* these are intentionally left null: ndp,depdp,commid*/
 
 
 	/* set but obtained directly from hypo structure 
@@ -282,7 +282,7 @@ void save_assoc(Dbptr dbi, int is, int ie, int orid, char *vmodel,
 	Arrival *aptr;
 	Slowness_vector *uptr;
 
-	double r, w, reswt,uxresid, uyresid,uxpred,uypred;
+	double r, w, reswt,uxresid, uyresid,uxpred,uypred,slowres;
 	double stalat, stalon; 
 	double ux, uy;
 	double u,phi;  /* polar form of measured slowness vector */
@@ -338,7 +338,7 @@ void save_assoc(Dbptr dbi, int is, int ie, int orid, char *vmodel,
 	for(i=0;i<maxtbl(slow);++i)
 	{
 		uptr = (Slowness_vector *)gettbl(slow,i);
-		sprintf(key,"%08.8d",slow->arid);
+		sprintf(key,"%08.8d",uptr->arid);
 		setarr(workuarr,key,uptr);
 	}
 	/* We now loop through the input db view usingit as a
@@ -354,7 +354,6 @@ void save_assoc(Dbptr dbi, int is, int ie, int orid, char *vmodel,
 		dbgetv(dbo,0,"timeres",&timeres,
 			"azres",&azres,
 			"slores",&slowres,0);
-		timeres = TIMENULL;
 		wgt = 0.0;
 		strcpy(timedef,"n");
 		strcpy(slodef,"n");
@@ -398,8 +397,8 @@ void save_assoc(Dbptr dbi, int is, int ie, int orid, char *vmodel,
 		}
 		else
 		{
-			timeres = aptr->res->raw_residual;
-			wgt = (aptr->res->weighted_residual)/timeres;
+			timeres = aptr->res.raw_residual;
+			wgt = (aptr->res.weighted_residual)/timeres;
 			irec = dbaddv(dbo,0,"arid",arid,
                         	"orid",orid,
                         	"sta",sta,
@@ -423,15 +422,15 @@ void save_assoc(Dbptr dbi, int is, int ie, int orid, char *vmodel,
 		the slowness vector in polar form and in s/deg.*/
 		if(uptr!=NULL)
 		{
-			uxresid = uptr->xres->raw_residual;
-			uyresid = uptr->yres->raw_residual;
+			uxresid = uptr->xres.raw_residual;
+			uyresid = uptr->yres.raw_residual;
 			/* We compute the theoretical slowness vector
 			by using umeasured and residuals then compute
 			the azimuth error from the dot product*/
 			uxpred = (uptr->ux)-uxresid;
 			uypred = (uptr->uy)-uyresid;
 			duphi = acos((uxpred*(uptr->ux)+uypred*(uptr->uy))
-			    /(hypot(uptr->ux,uptr->uy)*hypot(uxpred,uypred));
+			    /(hypot(uptr->ux,uptr->uy)*hypot(uxpred,uypred)));
 			azres=deg(duphi);
 			slores = hypot(uxresid,uyresid);
 			slores *= KMPERDEG;
@@ -439,8 +438,8 @@ void save_assoc(Dbptr dbi, int is, int ie, int orid, char *vmodel,
 			strcpy(slodef,"d");
 			if(irec<0)
 			{
-				wgt = (uptr->xres->residual_weight)
-					*(uptr->xres->other_weight);
+				wgt = (uptr->xres.residual_weight)
+					*(uptr->xres.other_weights);
 				dbaddv(dbo,0,
                        			"arid",arid,
                         		"orid",orid,

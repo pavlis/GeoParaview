@@ -8,6 +8,7 @@
 #include "db.h"
 #include "coords.h"
 #include "location.h"
+#include "dbpmel.h"
 
 /* This small function parses an input string made up of
 a comma seperated list of integer ranges returning a Tbl
@@ -72,6 +73,7 @@ int main(int argc, char **argv)
 
 	Pf *pf;
 	char *version="1.0";
+	int i;
 
 	/* Initialize the error log and write a version notice */
 	elog_init (argc, argv) ;
@@ -115,7 +117,7 @@ int main(int argc, char **argv)
 		die(1,"Unable to open input database %s\n",dbin);
 	/* We call this routine that uses dbprocess driven by the 
 	parameter file definition tagged by the Tbl dbpmel_dbview*/
-	dbv = dbform_working_view(dbin,pf,"dbpmel_dbview_definition");
+	dbv = dbform_working_view(db,pf,"dbpmel_dbview_definition");
 
 	/* We can't use dbprocess for this join as the current 
 	form does not allow this use of mixed keys*/
@@ -149,14 +151,14 @@ int main(int argc, char **argv)
 	pushtbl(sortkeys,"evid");
 	pushtbl(sortkeys,"sta");
 	pushtbl(sortkeys,"phase");
-	dbv = dbsort(dbv,sortkeys,UNIQUE,0);
+	dbv = dbsort(dbv,sortkeys,dbUNIQUE,0);
 	dbquery(dbv, dbRECORD_COUNT, &nrows);
 	if(nrows != nrows_raw)
 		complain(0,"Input database has duplicate picks of one or more phases on multiple channels\n\
 Which picks will be used here is unpredictable\n\
 %d total picks, %d unique\nContinuing\n", nrows_raw, nrows);
 
-	if(dbpmel_process(dbv,gridlist,pf)
+	if(dbpmel_process(dbv,gridlist,pf))
 	{
 		elog_complain(0,"Errors in dbpmel_process\n");
 		exit(-1);

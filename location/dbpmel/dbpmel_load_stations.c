@@ -1,9 +1,11 @@
 #include <math.h>
 #include "stock.h"
 #include "arrays.h"
+#include "coords.h"
 #include "db.h"
 #include "pf.h"
 #include "elog.h"
+#include "location.h"
 #include "dbpmel.h"
 #define RADIUS_EARTH 6370.8
 #define KMPERDEG 111.19
@@ -26,15 +28,17 @@ Arguments:
 Author:  Gary Pavlis
 Written:  October 2000
 */
-void apply_dnde(double dn,double de,double *lat,double *lon)
+void apply_dnde(double dnorth,double deast,double *lat,double *lon)
 {
 	double lon_km_per_rad,lon_deg_per_km,lat_deg_per_km;
 
 	lon_km_per_rad = RADIUS_EARTH*sin(rad(90.0-(*lat)));
 	/* overkill, but the following would fail at the pole otherwise*/
 	if((*lat)==90.0)
+	{
 		lon_deg_per_km = 0.0;
 		lat_deg_per_km = 0.0;
+	}
 	else
 	{
 		lon_deg_per_km = 1.0/lon_km_per_rad;
@@ -95,7 +99,7 @@ Arr *dbpmel_load_stations(Dbptr db, Pf *pf)
 	/*We first scan the site table for moving stations*/
 	sortkeys = strtbl("sta","ondate:offdate",0);
 	dbs = dblookup(db,0,"site",0,0);
-	dbs = dbsort(dbs,sorkeys,0,0);
+	dbs = dbsort(dbs,sortkeys,0,0);
 	dbquery(dbs,dbRECORD_COUNT,&nrows);
 
 	out = newarr(0);

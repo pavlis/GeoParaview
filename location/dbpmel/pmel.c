@@ -1,9 +1,10 @@
 #include <math.h>
+#include <sunperf.h>
 #include "stock.h"
 #include "arrays.h"
 #include "elog.h"
 #include "location.h"
-#incluce "dbpmel.h"
+#include "dbpmel.h"
 #define SSWR_TEST_LEVEL 0.99
 /* This routine takes advantage of the sparse form of the S matrix 
 that forms what is used to form the matrix SN (see PMEL paper).  That
@@ -41,10 +42,10 @@ Author:  GAry Pavlis
 Written:  October 2000
 */
 void accumulate_sn_matrix(int m, double *U, int n1u, int nnull,
-		double *sn, int n1sn, int *column_index)
+		double *sn, int n1sn, int *column_index, double *w)
 {
 	int i, ic;
-	double *sn_vector;
+	double *snvector;
 
 	for(i=0;i<m;++i)
 	{
@@ -55,8 +56,8 @@ void accumulate_sn_matrix(int m, double *U, int n1u, int nnull,
 	    if( (w[i]>0.0) && (column_index[i]>=0) )
 	    {
 		ic = column_index[i];
-		sn_vector = sn + ic*n1sn;
-		dcopy(nnull,Un,n1u,snvector,1);
+		snvector = sn + ic*n1sn;
+		dcopy(nnull,U,n1u,snvector,1);
 		dscal(nnull,w[i],snvector,1);
 	    }
 	}
@@ -77,7 +78,7 @@ Arguments:
 Author:  GAry Pavlis
 Written:  October 2000
 */
-void form_column_indices(SCMatrix *smatrix, Tbl *ta, int *cindex)
+void form_column_indices(SCMatrix *sc, Tbl *ta, int *cindex)
 {
 	Arrival *a;
 	int i;
@@ -87,7 +88,7 @@ void form_column_indices(SCMatrix *smatrix, Tbl *ta, int *cindex)
 	{
 		a = (Arrival *)gettbl(ta,i);
 		ista = (int *)getarr(sc->sta_index,a->sta->name);
-		iphase = (int *)getarr)sc->phase_index,a->phase->name);
+		iphase = (int *)getarr(sc->phase_index,a->phase->name);
 		if((ista==NULL) || (iphase==NULL))
 		{
 			elog_complain(0,"Indexing error searching for station %s and phase %s while trying to build station correction matrix\nDatum deleted\n",
@@ -126,10 +127,27 @@ int pmel_hypo_solution_bad(Tbl *reasons)
 	{
 		s = (char *)gettbl(reasons,i);
 		if(!strcmp(s,"Error")) return(1);
-		if(!strcmp(s,"Location hit iteration count limit")return(1);
+		if(!strcmp(s,"Location hit iteration count limit"))return(1);
 	}
 	return(0);
 }
+/* Sets elements of the hypocenter structure to invalid values to 
+flag bad solutions.  Several definitions of bad are used to 
+allow multiple ways of testing for this condition.  Probably less than
+ideal as it can be confusing, but better than setting one arbitrary 
+element of the complicated structure.
+
+*/
+void set_hypo_as_bad(Hypocenter *h)
+{
+	h->rms_raw = -1.0;
+	h->rms_weighted = -1.0;
+	h->number_data = -1;
+	h->degrees_of_freedom = -1;
+	h->t0 = -1000.0;
+	h->z0 = -10000.0;
+}
+
 
 /* 
 
@@ -184,7 +202,7 @@ Tbl *pmel(int nevents,
     int *cindex;  /* working vector of column index positions.
 	That is, these hold column index for sta:phase for each row of A*/
 
-    double nr,nc;  /* Copies of s->nrow and s->ncol used for clarity*/
+    int nr,nc;  /* Copies of s->nrow and s->ncol used for clarity*/
     /* These keep track of counts of data and events used in solution*/
     int nev_used, ndata_used, total_ndgf,sc_iterations=0;
     int hypo_iterations;
@@ -197,7 +215,7 @@ Tbl *pmel(int nevents,
     double *bwork;
     double sswrodgf;
     /* ggnloc output lists */
-    Tbl *history=NULL, *reasons=NULL, *residuals=NULL;
+    Tbl *history=NULL, *reasons=NULL, *restbl=NULL;
     /* convergence of station correction push one or more messages
     onto this list */
     Tbl *sc_converge_reasons;
@@ -211,13 +229,13 @@ Tbl *pmel(int nevents,
     double rsvc;  
     /* Related to form_equations */
     Robust_statistics stats;
-    float **Amatrix,float *b,float *r,float *w,float *reswt;
-    int nused;
+    float **Amatrix, *b, *r, *w, *reswt;
+    int nused,svdinfo;
     /* hold residuals for station correction inversion */
     double *scrhs;
     /* holds station correction perturbation solved for in each interation */
-    double sc_solved;
-    double ds_over_s;
+    double *sc_solved;
+    double ds_over_s,ds_over_s_converge;
 
     nr = s->nrow;
     nc = s->ncol;
@@ -246,14 +264,6 @@ Tbl *pmel(int nevents,
     /* This builds the large structure o that defines all the 
     options to the locator*/
     o = parse_options_pf (pf);
-
-    /* This extracts a evid keyed list of calibration events 
-    with a list of coordinates to be fixed (i.e. xyzt or
-    some subset thereof).  This is somewhat inefficient since
-    this list is static for all grid points, but since this
-    function could be used in isolation without any db interface
-    or a notion of grids and clustering it is preferred.*/
-    fixlist = pfget_arr(pf,"calibration_events");
 
     /* We now extract parameters from pf specific to pmel */
     esmin = pfget_double(pf,"pmel_minimum_error_scale");
@@ -315,8 +325,8 @@ Tbl *pmel(int nevents,
 			--ncol_amatrix;
 		}
 	    }
-            locrcode=ggnloc(h0+i,ta[i],tu,o,
-                &history,&reasons,&residuals);
+            locrcode=ggnloc(h0[i],ta[i],tu,o,
+                &history,&reasons,&restbl);
             if(locrcode < 0)
             {
                 elog_notify(0,"ggnloc failed to produce a solution for event %d in current group for iteration %d\n",
@@ -357,7 +367,7 @@ Tbl *pmel(int nevents,
                          F_critical_value)) continue;
                       
                 total_ndgf += current_hypo->degrees_of_freedom;
-                data_used += current_hypo->number_data;
+                ndata_used += current_hypo->number_data;
                 total_ssq_raw += (current_hypo->rms_raw)
 					*(current_hypo->rms_raw);
                 total_wssq += current_wssq;
@@ -366,7 +376,7 @@ Tbl *pmel(int nevents,
                 /* Now we turn to the station correction
                 accumulation*/
 		nrow_amatrix = maxtbl(ta[i]);
-		stats = form_equations(ALL,current_hypo,ta[i],tu,o,
+		stats = form_equations(ALL,*current_hypo,ta[i],tu,o,
 				Amatrix,b,r,w,reswt,&nused);
 		for(j=0;j<nrow_amatrix;++j)
 		{
@@ -375,7 +385,7 @@ Tbl *pmel(int nevents,
 		}
 		if(cluster_mode)
 		{
-		    stats = form_equations(ALL,hypocen,ta[i],tu,o,
+		    stats = form_equations(ALL,*hypocen,ta[i],tu,o,
 				Amatrix,b,r,w,reswt,&nused);
 		    /* We want these equations weighted by the ones
 		    computed from the actual hypocenter, not the hypocentroid.
@@ -394,15 +404,15 @@ Tbl *pmel(int nevents,
 		a matrix in fortran form.*/
 		for(j=0;j<nrow_amatrix;++j)
 		    for(k=0;k<ncol_amatrix;++k)
-			A[j+nc*k] = (double)Amatrix[j][k];
+			A[j+nc*k] = (double)(Amatrix[j][k]);
 
 		/* Compute the svd of this matrix.  All we need here 
 		is the left singular vectors spanning the data space */
-		dgesvd('a','n',nrow_amatrix,ncol_amatrix,Amatrix,
+		dgesvd('a','n',nrow_amatrix,ncol_amatrix,A,
 			nc, svalue, U, nc, Vt, nc, &svdinfo);
   		if(svdinfo) 
 		{
-		    elog_deliver(0,"pmel:  svd error processing event number %d\n,i);
+		    elog_notify(0,"pmel:  svd error processing event number %d\n",i);
 		    svd_error(svdinfo);
 		}
 		/* Compute S_N as U_N^T*S.  WARNING:  this assumes
@@ -410,7 +420,7 @@ Tbl *pmel(int nevents,
 		to hold all of S as we accumulate it here. */
 		nnull = nrow_amatrix-ncol_amatrix;
 		accumulate_sn_matrix(nrow_amatrix,U+nc*ncol_amatrix,
-			nc,nnull,(s->S)+nrows_S,s->nrow,cindex);
+			nc,nnull,(s->S)+nrows_S,s->nrow,cindex,wts);
 		/* This forms the annulled data */
 		for(j=0,k=nrows_S;j<nnull;++j,++k)
 		{
@@ -422,7 +432,7 @@ Tbl *pmel(int nevents,
             }
             if(maxtbl(history))freetbl(history,free);
             if(maxtbl(reasons))freetbl(reasons,free);
-            if(maxtbl(residuals))freetbl(residuals,free);
+            if(maxtbl(restbl))freetbl(restbl,free);
         }
 	/* Now we solve for station correction adjustments that 
 	are determinate from the available data. U is not actually

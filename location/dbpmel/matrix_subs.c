@@ -1,4 +1,5 @@
 #include <sunperf.h>
+#include "stock.h"
 /* Equation solver for pseudoinverse solutions using output of lapack
 double precision svd function.
 
@@ -58,7 +59,7 @@ int dpinv_solver(int m, int n,
 	}
 	/* multiply by Vt */
 	for(j=0;j<n;++j) x[j] = 0.0;
-	for(j=-;j<nsvused;++j)
+	for(j=0;j<nsvused;++j)
 		daxpy(n,work[j],Vt+j,ldv,x,1);
 	free(work);
 	return(nsvused);
@@ -187,7 +188,7 @@ int data_space_null_project(double *U, int ldu, int nsv, int m,
 	if(nsv>=m)
 	{
 		elog_log(0,"data_space_null_project passed illegal U matrix of size %d by %d\nProjection request ignored.  Output=input\n",
-			nsv,n);
+			nsv,m);
 		return(1);
 	}
 	for(i=0;i<nsv;i++)
