@@ -228,29 +228,63 @@ pf=(Pf *)gettbl(t,i)
 This structure, although complex, was done by design as it allows a complete
 ensemble to be encapsulated in a single pf object.  This simplifies and 
 abstracts the process of reading from a fifo or from an orb.  i.e. calls
-two functions that do quite different things can yield the same result.
+to functions that do quite different things can yield the same result.
 This could be overloaded in C++ if I wanted to go that route. 
+
+Multiple ensembles can be enscapsulated in one block of data passed
+through a pfstream.  Each ensemble (table) is preceded by a keyword
+passed as the argument "tag".  This allows multiple tables to be 
+passed down the same input stream which could, in principle, be
+reconstituted into a relational form with something like datascope
+using internal, temporary databases.  This is not implemented here though.
 
 Note that the input Pf object, pf, is only accessed to take apart the 
 components of the "ensemble &Arr{...}" component of Pf.  If there are other parameters
 in pf outside the range of this object the caller needs to handle these
-separately.
+separately.  Further note that if multiple tables are embeddged in on
+pfstream this function has to be called separately for each table
+defined by "tag".
 
 Normal returns is a pointer to the Pf_ensemble object.  A NULL pointer
 is returned if cracking the complex pf defined by the ensemble failed.
 
+IT is worth clarifying here the gross structure of a multiple table
+group of data received through a stream.  Suppose we had an origin 
+and assoc table grouping passed as one block.  The controlling structure
+ of the Pf would be:
+
+origin &Arr{
+ensemble_keys &Tbl{
+orid
+}
+ensemble &Arr{
+000001 &Arr{
+data
+}
+000002 &Arr{
+more data
+}
+...
+}
+assoc &Arr{
+ensemble_keys &Tbl{
+arid
+orid
+}
+ensemble &Arr{
+000001 &Arr{
+data
+}
+000002 &Arr{
+more data
+}
+...
+}
+
+}
+
 Author:  Gary L. Pavlis
 Date:  September 2002
-Modified:  October 2002
-Rather than rewrite teh comments above note that a design change was
-recognized that I needed a variable tag to name the ensemble.  Above
-and at the top of this file I refer to the keyword "ensemble".  
-There are cases, however, when multiple tags are needed.  The type
-case is in converting a pfstream to a database rows.  If multiple
-tables are needed to produce the required output at some point
-in the running of a program this allows a way to dump tables with
-different numbers of rows that may not even be related. 
-So, primary thing is tag is a variable that needs to be passed downstream.
 */
 Pf_ensemble *pfget_Pf_ensemble(Pf *pfin,char *tag)
 {
@@ -259,13 +293,26 @@ Pf_ensemble *pfget_Pf_ensemble(Pf *pfin,char *tag)
 	int nmembers,ngroups;
 
 	Tbl *t=newtbl(0);
-	Pf *pferaw,*pf;
+	Pf *pferaw,*pf,*pf_ens_arr;;
 	Tbl *list_keys;
 	int i;
 
-	/* We duplicate the elements of this tbl so 
+
+	pferaw=NULL;
+
+	/*This extracts the data enclosed by "tag &Arr {" to "}" */
+	if(pfget(pfin,tag,(void **)&pferaw) != PFARR) return(NULL);
+	/* Nested Arr's, here we read the "ensemble" group embedded
+	within this table.  I do this now to avoiding having
+	to free up junk below if this step fails.  In the steps
+	below note carefully the use of pferaw and pf_ens_arr 
+	which are different levels of the heirarch of the pf.*/
+	if(pfget(pferaw,"ensemble",(void **)&pf_ens_arr) != PFARR) return(NULL);
+
+	/* First parse the grouping and attribute keys if present.
+	We duplicate the elements of this tbl so 
 	we can release the space of the parent strings */
-	ttmp=pfget_tbl(pfin,"group_keys");
+	ttmp=pfget_tbl(pferaw,"group_keys");
 	if(ttmp!=NULL)
 	{
 		pfe->group_keys=duptbl(ttmp,strdup);
@@ -273,20 +320,15 @@ Pf_ensemble *pfget_Pf_ensemble(Pf *pfin,char *tag)
 	}
 	/* group_records is a Tbl containing secondary grouping of 
 	the ensemble.  If it is empty, we assume no grouping */
-	ttmp = pfget_tbl(pfin,"group_records");
+	ttmp = pfget_tbl(pferaw,"group_records");
 	if(ttmp==NULL)
 		ngroups=0;
 	else
 		ngroups=maxtbl(ttmp);
 
-	pferaw=NULL;
-
-	/*This extracts the data enclosed by "ensemble &Arr {" to "}" */
-	if(pfget(pfin,"ensemble",(void **)&pferaw) != PFARR) return(NULL);
-
 	/* this loop takes apart the pieces of the ensemble tagged by unspecified keywords.*/
 	/* output will be in the order determined by the tags (normally numbers like 000000, 000001, etc.*/
-	list_keys=pfkeys(pferaw);
+	list_keys=pfkeys(pf_ens_arr);
 	/* We now know the size of the Pf_ensemble and can create one */
 	nmembers=maxtbl(list_keys);
 	pfe=create_Pf_ensemble(nmembers,ngroups);
@@ -311,7 +353,7 @@ Pf_ensemble *pfget_Pf_ensemble(Pf *pfin,char *tag)
 
 		pf=NULL;
 		key = gettbl(list_keys,i);
-		if(pfget(pferaw,key,(void **)&pf) != PFARR)
+		if(pfget(pf_ens_arr,key,(void **)&pf) != PFARR)
 			elog_complain(0,"syntax error parsing ensemble for key %s\nData for this member of this ensemble will be ignored\n", key);
 		else
 		{
@@ -434,17 +476,17 @@ Pf *build_ensemble(Pf *ensemble_pf,Pf_ensemble *pfe, char *tag)
 		hdrblock=pf2string(ensemble_pf);
 	hdrsize = strlen(hdrblock);
 	/* this is a generous estimate of the size of the full pf image*/
-	pfimage_size = sum_block_sizes + npf*20+hdrsize+100;
+	pfimage_size = sum_block_sizes + npf*20+hdrsize+150;
 	pfimage = (char *) malloc(pfimage_size);
 	if(pfimage==NULL) elog_die(0,"Cannot malloc %d bytes to build output ensemble pf image\n",
 					pfimage_size);
 
 	/*Now we use string functions to assemble this mess */
+	strcpy(pfimage,tag);
+	strcat(pfimage," &Arr{\n");
 	strcpy(pfimage,hdrblock);
 	strcat(pfimage,"\n");
-	strcat(pfimage,tag);
-	strcat(pfimage," &Arr{\n");
-fprintf(stderr,"%s\n",pfimage);
+	strcat(pfimage,"ensemble &Arr{\");
 	for(i=0;i<npf;++i)
 	{
 		char key[16];
@@ -452,7 +494,7 @@ fprintf(stderr,"%s\n",pfimage);
 		strcat(pfimage,key);
 		strcat(pfimage,blocks[i]);
 	}
-	strcat(pfimage,"}\n");
+	strcat(pfimage,"}\n}\n");
 
 	for(i=0;i<npf;++i) free(blocks[i]);
 	free(blocks);
