@@ -37,6 +37,8 @@ elog_log(0,"Read next block\n");
 	}
 	pf=pfnew(PFARR);
 	pfput_boolean(pf,"FINISHED",1);
+	pmtfifo_push(pfsc->mtf,(void *)pf);
+
 	return(NULL);
 }
 /* This is the opposite of the previous */
