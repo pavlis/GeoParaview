@@ -4,7 +4,6 @@
 #include "db.h"
 #include "db_ratio.h"
 #define FLOAT_TEST_RATIO 0.0001
-#define MAX(x,y) ((x)>(y)?(x):(y))
 
 Spectrum Spectrum_copy(Spectrum s)
 {

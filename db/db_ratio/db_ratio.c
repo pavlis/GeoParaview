@@ -35,6 +35,8 @@ and man page)
 3.  The above required assimilation of a routine to read in a station
 table.
 4.  Got rid of all old style C function declarations
+August 2001
+REmoved plotting junk that just confused the code.
 */
 #include <stdio.h>
 #include <string.h>
@@ -93,10 +95,9 @@ int save_median(Dbptr db,Spectrum *s,int ns,float *m[4],char *threec[6])
 		}
 		if(ii == -1) 
 		{
-			fprintf(stderr,"Warning (save_median):  error trying to save median for sta:channel %s:%s\n",
-				s[i].sta,threec[k]);
-			fprintf(stderr,"No match in loaded spectra.  This should happen only with single component array data, but this code will blunder onward.\n");
-
+			fprintf(stderr,"Warning (save_median):  error trying to save median for channel %s for event near time %s\n",
+				threec[k],strtime(s[0].time));
+			fprintf(stderr,"No match in loaded spectra.\n");
 			continue;
 		}
 		/* Note before this code is called, dir is altered so we
@@ -199,20 +200,6 @@ char **argv;
 	
 	Station *current,*reference;
 
-	/* plot variables */
-	int plot_spectra=0;  /* if nonzero, run plot stuff, else batch*/
-	float xmin=1.0,xmax=100.0;
-	float ymin=0.01,ymax=1000000.0; 
-	float xdim=4.0,ydim=6.0;
-	float xmarg=0.5, ymarg=0.5, xlow=1.5, ylow=1.5;
-	char labelx[16]="Frequency",labely[16]="Power",
-			title[16]="Power spectra";
-	int iclear=0;
-	int roff=0,iclip=0;
-
-	float hue, light, sat;
-	char fmt[8]="(f3.0)";
-	float dxsmal=5.0, dxnumb=20.0;
 
 	float *frequencies;
 	Arr *stalist;
@@ -229,10 +216,6 @@ char **argv;
 		{
 			++i;
 			pffile = argv[i];
-		}
-		else if(!strcmp(argv[i],"-plot"))
-		{
-			plot_spectra = 1;
 		}
 		else
 		{
@@ -277,12 +260,6 @@ char **argv;
 	if(reference==NULL) die(0,"Requested reference station %s not in site table\n",
 					sta_denom);
 
-	if(plot_spectra)
-	{
-		init_plot("spectrum_plot.ps");
-		setdim_(&xdim, &ydim, &xlow, &ylow);
-	        setscl_ (&xmin, &xmax, &ymin, &ymax);
-	}
 	process_list = strtbl("dbopen event",
                 "dbjoin origin",
                 "dbsubset orid==prefor",
@@ -326,23 +303,6 @@ char **argv;
 			r0=hypot(sdepth,deg2km(deg(distance)));
 			last_evid=evid;
 		}
-		if(plot_spectra)
-		{
-			xmin=1.0;
-			xmax=100.0;
-			ymin=0.01;
-			ymax=1000000.0; 
-			xdim=4.0;
-			ydim=6.0;
-			xmarg=0.5;
-			ymarg=0.5;
-			xlow=1.5;
-			ylow=1.5;
-			
-			llaxis_(&xdim,&ydim,&xmarg,&ymarg,&xlow,&ylow,&xmax,&xmin,&ymax,&ymin,
-					labelx, labely, title,&iclear, 
-					strlen(labelx),strlen(labely),strlen(title));
-		}
 			
 		do
 		{
@@ -373,15 +333,6 @@ char **argv;
 					  "Warning:  station %s not found in site table\nDistance corrections cannot be applied\n",
 					  spec[k].sta);
 			}
-			if(plot_spectra && (!strcmp(threeC_channels[0],spec[k].chan)))
-			{
-			  frequencies = (float *)calloc(spec[k].nfreq,sizeof(float));
-			  for(i=0;i<spec[k].nfreq;++i) 
-				frequencies[i]=spec[k].freq0+(float)i*spec[k].df;
-			  plot1_(&(spec[k].nfreq),frequencies,
-				spec[k].spec,&roff,&iclip);
-			  free(frequencies);
-			}
 			++db.record;
 			++k;
 			if(k>MAX_CHANNELS)
@@ -400,12 +351,6 @@ char **argv;
 		if(db.record<nspec) db.record-=2;
 
 
-		if(plot_spectra)
-		{
-			fprintf(stdout,"Continue?\n");
-			fscanf(stdin,"%d",&i);
-			clear_();
-		}
 						
 		/* Now we have a "gather" of spectra for the same sname
 		with all channels.  The routine called here does the nasty
@@ -582,28 +527,6 @@ char **argv;
 		}
 		else
 		{
-		if(plot_spectra)
-		{
-			xmin=1.0;
-			xmax=100.0;
-			ymin=0.01;
-			ymax=100.0; 
-			xdim=4.0;
-			ydim=6.0;
-			xmarg=0.5;
-			ymarg=0.5;
-			xlow=1.5;
-			ylow=1.5;
-			sprintf(labely,"Power Ratio");
-			sprintf(title,"Spectral Ratios");
-
-			lyaxis_(&xdim,&ydim,&xmarg,&ymarg,
-				&xlow,&ylow,&xmax,&xmin,&ymax,&ymin,
-				&dxsmal, &dxnumb,
-				fmt, labelx, labely, title, &iclear, 
-				strlen(fmt),strlen(labelx),
-				strlen(labely),strlen(title));
-		}
 
 
 		/*Block for median spectral ratio case.  It
@@ -627,47 +550,8 @@ char **argv;
 				seperate directory */
 				if( (ierr=save_spectrum(db,spec+j)) != 0)
 					save_spectrum_error(spec+j,ierr);
-				if(plot_spectra)
-				{
-				frequencies = (float *)calloc(spec[j].nfreq,sizeof(float));
-				for(i=0;i<spec[k].nfreq;++i) 
-				   frequencies[i]=spec[j].freq0+(float)i*spec[j].df;
-				switch(spec[j].index)
-				{
-				case (1):
-					hue = 0.0;
-					light = 0.5;
-					sat = 1.0;
-					break;
-				case (2):
-					hue = 240.0;
-					light = 0.5;
-					sat = 1.0;
-					break;
-				default:
-					hue= 120.0;
-					light = 0.0;
-					sat = 1.0;
-				}
-				setfor_(&hue,&light,&sat);
-				plot1_(&(spec[j].nfreq),frequencies,
-				  spec[j].spec,&roff,&iclip);
-				free(frequencies);
-				}
-
 			}
 		    }
-		}
-		if(plot_spectra)
-		{
-			fprintf(stdout,"Press any key to continue\n");
-			fscanf(stdin,"%d",&i);
-			hue=0.0;
-			light=0.0;
-			sat=1.0;
-			setfor_(&hue,&light,&sat);
-			
-			clear_();
 		}
 		/* Now we have to do a slightly different thing for the total
 		power spectra.  The variation is that we have to change the
