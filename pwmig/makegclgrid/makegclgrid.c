@@ -165,7 +165,7 @@ void main(int argc, char **argv)
 			at the bottom of the grid.  The format allows
 			something more general, but this is the simplest
 			way to define this */
-		z0 = ((double)n3)*dx3;
+		z0 = ((double)(n3-1))*dx3;
 	}
 	/* We can now build the baseline vectors of length n1. They 
 	effectively define a rotated equator of the new coordinate system
