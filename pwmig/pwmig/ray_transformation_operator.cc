@@ -17,8 +17,6 @@ teh coordinatges of path.
 */
 dmatrix *compute_local_verticals(GCLgrid& g, dmatrix& path)
 {
-	dmatrix *vptr;
-	dmatrix& verticals=*vptr;
 	int *sz,nx;
 	Geographic_point x0_geo;
 	Cartesian_point x0_c;
@@ -33,7 +31,8 @@ dmatrix *compute_local_verticals(GCLgrid& g, dmatrix& path)
 	// function is not viewed as a library function
 	nx=sz[1];
 	delete [] sz;
-	vptr = new dmatrix(3,nx);
+	dmatrix *vptr = new dmatrix(3,nx);
+	dmatrix& verticals=*vptr;
 	for(i=0;i<nx;++i)
 	{
 		x0_geo = g.ctog(path(0,0),path(1,0),path(2,0));
@@ -113,9 +112,7 @@ Arguments:
 Ray_Transformation_Operator::Ray_Transformation_Operator(GCLgrid& g, 
 	dmatrix& path,double azimuth)
 {
-	int *insize=path.size();
-	int np=insize[1];
-	delete [] insize;
+	int np=path.columns();
 	dmatrix U0(3,3);  // final matrix copied to all elements here
 	double x[3];  //work vector to compute unit vectors loaded to U0
 	Geographic_point x0_geo;
@@ -183,6 +180,7 @@ Ray_Transformation_Operator::Ray_Transformation_Operator(GCLgrid& g,
 		U.push_back(*dtmp);  
 		delete dtmp;
 	}
+	npoints=U.size();
 }
 /* Now the much more complex algorithm for the case where we assume the ray path
 is a specular reflection.  Then we have a different ray transformation matrix 
@@ -219,9 +217,7 @@ R, x2= generalized T, and x3=L.
 Ray_Transformation_Operator::Ray_Transformation_Operator(GCLgrid& g, 
 	dmatrix& path,double azimuth, dmatrix& gamma_P)
 {
-	int *insize=path.size();
-	int np=insize[1];
-	delete [] insize;
+	int np=path.columns();
 	Geographic_point x0_geo;
 	Cartesian_point x0_c;
 	double x_vertical[3];  // point to local vertical direction at x_geo
@@ -231,13 +227,13 @@ Ray_Transformation_Operator::Ray_Transformation_Operator(GCLgrid& g,
 
 	// First we need to compute a set of ray path tangents
 	dmatrix *tanptr;
-	dmatrix &tangents = *tanptr;
 	tanptr = ray_path_tangent(path);
+	dmatrix &tangents = *tanptr;
 
 	// We next need a set of local vertical vectors. 
 	dmatrix *vptr;
-	dmatrix &local_verticals = *vptr;
 	vptr = compute_local_verticals(g,path);
+	dmatrix &local_verticals = *vptr;
 
 	// We call the simpler constructor first above and use it to provide
 	// transformation matrices to ray coordinates -- the starting point here
@@ -336,10 +332,11 @@ Ray_Transformation_Operator::Ray_Transformation_Operator(GCLgrid& g,
 		work(2,0) = 0.0;
 		work(2,1) = 0.0;
 		work(2,2) = 1.0;
+		U.push_back(work*Raytrans0.U[i]);
 
-		U[i] = work*Raytrans0.U[i];
 
 	}
+	npoints=U.size();
 
 	delete tanptr;
 	delete vptr;

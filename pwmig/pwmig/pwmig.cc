@@ -1,5 +1,6 @@
 #include <cstdio>
 #include <string>
+#include <sstream>
 #include "stock.h"
 #include "coords.h"
 #include "pf.h"
@@ -16,7 +17,7 @@ using namespace INTERPOLATOR1D;
 
 void usage()
 {
-        cbanner((char *)"$Revision: 1.10 $ $Date: 2005/02/07 13:33:06 $",
+        cbanner((char *)"$Revision: 1.11 $ $Date: 2005/03/16 13:30:21 $",
                 (char *)"db  [-V -pf pfname]",
                 (char *)"Gary Pavlis",
                 (char *)"Indiana University",
@@ -64,7 +65,8 @@ vector<double> compute_gridttime(GCLscalarfield3d& V3d,
 {
 
 	// test to be sure the grids are congruent or paths will not mesh
-	if(dynamic_cast<GCLgrid&>(V3d)!=dynamic_cast<GCLgrid&>(raygrid))
+	if(dynamic_cast<BasicGCLgrid&>(V3d)
+			!=dynamic_cast<BasicGCLgrid&>(raygrid))
 		path=remap_path(raygrid,path,V3d);
 	vector<double> times=pathintegral(V3d,path);
 	// This fills the output vector with 1d values if the path wanders outside
@@ -100,7 +102,7 @@ RayPathSphere *truncate_ray_path(RayPathSphere *ray0, double r0)
 	// and work downward.  This is reversed in the companion program that calls
 	// this function
 	if(r0>(ray0->r[0]) ) throw -1;
-	for(nn=0;nn<ray0->npts;++i)
+	for(nn=0;nn<ray0->npts;++nn)
 		if((ray0->r[nn])<=r0) break;
 	if(nn>=ray0->npts) throw 1;
 	// need to add one point at the end that is interpolated plus one for 0 start
@@ -161,7 +163,7 @@ dmatrix compute_P_incident_ray(GCLgrid3d& grid,
 	int i,ii;
 	double r_ray;
 	
-	r0 = grid.depth(ix1,ix2,ix3);
+	r0 = grid.r(ix1,ix2,ix3);
 	azimuth=u0.baz();
 	
 	try {
@@ -233,15 +235,15 @@ Written:  August 2003
 
 dmatrix *ray_path_tangent(dmatrix& ray)
 {
-	dmatrix *gptr;
-	dmatrix& gamma=*gptr;
 	int nx;
 	double dx[3];
 	double nrmdx;
 	int i,j;
 
 	nx=ray.columns();
+	dmatrix *gptr;
 	gptr = new dmatrix(3,nx);
+	dmatrix& gamma=*gptr;
 
 	// debug trap
 	if(nx<2 || ray.rows()!=3)
@@ -556,24 +558,33 @@ vector<double> compute_weight_for_path(dmatrix& gradTp,dmatrix& gradTs)
 	}
 	return(weight);
 }
-	
+// builds dfile names for migratione output
+string MakeDfileName(string base, int evid)
+{
+	string dfile;
+	ostringstream sbuf(dfile);
+	sbuf<<base<<"_"<<evid;
+	return(sbuf.str());
+}
 
 int main(int argc, char **argv)
 {
         Dbptr db,dbv;
 	string Pmodel1d_name;
-	const string pvfnm("Pvelocity"), svfnm("Svelocity");
+	const string pvfnm("P"), svfnm("S");
 	Three_Component_Ensemble *pwdata;
 	int is,i,j,k,l;
 	string pfin("pwmig");
 	dmatrix gradTs;
 	Pf *pf;
+	const string schema("pwmig1.1");
 
         ios::sync_with_stdio();
         elog_init(argc,argv);
 
         if(argc < 2) usage();
 	string dbname(argv[1]);
+	string dfile;  // used repeatedly below for data file names
 
         for(i=2;i<argc;++i)
         {
@@ -590,13 +601,24 @@ int main(int argc, char **argv)
 	}
         if(pfread(const_cast<char *>(pfin.c_str()),&pf)) die(1,(char *)"pfread error\n");
 	try {
-		Metadata control(pfin);
+		Metadata control(pf);
 		string Pmodel3d_name=control.get_string("P_velocity_model3d_name");
 		string Smodel3d_name=control.get_string("S_velocity_model3d_name");
 		string Pmodel1d_name=control.get_string("P_velocity_model1d_name");
 		string Smodel1d_name=control.get_string("S_velocity_model1d_name");
 		string parent_grid_name=control.get_string("Parent_GCLgrid_Name");
+		string vmodel_grid_name=control.get_string("velocity_model_grid_name");
 		string stack_grid_name=control.get_string("stack_grid_name");
+		string fielddir=control.get_string("output_field_directory");
+		// Make sure this directory exists
+		if(makedir(const_cast<char *>(fielddir.c_str())))
+		{
+			cerr << "Failure trying to create directory for output fields = "
+				<< fielddir << endl;
+			exit(-1);
+		}
+		string dfilebase=control.get_string("output_filename_base");
+		int evid;  // output file name is build from dfilebase+"_"+evid
 		bool use_depth_variable_transformation
 			=control.get_bool("use_depth_variable_transformation");
 		double zmax=control.get_double("maximum_depth");
@@ -612,10 +634,8 @@ int main(int argc, char **argv)
 			cerr << "Cannot open database " << dbname <<endl;
 			exit(-1);
 		}
-		GCLscalarfield3d Vp3d(db,const_cast<char *>(Pmodel3d_name.c_str()),
-			const_cast<char *>(pvfnm.c_str()) );
-		GCLscalarfield3d Vs3d(db,const_cast<char*>(Smodel3d_name.c_str()),
-			const_cast<char*>(svfnm.c_str()));
+		GCLscalarfield3d Vp3d(db,vmodel_grid_name,Pmodel3d_name);
+		GCLscalarfield3d Vs3d(db,vmodel_grid_name,Smodel3d_name);
 		Velocity_Model_1d Vp1d(db,Pmodel1d_name,pvfnm);
 		Velocity_Model_1d Vs1d(db,Smodel1d_name,svfnm);
 		GCLgrid parent(db,const_cast<char*>(parent_grid_name.c_str()) );
@@ -623,12 +643,9 @@ int main(int argc, char **argv)
 		// This loads the image volume assuming this was precomputed with
 		// makegclgrid
 
-		GCLvectorfield3d migrated_image(db,
-			const_cast<char *>(stack_grid_name.c_str()),NULL,3);
-		GCLscalarfield3d omega(db,
-			const_cast<char*>(stack_grid_name.c_str()),NULL);
-		GCLscalarfield3d weights(db,
-			const_cast<char*>(stack_grid_name.c_str()),NULL);
+		GCLvectorfield3d migrated_image(db,stack_grid_name,"",3);
+		GCLscalarfield3d omega(db,stack_grid_name,"");
+		GCLscalarfield3d weights(db,stack_grid_name,"");
 
 //YET ANOTHER NOTE.  HAVE TO DECIDE HOW TO HANDLE ZERO DATUM.  DO WE DO A GEOMETRIC STATIC
 // AS IN REFLECTION PROCESSING?  PROBABLY SHOULD PUT THIS IN PWSTACK.  THAT IS STACK SHOULD
@@ -639,7 +656,7 @@ int main(int argc, char **argv)
 // unnecessarily complex.  A p=0 approximation for an elevation correction is pretty
 // good for teleseismic data and is unlikely to be a big problem.
 		// Load the default attribute map
-		Attribute_Map am;
+		Attribute_Map am(schema);
 		// Need this set of attributes extraction lists to 
 		// load correct metadata into the ensmble and each member
 		Metadata_list mdlin=pfget_mdlist(pf,"Station_mdlist");
@@ -647,14 +664,16 @@ int main(int argc, char **argv)
 		Datascope_Handle dbh(db,pf,"dbprocess_commands");
 		dbh.rewind();
 		for(int record=0;record<dbh.number_tuples();++dbh,++record)
+		//DEBUG for(int record=0;record<1;++dbh,++record)
 		{
 			double dt; // useful shorthard
 			// first read in the next ensemble
 			pwdata = new Three_Component_Ensemble(dynamic_cast<Database_Handle&>
 					(dbh),mdlin,mdens,am);
 			Hypocenter hypo;
+cout << "DEBUG:  processing ensemble "<<record<<endl;
 			Ray_Transformation_Operator *troptr;
-			Ray_Transformation_Operator& trans_operator=*troptr;
+			evid=pwdata->get_int("evid");
 			hypo.lat=pwdata->get_double("origin.lat");
 			hypo.lon=pwdata->get_double("origin.lon");
 			hypo.z=pwdata->get_double("origin.depth");
@@ -675,35 +694,35 @@ int main(int argc, char **argv)
 			Slowness_vector uincident=hypo.pslow(parent.lat0,parent.lon0,0.0);
 			string gridname;
 			GCLgrid3d *grdptr;
-			GCLgrid3d& raygrid=*grdptr;  // convenient shorthand because we keep changing this
-			// create work spaces for accumation of this component
-			// This is a large memory model.  I'll use it until it proves
-			// intractable
-			GCLscalarfield3d dweight(raygrid);
-			GCLscalarfield3d domega(raygrid);
-			GCLvectorfield3d pwdgrid(raygrid,3);
-			string area;  // key for database when multiple areas are stored in database
-			int iux1, iux2;   // index positions for slowness grid
-
+			//
 			// This builds a 3d grid using ustack slowness rays with
 			// 2d grid parent as the surface grid array
 			// use first member of ensemble to get dt
 			dt=pwdata->tcse[0].dt;
 			grdptr =  Build_GCLraygrid(fixed_u_mode,parent,ustack,hypo,
 				Vs1d,zmax,tmax,dt);
+			GCLgrid3d& raygrid=*grdptr;  // convenient shorthand because we keep changing this
 			int n30;  // convenient since top surface is at n3-1
 			n30 = raygrid.n3 - 1;
+			// create work spaces for accumation of this component
+			// This is a large memory model.  I'll use it until it proves
+			// intractable
+			// Below assumes the val arrays in these fields
+			// have been initialized to zero.
+			GCLscalarfield3d dweight(raygrid);
+			GCLscalarfield3d domega(raygrid);
+			GCLvectorfield3d pwdgrid(raygrid,3);
 
 			// loop through the ensemble associating each trace with a 
 			// point in the raygrid and interpolating to get time to depth.
 
 			for(is=0;is<pwdata->tcse.size();++is)
+			//DEBUG for(is=0;is<3;++is)
 			{
 				// convenient shorthand variables.  ns is data length
 				// while n3 is the ray path onto which data are mapped
 				int ns=pwdata->tcse[is].ns;
 				int n3=raygrid.n3;
-				dmatrix work(3,ns);
 				double zmax,tmax;
 				RayPathSphere *ray0;
 				vector<double> Stime(n3), SPtime(n3), 
@@ -714,6 +733,7 @@ int main(int argc, char **argv)
 				// first decide in which grid cell to place this seismogram 
 				i = pwdata->tcse[is].get_int("ix1");
 				j = pwdata->tcse[is].get_int("ix2");
+cout << "DEBUG:  processing member "<<is<<"=("<<i<<","<<j<<")"<<endl;
 				t0=pwdata->tcse[is].t0;
 				if( (i<0) || (i>raygrid.n1) || (j<0) || (j>raygrid.n2) )
 				{
@@ -781,8 +801,10 @@ int main(int argc, char **argv)
 								Vp1d,Stime[k]);
 					SPtime[k]=tlag;
 				}
+
 				// We now interpolate the data with tlag values to map
 				// the data from time to an absolute location in space
+				dmatrix work(3,SPtime.size());
 				linear_vector_regular_to_irregular(t0,dt,pwdata->tcse[is].u,
 					&(SPtime[0]),work);
 				// Compute the transformation vector for each 
@@ -793,7 +815,7 @@ int main(int argc, char **argv)
 				{
 					// the slow, exact method
 					troptr=new Ray_Transformation_Operator(
-						dynamic_cast<GCLgrid&>(raygrid),
+						parent,
 						*pathptr,
 						ustack.azimuth(),
 						nup);
@@ -802,9 +824,10 @@ int main(int argc, char **argv)
 				{
 					// the fast approximation
 					troptr=new Ray_Transformation_Operator(
-						dynamic_cast<GCLgrid&>(raygrid),
+						parent,
 						*pathptr,ustack.azimuth());
 				}
+				Ray_Transformation_Operator& trans_operator=*troptr;
 				trans_operator.apply(work);
 				// done with these now
 				delete pathptr;
@@ -831,9 +854,9 @@ int main(int argc, char **argv)
 					weights.val[i][j][k]=dweight_ij[k];
 					omega.val[i][j][k]=domega_ij[k];
 				}
-				delete pwdata;
 				delete ray0;
 			}
+			delete pwdata;
 			// last but not least, add this component to the stack
 			//
 			migrated_image += pwdgrid;
@@ -843,6 +866,29 @@ int main(int argc, char **argv)
 			delete grdptr;
 
 		}
+		//
+		// Save results
+		// Second arg as empty string causes parent grid 
+		// to not be saved and only the migrated data are saved
+		// In all cases we force the field name in the output to
+		// be the same as the output data file name, dfile
+		// dfile is generated as base+tag+evid
+		//
+
+		dfile=MakeDfileName(dfilebase+string("_data"),evid);
+		migrated_image.dbsave(db,"",fielddir,dfile,dfile);
+		dfile=MakeDfileName(dfilebase+string("_wt"),evid);
+		weights.dbsave(db,"",fielddir,dfile,dfile);
+		dfile=MakeDfileName(dfilebase+string("_omega"),evid);
+		omega.dbsave(db,"",fielddir,dfile,dfile);
+		//INCOMPLETE 
+		// zero field values so when we loop back they can
+		// be reused
+		// need zero loop here or add a zero method to objects
+		//
+		migrated_image.zero();
+		weights.zero();
+		omega.zero();
 	}
 	catch (GCLgrid_error gcle)
 	{
@@ -857,6 +903,10 @@ int main(int argc, char **argv)
 	catch (seispp_error seer)
 	{
 		seer.log_error();
+	}
+	catch (...)
+	{
+		cerr << "Unhandled exception was thrown" << endl;
 	}
 }
 
