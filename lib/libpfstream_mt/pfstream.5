@@ -25,7 +25,7 @@ __EOF__
 pf2
 __EOF__
 
-...
+ ...
 __EOF__
 pfn
 __EOF__
@@ -41,7 +41,7 @@ columns (attributes) is implicitly assumed fixed, although nothing in the librar
 actually explicitly depends on this.  
 .LP
 Given that each block (pf1, pf2, etc. above) is a parameter file description of
-M rows of Nv virtual tablew, the next level of the heirachy is how the Nv 
+M rows of Nv virtual tables, the next level of the heirachy is how the Nv 
 tables are distinguished?  The answer is that each table has a name (tag) 
 that surrounds all of the data associated with it.  Thus, for example the
 ith pf in a pfstream might have this outer structure:
@@ -71,7 +71,7 @@ structure:
 .nf
 table_global_1 x
 table_global_2 y
-...
+ ...
 table_global_n n
 group_keys &Tbl{
 --list of key attributes--
@@ -89,7 +89,7 @@ ensemble    &Arr{
         00002   &Arr{
 	--row 2 attributes--
         }
-...
+ ...
 	n       &Arr{
 	--row n attributes--
 	}
@@ -149,9 +149,13 @@ an XML-based transport instead of inventing this file structure it might be
 better in the long run.  Nonetheless, I have attempted to 
 design the libraries based on the pfstream to easily change the 
 transport layer from this file structure to something else.  
+.LP
+The restriction of the heirarchy to 3 levels could be removed with
+some effort.  I elected not to do this because it would require a 
+generic algorithm using recursion which I chose to avoid.
 .SH AUTHOR
 .nf
 Gary L. Pavlis
 Indiana University
 pavlis@indiana.edu
-.\" $Id: pfstream.5,v 1.1 2003/01/21 03:10:43 pavlis Exp $
+.\" $Id: pfstream.5,v 1.2 2003/02/21 15:42:31 pavlis Exp $
