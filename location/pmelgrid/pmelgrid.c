@@ -141,8 +141,6 @@ void usage()
 void main(int argc, char **argv)
 {
 	char *dbin;  /* Input db name */
-	char *streamin;  /* input pfstream name */
-	char *streamout;  /* output pfstream name */
 	Dbptr db;  /* input db pointer */
 	char *pfinfl=NULL;  /* input parameter file */
 	Pf *pf,*vpf;
@@ -173,9 +171,9 @@ void main(int argc, char **argv)
 	int nbcs;
 	FILE *fpo;
 	char *runname;
-/*DEBUG*/
-char *s;
-
+	/* These are used for pmtfifo implementation.  They are analagous
+	to a FILE * abstraction. */
+	Pfstream_handle *pfshi, *pfsho;
 	
 #ifdef MPI_SET
 
@@ -196,6 +194,11 @@ char *s;
 
 	if(argc<4) usage();
 	dbin=argv[1];
+	/* launch read and write threads */
+	pfshi = Pfstream_start_read_thread(argv[2]);
+	if(pfshi==NULL) elog_die(1,"Read from %s thread create failed\n",argv[2]);
+	pfsho = Pfstream_start_write_thread(argv[3]);
+	if(pfsho==NULL) elog_die(1,"Read from %s thread create failed\n",argv[2]);
 	streamin=argv[2];
 	streamout = argv[3];	
 
@@ -293,7 +296,7 @@ option which is know to cause problems\nrecenter set off\n");
 	save_run_parameters(db,pf);
 #endif
 
-	while((pfi=pfstream_read(streamin))!=NULL)
+	while((pfi=pfstream_get_next_ensemble(pfshi))!=NULL)
 	{
 		int nevents;
 		Tbl **ta;
@@ -307,11 +310,11 @@ option which is know to cause problems\nrecenter set off\n");
 		Tbl *converge=NULL,*pmelhistory=NULL;
 		int pmelfail;
 
-		pfe=pfget_Pf_ensemble(pfi,"arrivals");
+		pfe=pfget_Pf_ensemble(pfi,"pmel_arrivals");
 		if(pfe==NULL)
 		{
 			elog_complain(0,"Failure in trying to crack Pf_ensemble in input stream %s\nTrying to read another block\n",
-				streamin);
+				argv[2]);
 			continue;
 		}
 		/* Get the global parameters for this ensemble from
@@ -432,18 +435,13 @@ option which is know to cause problems\nrecenter set off\n");
 		/* This inserts revised attributes into the pfe */
 		update_ensemble(pfe,pf,h0,ta);
 		/* now we write most results to primary output stream */
-		pfo=build_ensemble(NULL,pfe,"arrivals");
-		free_Pf_ensemble(pfe);
 		pfesc = build_sc_ensemble(gridid,smatrix,pf);
-		pfsc = build_ensemble(NULL,pfesc,"station_corrections");
+		pfo=build_ensemble(2,"pmel_arrivals",NULL,pfe,
+				"station_corrections",NULL,pfesc);
+		free_Pf_ensemble(pfe);
 		free_Pf_ensemble(pfesc);
-		/* these three calls place data on output stream with
-		 * two main blocks -- one for arrivals the other for
-		 * path anomaly output tables */
-		fpo = open_pfstream_output(streamout);
-		pfwrite_stream(pfo,streamout,fpo,0);
-		pfwrite_stream(pfsc,streamout,fpo,1);
-		
+		if(pfstream_put_ensemble(pfsho,pfo)!=0)
+			elog_complain(1,"pfstream_put_ensemble failed\n");	
 
 		/* memory cleanup */
 		for(i=0;i<nevents;++i)

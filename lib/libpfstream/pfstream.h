@@ -20,6 +20,7 @@ Pf_ensemble *create_Pf_ensemble(int, int);
 void free_Pf_ensemble(Pf_ensemble *);
 Pf *pfstream_read(char *);
 Pf_ensemble *pfget_Pf_ensemble(Pf *,char *);
+FILE *open_pfstream_output(char *);
 int pfwrite_stream(Pf *,char *,FILE *,int);
 Pf *build_ensemble(Pf *,Pf_ensemble *,char *);
 void pfensemble_put_double(Pf_ensemble *,char *,double);

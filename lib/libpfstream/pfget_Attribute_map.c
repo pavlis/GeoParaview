@@ -22,7 +22,7 @@ Written:  September 2002
 #include <string.h>
 #include "stock.h"
 #include "elog.h"
-#include "db2pfstream.h"  /*Attribute_map object is defined here */
+#include "pfstream.h"  /*Attribute_map object is defined here */
 
 Tbl *pfget_Attribute_map(Pf *pf, char *name)
 {

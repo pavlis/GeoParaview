@@ -37,7 +37,6 @@ void usage()
 	exit(-1);
 }
 
-
 /*  This function adds a list of attributes stored in one
 row of a datascope database to a pf.  What attributes are extracted
 and converted is controlled by the Attribute_map list stored
@@ -227,7 +226,7 @@ cause the program to abort.  Both contain pointers to Attribute_map*/
 	}
 	if(!dryrun)
 	{
-		fp=open_pfstream_output(argv[2]);
+		fp=fopen(argv[2],"r+");
 		if(fp==NULL) usage();
 	}
 	
@@ -388,11 +387,11 @@ cause the program to abort.  Both contain pointers to Attribute_map*/
 				pfput_tbl(pfo_head,"group_records",grplist);
 			}
 
-			pfo_total=build_ensemble(pfo_head,pfe,tag);
+			pfo_total=build_ensemble(1,tag,pfo_head,pfe);
 			free_Pf_ensemble(pfe);
 			if(!dryrun) 
 			{
-				pfwrite_stream(pfo_total,argv[2],fp,0);
+				pfout(fp,pfo_total);
 				fprintf(fp,"%s\n",ENDPF_SENTINEL);
 				fflush(fp);
 			}

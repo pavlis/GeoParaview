@@ -90,7 +90,7 @@ int getline(char *line,int maxline, int fd)
 {
 	int i;
 	int ierr;
-	for(i=0;i<maxline;++i)
+	for(i=0;i<maxline-1;++i)
 	{
 		ierr=read(fd,line+i,1);
 		if(ierr<=0) return(ierr);
@@ -125,7 +125,11 @@ Pf *pfstream_read(char *fname)
 		if(ncread==MAXLINE)
 			elog_complain(0,"pfstream_read encountered a long line of length %d that exceeded the internal buffer size of %d\nData may be dropped\n",
 				ncread,MAXLINE);
-		if(strstr(line,ENDPF_SENTINEL)!=NULL )break;
+		if(strstr(line,ENDPF_SENTINEL)!=NULL )
+		{
+			break;
+		}
+		if(strstr(line,END_OF_DATA_SENTINEL)!=NULL) return(NULL);
 
 		strcat(buffer,line);
 		high_water_mark=strlen(buffer);
@@ -283,6 +287,7 @@ more data
 
 }
 
+
 Author:  Gary L. Pavlis
 Date:  September 2002
 */
@@ -291,9 +296,8 @@ Pf_ensemble *pfget_Pf_ensemble(Pf *pfin,char *tag)
 	Pf_ensemble *pfe;
 	Tbl *ttmp;
 	int nmembers,ngroups;
-
 	Tbl *t=newtbl(0);
-	Pf *pferaw,*pf,*pf_ens_arr;;
+	Pf *pferaw,*pf,*pf_ens_arr;
 	Tbl *list_keys;
 	int i;
 
@@ -363,9 +367,6 @@ Pf_ensemble *pfget_Pf_ensemble(Pf *pfin,char *tag)
 		}
 	}
 	freetbl(list_keys,0);
-	/* This is going to leave some memory leaks of the pf's created
-	during parsing the Arr heirarchy, but this seems unavoidable. */
-	pffree(pfin);
 	return(pfe);
 }
 
@@ -445,6 +446,8 @@ Arguments:
 		are global parameters.  This should be set to NULL
 		before calling this function if no global parameters
 		are required.
+		Note that if the grouping features is used this block
+		must contain those parameters.
 	pfe - Pf_ensemble that is to be compiled into single output pf
 	tag - name used to tag the output Arr.
 
@@ -484,15 +487,16 @@ Pf *build_ensemble(Pf *ensemble_pf,Pf_ensemble *pfe, char *tag)
 	/*Now we use string functions to assemble this mess */
 	strcpy(pfimage,tag);
 	strcat(pfimage," &Arr{\n");
-	strcpy(pfimage,hdrblock);
-	strcat(pfimage,"\n");
-	strcat(pfimage,"ensemble &Arr{\");
+	strcat(pfimage,hdrblock);
+	strcat(pfimage,"ensemble &Arr{\n");
 	for(i=0;i<npf;++i)
 	{
 		char key[16];
 		sprintf(key,"%0.5d ",i);
 		strcat(pfimage,key);
+		strcat(pfimage," &Arr{\n");
 		strcat(pfimage,blocks[i]);
+		strcat(pfimage,"}\n");
 	}
 	strcat(pfimage,"}\n}\n");
 

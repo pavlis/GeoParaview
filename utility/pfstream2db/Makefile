@@ -6,7 +6,7 @@ DATA=
 INCLUDE=
 PF=pfstream2db.pf
 
-MAN1=pfstream2db.1
+#MAN1=pfstream2db.1
 MAN3=
 MAN5=
 
@@ -16,7 +16,7 @@ cflags=-g
 fflags=
 ldflags=
 #ldlibs=-lglputil  -xlic_lib=sunperf,fui,fai,fsu $(DBLIBS)
-ldlibs=-lglputil  -xlic_lib=sunperf $(DBLIBS) -lpfstream
+ldlibs=-lglputil  -xlic_lib=sunperf $(DBLIBS) -lpfstream -lbrttutil
 
 include $(ANTELOPEMAKE)
 
