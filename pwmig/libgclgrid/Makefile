@@ -6,10 +6,9 @@ INCLUDE=gclgrid.h
 MAN3=
 MAN5=		# man pages for file formats
 
-cflags=-g -DSUNPERF
-ldflags=
-ldlibs=-L/opt/SUNWspro/lib $(DBLIBS) -lsunperf 
+cflags=-g
 
+include $(ANTELOPEMAKE)  	
 
 
 OBJS=	create_destroy.o dbsubs.o ellipsoid.o fme_interpolate.o method_subs.o

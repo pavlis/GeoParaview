@@ -20,7 +20,7 @@ GCL3Dgrid *GCL3Dgrid_load_db(Dbptr db,char *gridname)
 	char sstring[40];
 	char datatype[4];
 	char dir[65], dfile[36];
-	char filename[512];  
+	char *filename;  
 	int foff;
 	char *base_message="Cannot create GCL3Dgrid object: ";
 	char *read_error="fread failed";
@@ -31,14 +31,14 @@ GCL3Dgrid *GCL3Dgrid_load_db(Dbptr db,char *gridname)
 	int gridsize;  
 	FILE *fp;
 
-	dbgrd = dblookup(db,0,"gclgdisk",0,0); 
+	dbgrd = dblookup(db,0,"gclgdsk",0,0); 
 	if(dbgrd.record == dbINVALID) 
 	{
-		elog_notify(0,"%s gclgdisk table not defined in schema definition\n",base_message);
+		elog_notify(0,"%s gclgdsk table not defined in schema definition\n",base_message);
 		return(NULL);
 	}
 	sprintf(sstring,"gridname =~ /%s/ && dimensions == 3",gridname);
-	dbgrd = dbsubset(dbgrd,sstring,0);
+	dbgrd = dbsubset(db,sstring,0);
 	dbquery(dbgrd,dbRECORD_COUNT,&nrec);
 	if(nrec <= 0) 
 	{
@@ -84,17 +84,19 @@ GCL3Dgrid *GCL3Dgrid_load_db(Dbptr db,char *gridname)
 			base_message);
 		return(NULL);
 	}
-	if((!strcmp(cdef,"n")) || (!strcmp(gdef,"n")) )
+	/* These parameters are stored in the database in degrees but
+	are converted to radians for internal use */
+	g->lat0 = rad(g->lat0);
+	g->lon0 = rad(g->lon0);
+	g->azimuth_y = rad(g->azimuth_y);
+	if(strcmp(cdef,"n") || strcmp(gdef,"n") )
 	{
 		free(g);
 		elog_notify(0,"%s Cartesian and Geographical mapping (cdefined and geodefined attributes) must both be defined for input\n",
 			base_message);
 		return(NULL);
 	}
-	if(strcmp(cdef,"n")) g->cartesian_defined=1;
-	if(strcmp(gdef,"n")) g->geographic_defined=1;
-
-	if(strcmp(datatype,"t8"))
+	if(!strcmp(datatype,"t8"))
 	{
 		free(g);
 		elog_notify(0,"%s data type %s not allowed.  Currently only support t8\n",
@@ -102,7 +104,7 @@ GCL3Dgrid *GCL3Dgrid_load_db(Dbptr db,char *gridname)
 		return(NULL);
 	}
 	/* Get the file name to read the gclgrid data from.*/
-	if(dbextfile(dbgrd,"gclgdisk",filename) <=0)
+	if(dbextfile(dbgrd,"gclgdsk",filename) <=0)
 	{
 		free(g);
 		elog_notify(0,"%s Cannot find grid file named %s in directory %s\n",
@@ -183,7 +185,7 @@ GCL2Dgrid *GCL2Dgrid_load_db(Dbptr db,char *gridname)
 	char sstring[40];
 	char datatype[4];
 	char dir[65], dfile[36];
-	char filename[512];  
+	char *filename;  
 	int foff;
 	char *base_message="Cannot create GCL2Dgrid object: ";
 	char *read_error="fread failed";
@@ -194,14 +196,14 @@ GCL2Dgrid *GCL2Dgrid_load_db(Dbptr db,char *gridname)
 	int gridsize;  
 	FILE *fp;
 
-	dbgrd = dblookup(db,0,"gclgdisk",0,0); 
+	dbgrd = dblookup(db,0,"gclgdsk",0,0); 
 	if(dbgrd.record == dbINVALID) 
 	{
-		elog_notify(0,"%s gclgdisk table not defined in schema definition\n",base_message);
+		elog_notify(0,"%s gclgdsk table not defined in schema definition\n",base_message);
 		return(NULL);
 	}
 	sprintf(sstring,"gridname =~ /%s/ && dimensions == 2",gridname);
-	dbgrd = dbsubset(dbgrd,sstring,0);
+	dbgrd = dbsubset(db,sstring,0);
 	dbquery(dbgrd,dbRECORD_COUNT,&nrec);
 	if(nrec <= 0) 
 	{
@@ -244,16 +246,20 @@ GCL2Dgrid *GCL2Dgrid_load_db(Dbptr db,char *gridname)
 			base_message);
 		return(NULL);
 	}
-	if((!strcmp(cdef,"n")) || (!strcmp(gdef,"n")) )
+	/* These parameters are stored in the database in degrees but
+	are converted to radians for internal use */
+	g->lat0 = rad(g->lat0);
+	g->lon0 = rad(g->lon0);
+	g->azimuth_y = rad(g->azimuth_y);
+
+	if(strcmp(cdef,"n") || strcmp(gdef,"n") )
 	{
 		free(g);
 		elog_notify(0,"%s Cartesian and Geographical mapping (cdefined and geodefined attributes) must both be defined for input\n",
 			base_message);
 		return(NULL);
 	}
-	if(strcmp(cdef,"n")) g->cartesian_defined=1;
-	if(strcmp(gdef,"n")) g->geographic_defined=1;
-	if(strcmp(datatype,"t8"))
+	if(!strcmp(datatype,"t8"))
 	{
 		free(g);
 		elog_notify(0,"%s data type %s not allowed.  Currently only support t8\n",
@@ -261,7 +267,7 @@ GCL2Dgrid *GCL2Dgrid_load_db(Dbptr db,char *gridname)
 		return(NULL);
 	}
 	/* Get the file name to read the gclgrid data from.*/
-	if(dbextfile(dbgrd,"gclgdisk",filename) <=0)
+	if(dbextfile(dbgrd,"gclgdsk",filename) <=0)
 	{
 		free(g);
 		elog_notify(0,"%s Cannot find grid file named %s in directory %s\n",
@@ -414,14 +420,15 @@ int save_3dgclgrid(GCL3Dgrid *g,Dbptr db,char *dir)
 		++errcount;
 	}
 	fclose(fp);
-	/* Now we write a row in the database for this grid*/
+	/* Now we write a row in the database for this grid.  Note
+	some quantities have to be converted from radians to degrees.*/
 	if(dbaddv(db,0,
 		"gridname",g->name,
 		"dimensions",dimensions,
-		"lat",g->lat0,
-		"lon",g->lon0,
+		"lat",deg(g->lat0),
+		"lon",deg(g->lon0),
 		"radius",g->r0,
-		"azimuth_y",g->azimuth_y,
+		"azimuth_y",deg(g->azimuth_y),
 		"dx1nom",g->dx1_nom,
 		"dx2nom",g->dx2_nom,
 		"dx3nom",g->dx3_nom,
@@ -531,8 +538,8 @@ int save_2dgclgrid(GCL2Dgrid *g,Dbptr db,char *dir)
 		"lon",deg(g->lon0),
 		"radius",g->r0,
 		"azimuth_y",deg(g->azimuth_y),
-		"dx1nom",deg(g->dx1_nom),
-		"dx2nom",deg(g->dx2_nom),
+		"dx1nom",g->dx1_nom,
+		"dx2nom",g->dx2_nom,
 		"n1",g->n1,
 		"n2",g->n2,
 		"xlow",g->xlow,
