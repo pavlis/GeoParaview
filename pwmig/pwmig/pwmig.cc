@@ -7,7 +7,7 @@
 
 void usage()
 {
-        cbanner((char *)"$Revision: 1.2 $ $Date: 2003/09/09 11:07:39 $",
+        cbanner((char *)"$Revision: 1.3 $ $Date: 2003/11/28 17:42:44 $",
                 (char *)"db pfi pfo [-V -pf pfname]",
                 (char *)"Gary Pavlis",
                 (char *)"Indiana University",
@@ -302,12 +302,15 @@ if(ii==0) cerr<<"Closure error="<<deltar<<endl;
 				r0);
 	}
 }
-/* Returns a 3x nx-1  matrix of ray path unit vectors pointing in
+/* Returns a 3x nx  matrix of ray path unit vectors pointing in
 direction of tangent to the path defined by the 3 x nx  input matrix 
 passed as ray.  The algorithm is a simple forward difference scheme 
 with no checking for possible roundoff problems.  Because we use forward
 differences the output vector at point i is computed from the segment 
-immediately forward (x[i+1]-x[i]).
+immediately forward (x[i+1]-x[i]).  Note this means the sign convention
+is determined solely from the path variables.  Each vector is normalized
+to unity.  The last point two points in the output are equal to keep
+sizes consistent and is the only choice with a forward difference scheme.
 
 Note the dmatrix is created with new here and needs to be cleared by caller.
 
@@ -329,7 +332,14 @@ dmatrix *ray_path_tangent(dmatrix& ray)
 	// function is not viewed as a library function
 	nx=sz[1];
 	delete [] sz;
-	gptr = new dmatrix(3,nx-1);
+	gptr = new dmatrix(3,nx);
+
+	// debug trap
+	if(sz[1]<2 || sz[0]!=3)
+	{
+		cerr << "ray_path_tangent:  input path size "<<sz[0]<<" by " <<sz[1]<2 <<endl;
+		exit(1);
+	}
 
 	for(i=0;i<nx-1;++i)
 	{
@@ -337,10 +347,51 @@ dmatrix *ray_path_tangent(dmatrix& ray)
 		dx[1]=ray(1,i+1)-ray(1,i);
 		dx[2]=ray(2,i+1)-ray(2,i);
 		nrmdx=dnrm2(3,dx,1);
+		// debug trap.  Won't happen if used correctly. Could to be removed eventually
+		if(nrmdx<=0.0)
+		{
+			cerr<<"ray_path_tangent: coding error two points on path are equal."<<endl;
+			exit(1);
+		} 
 		dscal(3,1.0/nrmdx,dx,1);
 		for(j=0;j<3;++j) gamma(j,i)=dx[j];
 	}
+	// copy the last point
+	for(j=0;j<3;++j) gamma(j,nx-1)=gamma(j,nx-2);
 	return(gptr);
+}
+/* similar function to above in concept, but this one computes the set of local
+verticals along the ray path in the GCLgrid cartesian system
+*/
+dmatrix *compute_local_verticals(dmatrix& ray)
+{
+	dmatrix *vptr;
+	dmatrix& verticals=*vptr;
+	int *sz,nx;
+	Geographic_point x0_geo;
+	Cartesian_point x0_c;
+	const double DR=100.0;
+
+	double dx[3];
+	double nrmdx;
+	int i,j;
+
+	sz = ray.size();
+	// assume number rows = 3.   could test and throw exception, but this
+	// function is not viewed as a library function
+	nx=sz[1];
+	delete [] sz;
+	vptr = new dmatrix(3,nx);
+	for(i=0;i<nx;++i)
+	{
+		x0_geo = g.ctog(path(0,0),path(1,0),path(2,0));
+		x0_geo.r -= DR;
+		x0_c = g.gtoc(x0_geo);
+		verticals(0,i) = (path(0,i) - x0_c.x1)/DR;
+		verticals(1,i) = (path(1,i) - x0_c.x2)/DR;
+		verticals(2,i) = (path(2,i) - x0_c.x3)/DR;
+	}
+	return(vptr);
 }
 /* computes depth dependent transformation matrix assuming a scattering
 is specular.  That is, transformation matrices will yield a form of
@@ -351,10 +402,13 @@ class Ray_Transformation_Operator
 {
 public:
 	int npoints;
-	dmatrix U[];
 	Ray_Transformation_Operator(int np)
 	{
-		U=new dmatrix(3,3)[np];
+		for(int i=0;i<np;++i)
+		{
+			dmatrix *dmtp = new dmatrix(3,3);
+			U.push_back(*dmtp);
+		}
 	}
 	// constructor for constant azimuth 
 	Ray_Transformation_Operator(GCLgrid&g, dmatrix& path, double azimuth);
@@ -362,6 +416,8 @@ public:
 	Ray_Transformation_Operator(GCLgrid&g, dmatrix& path);
 	~Ray_Transformation_Operator(){delete [] U;);
 	dmatrix *apply(dmatrix& in);
+private:
+	vector<dmatrix> U;
 };
 dmatrix *Ray_Transformation_Operator::apply(dmatrix& in)
 {
@@ -400,7 +456,18 @@ dmatrix *Ray_Transformation_Operator::apply(dmatrix& in)
 	}
 	return(optr);
 }
-// Constructor for simple cast with all matrices going to surface R,T,L coordinates
+/* Constructor for simple case with all matrices going to surface R,T,L coordinates.
+The primary contents is a vector of dmatrix object holding (in this case) the
+same transformation matrix at every point.  
+
+Arguments:
+	g - reference GCLgrid object.  Mainly used here as the coordinate reference
+		frame for path
+	path - 3xNp matrix of points that defines the ray path
+	azimuth - angle (radians) of the ray propagation direction 
+		at the surface.  Note this is geographical azimuth NOT the
+		phi angle in spherical coordinates.
+*/
 Ray_Transformation_Operator::Ray_Transformation_Operator(GCLgrid& g, 
 	dmatrix& path,double azimuth)
 {
@@ -410,45 +477,422 @@ Ray_Transformation_Operator::Ray_Transformation_Operator(GCLgrid& g,
 	dmatrix U0(3,3);  // final matrix copied to all elements here
 	double x[3];  //work vector to compute unit vectors loaded to U0
 	Geographic_point x0_geo;
+	Cartesian_point x0_c;
+	double x_vertical[3];  // point to local vertical direction at x_geo
+	const double DR=100.0;
+	double xdotxv,theta,phi;
+	int i;
 
 	//first we need the geographic coordinates of the ray emergence point
 	x0_geo = g.ctog(path(0,0),path(1,0),path(2,0));
+	x0_geo.r -= DR;
+	x0_c = g.gtoc(x0_geo);
+	x_vertical[0] = (path(0,0) - x0_c.x1)/DR;
+	x_vertical[1] = (path(1,0) - x0_c.x2)/DR;
+	x_vertical[2] = (path(2,0) - x0_c.x3)/DR;
 	
-	// this holds transformation matrix from local geo TO the GCLgrid 
-	// reference frame
-	dmatrix Ugeo=ustrans(g,x0_geo.lat,x0_geo.lon);
-	
-	U = new dmatrix(3,3)[np];
 	// Get the L direction from the first pair of points in path
 	x[0]= path(0,0) - path(0,1);
 	x[1]= path(1,0) - path(1,1);
 	x[2]= path(2,0) - path(2,1);
+	nrmx = dnrm2(3,x,1);
+	dscal(3,1.0/nrmx,x,1);  // normalize to unit vector
+	// need to check for a vertical vector and revert to identity 
+	// to avoid roundoff problems
+	xdotxv = ddot(3,x,1,x_vertical,1);
+	// azimuth is from North while theta in spherical coordinates is measured from x1
+	phi = M_PI_2 - azimuth;
+	if(fabs(xdotxv)<=DBL_EPSILON)
+	{
+		// L vertical means theta=0.0
+		a=cos(phi);
+		b=sin(phi);
+		c=1.0;
+		d=0.0;
+	}
+	else
+	{
+		// dot product is preserved so we can use this here
+		theta = acos(xdotxv);
+		/* The following is copied from the rotate function in rotation.C of libseispp.
+		I did this to allow parallel coding for this and the more general case below.
+		It causes a maintenance problem as if there is an error there it will have
+		been propagated here. */
+	        a = cos(phi);
+	        b = sin(phi);
+	        c = cos(theta);
+	        d = sin(theta);
+	}
+	U0(0,0) = a*c;
+        U0(1,0) = b*c;
+        U0(2,0) = d;
+        U0(0,1) = -b;
+        U0(1,1) = a;
+        U0(2,1) = 0.0;
+        U0(0,2) = -a*d;
+        U0(1,2) = -b*d;
+        U0(2,2) = c;
+	for(int i=0;i<np;++i)
+	{
+		// Confusing C++ memory use here.  HOpe this is right
+		dmatrix dmtp(3,3);
+		dmatrix *dmtp = new dmatrix(3,3);
+		*dtmp = U0;
+		U.push_back(*dmtp);  
+	}
+}
+/* Now the much more complex algorithm for the case where we assume the ray path
+is a specular reflection.  Then we have a different ray transformation matrix 
+at each point.  We compute this using this algorithm:
+  The L coordinate turns upward.  At the scatter point we get it from the scattered ray path
+  direction and assume that is one thing we can anchor on.
+
+  The scattered S has a polarization in the plane of scattering formed by the incident P and
+  scattered S.  The complementary component is then readily found by the cross product of the
+  P and S paths.  
+
+  We get the scattered S direction (at the scattering point) from a cross product between 
+  local L and the local "SH-like" direction derived in the previous step.
+
+  We propagate the components to the surface with a simple directional change.  L remains
+  L  and the S components obey Snell's law rules.  
+
+Arguments:
+	g-parent GCLgrid that defines coordinate system (only used for coordinate
+		transformations here)
+	path - 3xnp matrix of points defining the path.  It is assumed path starts at
+		the surface and is oriented downward.
+	azimuth - angle (radians) of the ray propagation direction 
+		at the surface.  Note this is geographical azimuth NOT the
+		phi angle in spherical coordinates.
+	gamma_P - 3xnp matrix of tangent (unit) vectors for incident wave ray path
+		at each point in path.  It is assumed gamma_P vectors point along
+		the direction of propagation of the incident wavefield (nominally upward)
+
+The output array of matrices when applied to data will yield output with x1 = generalized
+R, x2= generalized T, and x3=L.  
+
+*/
+Ray_Transformation_Operator::Ray_Transformation_Operator(GCLgrid& g, 
+	dmatrix& path,double azimuth, dmatrix& gamma_P)
+{
+	int *insize=path.size();
+	int np=insize[1];
+	delete [] insize;
+	Geographic_point x0_geo;
+	Cartesian_point x0_c;
+	double x_vertical[3];  // point to local vertical direction at x_geo
+	const double DR=100.0;
+	const double PARALLEL_TEST=FLT_EPSILON;  // a conservative test for zero length double vector
+	int i,j;
+
+	// First we need to compute a set of ray path tangents
+	dmatrix *tanptr;
+	dmatrix &tangents = tanptr;
+	tanptr = ray_path_tangent(path);
+
+	// We next need a set of local vertical vectors. 
+	dmatrix *vptr;
+	dmatrix &local_verticals = *vptr;
+	vptr = compute_local_verticals(path);
+
+	// We call the simpler constructor first above and use it to provide
+	// transformation matrices to ray coordinates -- the starting point here
+	// For old C programmers like me:  This will be deleted when it goes out
+	// of scope when the function exits so we don't need a delete below.
+	Ray_Transformation_Operator Raytrans0(g,path,azimuth);
+
+	// work down the ray path building up the transformation matrix at each point
+	U=new dmatrix(3,3)[np];	
+	for(i=0;i<np;++i)
+	{
+		double Lscatter[3],Tscatter[3],Rscatter[3];
+		double nu0;  // unit vector in direction gamma_P
+		// Tp, Rp, and Zp for an orthogonal basis for earth coordinates
+		// at the scattering point that are standard 1D propagator coordinates
+		// That is Zp is local vertical, Rp is Sv director for S ray path,
+		// and Tp is Sh.  
+		double Zp[3],Rp[3],Tp[3];  // radial and tangential for S ray path 
+		dmatrix work(3,3);
+		// copy the tangent vector Lscatter from the tangent vectors 
+		// matrix for convenience and clarity.  Assume Lscatter is unit vector
+		dcopy(3,tangents.get_address(0,i),1,Lscatter,1);
+		// do the same for the incident ray direction but here we want to
+		// normalize to a unit vector
+		dcopy(3,gamma_P.get_address(0,i),1,nu0,1);
+		d3norm(nu0);
+		// First derive the S ray path propagation coordinate system
+		// first copy Zp
+		dcopy(3,local_verticals.get_address(0,i),1,Zp,1);
+		// Now get radial from Lscatter = S ray path tangent.  Have to 
+		// handle case with Lscatter vertical carefully.  In that case, 
+		// derive radial from nu0.
+		d3cros(Zp,Lscatter,Tp);
+		if(dnrm2(3,Tp,1)<PARALLEL_TEST)
+                {
+			d3cros(Zp,nu0,Tp);
+			// excessively paranoid, but could happen
+			if(dnrm2(3,Tp,1)<PARALLEL_TEST)
+                        {
+                                cerr << "Warning:  cannot handle singular geometry"
+					<< endl;
+				<< "Antipodal event scattered to vertical incidence"
+					<< endl
+				<< "Using T=x1 and R=x2 of GCL coordinate system"
+					<< endl
+				<< "Probable discontinuity at normal incidence"<<endl;
+				Tp[0]=1.0;  Tp[1]=0.0;  Tp[2]=0.0;
+			}
+		}
+		d3norm(Tp);
+		// Radial is now derived as Lscatter X Tp to make right handed cartesian
+		d3cros(Lscatter,Tp,1);
+		// Normalization d3norm(Rp) not necessary here because Tp and Lscatter
+		// are orthogonal unit vectors
+		//
+		// Now we need to derive the specular reflection SV vector (Rscatter)
+		// and SH vector (Tscatter).  A confusion is this is much like the
+		// way we computed Rp and Tp above but using different vectors as
+		// building blocks.  First, Tscatter is derived from cross product of
+		// nu0 and Lscatter.  Sign is important.  We aim for a coordinate system
+		// where T,R,L = x1,x2,x3 form a right handed coordinate system
+		// This happens to be a nonstandard convention (textbooks would
+		// use L,R,T = x,y,z) but I'm deriving too much code from 
+		// multiwavelet code that used this convention.  
+		//
+		d3cros(Lscatter,nu0,Tscatter);  // Tscatter is x1
+		// as above, need to handle case when L and T are parallel
+		if(dnrm2(3,Tscatter,1)<PARALLEL_TEST)
+		{
+			// In this case, Tscatter will be the same as Tp
+			dcopy(3,Tp,1,Tscatter,1);
+		}
+		// Do need to normalize
+		d3norm(Tscatter);  
+		// In a right handed coordinate system x2 = x3 X x1 = L X T
+		d3cros(Lscatter,Tscatter,Rscatter);
+
+		//
+		/* Now we derive the transformation matrix.  The matrixs computed
+		computed here will transform a vector in ray coordinates to a vector
+		with in the specular reflection coordinate system used here.
+		Note that for the present case of a 1d medium this is a simple
+		rotation around x3, but we derive it from dot products.  
+		In the symbols of this algorithm it transforms from the 
+		Tp,Rp, Lscatter basis to that of Tscatter, Rscatter, Lscatter.
+		This works because we assume a simple ray theory propagator to
+		project the wavefield to the depth of the scattering point.
+		(Note: my working theory notes derived the inverse of this
+		transform = transpose of this one.
+		*/
+
+		work(0,0) = ddot(3,Tscatter,1,Tp,1);
+		work(0,1) = ddot(3,Tscatter,1,Rp,1);
+		work(0,2) = 0.0;
+		work(1,0) = ddot(3,Rscatter,1,Tp,1);
+		work(1,1) = ddot(3,Rscatter,1,Rp,1);
+		work(1,2) = 0.0;
+		work(2,0) = 0.0;
+		work(2,1) = 0.0;
+		work(2,2) = 1.0;
+
+		U[i] = work*Raytrans0.U[i];
+
+	}
+
+	delete tangents;
+	delete local_verticals;
+}
+/* This function computes the domega term for the inverse Radon transform inversion
+formula.  It works according to this basic algorithm.
+1.  If u0 is the slowness vector for the current ray path, compute four neighboring
+rays at 1/2 grid spacings:  u0+dux1/2, u0-dux1/2, u0+duy1/2, and u0-duy1/2 where the
+1/2 means the 1/2 a grid spacing.  In slowness space this forms a rectangle surrounding
+the u0 point.
+2.  Compute a ray for each of these points using constructors for a RayPathSphere 
+object and the routine GCLgrid_Ray_Project.  Note these are computed with the equal
+depth option, not equal time.
+3.  Compute gradS for each point on each ray.  
+4.  Interpolate the input gradP vectors to depths (the input is on an irregular
+grid).  
+5.  Compute the gradS+gradP sums to build an array of unit vectors for each ray.
+6.  compute solid angles between + and - pairs of finite difference rays using
+a vector cross product and a small angle approximation (if a and b are unit vectors
+axb = |a||b|sin theta = sin theta ~ theta for small angles )  Solid angle is product
+of the two angles.
+
+Returns a vector of domega terms on the grid defined by the input ray path.
+
+Arguments:
+
+	u0 - input slowness vector (note passed as Slowness_vector object)
+	dux, duy - base slowness grid increments.
+	vmod - 1d velocity model used for ray tracing 
+	zmax, dz - ray trace parameters.  trace to depth zmax with depth increment dz
+	g - gclgrid for geometry
+	ix1, ix2  - index position of receiver point in gclgrid g.
+	path - ray path of scattered S in GCLgrid cartesian coordinate system.
+	gradP - parallel matrix to path of P time gradient vectors.
+
+Returns an np by 1 dmatrix object containing the domega term.  I chose to use this
+instead of the STL vector to reduce baggage.  All I need is the numbers in the vector and the
+convenience of the size elements of the dmatrix np (length of output) being passed iwth
+the object.  a dmatrix is fine for that and the contents can be manipulated with the BLAS.
+
+Author:  Gary Pavlis
+Written:  NOvember 2003
+*/
 	
-// ran out of time here.  See "rotate" function in rotation.C of libseispp 
-// to derive transformation matrix for ray coordinates.  This is currently
-// potentially backwards in a couple places.  Should be able to just
-// use the matrix computed in the rotate function as this is a conversion
-to ray coordinates.  The next function needs the complications I was
-working away at here.
 
-		
+double *compute_domega_for_path(Slowness_vector& u0,double dux, double duy,
+	Velocity_Model_1d& vmod, GCLgrid3d& g,int ix1, int ix2,
+	dmatrix& path, dmatrix& gradP)
+{
+	Slowness_vector udx1, udx2, udy1, udy2;
+	dmatrix *pathdx1, *pathdx2, *pathdy1, *pathdy2;
+	dmatrix *gradSdx1, *gradSdx2, *gradSdy1, *gradSdy2;
+	int i;
+	int npath; // used to define length of valid output 
+
+	udx1 = u0;
+	udx1.ux -= dux/2.0;
+	udx2=u0;
+	dux2.ux += dux/2.0;
+	udy1 = u0;
+	udy1.uy -= duy/2.0;
+	udy2=u0;
+	udy2.uy += duy/2.0;
+	//
+	// Now call the constructors for the basic ray paths for these four rays.  
+	// We set the constructor in depth model and ASSUME zmax is small enough that
+	// the ray for each u will not turn within vmod.  
+	//
+	RayPathSphere raydx1(vmod,udx1,zmax,1.0e99,del,"z");
+	//
+	// Now call the constructors for the basic ray paths for these four rays.  
+	// We set the constructor in depth model and ASSUME zmax is small enough that
+	// the ray for each u will not turn within vmod.  
+	//
+	RayPathSphere raydx1(vmod,udx1.mag(),zmax,1.0e99,dz,"z");
+	RayPathSphere raydx2(vmod,udx2.mag(),zmax,1.0e99,dz,"z");
+	RayPathSphere raydy1(vmod,udy1.mag(),zmax,1.0e99,dz,"z");
+	RayPathSphere raydy1(vmod,udy1.mag(),zmax,1.0e99,dz,"z");
+	//
+	// project these into the GCLgrid coordinate system
+	//
+	try {
+		pathdx1 = GCLgrid_Ray_Project(g,raydx1&, udx1.azimuth(),ix1,ix2);
+		pathdx2 = GCLgrid_Ray_Project(g,raydx2&, udx2.azimuth(),ix1,ix2);
+		pathdy1 = GCLgrid_Ray_Project(g,raydy1&, udy1.azimuth(),ix1,ix2);
+		pathdy2 = GCLgrid_Ray_Project(g,raydy2&, udy2.azimuth(),ix1,ix2);
+	}  catch (GCLgrid_error)
+	{
+		err.log_error();
+		die(0,"Unrecoverable error:  requires a bug fix\n");
+	}
+	//
+	// get gradS values by first computing tangents as unit vector and then
+	// scaling them by slowness at that depth. Note 1d slowness is used for
+	// this calculation, not a 3d value.  This is an approximation that avoid
+	// tremendous headaches that could occur otherwise.  It should not be a
+	// significant error.
+	//
+	gradSdx1=ray_path_tangent(pathdx1);
+	gradSdx2=ray_path_tangent(pathdx2);
+	gradSdy1=ray_path_tangent(pathdy1);
+	gradSdy2=ray_path_tangent(pathdy2);
+	//
+	// Check all these matrices have the same size and truncate the 
+	// output if necessary writing a diagnostic in that situation.
+	//
+	npath = gradSdx1.nc;
+	if(npath>gradSdx2.nc) npath=gradSdx2.nc;
+	if(npath>gradSdy1.nc) npath=gradSdy1.nc;
+	if(npath>gradSdy2.nc) npath=gradSdy2.nc;
+	if(npath!= gradSdx1.nc)
+	{
+		cerr << "compute_domega_for_path: irregular path length for bundle of 4 rays used to compute domega" << endl
+
+			<< "Slowness grid probably defines turning rays in thie model" << endl;
+	}
+	for(i=0;i<npath;++i)
+	{
+		double slow;
+		double depth;
+		// because we used equal depth grid, we can just choose one of these to get depth
+		depth = R_EQUATOR - raydx1.r[i];  
+		slow = 1.0/vmod.getv(depth);
+		dscal(3,slow,gradSdx1.get_address(0,i),1);
+		dscal(3,slow,gradSdx2.get_address(0,i),1);
+		dscal(3,slow,gradSdy1.get_address(0,i),1);
+		dscal(3,slow,gradSdy2.get_address(0,i),1);
+	}
+
+	//
+	// Now we have interpolate the gradP vectors onto this uniform depth grid.  
+	// to do that we use the GCLgrid's geometry function to build a vector of 
+	// depths
+	//
+	int npath_P;
+	npath_P = gradP.nc;
+	double *z = new double[npath_P];
+	dmatrix gradP_regular(3,npath);
+	Geographic_point gclp;
+	for(i=0;i<npath_P;++i)
+	{
+		gclp = g.ctog(gradP(0,i), gradP(1,i),gradP(2,i));
+		z[i] = r0_ellipse(gclp.lat) - gclp.r;
+	}
+	INTERPOLATOR1d::linear_vector_irregular_to_regular(z,gradP,
+		0.0,dz,gradP_regular);
+	delete [] z;   // finished with this so we better get rid of it
+	//
+	// Now we can compute sum of gradP and gradS to form unit vectors
+	// the nu matrices are created with a 1,1 dimension initially to 
+	// define the object, but are assumed rebuilt by the assignment operator
+	// below.
+	//
+	dmatrix nudx1(1,1);
+	dmatrix nudx2(1,1);
+	dmatrix nudy1(1,1);
+	dmatrix nudy2(1,1);
+	nudx1 = gradP_regular + gradSdx1;
+	nudx2 = gradP_regular + gradSdx2;
+	nudy1 = gradP_regular + gradSdy1;
+	nudy2 = gradP_regular + gradSdy2;
+	// normalize using antelope function d3norm
+	for(i=0;i<npath;++i)
+	{
+		d3norm(nudx1.get_address(0,i));
+		d3norm(nudx2.get_address(0,i));
+		d3norm(nudy1.get_address(0,i));
+		d3norm(nudy2.get_address(0,i));
+	}
+	//
+	// Now get domega using cross products between pairs of unit vectors and 
+	// small angle approximation (sin theta approx theta when theta is small)
+	//
+	double *doptr = new dmatrix(npath,1);
+	dmatrix domega& = *doptr;
+	for(i=0;i<npath;++i)
+	{
+		double cross[3];
+		double dtheta_x, dtheta_y;
+		d3cros(nudx1,nudx2,cross);
+		dtheta_x = r3mag(cross);
+		d3cros(nudy1,nudy2,cross);
+		dtheta_y = r3mag(cross);
+		domega(i,0) = dtheta_x*dtheta_y;
+	}
+
+	// because these are defined as pointers we have to explicitly delete these
+	// objects
+	delete pathdx1;  delete pathdx2;  delete pathdy1;  delete pathdy2;
+	delete gradSdx1;  delete gradSdx2;  delete gradSdy1;  delete gradSdy2;
+
+	return(doptr);  // pointer to domega defined above 
+}
 	
-	
-
-/* Computes the domega term for the inverse Radon transform inversion formula.
-Computed solid angle subtened the region formed by the difference u-du/2 to u+du/2
-in both the x and y directions.  The product is the solid angle subtended.
-The geometry is a bit ugly because we have to 
-
-ahhh noooooo 
-
-New algorithm comes to mind.  I'll use the ray trace funtion with u computed as
-ux+du and uy+dy.
-
-Going back to main to put that code in.
-
-double compute_solid_angle(Slowness_vector u,double du,double *gradP,double *gradS,
-				double svel)
 
 /*  Plane wave migration code main.  This main program does most of the work of the migration code.
 Basic algorithm is driven by an  input stream but it also reads a number of fixed entities (notably
@@ -567,7 +1011,6 @@ int main(int argc, char **argv)
 			string gridname;
 			GCLgrid3d *grdptr;
 			GCLgrid3d& raygrid;  // convenient shorthand because we keep changing this
-			double ***ts;  // S wave travel time grid
 			string area;  // key for database when multiple areas are stored in database
 			RayPathSphere *rayupdux,*rayupduy;
 			int iux1, iux2;   // index positions for slowness grid
@@ -581,42 +1024,22 @@ int main(int argc, char **argv)
 			area = pwdata->md.get_string("area");
 
 			// find the GCLgrid that matches the slowness vector for this ensemble
+/* This was a design change.  Originally I planned a precompute function.
+Decided the work involved was not that severe and we could just recompute
+this grid every time.  Now we have to construct this GCLgrid incrementally
+That is, the final result is a GCLvectorfield3d object with the projected
+data into that field.  
 			string get_gridname(db, area, iux1, iux2, ustack);
 			gridname = get_gridname(ustack);
 			// note this pointer has raygrid as an alias
 			grdptr = new GCLgrid3d(db,gridname.c_str());
 			n30 = raygrid.n3 - 1;
-			// This function returns grid of S wave travel times for this ray-based GCLgrid
-			// because we do not try to interpolate this function laterally we store this
-			// only as a 3D array of dimension parallel to the parent GCLgrid.  This
-			// is a dangerous programming style but desirable to save space
-			// THIS NEEDS A CHANGE.  THIS SHOULD BE MOVVED TO THE MAIN LOOP BELOW
-			// AND ONLY RETURN A VECTOR OF TIMES.  THIS WILL ALSO ALLOW THE SAME
-			// FUNCTION TO BE USED TO COMPUTE P WAVE TIMES
-			ts = compute_Swave_gridtime(Vs3d,Vs1d,grdptr);
-			//We need to compute this pair of ray paths to compute solid 
-			// angles for the integration variable.  One is used to 
-			// compute angle subtended by adding du to the x component
-			// and the other is for adding du to y component.  
-			// The sign of the component is used to choose if the
-			// du constant is to be added or subtracted.  We subtract
-			// du when u component is > 0 and add otherwise.  This
-			// makes sure we don't compute a perturbation that would
-			// turn inside the image volume
-			Slowness_vector updux=ustack;
-			Slowness_vector upduy=ustack;
-			if(updux.ux<=0)
-				updux.ux+=du;
-			else
-				updux.uy-=du;
-			if(upduy.uy<=0)
-				upudy.uy+=du;
-			else
-				upudy.uy-=du;
-			rayupdux=new RayPathSphere(Vs1d,updux.mag(),
-				zmax,tmax,dt,"t");
-			rayupduy=new RayPathSphere(Vs1d,upduy.mag(),
-				zmax,tmax,dt,"t");
+end area needing replacement*/
+			grdptr =  Build_GCLraygrid(parent,ustack,vs1d,zmax,tmax,dt);
+			// here we need to call a constructor that builds a 
+			// new 2d grid object with seismograms associatged with points
+
+
 
 			// loop through the ensemble associating each trace with a 
 			// point in the raygrid and interpolating to get time to depth.
@@ -762,13 +1185,15 @@ Modified August 20, 2003 to not use precompute function
 			compute pathintegral of truncated ray path using P3d
 			compute deltax = xr - xp where xp = emergence point of p ray
 			compute lag using dt[i] = TS-TP+(?)u0.deltax
-			compute gamma_s and gamma_p (unit vectors) (NEW FUNCTION ABOVE)
+			compute gamma_s and gamma_p (unit vectors) and store in dmatrix
 			compute transformation matrices for each ray point
 			compute tau_P and Tau_S
 			compute || tau_P - tau_S ||
 			compute solid angle domega[i]
 			compute weight[i]
-		interpolate data onto dt[i] grid (resample operation)
+		interpolate data onto rathpath times (resample operation)
+		compute vector of transformation matrix for each point on path
+		apply transformation matrices to data
 		for i=0 to end of S raypath
 			data[i] *= weight[i]
 		add metadata required 
