@@ -25,7 +25,6 @@ Written:  September 2002
 #include "db.h"
 #include "elog.h"
 #include "pfstream.h"
-#include "db2pfstream.h"
 #include "glputil.h"
 
 void usage()
@@ -116,7 +115,7 @@ int db2pf(Dbptr db, Tbl *t, Pf *pf)
 				++error_count;
 				break;
 			}
-			pfput_double(pf,m->oname,dattrib);
+			pfput_double(pf,m->pfname,dattrib);
 			break;
 		case DBTIME:
 			if(dbgetv(db,0,m->dbname,&dattrib,0)==dbINVALID)
@@ -135,7 +134,7 @@ int db2pf(Dbptr db, Tbl *t, Pf *pf)
 				++error_count;
 				break;
 			}
-			pfput_time(pf,m->oname,dattrib);
+			pfput_time(pf,m->pfname,dattrib);
 			break;
 		case DBINT:
 			if(dbgetv(db,0,m->dbname,&iattrib,0)==dbINVALID)
@@ -154,7 +153,7 @@ int db2pf(Dbptr db, Tbl *t, Pf *pf)
 				++error_count;
 				break;
 			}
-			pfput_int(pf,m->oname,iattrib);
+			pfput_int(pf,m->pfname,iattrib);
 			break;
 		case DBSTR:
 		default:
@@ -175,7 +174,7 @@ int db2pf(Dbptr db, Tbl *t, Pf *pf)
 				++error_count;
 				break;
 			}
-			pfput_string(pf,m->oname,sattrib);
+			pfput_string(pf,m->pfname,sattrib);
 		}
 	}
 	return(error_count);

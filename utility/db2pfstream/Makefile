@@ -24,7 +24,7 @@ DIRS=
 
 
 
-OBJS=db2pfstream.o pfget_Attribute_map.o
+OBJS=db2pfstream.o
 $(BIN) : $(OBJS)
 	$(RM) $@
 	$(CC) $(CFLAGS) -o $@ $(OBJS) $(LDFLAGS) $(LDLIBS)
