@@ -12,7 +12,7 @@ CC=CC -Kpic
 AR=CC -xar
 
 
-OBJS=metadata.o dmatrix.o operators.o pfstream_interface.o \
+OBJS=metadata.o create_destroy.o dmatrix.o operators.o pfstream_interface.o \
 rotate_procedures.o rotation.o
 $(LIB) : $(OBJS)
 	rm -f $@

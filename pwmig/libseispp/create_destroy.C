@@ -81,7 +81,7 @@ Three_Component_Seismogram::Three_Component_Seismogram
         components_are_cardinal=t3c.components_are_cardinal;
 	for(i=0;i<3;++i)
 		for(j=0;j<3;++j) tmatrix[i][j]=t3c.tmatrix[i][j];
-	for(i=0;i<3;++i) x[i]=Time_Series(t3c.x+i);
+	for(i=0;i<3;++i) x[i]=Time_Series((t3c.x)+i);
 }
 //No destructor is needed for current Three_Component_Seismogram object
 // because the Time_Series destructor and default deletions should
