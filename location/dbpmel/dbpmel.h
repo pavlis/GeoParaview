@@ -52,10 +52,10 @@ Hypocenter db_load_initial(Dbptr,int);
 
 #ifdef BYPASS_DBADD
 int dbpmel_save_results(Dbptr, int, int *,Hypocenter *,
-        Tbl **, double, Location_options *, Pf *, FILE*);
+        Tbl **, Pf *, FILE*);
 #else
 int dbpmel_save_results(Dbptr, int, int *,Hypocenter *,
-	Tbl **, double, Location_options *, Pf *);
+	Tbl **, Pf *);
 #endif
 
 void dbpmel_save_sc(int, Dbptr, SCMatrix *,Pf *);

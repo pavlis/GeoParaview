@@ -519,10 +519,10 @@ option which is know to cause problems\nrecenter set off\n");
 
 #ifdef BYPASS_DBADD
 			if(dbpmel_save_results(db,nevents,evid,h0,
-                                ta,smatrix->sswrodgf,&o,pf,fp))
+                                ta,pf,fp))
 #else
 			if(dbpmel_save_results(db,nevents,evid,h0,
-				ta,smatrix->sswrodgf,&o,pf))
+				ta,pf))
 #endif
 
 			{

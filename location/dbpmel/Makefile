@@ -1,11 +1,10 @@
-BIN=dbpmel_mpi
+BIN=dbpmel
 DATADIR=schemas
 DATA=genloc1.1
 PF=dbpmel.pf
-CC=mpcc
 
 #MAN1=	dbpmel.1
-cflags=-g -DMPI_SET -DBYPASS_DBADD -lmpi -mt
+cflags=-g 
 ldflags=-L/opt/SUNWspro/lib
 ldlibs= -mt $(DBLIBS) $(F77LIBS) -xlic_lib=sunperf,fui,fai,fsu \
     -ltrvltm -ldl -Bdynamic -lgenloc -lglputil -lm -dalign
