@@ -39,6 +39,7 @@ typedef struct spec_arrays_
 Spectrum Spectrum_copy(Spectrum);
 Spectrum_gather data_gather(Spectrum *spec,
         int nspec,
+        char *sdenom,
         char *chanids[6],
         Spectrum threeCspec[],
         int *nthreeCspec);
@@ -49,3 +50,4 @@ Spectrum read_spectrum(Dbptr);
 long write_spectrum(float *,int,char *,char *);
 int save_spectrum(Dbptr,Spectrum *);
 void save_spectrum_error(Spectrum *,int);
+Spectrum resample_spectrum(Spectrum, Spectrum);
