@@ -7,25 +7,37 @@
 Time_Series::Time_Series(const Time_Series& tsi)
 {
 	int i;
+	live=tsi.live;
         dt=tsi.dt;
         t0=tsi.t0;
         ns=tsi.ns;
         tref=tsi.tref;
         md= Metadata(tsi.md);
-        s=new double[ns];
-        for(i=0;i<tsi.ns;++i) s[i]=tsi.s[i];
+	if(live)
+	{
+	        s=new double[ns];
+	        for(i=0;i<tsi.ns;++i) s[i]=tsi.s[i];
+	}
+	else
+		s=NULL;
 }
 Time_Series::Time_Series(const Time_Series *tsi)
 {
 	int i;
 
+	live=tsi->live;
         t0=tsi->t0;
         ns=tsi->ns;
         dt=tsi->dt;
         tref=tsi->tref;
         md= Metadata(tsi->md);
-        s=new double[ns];
-        for(i=0;i<tsi->ns;++i) s[i]=tsi->s[i];
+	if(live)
+	{
+        	s=new double[ns];
+        	for(i=0;i<tsi->ns;++i) s[i]=tsi->s[i];
+	}
+	else
+		s=NULL;
 }
 // Default constructor for Three_Component_Seismogram could be 
 // done inline in seispp.h, but it is complication enough I put

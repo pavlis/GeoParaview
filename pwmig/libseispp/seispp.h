@@ -4,17 +4,35 @@
 #include "metadata.h"
 #include "pfstream.h"
 
+// This is used to define gaps and/or time variable weights
+//
+class Time_Window
+{
+public:
+	bool gap;  // set true if this window is a gap
+	double tstart, tend;  // time period of window (relative or abs)
+	double weight(double t)
+	{
+		if(gap) return(0.0);
+		return(w0+(t-tstart)*wgrad);
+	}
+private:
+	double w0;  // weight at t0
+	double wgrad;  // dw/dt 
+}
+
 enum Time_Reference_Type {absolute,relative};
 class Time_Series
 {
 public:
+	bool live;
 	Metadata md;
 	double dt,t0;
 	int ns;
 	Time_Reference_Type tref;
 	double *s;
-	Time_Series() {s=NULL;dt=0.0; t0=0.0; ns=0; tref=absolute;};
-	Time_Series(int nsin) {dt=0.0; t0=0.0; ns=nsin;
+	Time_Series() {lie=0;s=NULL;dt=0.0; t0=0.0; ns=0; tref=absolute;};
+	Time_Series(int nsin) {live=0; dt=0.0; t0=0.0; ns=nsin;
 		tref=absolute; s = new double[nsin];};
 	Time_Series(const Time_Series&);
 	Time_Series(const Time_Series *);
@@ -192,8 +210,8 @@ private:
 //Helpers
 //
 void apply_top_mute(Time_Series &ts,Top_Mute& mute);
-void apply_top_mute_ensemble(Time_Series_Ensemble& t, Top_Mute& mute);
-void apply_top_mute_3c_ensemble(Three_Component_Ensemble &t3c, Top_Mute& mute);
+void apply_top_mute(Time_Series_Ensemble& t, Top_Mute& mute);
+void apply_top_mute(Three_Component_Ensemble &t3c, Top_Mute& mute);
 
 
 #endif
