@@ -212,9 +212,9 @@ mout << A;
 mout.close();
 */
 	
-	double *zwork=new double[mprime];
-	double *rwork=new double[mprime];
-	double *rhs=new double[mprime];
+	double *zwork=new double[m];
+	double *rwork=new double[m];
+	double *rhs=new double[m];
 	double wz,wr,damp;
 	
 	for(i=0;i<n;++i)
