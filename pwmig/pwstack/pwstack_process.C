@@ -23,6 +23,12 @@ void vadd(int n, double *x,int  incx, double *y,int  incy)
 	for(i=0,ix=0,iy=0;i<n;++i,ix+=incx,iy+=incy)
 		y[iy] = x[ix] + y[iy];
 }
+string virtual_station_name(int ix1, int ix2)
+{
+	char name[8];
+	sprintf(name,"03.3d%03.3d",ix1,ix2);
+	return(string(name));
+}
 /*
 Main processing function for this program.  Takes an input 
 data ensemble and produce a complete suite of plane-wave stacks
@@ -66,15 +72,14 @@ Throws a Metadata_error exception object if there are problems
 parsing required metadata from any trace.  Current caller will
 abort the program on this condition, but evolution might want
 to produce a handler.
+Change Jan 15,2004
+Used to pass lat0, lon0 by arg list, now passed through the
+ensemble metadata.
 */
 int pwstack_ensemble(Three_Component_Ensemble *indata,
 	Rectangular_Slowness_Grid& ugrid,
 	Top_Mute& mute,
 	Top_Mute& stackmute,
-	double lat0,
-	double lon0,
-	double ux0,
-	double uy0,
 	double tstart,
 	double tend,
 	Depth_Dependent_Aperture& aperture,
@@ -83,6 +88,38 @@ int pwstack_ensemble(Three_Component_Ensemble *indata,
 	Attribute_Map& am,
 	Database_Handle& dbh) 
 {
+	// lat0 and lon0 are location of target pseudostation grid point
+	// elev0 is elevation of datum to use for geometric statics
+	//
+	double lat0,lon0,elev0;
+	// Incident wavefield slowness vector components
+	double ux0,uy0;
+	string gridname;
+	int ix1, ix2;
+	int evid;
+	try {
+		lat0=indata->get_double("lat0");
+		lon0=indata->get_double("lon0");
+		elev0=indata->get_double("elev0");
+		ux0=indata->get_double("ux0");
+		uy0=indata->get_double("uy0");
+		ix1=indata->get_int("ix1");
+		ix2=indata->get_int("ix2");
+		evid=indata->get_int("evid");
+		gridname=indata->get_string("gridname");
+	} catch (Metadata_get_error mderr)
+	{
+		// The above are all set by main so this is the 
+		// correct error message.  Could perhaps be dropped
+		// after debugging finished.
+		mderr.log_error();
+		cerr << "Coding error requiring a bug fix"<<endl;
+		exit(-1);
+	}
+	// This routine builds a sta name from the index positions.
+	// Made a function to allow consistency between programs.
+	//
+	string sta=virtual_station_name(ix1,ix2);
 	int i,j;
 	vector<Three_Component_Seismogram>::iterator iv,ov;
 	int nsta = indata->tcse.size();
@@ -98,12 +135,16 @@ int pwstack_ensemble(Three_Component_Ensemble *indata,
 
 	Three_Component_Seismogram *stackout;
 
-	int istart = nint(tstart/dt);
-	int iend = nint(tend/dt);
+	int istart = SEISPP::nint(tstart/dt);
+	int iend = SEISPP::nint(tend/dt);
 	int nsout = iend-istart+1;
-	int ismute = nint(mute.t1/dt);
+	int ismute = SEISPP::nint(mute.t1/dt);
 	int ismute_this, ie_this;
 	Datascope_Handle& dshandle=dynamic_cast<Datascope_Handle&>(dbh);
+	Datascope_Handle dbstack(dshandle);
+	dbstack.lookup("pwstack");
+	Datascope_Handle dbevl(dshandle);
+	dbevl.lookup("evlink");
 
 	if(istart>=indata->tcse[0].ns)
 		elog_die(0,(char *)"Irreconcilable window request:  Requested stack time window = %lf to %lf\nThis is outside range of input data\n",
@@ -196,7 +237,7 @@ int pwstack_ensemble(Three_Component_Ensemble *indata,
 		int ismin;
 		string dfile;
 		char buffer[128];
-		string table_name("pwfdisc");
+		string table_name("wfprocess");
 
 		stack.zero();
 
@@ -217,9 +258,9 @@ int pwstack_ensemble(Three_Component_Ensemble *indata,
 			iv<indata->tcse.end();++iv,++i)
 		{
 			int is0, is, ismin, ns_to_copy; 
-			is0 = istart + nint( moveout[i]);
+			is0 = istart + SEISPP::nint( moveout[i]);
 			// need this to define latest front mute time
-			ismute_this = max(ismute+nint(moveout[i]),ismute_this);
+			ismute_this = max(ismute+SEISPP::nint(moveout[i]),ismute_this);
 			// This computes starting position for the input trace  
 			if(is0<0)
 			{ 
@@ -271,17 +312,53 @@ int pwstack_ensemble(Three_Component_Ensemble *indata,
 		stackout->put_metadata("uy",uy);
 		stackout->put_metadata("dux",dux);
 		stackout->put_metadata("duy",duy);
+		// These could be copied with the copy_selected_metadata 
+		// call above, but it is better to do this explicitly 
+		// as these are completely internal parameters
+		//
+		stackout->put_metadata("lat0",lat0);
+		stackout->put_metadata("lon0",lon0);
+		stackout->put_metadata("elev0",elev0);
+		stackout->put_metadata("ux0",ux0);
+		stackout->put_metadata("uy0",uy0);
 		// may want to output a static here, but it is probably better to 
 		// just keep a good estimate of elevation and deal with this in the
 		// migration algorithm. 
 		stackout->put_metadata("elev",avg_elev);
 		apply_top_mute(*stackout,stackmute);
 
+		// Have to handle integer id problem using Datascope dbnextid 
+		// method for now.  
+		int pwfid=dbnextid(dshandle.db,"pwfid");
+		stackout->put_metadata("pwfid",pwfid);
+
 		try{
-			// Note mdlout only determines metadata saved to
-			// waveform index table. This routine writes 
-			// data to other tables also
-			save_stack(*stackout,dbh,mdlout,am);
+			dbsave(*stackout,dshandle.db,table_name,mdlout,am);
+			dbstack.append();
+			dbstack.put("gridname",gridname);
+			dbstack.put("ix1",ix1);
+			dbstack.put("ix2",ix2);
+			dbstack.put("ux",ux);
+			dbstack.put("uy",uy);
+			dbstack.put("ux0",ux0);
+			dbstack.put("uy0",uy0);
+			dbstack.put("pwfid",pwfid);
+			dbstack.put("sta",sta);
+			// Perhaps should put this out as a static, but we
+			// save the elevation instead and compute it in 
+			// the migration algorithm where a velocity available.
+			// Here we'd have to get that information to this point
+			dbstack.put("elev",avg_elev);
+
+			//
+			// Now for event link table -- awful database table, but 
+			// see now way around it if we are to retain a css back
+			// compatibility
+			//
+			dbevl.append();
+			dbevl.put("evid",evid);
+			dbevl.put("pwfid",pwfid);
+
 		}
 		catch(seispp_error err)
 		{

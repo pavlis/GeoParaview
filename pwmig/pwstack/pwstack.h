@@ -39,10 +39,6 @@ int pwstack_ensemble(Three_Component_Ensemble *indata,
 	Rectangular_Slowness_Grid& ugrid,
 	Top_Mute& mute,
 	Top_Mute& stackmute,
-	double lat0,
-	double lon0,
-	double ux0,
-	double uy0,
 	double tstart,
 	double tend,
 	Depth_Dependent_Aperture& aperture,
@@ -50,6 +46,4 @@ int pwstack_ensemble(Three_Component_Ensemble *indata,
 	Metadata_list& mdlout,
 	Attribute_Map& am,
 	Database_Handle& dbh);
-void save_stack(Three_Component_Seismogram& stack,
-        Database_Handle& dbhg,Metadata_list& mdl,  Attribute_Map& am);
-
+string virtual_station_name(int ix1, int ix2);
