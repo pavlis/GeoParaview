@@ -56,8 +56,7 @@ Arguments
 		exist (caller should make sure of this).  Output
 		file names are generated internally and if there
 		is a collision they are simply appended to.  
-	pfsho - output stream handle.  Data are pushed to 
-		this routine for output.
+	dbh - Database_Handle object for output
 
 Normal return is 0.  Returns nonzero if stack was null.
 (This is not an exception as it will happen outside the boundaries 
@@ -68,7 +67,7 @@ parsing required metadata from any trace.  Current caller will
 abort the program on this condition, but evolution might want
 to produce a handler.
 */
-int pwstack_ensemble(Three_Component_Ensemble& indata,
+int pwstack_ensemble(Three_Component_Ensemble *indata,
 	Rectangular_Slowness_Grid& ugrid,
 	Top_Mute& mute,
 	Top_Mute& stackmute,
@@ -81,19 +80,19 @@ int pwstack_ensemble(Three_Component_Ensemble& indata,
 	Depth_Dependent_Aperture& aperture,
 	list<Metadata_typedef>& mdlist,
 	string dir,
-	Pfstream_handle *pfsho) throw (Metadata_error)
+	Database_Handle& dbh) 
 {
 	int i,j;
 	vector<Three_Component_Seismogram>::iterator iv,ov;
-	int nsta = indata.tcse.size();
+	int nsta = indata->tcse.size();
 	// This computes the output gather size.  It assumes all data have
 	// a common sample rate and we can just grab the first one in the
 	// list.  It also quietly assumes a relative time base 
 	// so all times are computed relative to the start of
 	// each trace.  Caller should guarantee this.
 	//
-	double dt=indata.tcse[0].dt;
-	int nsin = indata.tcse[0].ns;
+	double dt=indata->tcse[0].dt;
+	int nsin = indata->tcse[0].ns;
 
 
 	Three_Component_Seismogram *stackout;
@@ -106,12 +105,12 @@ int pwstack_ensemble(Three_Component_Ensemble& indata,
 	string tag="PWstack_output";  // for now this output tag is frozen as this constant
 	const string base_fname="PWSTACK";
 
-	if(istart>=indata.tcse[0].ns)
+	if(istart>=indata->tcse[0].ns)
 		elog_die(0,(char *)"Irreconcilable window request:  Requested stack time window = %lf to %lf\nThis is outside range of input data\n",
 			tstart,tend);
 
 	/* Apply front end mutes to all traces */
-	apply_top_mute(indata,mute);
+	apply_top_mute(*indata,mute);
 
 	/* We need dnorth, deast vectors to compute moveout sensibly
 	for this program.  Since we use them repeatedly we will
@@ -119,7 +118,7 @@ int pwstack_ensemble(Three_Component_Ensemble& indata,
 	double *dnorth=new double[nsta];
 	double *deast=new double[nsta];
 	double *elev = new double[nsta]; // need elevations to compute geometric statics
-	for(i=0,iv=indata.tcse.begin();iv!=indata.tcse.end();++iv,++i)
+	for(i=0,iv=indata->tcse.begin();iv!=indata->tcse.end();++iv,++i)
 	{
 		double lat,lon;
 		int ierr;
@@ -139,7 +138,7 @@ int pwstack_ensemble(Three_Component_Ensemble& indata,
 	//
 	// We want to make sure that all stations are in standard coordinates
 	//
-	for(iv=indata.tcse.begin();iv!=indata.tcse.end();++iv)
+	for(iv=indata->tcse.begin();iv!=indata->tcse.end();++iv)
 	{
 		(*iv).rotate_to_standard();
 	}
@@ -212,9 +211,9 @@ int pwstack_ensemble(Three_Component_Ensemble& indata,
 		duy = uy - uy0;
 		// moveout computed here and used below assumes the
 		// data are aligned on the P arrival
-		compute_moveout(nsta,deast,dnorth,dux,duy,moveout);
-		for(i=0,iv=indata.tcse.begin(),ismute_this=0,iend_this=0,ismin=nsout;
-			iv<indata.tcse.end();++iv,++i)
+		compute_pwmoveout(nsta,deast,dnorth,dux,duy,moveout);
+		for(i=0,iv=indata->tcse.begin(),ismute_this=0,iend_this=0,ismin=nsout;
+			iv<indata->tcse.end();++iv,++i)
 		{
 			int is0, is, ismin, ns_to_copy; 
 			is0 = istart + nint( moveout[i]);
@@ -264,7 +263,7 @@ int pwstack_ensemble(Three_Component_Ensemble& indata,
 		// metadata from the input into the output object.
 		stackout = new Three_Component_Seismogram(nsout);
 		for(j=0;j<3;++j) dcopy(nsout,stack[j],1,stackout->x[j].s,1);
-		copy_selected_metadata(indata.tcse[0].x[0].md,stackout->md,mdlist);
+		copy_selected_metadata(indata->tcse[0].x[0].md,stackout->md,mdlist);
 		// Next we load the metadata into the stack varialbe to this code
 		stackout->md.put_metadata("ux",ux);
 		stackout->md.put_metadata("uy",uy);

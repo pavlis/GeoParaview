@@ -3,13 +3,12 @@ PF=pwstack.pf
 
 #MAN1=pwstack.1
 cflags=-g
-ldflags=$(DBLIBS) -lglputil -lpfstream -lseispp
+ldflags=-lglputil -lpfstream -lseispp $(DBLIBS) -lgclgrid -lperf -lsunmath -lm
 
 include $(ANTELOPEMAKE) 
 OBJS=pwstack.o \
 	apsubs.o \
 	aperture.o \
-	create_destroy.o \
 	pwstack_process.o 
 $(BIN) : $(OBJS)
-	$(CXX) $(CFLAGS) -o $@ $(OBJS) $(LDFLAGS) $(LDLIBS)
+	$(CXX) $(CXXFLAGS) -o $@ $(OBJS) $(LDFLAGS) $(LDLIBS)

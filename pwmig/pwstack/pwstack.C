@@ -3,16 +3,15 @@
 #include "elog.h"
 #include "pf.h"
 #include "glputil.h"
-#include "pfstream.h"
 #include "pwstack.h"
-#ifdef MPI_SET
-        #include <mpi.h>
-#endif
+
+using namespace std;
+using namespace SEISPP;
 
 void usage()
 {
-        cbanner((char *)"$Revision: 1.5 $ $Date: 2003/07/05 14:37:41 $",
-		(char *)"pfstreamin pfstreamout [-V -pf pfname]",
+        cbanner((char *)"$Revision: 1.6 $ $Date: 2004/08/09 21:30:47 $",
+		(char *)"dbin dbout [-V -pf pfname]",
                 (char *)"Gary Pavlis",
                 (char *)"Indiana University",
                 (char *)"pavlis@indiana.edu") ;
@@ -20,14 +19,14 @@ void usage()
 }
 int main(int argc, char **argv)
 {
-	char *pfstreamin, *pfstreamout;
+	char *dbname_in, *dbname_out;
+	Dbptr db;
 	int i;
 	char *pfin=NULL;
 	int sift=0;
         char subset_string[128];
 	Pf *pf;
 	Pf *pfnext;
-	Pfstream_handle *pfshi, *pfsho;
 	char *ensemble_tag;
 	char *dir;
 
@@ -42,13 +41,14 @@ int main(int argc, char **argv)
 	string mdlist_tag="copy_metadata_list";
 
 
-	        /* Initialize the error log and write a version notice */
+	ios::sync_with_stdio();
+        /* Initialize the error log and write a version notice */
         elog_init (argc, argv);
 
         /* usual cracking of command line */
         if(argc < 3) usage();
-        pfstreamin = argv[1];
-        pfstreamout = argv[2];
+        dbname_in = argv[1];
+        dbname_out = argv[2];
 
         for(i=2;i<argc;++i)
         {
@@ -69,51 +69,57 @@ int main(int argc, char **argv)
         i = pfread(pfin,&pf);
         if(i != 0) die(1,(char *)"Pfread error\n");
 
+	if(dbopen(dbname_in,"r",&db))
+		die(1,"Cannot open input database");
+
         /* This utility causes the program to die if required parameters
         are missing */
         check_required_pf(pf);
 	// extract all the stuff we need for the main processing
 	// routine, pwstack_process, below
-	Rectangular_Slowness_Grid ugrid(pf);
-	Top_Mute mute(pf);
-	Top_Mute stackmute(pf);
+	Rectangular_Slowness_Grid ugrid(pf,"Slowness_Grid_Definition");
 	double ts,te;
 	ts = pfget_double(pf,(char *)"stack_time_start");
 	te = pfget_double(pf,(char *)"stack_time_end");
-	ensemble_tag = pfget_string(pf,"pfensemble_tag");
-	if(ensemble_tag==NULL)
-		elog_die(0,"Missing required parameter pfensemble_tag\n");
-	// This constructor can throw an exception we will intentionally
-	// ignore.  An uncaught exception will abort the program anyway
-	//
-	Depth_Dependent_Aperture aperture(pf,aperture_tag);
-	list<Metadata_typedef> mdlist;
-	mdlist=pfget_mdlist(pf,mdlist_tag);
 	dir = pfget_string(pf,"waveform_directory");
 	if(dir==NULL)
 		dir=strdup("./pwstack");
 	if(makedir(dir))
 		elog_die(0,"Cannot create directory %s\n",dir);
-	
-
-	// Start up reader and writer
-	pfshi = pfstream_start_read_thread(pfstreamin);
-	pfsho = pfstream_start_write_thread(pfstreamout);
-	// this is the object that holds the primary processing input here
-	Three_Component_Ensemble *indata_ptr;
-	Three_Component_Ensemble& indata=*indata_ptr; //stardard use of reference
-
 	try{
-	    while( (indata_ptr = get_next_3c_ensemble(pfshi,ensemble_tag,mdlist))
-		!=NULL)
+	   // station_mdl defines database attributes copied to 
+	   // metadata space of data object.  ensemble_mdl are 
+	   // globals copied to the metadata area for the entire ensemble
+    	    Metadata_list station_mdl=pfget_mdlist(pf,"station_metadata");
+    	    Metadata_list ensemble_mdl=pfget_mdlist(pf,"ensemble_metadata");
+    	    Metadata_list stack_mdl=pfget_mdlist(pf,"ensemble_metadata");
+	    Attribute_Map am(pf,"Attribute_Map");
+    	    Depth_Dependent_Aperture aperture(pf,aperture_tag);
+	    Top_Mute mute(pf,string("Data_Top_Mute"));
+	    Top_Mute stackmute(pf,string("Stack_Top_Mute"));
+	    /* This database open must create a doubly grouped view to
+	    // correctly define a three component ensemble grouping 
+	    // normally this will be done by a hidden dbprocess list
+	    // stored in the master pf directory
+	    */
+	    Datascope_Handle dbh(db,pf,
+		string("dbprocess_commands"));
+	    Datascope_Handle dbho(string(dbname_out),false);
+	    for(i=0,dbh.rewind();i<dbh.number_tuples();++i,++dbh)
 	    {
+		din = new Three_Component_Ensemble(
+		    dynamic_cast<Database_Handle&>(dbh),
+		    station_mdl, ensemble_mdl,am);
 		double lat0,lon0,ux0,uy0;
 		int iret;
-		lat0=indata.md.get_double("lat0");
-		lon0=indata.md.get_double("lon0");
-		ux0=indata.md.get_double("ux0");
-		uy0=indata.md.get_double("uy0");
-		iret = pwstack_ensemble(indata,
+		lat0=din->get_double("lat0");
+		lon0=din->get_double("lon0");
+		// ux0 and uy0 are the incident wavefield's 
+		// slowness vector.  Stacks are made relative to this
+		// and the data are aligned using P wave arrival times
+		ux0=din->get_double("ux0");
+		uy0=din->get_double("uy0");
+		pwstack_ensemble(din,
 			ugrid,
 			mute,
 			stackmute,
@@ -124,18 +130,18 @@ int main(int argc, char **argv)
 			ts,
 			te,
 			aperture,
-			mdlist,
+			stack_mdl,
 			dir,
-			pfsho);
-		if(iret)
-
-		// We can release the input data now
-		delete indata_ptr;
+			dbho);
+		delete din;
 	    }
 	} catch (seispp_error err)
 	{
 		err.log_error();
-		elog_die(0,"Fatal processing error:  cannot fix exception\n");
+	}
+	catch (Metadata_error mderr)
+	{
+		mderr.log_error();
 	}
 }	
 

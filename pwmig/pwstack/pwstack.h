@@ -1,4 +1,5 @@
 #include "seispp.h"
+using namespace SEISPP;
 
 class Depth_Dependent_Aperture
 {
@@ -32,9 +33,9 @@ void geographic_to_dne(double lat0, double lon0,
         double lat, double lon, double *dnorth, double *deast);
 int compute_pseudostation_weights(int nsta, double *dnorth, double *deast,
                 double aperture, double cutoff, double *w);
-void compute_moveout(int nsta,double *deast, double *dnorth,
+void compute_pwmoveout(int nsta,double *deast, double *dnorth,
                 double ux, double uy, double *moveout);
-int pwstack_ensemble(Three_Component_Ensemble& indata,
+int pwstack_ensemble(Three_Component_Ensemble *indata,
 	Rectangular_Slowness_Grid& ugrid,
 	Top_Mute& mute,
 	Top_Mute& stackmute,
@@ -47,4 +48,4 @@ int pwstack_ensemble(Three_Component_Ensemble& indata,
 	Depth_Dependent_Aperture& aperture,
 	list<Metadata_typedef>& mdlist,
 	string dir,
-	Pfstream_handle *pfsho) throw (Metadata_error);
+	Database_Handle& dbh) throw (seispp_error);
