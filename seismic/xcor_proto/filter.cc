@@ -197,7 +197,7 @@ void Time_Invariant_Filter::apply(Three_Component_Seismogram& ts)
 	float *d=new float[ts.ns];
 	for(j=0;j<3;++j)
 	{
-		for(int i=0;i<ts.ns;++i) d[i]=static_cast<float>(ts.u(j,i));
+		for(i=0;i<ts.ns;++i) d[i]=static_cast<float>(ts.u(j,i));
 		if(trfilter_segs(1,&(ts.ns),&(ts.dt),&d,const_cast<char*>(filter_spec.c_str()))<0)
 			throw seispp_error(string("Error in trfilter_segs"));
 		for(i=0;i<ts.ns;++i) ts.u(j,i)=static_cast<double>(d[i]);

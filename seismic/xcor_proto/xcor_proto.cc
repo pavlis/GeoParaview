@@ -157,7 +157,6 @@ int main(int argc, char **argv)
 		Resampling_Definitions rd(pf);
 		string filter_spec=md.get_string("filter");
 		bool filter_data;
-/*
 		Time_Invariant_Filter filter;
 		if(filter_spec=="none")
 			filter_data=false;
@@ -166,7 +165,6 @@ int main(int argc, char **argv)
 			filter_data=true;
 			filter=Time_Invariant_Filter(filter_spec);
 		}
-*/
 		if(dbopen(const_cast<char *>(dbname.c_str()),"r",&db))
                       die(0,"dbopen failed on database %s",dbname.c_str());
 		Datascope_Handle dbhi0(db,pf,tag);
@@ -201,6 +199,7 @@ cerr << "View size = "<<dbhi0.number_tuples() << endl;
 				//(dbhi),mdl1,mdl2,amtest);
 			for(i=0;i<d->tcse.size();++i)
 			{
+				if(!(d->tcse[i].live)) continue;
 				Three_Component_Seismogram tcs(d->tcse[i]);
 				int nsout;
 				for(j=0;j<3;++j)
@@ -213,6 +212,10 @@ cerr << "View size = "<<dbhi0.number_tuples() << endl;
 					if(j==0)
 					{
 						nsout = tsdec.s.size();
+						tcs.ns=nsout;
+						tcs.dt=tsdec.dt;
+						tcs.t0=tsdec.t0;
+
 						tcs.u=dmatrix(3,nsout);
 					}
 					dcopy(nsout,&(tsdec.s[0]),1,
@@ -221,7 +224,7 @@ cerr << "View size = "<<dbhi0.number_tuples() << endl;
 				tcs.dt=dtout;
 				d->tcse[i]=tcs;
 			}
-//			if(filter_data) Filter_Ensemble(*d,filter);
+			if(filter_data) Filter_Ensemble(*d,filter);
 			
 			cutdata = Arrival_Time_Reference(*d,akey,tw);
 			if(rotate_data)
