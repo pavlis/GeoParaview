@@ -9,7 +9,7 @@
 #include "db.h"
 #include "coords.h"
 #include "location.h"
-#include "dbpmel.h"
+#include "pmel.h"
 #include "pfstream.h"
 #include "pmelgrid.h"
 
@@ -132,7 +132,7 @@ Hypocenter *pfget_hypocenters(Pf_ensemble *pfe)
 	
 void usage()
 {
-	cbanner("1.0","pmelgrid db pfistream pfostream [-pf file -V]\n",
+	cbanner("1.0","db pfistream pfostream [-pf file -V]\n",
 			"Gary L. Pavlis",
 			"Indiana University",
 			"pavlis@indiana.edu");
@@ -173,6 +173,8 @@ void main(int argc, char **argv)
 	int nbcs;
 	FILE *fpo;
 	char *runname;
+/*DEBUG*/
+char *s;
 
 	
 #ifdef MPI_SET
@@ -197,7 +199,7 @@ void main(int argc, char **argv)
 	streamin=argv[2];
 	streamout = argv[3];	
 
-	for(i=3;i<argc;++i)
+	for(i=4;i<argc;++i)
 	{
 		if(!strcmp(argv[i],"-pf"))
 		{
@@ -262,7 +264,7 @@ option which is know to cause problems\nrecenter set off\n");
 	/* load the station table and use it to create the station
 	indexes for the smatrix structure and setup the result
 	vectors stored there.*/
-	stations = dbpmel_load_stations(db,pf);
+	stations = pmel_dbload_stations(db,pf);
 	smatrix = create_SCMatrix(stations,arr_phase);
 
 	/* These routines set up definitions of stations to use 
@@ -291,7 +293,7 @@ option which is know to cause problems\nrecenter set off\n");
 	save_run_parameters(db,pf);
 #endif
 
-	while((pfi=pfread_stream(streamin))!=NULL)
+	while((pfi=pfstream_read(streamin))!=NULL)
 	{
 		int nevents;
 		Tbl **ta;
@@ -411,6 +413,7 @@ option which is know to cause problems\nrecenter set off\n");
 		{
 			char *swork;
 			swork = (char *)gettbl(converge,k);
+			elog_log(0,"%s\n",swork);
 
 			/* The string ABORT in the convergence list
 			is used to flag a failure. */
