@@ -2,14 +2,20 @@
 #include "stock.h"
 #include "coords.h"
 #include "gclgrid.h"
-/* These are create and free routines for 2d and 3d GCLgrid objects in plain C.
+extern "C" {
+extern void dcopy(int,double *, int, double *, int);
+extern double ddot(int,double *, int, double *, int);
+extern void dscal(int,double, double *, int); 
+}
+/* These are create and free routines for 2d, 3d, and 4d arrays in plain C.
 They are used below for C++ constructors and destructors.  The MOST 
 IMPORTANT thing to note about the constructions used here is that I have
 implemented these built on contiguous blocks of memory.  This is NOT necessarily
-the way one would always build 2D and 3D arrays in C.  This is probably a bad
+the way one would always build multidimension arrays in C.  This is probably a bad
 idea for future maintainability of this code as someone might be tempted to
 write their own destructor or add a constructor that used a different memory model.
-Future users beware on this point.  */
+Future users beware on this point.  I did this on purpose, however, under
+and assumption it would improve performance.*/
 
 
 /* Many gcl functions work with 3d C grids.  C implements multidimensioned
@@ -50,7 +56,7 @@ double ***create_3dgrid_contiguous(int n1, int n2, int n3)
 	}
 	return(ptr3d);
 }		
-/* Free routine for a 3d array.  pointers arrays require exra attention
+/* Free routine for a 3d array.  pointers arrays require extra attention
 to avoid a memory leak.   This function assumes standard C indexing
 */
 void free_3dgrid_contiguous(double ***x,int n1, int n2)
@@ -88,6 +94,62 @@ void free_2dgrid_contiguous(double **x,int n1)
 	free((void *)ptr);
 	free((void *)x);
 }
+//
+// A bit out of order, but now similar construction for 4D
+//
+double ****create_4dgrid_contiguous(int n1, int n2, int n3, int n4)
+{
+	double ****ptr4d;
+	double ***ptr3d;
+	double **ptr2ptr;
+	double *ptr;
+	int i,j,k;
+
+	allot(double *,ptr,n1*n2*n3*n4);
+	allot(double ****,ptr4d,n1);
+	for(i=0;i<n1;++i)
+	{
+		allot(double ***,ptr3d,n2);
+		ptr4d[i] = ptr3d;
+		for(j=0;j<n2;++j)
+		{
+			allot(double **,ptr2ptr,n3);
+			ptr4d[i][j]=ptr2ptr;
+		}
+	}
+	for(i=0;i<n1;++i)
+	{
+		for(j=0;j<n2;++j)
+		{
+			for(k=0;k<n3;++k)
+			{
+				ptr4d[i][j][k] = ptr + n2*n3*n4*i 
+						+ n3*n4*j + n4*k;
+			}
+		}
+	}
+	return(ptr4d);
+}
+void free_4dgrid_contiguous(double ****x,int n1, int n2, int n3)
+{
+	int i,j;
+	double *ptr;
+
+	/* this clears the work space*/
+	ptr = x[0][0][0];
+	free((void *)ptr);
+
+	/* unwind and release the pointer arrays -- pretty ugly this deep */
+	for(i=0;i<n1;++i)
+	{
+		for(j=0;j<n2;++j)
+		{
+			free((void *)x[i][j]);
+		}
+		free((void *)x[i]);
+	}
+	free((void *)x);
+}		
 //
 // C++ constructors 
 //
@@ -507,6 +569,15 @@ GCLgrid::GCLgrid(int n1in, int n2in,
 	dr3cros(rmatrix+3,rmatrix+6,rmatrix);
 	/* We actually need the transpose of this matrix */
 	dr3tran(rmatrix,rmtrans);
+	//
+	//Store this matrix and translation vector 
+	//in the GCLgrid object definition
+	//
+	dcopy(3,rmatrix,1,gtoc_rmatrix[0],1);
+	dcopy(3,rmatrix+3,1,gtoc_rmatrix[1],1);
+	dcopy(3,rmatrix+6,1,gtoc_rmatrix[2],1);
+	dcopy(3,x0,1,translation_vector,1);
+	dscal(3,r0,translation_vector,1);
 
 	/* We now apply the combined translation and rotation 
 	change of coordinates */
@@ -698,11 +769,19 @@ GCLgrid3d::GCLgrid3d(int n1in, int n2in, int n3in,
 	dr3cros(rmatrix+3,rmatrix+6,rmatrix);
 	/* We actually need the transpose of this matrix */
 	dr3tran(rmatrix,rmtrans);
+	//
+	//Store this matrix and translation vector 
+	//in the GCLgrid object definition
+	//
+	dcopy(3,rmatrix,1,gtoc_rmatrix[0],1);
+	dcopy(3,rmatrix+3,1,gtoc_rmatrix[1],1);
+	dcopy(3,rmatrix+6,1,gtoc_rmatrix[2],1);
 
 	/* We now apply the combined translation and rotation 
 	change of coordinates */
 	r0=r0_ellipse(lat0);
 	for(i=0;i<3;++i) x0[i]*=r0;
+	dcopy(3,x0,1,translation_vector,1);
 
 	/* Now apply the same transformations to the 3d grid */
 
@@ -748,6 +827,76 @@ GCLgrid3d::GCLgrid3d(int n1in, int n2in, int n3in,
 	delete baseline_lon;
 }
 //
+// constructors for derived types for scalar and vector fields defined on
+// a gcl grid.  Makes extensive use of inheritance.
+//
+GCLscalarfield::GCLscalarfield() : GCLgrid()
+{
+	val=NULL;
+}
+
+GCLscalarfield::GCLscalarfield(int n1size, int n2size)
+	: GCLgrid(n1size, n2size)
+{
+	val=create_2dgrid_contiguous(n1size, n2size);
+}
+GCLvectorfield::GCLvectorfield() : GCLgrid()
+{
+	val=NULL;
+}
+
+GCLvectorfield::GCLvectorfield(int n1size, int n2size, int n3size)
+	: GCLgrid(n1size, n2size)
+{
+	nv=n3size;
+	val=create_3dgrid_contiguous(n1size, n2size, n3size);
+}
+GCLscalarfield::GCLscalarfield(GCLgrid& g) : GCLgrid(g.n1, g.n2)
+{
+	val=create_2dgrid_contiguous(g.n1, g.n2);
+}
+GCLvectorfield::GCLvectorfield(GCLgrid& g, int n3) : GCLgrid(g.n1, g.n2)
+{
+	nv=n3;
+	val=create_3dgrid_contiguous(g.n1, g.n2,n3);
+}
+//
+//3d versions
+//
+GCLscalarfield3d::GCLscalarfield3d() : GCLgrid3d()
+{
+	val=NULL;
+}
+
+GCLscalarfield3d::GCLscalarfield3d(int n1size, int n2size, int n3size)
+	: GCLgrid3d(n1size, n2size, n3size)
+{
+	val=create_3dgrid_contiguous(n1size, n2size, n3size);
+}
+GCLvectorfield3d::GCLvectorfield3d() : GCLgrid3d()
+{
+	val=NULL;
+}
+
+GCLvectorfield3d::GCLvectorfield3d(int n1size, int n2size, int n3size, int n4)
+	: GCLgrid3d(n1size, n2size, n3size)
+{
+	nv=n4;
+	val=create_4dgrid_contiguous(n1size, n2size, n3size, n4);
+}
+GCLscalarfield3d::GCLscalarfield3d(GCLgrid3d& g) : GCLgrid3d(g.n1, g.n2, g.n3)
+{
+	val=create_3dgrid_contiguous(g.n1, g.n2, g.n3);
+}
+GCLvectorfield3d::GCLvectorfield3d(GCLgrid3d& g, int n4) 
+	: GCLgrid3d(g.n1, g.n2, g.n3)
+{
+	nv=n4;
+	val=create_4dgrid_contiguous(g.n1, g.n2, g.n3,n4);
+}
+
+
+//
 //C++ destructors
 //
 GCLgrid::~GCLgrid()
@@ -768,4 +917,23 @@ GCLgrid3d::~GCLgrid3d()
 	if(lon!=NULL) free_3dgrid_contiguous(lon,n1,n2);
 	if(r!=NULL) free_3dgrid_contiguous(r,n1,n2);
 }
-
+//
+//Note standard rule that a derived class utilizes the base class destructor
+//after calling these
+//
+GCLscalarfield::~GCLscalarfield()
+{
+	if(val!=NULL) free_2dgrid_contiguous(val,n1);
+}
+GCLvectorfield::~GCLvectorfield()
+{
+	if(val!=NULL) free_3dgrid_contiguous(val,n1,n2);
+}
+GCLscalarfield3d::~GCLscalarfield3d()
+{
+	if(val!=NULL) free_3dgrid_contiguous(val,n1,n2);
+}
+GCLvectorfield3d::~GCLvectorfield3d()
+{
+	if(val!=NULL) free_4dgrid_contiguous(val,n1,n2,n3);
+}

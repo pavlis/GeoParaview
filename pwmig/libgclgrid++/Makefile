@@ -1,7 +1,7 @@
 LIB=libgclgrid.a
 DLIB=$(LIB:.a=$(DSUFFIX)) 
 DATADIR=schemas
-DATA=PWMIG1.0
+#DATA=PWMIG1.0
 INCLUDE=gclgrid.h
 MAN3=gclgrid.3
 MAN5=		# man pages for file formats
@@ -11,7 +11,8 @@ cflags=-g
 include $(ANTELOPEMAKE)  	
 
 
-OBJS=	create_destroy.o dbsubs.o ellipsoid.o fme_interpolate.o method_subs.o
+OBJS=	converters.o create_destroy.o dbsubs.o ellipsoid.o error_handlers.o \
+    fme_weights.o interpolate.o lookup.o operators.o
 $(LIB) : $(OBJS)
 	rm -f $@
 	$(AR) $(ARFLAGS) $@ $(LORDER) $(OBJS) $(TSORT)
