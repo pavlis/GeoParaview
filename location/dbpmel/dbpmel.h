@@ -39,7 +39,7 @@ Dbptr dbform_working_view(Dbptr, Pf *, char *);
 Arr *dbpmel_load_stations(Dbptr, Pf *);
 
 #ifdef MPI_SET
-int dbpmel_process(Dbptr, Tbl *, Pf *, int, int);
+int dbpmel_process(Dbptr, Tbl *, Pf *, int, int, int, char **);
 #else
 int dbpmel_process(Dbptr, Tbl *, Pf *);
 #endif

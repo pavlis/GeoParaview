@@ -268,7 +268,7 @@ Which picks will be used here is unpredictable\n\
 	elog_log(0,"Final working view has %d rows\n",nrows);
 
 #ifdef MPI_SET
-        if(dbpmel_process(dbv,gridlist,pf, rank, np))
+        if(dbpmel_process(dbv,gridlist,pf, rank, np, argc, argv))
 #else
 	if(dbpmel_process(dbv,gridlist,pf))
 #endif

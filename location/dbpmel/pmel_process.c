@@ -582,7 +582,7 @@ for cluster id %d\n",
 	    */
 	    longcommand=(char*)malloc((15+12*np)*sizeof(char)+15);
 
-	    sprintf(longcommand, "cat test.assoc ");	
+	    sprintf(longcommand, "cat %s.assoc ", argv[1]);	
 	    for(i=0; i<np; i++)
 	        sprintf(longcommand, "%s %s/temp%d", longcommand, TEMPDIR, 
 		    i);
@@ -595,7 +595,8 @@ for cluster id %d\n",
 	    /*
 		Replace the old test.assoc table using the updated one
 	    */
-	    sprintf(shellcommand, "mv %s/temp test.assoc", TEMPDIR);
+	    sprintf(shellcommand, "mv %s/temp %s.assoc", TEMPDIR,
+		argv[1]);
 	    system(shellcommand);
 
 	    /*
