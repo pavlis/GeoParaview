@@ -455,7 +455,7 @@ option which is know to cause problems\nrecenter set off\n");
 		{
 			elog_complain(0,"Cannot compute any path anomaly corrections for gridid=%d\nSkipping to next grid point\n",
 				gridid);
-			for(k=0;k<nevents;++k) freetbl(ta[i],free);
+			for(k=0;k<nevents;++k) freetbl(ta[k],free);
 			free(ta);
 			continue;
 		}
