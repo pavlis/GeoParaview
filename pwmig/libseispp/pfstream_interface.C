@@ -1,6 +1,7 @@
 #include <stdlib.h>
 #include <vector>
 #include <string>
+#include "stock.h"
 #include "pf.h"
 #include "pfstream.h"
 #include "metadata.h"
@@ -19,7 +20,7 @@ using namespace std;
  * It can also terminate internally with input errors on the pfstream.
  * This is not very elegant, but appropriate for planned usage.
  */
-vector<Time_Series> *get_next_ensemble(Pfstream_handle *pfh, string tag)
+vector<Time_Series *> *get_next_ensemble(Pfstream_handle *pfh, char *tag)
 		throw(string)
 {
 	Pf *pfin;
@@ -40,67 +41,71 @@ vector<Time_Series> *get_next_ensemble(Pfstream_handle *pfh, string tag)
 
 	// We next parse the input pf encapsulated in a single
 	// set of curly brackets into an ensemble
-	pfe = pfget_Pf_ensemble(pfin,tag.c_str());
+	pfe = pfget_Pf_ensemble(pfin,tag);
 	if(pfe==NULL) elog_die(0,
 		(char *)"get_next_ensemble:  input stream error\nParsing pf for name %s yielded nothing\n",
-			tag.c_str());
+			tag);
 	// For this type of ensemble groups are meaningless.  Just 
 	// build a simple vector of the results and discard anything like
 	// that if present.  We build a vector of 
-	// Time_Series objects in sequence.
-	vector <Time_Series>* ts=new vector<Time_Series>(pfe->nmembers);
-
+	// Time_Series objects in sequence.  They are built and pushed 
+	// at the bottom of this loop
+	vector <Time_Series *> *tse=new vector<Time_Series *>;
 	for(i=0;i<pfe->nmembers;++i)
 	{
 		double samprate;
 		double t0;
 		string stref;
+
+		// Intentionally construct an empty Time_Series object
+		Time_Series *ts=new Time_Series();
+		
 		pfstr = pf2string(pfe->pf[i]);
 		try{
-			ts[i]->md.load_metadata((string)pfstr);
+			ts->md.load_metadata((string)pfstr);
+			free(pfstr);
 		} 
 		catch(int ierr)
 		{
-			elog_die(0,"get_next_ensemble:  pfcompile error on input\nInput stream has been corrupted\n");
+			elog_die(0,(char *)"get_next_ensemble:  pfcompile error on input\nInput stream has been corrupted\n");
 		}
 		try {
 		// Name space here is frozen.  Not elegant, but a starter
 		// We are extracting required parameters placed into the 
 		// Time_Series object.  
-			samprate = get_metadata_by_name("samprate");
+			samprate = ts->md.get_double("samprate");
 			ts->dt = 1.0/samprate;
-			ts->t0 = get_metadata_by_name("starttime");
-			ts->ns = get_metadata_by_name("nsamp");
-			stref = get_metadata_by_name("Time_Reference_Type");
+			ts->t0 = ts->md.get_double("starttime");
+			ts->ns = ts->md.get_int("nsamp");
+			stref = ts->md.get_string("Time_Reference_Type");
 			if(stref == "relative")
 				ts->tref = relative;
 			else
 				ts->tref = absolute;
 			//  This allows data to be transmitted inline
 			//  through the pf or through external files
-			datasource = get_metadata_by_name("datasource");
+			datasource = ts->md.get_string("datasource");
 			if(datasource == "external_files")
 			{
-				dir = get_metadata_by_name("dir");
-				dfile = get_metadata_by_name("dfile");
-				foff = get_metadata_by_name("foff");
+				dir = ts->md.get_string("dir");
+				dfile = ts->md.get_string("dfile");
+				foff = ts->md.get_int("foff");
 			}
 			else
 			{
-				samples_raw = get_metadata_by_name("time_series_samples");
+				samples_raw = ts->md.get_list("time_series_samples");
 				ns = maxtbl(samples_raw);
-				ts->s = new double(ns);
-				for(j=0;j<ns;++j)
+				for(int j=0;j<(ts->ns);++j)
 				{
 					char *ssr;
-					ssr = gettbl(samples_raw,i);
+					ssr = (char *)gettbl(samples_raw,j);
 					ts->s[j] = atof(ssr);
 				}
 			}
 		} 
 		catch(int ierr_mdparse)
 		{
-			elog_die(0,"get_next_ensemble:  error parsing required metadata\n");
+			elog_die(0,(char *)"get_next_ensemble:  error parsing required metadata\n");
 		}
 		// I do this here because of the try/catch block.
 		// I want the function to throw an exception that
@@ -109,16 +114,16 @@ vector<Time_Series> *get_next_ensemble(Pfstream_handle *pfh, string tag)
 		// problems with usage errors.
 		if(datasource =="external_files")
 		{
+			FILE *fp;
 			string fname=dir+"/"+dfile;
-			if((fp=fopen(fname,"r")) == NULL) throw(fname);
+			if((fp=fopen(fname.c_str(),"r")) == NULL) throw(fname);
 			if (foff>0)fseek(fp,(long)foff,SEEK_SET);
-			if(fread((void *)(ts->s),sizeof(double),ts->ns,fp)
-					!= (ts->ns) ) throw(fname);
+			ts->s = new double(ts->ns);
+			if(fread((void *)(ts[i].s),sizeof(double),ts[i].ns,fp)
+					!= (ts[i].ns) ) throw(fname);
 			fclose(fp);
 		}
-
+		tse->push_back(ts);
 	}
-	return(ts);
+	return(tse);
 }
-						
-

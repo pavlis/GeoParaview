@@ -12,7 +12,7 @@ include $(ANTELOPEMAKE)
 DLD=CC -G -Kpic
 
 
-OBJS=metadata.o
+OBJS=metadata.o pfstream_interface.o
 $(LIB) : $(OBJS)
 	rm -f $@
 #	$(AR) $(ARFLAGS) $@ $(LORDER) $(OBJS) $(TSORT)
