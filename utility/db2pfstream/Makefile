@@ -12,7 +12,7 @@ MAN5=
 
 CLEAN=
 
-cflags=
+cflags=-g
 fflags=
 ldflags=
 #ldlibs=-lglputil  -xlic_lib=sunperf,fui,fai,fsu $(DBLIBS)

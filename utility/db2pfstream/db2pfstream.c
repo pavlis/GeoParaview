@@ -30,7 +30,7 @@ Written:  September 2002
 void usage()
 {
 	cbanner("1.0",
-		"db2pfstream db file [-n -V -v -pf pffile -sift expression]",
+		"db file [-n -V -v -pf pffile -sift expression]",
 		"Gary L. Pavlis", "Indiana University",
 		"pavlis@indiana.edu");
 	exit(-1);
@@ -187,6 +187,7 @@ cause the program to abort.  Both contain pointers to Attribute_map*/
 	FILE *fp;
 	int ierr;
 
+
 	DB2PFS_verbose=0;
 
 /*crack the command line*/
@@ -328,7 +329,7 @@ cause the program to abort.  Both contain pointers to Attribute_map*/
 			char *grp_records;
 			Tbl *grplist;
 
-			dbgetv(dbge,0,"bundle",&db_bundle_1);
+			dbgetv(dbge,0,"bundle",&db_bundle_1,0);
 			dbget_range(db_bundle_1,&is_ensemble,&ie_ensemble);
 			nmembers = ie_ensemble-is_ensemble+1;
 			allot(Pf **,pfensemble,nmembers);
@@ -370,10 +371,7 @@ cause the program to abort.  Both contain pointers to Attribute_map*/
 				pfput_tbl(pfo_head,"group_records",grplist);
 			}
 
-pfout(stdout,pfo_head);
-/*
 			pfensemble_to_stream(pfo_head,pfensemble,nmembers,fp);
-*/
 					
 			for(i=0;i<nmembers;++i)
 			{

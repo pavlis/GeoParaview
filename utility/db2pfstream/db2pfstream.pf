@@ -1,0 +1,69 @@
+ensemble_mode true
+ensemble_keys &Tbl{
+gridid
+}
+grouping_keys &Tbl{
+evid
+}
+#
+#  this is passed to dbprocess to build the working view
+#  example here is for pmelgrid.  Note that ensemble and 
+#  grouping keys assume a sort order that should be dealt
+#  with explitly or implicitly in this process list.
+#
+dbprocess_list &Tbl{
+dbopen hypocentroid
+dbjoin cluster
+dbjoin event
+dbjoin origin
+dbsubset orid==prefor
+dbjoin assoc
+dbjoin arrival
+}
+#
+#  These define which attributes are to be extracted and placed int
+#  the pfstream
+#
+require &Tbl{
+gridid	int	gridid
+hypocentroid.hclat	real	hypocentroid.hclat
+hypocentroid.hclon	real	hypocentroid.hclon
+hypocentroid.hcdepth	real	hypocentroid.hcdepth
+evid	int	evid
+orid	int	orid
+prefor	int	prefor
+origin.lat	real	origin.lat
+origin.lon	real	origin.lon
+origin.depth	real	origin.depth
+origin.time	real	origin.time
+arid	int	arid
+phase	string	phase
+sta	string	sta
+chan	string	chan
+arrival.time	real	arrival.time
+iphase	string	iphase
+deltim	real	deltim
+}
+#
+# incomplete list for a test
+#
+passthrough &Tbl{
+origin.jdate	int	origin.jdate
+nass	int	nass
+ndef	int	ndef
+ndp	int 	ndp
+grn	int 	grn
+srn	int	srn
+etype	string 	etype
+review	string	review
+depdp	real	depdp
+dtype	string	dtype
+mb	real	mb
+mbid	int	mbid
+ms	real	ms
+msid	int	msid
+ml	real	ml
+mlid	int	mlid
+origin.algorithm	string	algorithm
+auth	string	auth
+}
