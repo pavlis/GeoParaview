@@ -1,0 +1,10 @@
+     Slowness_Grid_Example &Arr{  #Here the tag is Slowness_Grid_Example
+     Slowness_Grid_Name test  # name of the grid object
+     # This creates a 21 x 21 grid from -0.1 to 0.1 in increments of .01
+     uxlow -0.1
+     uylow -0.1
+     nux 21
+     nuy 21
+     dux 0.01
+     duy 0.01
+     }
