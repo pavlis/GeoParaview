@@ -241,6 +241,7 @@ public:
 	double lat,lon,z;
 	double time;
 	Hypocenter(){method=strdup("tttaup"); model=strdup("iasp91");};  // default
+	~Hypocenter(){free(method); free(model);};
 	double distance(double lat0, double lon0);
 	double esaz(double lat0, double lon0);
 	double seaz(double lat0, double lon0);
