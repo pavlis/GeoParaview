@@ -66,6 +66,7 @@ int GCL3Dgrid_index_lookup(GCL3Dgrid *g,
 	int *ix, int *iy, int *iz)
 {
 	int i,j,k;
+	int ilast,jlast,klast;
 	double xp[3],yp[3],zp[3];
 	double dx,dy,dz;
 	double xg,yg,zg;
@@ -109,9 +110,20 @@ int GCL3Dgrid_index_lookup(GCL3Dgrid *g,
 		delta[0] = x - (g->x1[i][j][k]);
 		delta[1] = y - (g->x2[i][j][k]);
 		delta[2] = z - (g->x3[i][j][k]);
-		di = (int)(ddot(3,delta,1,xp,1)/dx);
-		dj = (int)(ddot(3,delta,1,yp,1)/dy);
-		dk = (int)(ddot(3,delta,1,zp,1)/dz);
+		/* This might seem wrong, but it is correct to divide
+		by dx^2.  One is dot product normalize, second is 
+		to get distance in cell units */
+		di = (int)ddot(3,delta,1,xp,1)/(dx*dx);
+		dj = (int)ddot(3,delta,1,yp,1)/(dy*dy);
+		dk = (int)ddot(3,delta,1,zp,1)/(dz*dz);
+		/* This is necessary because integer truncation jumps
+		opposite directions for positive and negative numbers.
+		An alternative is nint, but then you have to mess with 
+		a special condition between -0.5 and 0 to converge
+		correctly.  Here it is automatic.*/
+		if(di<0) --di;
+		if(dj<0) --dj;
+		if(dk<0) --dk;
 		i += di;
 		j += dj;
 		k += dk;
