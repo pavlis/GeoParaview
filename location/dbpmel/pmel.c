@@ -175,6 +175,8 @@ int hypo_is_bad(Hypocenter *h)
 
 Arguments:
     nevents - number of events in this group to be processed.
+    evid - vector of nevent ints that are event ids for associated
+	parallel arrays ta and h0.  
     ta - vector of Tbl pointers with nevents elements.  Each
         element of ta is assumed to contain an input Tbl
         to be passed as data to ggnloc.
@@ -183,11 +185,14 @@ Arguments:
         exit it contains the revised hypocenter structure for
         the relocated events.  NEEDS A METHOD TO FLAG FAILED 
         AND/OR NOT USED
-    fixlist - parallel vector of character string pointers to 
-	ta.  NULL pointers are used to say all coordinates of
-	that hypocenter are to be determined.  Nonnull pointers
-	are parsed looking for 'x', 'y', 'z', and 't'.   Setting
-	the fix parameters of each location appropriately.  
+    fix - array keyed by evid of events that have one or more
+	coordinates to be fixed.  These can be calibration events
+	or they have fixed depth, but the result is the same.
+	That is, that coordinate is viewed as not a variable.
+	The actual contents of what is returned from a "fix"
+	evid is a string of characters.  We look for 'x',
+	'y', 'z', and 't'.  These are handled by genloc
+	as fixed coordinates.
     hypocen - hypocentroid
     s - SCMatrix structure that holds work space for S matrix 
         and associated indexing and size parameters (see definition
@@ -206,9 +211,10 @@ Written:  October 2000
 */
 
 Tbl *pmel(int nevents,
+    int *evid,
         Tbl **ta,
             Hypocenter *h0, 
-	    	char **fixlist, 
+		Arr *fixarr,
                     Hypocenter *hypocen,
                         SCMatrix *s,
                             Pf *pf)
@@ -216,6 +222,7 @@ Tbl *pmel(int nevents,
     Location_options o;
     int i,j,k;
     Tbl *tu;
+    char *fix;
     int retcode=0,locrcode;
     double *A;  /* FORTRAN order matrix of equation of condition */
     double *U,*svalue,*Vt;  /* Used to store full SVD */
@@ -318,7 +325,8 @@ Tbl *pmel(int nevents,
 	nrows_S = 0;
         for(i=0;i<nevents;++i)
         {
-	    if(fixlist[i]==NULL)
+	    fix = get_fixlist(fixarr,evid[i]);
+	    if(fix==NULL)
 	    {
 		for(j=0;j<4;++j)o.fix[j]=0;
 		ncol_amatrix = 4;
@@ -326,22 +334,22 @@ Tbl *pmel(int nevents,
 	    else
 	    {
 		ncol_amatrix = 4;
-		if(strstr(fixlist[i],"x")!=NULL) 
+		if(strstr(fix,"x")!=NULL) 
 		{
 			o.fix[0]=1;
 			--ncol_amatrix;
 		}
- 		if(strstr(fixlist[i],"y")!=NULL)
+ 		if(strstr(fix,"y")!=NULL)
 		{
 			o.fix[1]=1;
 			--ncol_amatrix;
 		}
-		if(strstr(fixlist[i],"z")!=NULL)
+		if(strstr(fix,"z")!=NULL)
 		{
 			o.fix[2]=1;
 			--ncol_amatrix;
 		}
-		if(strstr(fixlist[i],"t")!=NULL)
+		if(strstr(fix,"t")!=NULL)
 		{
 			o.fix[3]=1;
 			--ncol_amatrix;

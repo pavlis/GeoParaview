@@ -38,7 +38,7 @@ int initialize_station_corrections(Arr *,Arr *, Arr *,Hypocenter *);
 Dbptr dbform_working_view(Dbptr, Pf *, char *);
 Arr *dbpmel_load_stations(Dbptr, Pf *);
 int dbpmel_process(Dbptr, Tbl *, Pf *);
-Tbl *pmel(int, Tbl **, Hypocenter *, char **,Hypocenter *,SCMatrix *,Pf *);
+Tbl *pmel(int, int *, Tbl **, Hypocenter *, Arr *,Hypocenter *,SCMatrix *,Pf *);
 
 int dpinv_solver(int, int, double *,int, double *,double *,int,
 	double *, double *,double);
@@ -52,3 +52,6 @@ void destroy_SCMatrix(SCMatrix *);
 int hypo_is_bad(Hypocenter *);
 /* this is an old fortran function.  It should eventually be replaced */
 int ftest_(double *, int *, double *, int *);
+int dbpmel_save_hypos(Dbptr, Tbl *, int, Hypocenter *, int *,Tbl **,Arr *,Pf *);
+char *get_fixlist(Arr *,int);
+Arr *load_calibration_events(Pf *);

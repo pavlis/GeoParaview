@@ -55,7 +55,7 @@ ULHL
 #  This contains a list of evids and coordinates to fix
 # x=ew, y=ns, z=up/down, t=origin time
 #
-pmel_calibration_events &Arr{
+pmel_calibration_events &Tbl{
 10  xyzt
 11  xyz
 }

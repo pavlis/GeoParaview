@@ -8,6 +8,7 @@
 #include "db.h"
 #include "coords.h"
 #include "location.h"
+#include "dbpmel.h"
 
 #define KMPERDEG 111.19
 
@@ -140,6 +141,8 @@ int save_origin(Dbptr dbi, int is, int ie, int depth_fixed,
 		strcpy(dtype,"f");
 	}
 	auth = cuserid(NULL);
+	orid = dbnextid(dbo,"orid");
+	if(orid<0) elog_die(0,"dbnextid failure for orid: check write permission on lastid table\n");
 	if(dbaddv(dbo,0,
                 "lat",h.lat,
                 "lon",h.lon,
@@ -183,7 +186,7 @@ written yet.
 Author:  Gary L. Pavlis
 Written:  February 1997
 */
-void save_origerr(int orid, Hypocenter h, float **C, Dbptr dbo)
+void save_origerr(int orid, Hypocenter h, double **C, Dbptr dbo)
 {
 	double sdobs; 
 	double lddate;
@@ -197,7 +200,6 @@ void save_origerr(int orid, Hypocenter h, float **C, Dbptr dbo)
 	sdobs = sswr/ndgf */
 
 	sdobs = h.rms_raw;
-	lddate = now();
 	if(dbaddv(dbo,0,
 		"orid",orid,
                 "sxx",C[0][0],
@@ -211,13 +213,13 @@ void save_origerr(int orid, Hypocenter h, float **C, Dbptr dbo)
                 "sty",C[1][3],
                 "stz",C[2][3],
 		"sdobs",sdobs,
-                "lddate",lddate,
 			0) == dbINVALID)
 	{
 		die(1,"save_origerr: dbaddv error writing origerr record for orid %d\n",
 				orid);
 	}
 }
+
 /*This function forms a new assoc table for this solution using 
 input view, dbv, from is to ie (rows) as a pattern.  This is 
 more complex than it's siblings above because of the need to deal
@@ -470,3 +472,130 @@ void save_assoc(Dbptr dbi, int is, int ie, int orid, char *vmodel,
 	freearr(worktarr,0);
 	freearr(workuarr,0);
 }
+/*
+This function saves new origin estimates for a group of nevents
+hypocenters in the origin table.  It does this by matching evids,
+grabbing all auxiliary fields from the origin table for the prefor,
+and writing these back with updated hypocenter information.
+The matching is done by a dumb linear search of the input evid
+array.  This was intentional as the assumption was that it was
+faster to do a linear search on a vector of ints than the more
+general approach of using dbmatches against the input database.
+Since the evid list will always be far smaller than the full
+catalog of events this assumption should always be appropriate.
+If this proves to be a bottleneck, the solution should be to 
+use a faster indexing method on the evid list using an Arr
+or some other binary tree based index.  I judged the complication
+of adding such an indexing was not justified as I expect nevents
+will normally be pretty small.  Further, this function is only
+called once for each group of events located simultaneously.
+In the time it took to write this I probably could done it right
+instead of making excuses.
+
+Arguments
+        dbv - database to read and write to.  HOWEVER base dbv given
+		MUST be a pointer to the basic working view that
+		drives pmel_process.   
+	reclist - Tbl of records of group pointers for each seismic
+		event of grouping defined in input view dbv.  This
+		must be consistent with the view pointer passed as 
+		db or chaos will clearly result.  
+        nevents - number of events in this group
+		(a consistency check is made against the size of
+		the reclist Tbl, if they aren't the same it hints
+		at big trouble.  This maybe should be a die, but 
+		it make it only a complain for now.)
+        h - vector of Hypocenter structures containing new
+                hypocenter estimates to be added to the database.
+        evid - parallel vector of ints that are the css3.0 evid
+                ids with each element of h.  That is, evid[i] is
+                the event id for the hypocenter stored in h[i].
+	ta - array of Tbl pointers of length nevents that contain
+		arrival data for each h and evid.  That is, ta is
+		a parallel array to h and evid of points to Tbls.
+	fixlist - dbpmel's Arr that contains indexed list of
+		fixed coordinate information. 
+	vmodel - velocity model named (required for assoc table) 
+	o - control structure passed to ggnloc - assumed consistent
+		with initial calls to build covariance matrix.
+
+Author:  Gary Pavlis
+*/
+int dbpmel_save_hypos(Dbptr dbv, 
+		Tbl *reclist,
+		int nevents, 
+		Hypocenter *h,
+		int *evid,
+		Tbl **ta,
+		Arr *fixlist,
+		Pf *pf)
+{
+	int i,j,match,is,ie;
+	int nrec;
+	int current_evid;
+	int orid;
+	Dbptr dbbdl;
+	char *fix;
+	Tbl *tu=newtbl(0);  /* Null table always for pmel of slowness data*/
+	double **C;
+	float emodel[4];
+	char *vmodel;
+	Location_options o;
+
+	o = parse_options_pf(pf);
+	vmodel = pfget_string(pf,"velocity_model_name");
+	C = dmatrix(0,3,0,3);
+
+	nrec = maxtbl(reclist);
+	if(nevents != nrec)
+		elog_complain(0,"dbpmel_save_hypos (WARNING): mismatch in event count\nDatabase defines %d events in working group while process list is %d\nMore errors will probably follow this one\n",
+			nevents,nrec);
+	for(i=0;i<nrec;++i)
+	{
+		int fixdepth;
+		dbv.record = (int)gettbl(reclist,i);
+		dbgetv(dbv,0,"evid",&current_evid,"bundle",&dbbdl,0);
+		/* this is the simple linear search discussed above*/
+		for(j=0,match=-1;j<nevents;++j)
+		{
+			if(evid[j]==current_evid)
+			{
+				match = j;
+				break;
+			}
+		}
+		if(match<0)
+		{
+			elog_notify(0,"Cannot find evid %d in event process list;  cannot save hypocenter for this event\n",
+				current_evid);
+		}
+		else
+		{
+			dbget_range(dbbdl,&is,&ie);
+			fix = get_fixlist(fixlist,current_evid);
+			if(fix==NULL)
+				fixdepth=0;
+			else
+			{
+				if(strchr(fix,'z')==NULL)
+					fixdepth=0;
+				else
+					fixdepth=1;
+			}
+			orid = save_origin(dbv,is,ie,fixdepth,h[match],dbv);
+			save_assoc(dbv,is,ie,orid,vmodel,
+				ta[match],tu,h[match],dbv);
+			predicted_errors(h[match],ta[match],tu,o,C,emodel);
+			/* This routine should ultimately be more 
+			sophisticated to include error estimates defined
+			in pavlis(1991).  This is a placeholder that puts
+			some basic stuff in origerr. */
+			save_origerr(orid,h[match],C,dbv);
+		
+		}
+	}
+	free_matrix((char **)C,0,3,0);
+	freetbl(tu,free);
+        return(0);
+}
+

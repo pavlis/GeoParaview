@@ -77,31 +77,6 @@ int load_hypocentroid(Dbptr dbv,int rec, Hypocenter *h)
 	h->z = depth;
 	return(0);
 }
-/* 
-This function saves new origin estimates for a group of nevents 
-hypocenters in the origin table.  It does this by matching evids,
-grabbing all auxiliary fields from the origin table for the prefor,
-and writing these back with updated hypocenter information.
-
-Arguments 
-	db - database to read and write to
-	nevents - number of events in this group
-	h - vector of Hypocenter structures containing new 
-		hypocenter estimates to be added to the database.
-	evid - parallel vector of ints that are the css3.0 evid
-		ids with each element of h.  That is, evid[i] is
-		the event id for the hypocenter stored in h[i].
-
-Author:  Gary Pavlis
-*/
-int dbpmel_save_hypos(Dbptr db, int nevents, Hypocenter *h,int evid)
-{
-	/* incomplete -- needs to be done eventually*/
-	int i;
-	/* needs a call to hypo_is_bad to test for hypos marked as 
-	diverged  or with inflated rms */
-	return(0);
-}
 #define EVIDGRP "evidgroup"
 /* this is the main processing routine for dbpmel.  It takes an input
 list of grid point, which are defined by integers gridid that are
@@ -179,7 +154,6 @@ int dbpmel_process(Dbptr db, Tbl *gridlist,Pf *pf)
 	The fixlist array of character strings is passed to pmel as a 
 	parallel of vectors defining events with fixed coordinates */
 	Arr *events_to_fix;
-	char **fixlist;
 	/* This is the structure that encapsulates all the station
 	correction elements.  WARNING: it is built up in pieces below,
 	and later modifications most handle this carefully.*/
@@ -226,15 +200,8 @@ int dbpmel_process(Dbptr db, Tbl *gridlist,Pf *pf)
 
 	vmodel = pfget_string(pf,"velocity_model_name");
 
-	/* Note pfget_arr returns null if the name is missing.
-	To make the result less prone to failure in this case
-	we create an empty array in that case an complain.*/
-	events_to_fix = pfget_arr(pf,"pmel_calibration_events");
-	if(events_to_fix == NULL)
-	{
-		elog_complain(0,"pmel_calibration_events parameter (Arr) not in parameter space\nAssuming an empty list\nCorrect before the next run of this program\n");
-		events_to_fix=newarr(0);
-	}
+	events_to_fix = load_calibration_events(pf);
+
 	/* We next create a grouping of the working view by
 	the gridid:evid key.  We use dbmatches below to match
 	gridids and the record list from dbmatches is the set
@@ -274,7 +241,6 @@ int dbpmel_process(Dbptr db, Tbl *gridlist,Pf *pf)
 		allot(Tbl **,ta,nevents);
 		allot(Hypocenter *,h0,nevents);
 		allot(int *,evid,nevents);
-		allot(char **,fixlist,nevents);
 		
 		/* reclist now contains a collection of record numbers
 		for gridid:evid grouped parts of the working view. */
@@ -298,14 +264,6 @@ int dbpmel_process(Dbptr db, Tbl *gridlist,Pf *pf)
 			}
 			ndata += maxtbl(ta[j]);
 			h0[j] = db_load_initial(dbbundle,is);
-			/*This sets fixed coordinates on calibration events.
-			It depends on getarr returning a NULL pointer if
-			the there is no match. */
-			sprintf(testevid,"%d",evid[j]);
-			fixlist[i] = (char *)getarr(events_to_fix,testevid);
-			if(fixlist[i]!=NULL)
-				elog_log(0,"Using evid %d as calibration event fixing coordinates as: %s\n",
-					evid,fixlist[i]);
 			
 		}
 		/* We assume the hypocentroid has been joined to this
@@ -363,12 +321,13 @@ int dbpmel_process(Dbptr db, Tbl *gridlist,Pf *pf)
 		/* This is the main processing routine.  It was 
 		intentionally built without any db hooks to make it
 		more portable */
-		converge=pmel(nevents,ta,h0,fixlist,&hypocentroid,smatrix,pf);
+		converge=pmel(nevents,evid,ta,h0,
+			events_to_fix,&hypocentroid,smatrix,pf);
 		fprintf(stdout,"Cluster id=%d pmel convergence reason\n",
 			gridid);
 		fprintf(stdout,"sswr/dgf = %lf, dgf = %d, rawrms = %lf\n",
 			smatrix->sswrodgf,smatrix->ndgf,smatrix->rmsraw);
-		dbpmel_save_hypos(db,nevents,h0,evid);
+		dbpmel_save_hypos(db,reclist,nevents,h0,evid,ta,events_to_fix,pf);
 		if(dbaddv(dbcs,0,"gridid",gridid,
 				"time",now(),
 				"sswrodgf",smatrix->sswrodgf,
@@ -380,7 +339,6 @@ int dbpmel_process(Dbptr db, Tbl *gridlist,Pf *pf)
 		}
 		for(k=0;k<nevents;++k) freetbl(ta[i],free);
 		free(ta);
-		free(fixlist);
 	}
 	freearr(events_to_fix,0);
 	destroy_SCMatrix(smatrix);
