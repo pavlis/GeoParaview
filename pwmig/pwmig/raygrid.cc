@@ -30,33 +30,52 @@ the n3-1 position in the raygrid).
 int copy_path(dmatrix& ray,GCLgrid3d& raygrid,int i, int j)
 {
 	int k,kk;
+	int status;
 	int path_length=ray.columns();
 	if(path_length<2) return(-1);
-	for(k=0,kk=raygrid.n3-1;k<raygrid.n3;++k,--kk)
+	if(path_length>=raygrid.n3)
 	{
-		if(k>=path_length) break;
-		raygrid.x1[i][j][kk]=ray(0,k);
-		raygrid.x2[i][j][kk]=ray(1,k);
-		raygrid.x3[i][j][kk]=ray(2,k);
+		for(k=0,kk=raygrid.n3-1;k<raygrid.n3;++k,--kk)
+		{
+			if(k>=path_length) break;
+			raygrid.x1[i][j][kk]=ray(0,k);
+			raygrid.x2[i][j][kk]=ray(1,k);
+			raygrid.x3[i][j][kk]=ray(2,k);
+		}
+		status=0;
 	}
-	if(path_length<raygrid.n3)
+	else
 	{
+		// this block handles short input path with
+		// a linear projection from the deepest point.
+		// Done by creating a new temporary dmatrix 
+		// with the extended path and running the 
+		// same algorithm as above.
 		double dx1,dx2,dx3;
-		// ray path points down and we need to move in
-		// that direction
 		dx1=ray(0,path_length-1)-ray(0,path_length-2);
 		dx2=ray(1,path_length-1)-ray(1,path_length-2);
 		dx3=ray(2,path_length-1)-ray(2,path_length-2);
-		for(kk=raygrid.n3-path_length;kk>0;--kk)
+		dmatrix extendedray(3,raygrid.n3);
+		for(k=0;k<path_length;++k)
+			for(int l=0;l<3;++l)
+				extendedray(l,k)=ray(l,k);
+		for(k=path_length;k<raygrid.n3;++k)
 		{
-			raygrid.x1[i][j][kk]=raygrid.x1[i][j][kk-1]+dx1;
-			raygrid.x2[i][j][kk]=raygrid.x2[i][j][kk-1]+dx2;
-			raygrid.x2[i][j][kk]=raygrid.x3[i][j][kk-1]+dx3;
+			extendedray(0,k)=extendedray(0,k-1)+dx1;
+			extendedray(1,k)=extendedray(1,k-1)+dx2;
+			extendedray(2,k)=extendedray(2,k-1)+dx3;
 		}
-		return(+1);
+		for(k=0,kk=raygrid.n3-1;k<raygrid.n3;++k,--kk)
+		{
+			if(k>=path_length) break;
+			raygrid.x1[i][j][kk]=extendedray(0,k);
+			raygrid.x2[i][j][kk]=extendedray(1,k);
+			raygrid.x3[i][j][kk]=extendedray(2,k);
+
+		}
+		status = +1;
 	}
-	else if (path_length>raygrid.n3) 
-		return(0);
+	return(status);
 }
 
 
@@ -165,6 +184,11 @@ GCLgrid3d *Build_GCLraygrid(bool fixed_u_mode,
 
 			    }
 			    ierr=copy_path(*path,raygrid,i,j);
+/*
+cerr << "(i,j)="<<i<<","<<j<<" r difference = "
+		<< raygrid.r(i,j,raygrid.n3-1) - parent.r(i,j)
+		<< endl;
+*/
 			    delete path;
 			    if(ierr<0) 
 			    {
