@@ -1,9 +1,9 @@
-gridname kyghyz2
+gridname kyghyz
 origin_latitude 41.4
 origin_longitude 76.0
 x_axis_azimuth 80.0
-delta_x1 50.0
-delta_x2 50.0
+delta_x1 5.0
+delta_x2 5.0
 delta_x3 2.0
 n1 100
 n2 100
