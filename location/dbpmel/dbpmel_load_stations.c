@@ -95,6 +95,8 @@ Arr *dbpmel_load_stations(Dbptr db, Pf *pf)
 	int useall,usednde;
 	Station *s;
 	SCMatrix smatrix;  
+	char laststa[12];
+	double lastlon,lastlat,lastelev,lastdn,lastde;
 
 	/*We first scan the site table for moving stations*/
 	sortkeys = strtbl("sta","ondate::offdate",0);
@@ -109,52 +111,59 @@ Arr *dbpmel_load_stations(Dbptr db, Pf *pf)
 	usednde = pfget_boolean(pf,"use_dnorth_deast");
 	/* The associate array a uses only the keys here */
 	a = pfget_arr(pf,"pmel_stations");
+	dbs.record=0;
+	dbgetv(dbs,0,"sta",laststa,
+		"lon",&lastlon,
+		"lat",&lastlat,
+		"elev",&lastelev,
+		"dnorth",&lastdn,
+		"deast",&lastde,0);
 
 	for(dbs.record=0;dbs.record<nrows;++dbs.record)
 	{
-		char laststa[12];
-		double lastlon,lastlat,lastelev,lastdn,lastde;
-		if(dbs.record == 0)
-			dbgetv(dbs,0,"sta",laststa,
-				"lon",&lastlon,
-				"lat",&lastlat,
-				"elev",&lastelev,
-				"dnorth",&lastdn,
-				"deast",&lastde,0);
+		if(dbgetv(dbs,0,"sta",staname,
+			"lon",&lon,
+			"lat",&lat,
+			"elev",&elev,
+			"dnorth",&dnorth,
+			"deast",&deast,0) == dbINVALID)
+			die(0,"dbpmel_load_station:  dbgetv error scaning site table at row %s of working view\n",dbs.record);
+
+		if(usednde) apply_dnde(dnorth,deast,&lat,&lon);
+		if(strcmp(staname,laststa) )
+		{
+			if(useall || (getarr(a,laststa)!=NULL) )
+			{
+				allot(Station *,s,1);
+				strcpy(s->name,laststa);
+				s->lat = lastlat;
+				s->lon = lastlon;
+				s->elev = lastelev;
+				setarr(out,laststa,s);
+			}
+			strcpy(laststa,staname);
+			lastlon = lon;
+			lastlat = lat;
+			lastelev = elev;
+		}
 		else
 		{
-			if(dbgetv(dbs,0,"sta",staname,
-				"lon",&lon,
-				"lat",&lat,
-				"elev",&elev,
-				"dnorth",&dnorth,
-				"deast",&deast,0) == dbINVALID)
-				die(0,"dbpmel_load_station:  dbgetv error scaning site table at row %s of working view\n",dbs.record);
-
-			if(usednde) apply_dnde(dnorth,deast,&lat,&lon);
-			if(strcmp(staname,laststa))
-			{
-				if(useall || (getarr(a,laststa)!=NULL) )
-				{
-					allot(Station *,s,1);
-					strcpy(s->name,laststa);
-					s->lat = lastlat;
-					s->lon = lastlon;
-					s->elev = lastelev;
-					setarr(out,laststa,s);
-				}
-				strcpy(laststa,staname);
-				lastlon = lon;
-				lastlat = lat;
-				lastelev = elev;
-			}
-			else
-			{
-				if( (lastlat != lat) || (lastlon != lon) )
-				  die(0,"Fatal(dbpmel_load_station):  station location for %s is not constant in site table\nFound lat,lon pairs of (%lf,%lf) and (%lf,%lf)\n",
-					staname,lat,lon,lastlat,lastlon);
-			}
+			if( (lastlat != lat) || (lastlon != lon) )
+			  die(0,"Fatal(dbpmel_load_station):  station location for %s is not constant in site table\nFound lat,lon pairs of (%lf,%lf) and (%lf,%lf)\n",
+				staname,lat,lon,lastlat,lastlon);
 		}
+	}
+	/* We drop the last station without this.  There is 
+	probably a cleaner logic for this, but this function
+	is called only once per run so I won't be picky */
+	if(useall || (getarr(a,laststa)!=NULL) )
+	{
+		allot(Station *,s,1);
+		strcpy(s->name,laststa);
+		s->lat = lastlat;
+		s->lon = lastlon;
+		s->elev = lastelev;
+		setarr(out,laststa,s);
 	}
 	dbfree(dbs);
 	freearr(a,0);

@@ -85,7 +85,8 @@ SCMatrix *create_SCMatrix(Arr *stalist, Arr *arrp)
 
 	allot(SCMatrix *,s,1);
 	s->nsta = cntarr(stalist);
-	s->ncol = (s->nsta)*cntarr(arrp);
+	s->nphases = cntarr(arrp);
+	s->ncol = (s->nsta)*(s->nphases);
 	s->sta_index = create_sta_index(stalist);
 	if((s->ncol)<=0)
 		die(0,"create_SCMatrix:  illegal matrix request\nNumber stations = %d and number of phases = %d yielding %d matrix columns\n",
@@ -110,7 +111,7 @@ SCMatrix *create_SCMatrix(Arr *stalist, Arr *arrp)
 		setarr(s->phase_index,key,phase_col);
 	}
 	freetbl(tkeys,0);
-	return(0);
+	return(s);
 }
 /* Destroy routine for an SCMatrix object */
 void destroy_SCMatrix(SCMatrix *s)
@@ -316,7 +317,7 @@ int compute_scref(SCMatrix *s, Hypocenter *h, Arr *stalist,
 	for(j=0;j<maxtbl(phskeys);++j)
 	{
 		phase = (char *)gettbl(phskeys,j);
-		iptr = (int *)getarr(pha,phase);
+		iptr = (int *)getarr(s->phase_index,phase);
 		iphacol = *iptr;
 		phand = (Phase_handle *)getarr(pha,phase);
 		p3dhand = (Phase_handle *)getarr(pha3D,phase);

@@ -267,6 +267,8 @@ Tbl *pmel(int nevents,
     double ds_over_s,ds_over_s_converge;
 /* TEMPORARY FOR SUNPERF PROBLEM ON SOLAR */
 int one=1;
+int worksize;
+double *work;
 
     nr = s->nrow;
     nc = s->ncol;
@@ -392,6 +394,8 @@ int one=1;
                 with high average weighted rms residuals */
                 current_wssq = (current_hypo->rms_weighted)
                         *(current_hypo->rms_weighted);
+		if((current_hypo->degrees_of_freedom)<=0)
+				continue;
                 if(sc_iterations>0 && delete_bad)
                     if(ftest(current_wssq,
                          current_hypo->degrees_of_freedom,
@@ -442,6 +446,13 @@ int one=1;
 		is the left singular vectors spanning the data space */
 		dgesvd('a','n',nrow_amatrix,ncol_amatrix,A,
 			nc, svalue, U, nc, Vt, nc, &svdinfo);
+/*
+worksize=3*nrow_amatrix;
+allot(double *,work,worksize);
+dgesvd_('a','n',&nrow_amatrix,&ncol_matrix,A,&nc,svalue,
+	U,&nc,Vt,&nc,work,&worksize,&svdinfo);
+free(work);
+*/
   		if(svdinfo) 
 		{
 		    elog_notify(0,"pmel:  svd error processing event number %d\n",i);

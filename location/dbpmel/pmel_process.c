@@ -258,7 +258,7 @@ int dbpmel_process(Dbptr db, Tbl *gridlist,Pf *pf)
 		for(j=0,ndata=0;j<nevents;++j)
 		{
 			char testevid[12];
-			dbevid_grp.record = (int)gettbl(reclist,i);
+			dbevid_grp.record = (int)gettbl(reclist,j);
 			dbgetv(dbevid_grp,0,"evid",evid+j,
 				"bundle",&dbbundle,0);
 			dbget_range(dbbundle,&is,&ie);
