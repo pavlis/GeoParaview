@@ -3,8 +3,8 @@ DLIB=$(LIB:.a=$(DSUFFIX))
 DATADIR=
 DATA=
 INCLUDE=pfstream.h
-MAN3=
-MAN5=		# man pages for file formats
+MAN3=pfstream.3
+MAN5=pfstream.5
 
 cflags=-g
 ldlibs= -lbrttutil $(THREAD) $(DBLIBS) 
