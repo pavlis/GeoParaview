@@ -1,0 +1,12 @@
+#  pattern pf file for new resample program
+decimators &Tbl{
+# exact_rate low_limit	high_limit	Response files
+100	99	101	RT72A_5_f RT72A_2_f 
+40	39	41	RT72A_4_f
+20	19	21	RT72A_2_f
+10	0	11	none
+}
+output_sample_rate 10
+trim_gap_edges true  #if true shorten data around gaps to avoid edge transients of FIR filters
+output_channel_code  MH
+

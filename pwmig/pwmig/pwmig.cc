@@ -7,7 +7,7 @@
 
 void usage()
 {
-        cbanner((char *)"$Revision: 1.3 $ $Date: 2003/11/28 17:42:44 $",
+        cbanner((char *)"$Revision: 1.4 $ $Date: 2004/03/16 13:00:50 $",
                 (char *)"db pfi pfo [-V -pf pfname]",
                 (char *)"Gary Pavlis",
                 (char *)"Indiana University",
@@ -962,7 +962,7 @@ int main(int argc, char **argv)
 			usage();
 	}
 	/* this sets defaults */
-        if(pfin == NULL) pfin = strdup("pwmigprecompute");
+        if(pfin == NULL) pfin = strdup("pwmig");
         if(pfread(pfin,&pf)) die(1,(char *)"pfread error\n");
 
 	dbopen(dbname,'r+',&db);
