@@ -17,7 +17,7 @@ using namespace INTERPOLATOR1D;
 
 void usage()
 {
-        cbanner((char *)"$Revision: 1.11 $ $Date: 2005/03/16 13:30:21 $",
+        cbanner((char *)"$Revision: 1.12 $ $Date: 2005/03/18 16:08:56 $",
                 (char *)"db  [-V -pf pfname]",
                 (char *)"Gary Pavlis",
                 (char *)"Indiana University",
@@ -664,7 +664,7 @@ int main(int argc, char **argv)
 		Datascope_Handle dbh(db,pf,"dbprocess_commands");
 		dbh.rewind();
 		for(int record=0;record<dbh.number_tuples();++dbh,++record)
-		//DEBUG for(int record=0;record<1;++dbh,++record)
+		//DEBUGfor(int record=0;record<1;++dbh,++record)
 		{
 			double dt; // useful shorthard
 			// first read in the next ensemble
