@@ -1,4 +1,5 @@
 BIN=db_ratio
+PF=db_ratio.pf
 cflags = -g
 ldlibs = -lmap -lgrx $(DBLIBS) -lX11 -lm
 F77LIBS=-L/opt/SUNWspro/lib -R/opt/SUNWspro/lib -lM77 -lF77 -lsunmath -lm

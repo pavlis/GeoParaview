@@ -675,6 +675,19 @@ char **argv;
 		for(j=0;j<gather.nstation[3];++j)
 		{
 			char *cptr;
+			/*We first save the total power spectra.
+			 We label this channels as first character of chan
+			name + "3C".  Thus, for instance, EHZ -> E3C.  Not
+			very good form because it works only with SEED style 
+			channel codes */
+
+			threeCspec[j].chan[1] = '3';
+			threeCspec[j].chan[2] = 'C';
+			threeCspec[j].chan[3] = '\0';
+			strcpy(threeCspec[j].dir,outdir);
+			strcpy(threeCspec[j].pstype,"sp3c");
+			if( (ierr = save_spectrum(db,threeCspec+j)) != 0)
+				save_spectrum_error(threeCspec+j,ierr);
 
 
 			if(station_ratio)
@@ -691,17 +704,8 @@ char **argv;
 			three components alive */
 				spectral_ratio(threeCspec[j].spec,median[3],threeCspec[j].nfreq);
 			}
-			strcpy(threeCspec[j].dir,outdir);
 			strcpy(threeCspec[j].pstype,"3cpsr");
 
-			/* We label this channels as first character of chan
-			name + "3C".  Thus, for instance, EHZ -> E3C.  Not
-			very good form because it works only with SEED style 
-			channel codes */
-
-			threeCspec[j].chan[1] = '3';
-			threeCspec[j].chan[2] = 'C';
-			threeCspec[j].chan[3] = '\0';
 			if( (ierr = save_spectrum(db,threeCspec+j)) != 0)
 				save_spectrum_error(threeCspec+j,ierr);
 		}
