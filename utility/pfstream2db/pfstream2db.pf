@@ -1,0 +1,70 @@
+newids_required &Arr{
+origin &Tbl{
+orid
+}
+}
+group_keys &Tbl{
+evid
+}
+save_by_row &Arr{
+arrival &Tbl{
+arid	int	arid
+phase	string	phase
+sta	string	sta
+chan	string	chan
+arrival.time	time	arrival.time
+iphase	string	iphase
+deltim	real	deltim
+}
+assoc &Tbl{
+orid	int	orid
+arid	int	arid
+assoc.delta double delta
+assoc.seaz  double seaz
+assoc.esaz  double esaz
+assoc.timeres  double timeres
+assoc.timedef  string timedef
+assoc.wgt double wgt
+}
+}
+save_by_group &Arr{
+origin &Tbl{
+orid	int	orid
+evid	int	evid
+lat	real	origin.lat
+lon	real	origin.lon
+depth	real	origin.z
+time	time	origin.time
+jdate	int	origin.jdate
+nass	int	nass
+ndef	int	ndef
+mb	real	mb
+mbid	int	mbid
+ms	real	ms
+msid	int	msid
+ml	real	ml
+mlid	int	mlid
+grn	int 	grn
+srn	int	srn
+etype	string 	etype
+review	string	review
+depdp	real	depdp
+dtype	string	dtype
+auth	string	auth
+}
+event &Tbl{
+evid	int	evid
+prefor	int	prefor
+}
+}
+save_by_ensemble &Arr{
+hypocentroid &Tbl{
+gridname string gridname
+dlat real  grid.lat
+dlon real  grid.lon
+depth real  grid.depth
+hclat	real	hypocentroid.lat
+hclon	real	hypocentroid.lon
+hcdepth	real	hypocentroid.z
+}
+}
