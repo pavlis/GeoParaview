@@ -307,6 +307,7 @@ Time_Series* Read_SAC_ascii(string fname)
 	if(shdr!=sac_magic_string) ssac.md.put_metadata("KINST",shdr);
 //cout << fname << endl;
 //ssac.md.print_all_metadata();
+	ssac.live=true;
 
 	ssac.s = new double[ssac.ns];
 	for(int i=0;i<ssac.ns;++i)
