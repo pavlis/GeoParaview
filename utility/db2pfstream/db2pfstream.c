@@ -95,7 +95,7 @@ int db2pf(Dbptr db, Tbl *t, Pf *pf)
 	{
 		m = (Attribute_map *)gettbl(t,i);
 		dbf=dblookup(db,0,0,m->dbname,0);
-		dbquery(dbf,dbNULL,nullvalue);
+		dbquery(dbf,dbNULL,&nullvalue);
 		switch(m->type)
 		{
 		case DBREAL:
@@ -291,6 +291,7 @@ cause the program to abort.  Both contain pointers to Attribute_map*/
 	if(require==NULL)
 		elog_die(0,"Error in parameter file for parameter require\n");
 	passthrough = pfget_Attribute_map(pf,"passthrough");
+	if(passthrough==NULL)
 		elog_die(0,"Error in parameter file for parameter passthrough\n");
 	/* Unfortunately, we have two different loops for ensemble mode
 	 and single object mode */
@@ -303,9 +304,10 @@ cause the program to abort.  Both contain pointers to Attribute_map*/
 		int isg, ieg;
 		int number_groups;
 
-		pfo_head=pfnew(PFARR);
+		pfo_head=pfnew(0);
 		pfput_tbl(pfo_head,"ensemble_keys",ensemble_keys);
 		if(grouping_on) pfput_tbl(pfo_head,"grouping_keys",group_keys);
+	
 
 		dbquery(dbge,dbRECORD_COUNT,&number_ensembles);
 		if(DB2PFS_verbose) elog_log(0,"database has %d ensembles\n",
@@ -326,7 +328,7 @@ cause the program to abort.  Both contain pointers to Attribute_map*/
 			char *grp_records;
 			Tbl *grplist;
 
-			dbgetv(dbge,0,"dbbundle",&db_bundle_1);
+			dbgetv(dbge,0,"bundle",&db_bundle_1);
 			dbget_range(db_bundle_1,&is_ensemble,&ie_ensemble);
 			nmembers = ie_ensemble-is_ensemble+1;
 			allot(Pf **,pfensemble,nmembers);
@@ -356,17 +358,22 @@ cause the program to abort.  Both contain pointers to Attribute_map*/
 			{
 				grplist=newtbl(0);
 				do {
-				     dbgetv(dbgg,0,"dbbundle",&db_bundle_2,0);
+				     dbgetv(dbgg,0,"bundle",&db_bundle_2,0);
 				     dbget_range(db_bundle_2,&isg,&ieg);
 				     grp_records=malloc(30);
 				     sprintf(grp_records,"%d %d",
 					isg-is_ensemble,ieg-is_ensemble);
 				     pushtbl(grplist,grp_records);
+				     ++dbgg.record;
 				}
 				while (ieg<ie_ensemble);
 				pfput_tbl(pfo_head,"group_records",grplist);
 			}
+
+pfout(stdout,pfo_head);
+/*
 			pfensemble_to_stream(pfo_head,pfensemble,nmembers,fp);
+*/
 					
 			for(i=0;i<nmembers;++i)
 			{
