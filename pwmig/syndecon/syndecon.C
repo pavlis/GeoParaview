@@ -65,6 +65,11 @@ int main(int argc, char **argv)
 	cout << "Enter file containing list of SAC ascii files for Z and R"<< endl;
 	cin >> listfile;
 	ifstream inlist(listfile.c_str(), ios::in);
+	if(!inlist) 
+	{
+		cerr << "Cannot open file "<<listfile<<endl;
+		exit(1);
+	}
 	// Read the list of files and put them into a list container
 	do {
 		string *zp=new string;
@@ -76,6 +81,7 @@ int main(int argc, char **argv)
 		// Note this reverses the list.  This is useful
 		// for synthetics from herrmann's programs as I've
 		// run them at this time.
+
 		zfiles.push_front(zf);
 		rfiles.push_front(rf);
 	} while (! inlist.eof());
@@ -94,11 +100,10 @@ int main(int argc, char **argv)
                 z.push_back(sptr);
 		delete s;
 	}
-	for(irf=rfiles.begin(),i=0;irf!=zfiles.end();++irf,++i)
+	for(irf=rfiles.begin(),i=0;irf!=rfiles.end();++irf,++i)
 	{
 		try{
 			s=Read_SAC_ascii(*irf);
-                        cout << *irf << "= file "<< i<< endl;
 		} catch (SAC_data_error err)
 		{
 			err.log_error();
@@ -117,7 +122,7 @@ int main(int argc, char **argv)
 		exit(1);
 	}
 	n=r.size();
-	m=z[i].ns;
+	m=z[0].ns;
 	cout << "Output matrix is of size "<< m<<" by " << n << endl;
 	
 	cout << "Enter theta angle(degrees) to rotate for ray coordinates" << endl;

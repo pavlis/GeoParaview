@@ -12,6 +12,8 @@ Time_Series* Read_SAC_ascii(string fname)
 	int ihdr;
 	string shdr; 
 	ifstream infile(fname.c_str(), ios::in);
+	if(!infile)throw SAC_data_error("Cannot open SAC ascii file");
+	
 
 	Time_Series *s = new Time_Series();
 	Time_Series& ssac = *s;
@@ -303,8 +305,8 @@ Time_Series* Read_SAC_ascii(string fname)
 	if(shdr!=sac_magic_string) ssac.md.put_metadata("KDATRD",shdr);
 	infile >> shdr;
 	if(shdr!=sac_magic_string) ssac.md.put_metadata("KINST",shdr);
-cout << fname << endl;
-ssac.md.print_all_metadata();
+//cout << fname << endl;
+//ssac.md.print_all_metadata();
 
 	ssac.s = new double[ssac.ns];
 	for(int i=0;i<ssac.ns;++i)
