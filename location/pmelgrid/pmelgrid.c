@@ -140,13 +140,14 @@ void usage()
 			"pavlis@indiana.edu");
 	elog_die(0,"\n");
 }
+Pfstream_handle *pfshi, *pfsho;
 void main(int argc, char **argv)
 {
 	char *dbin;  /* Input db name */
 	Dbptr db;  /* input db pointer */
 	char *pfinfl=NULL;  /* input parameter file */
 	Pf *pf,*vpf;
-	Pf *pfi,*pfo;
+	Pf *pfi,*pfo,*pfehead;
 	Pf_ensemble *pfe,*pfesc;
 	Pf *pfsc;
 	int i;
@@ -175,7 +176,6 @@ void main(int argc, char **argv)
 	char *runname;
 	/* These are used for pmtfifo implementation.  They are analagous
 	to a FILE * abstraction. */
-	Pfstream_handle *pfshi, *pfsho;
 	char *streamin, *streamout;
 	
 #ifdef MPI_SET
@@ -201,9 +201,9 @@ void main(int argc, char **argv)
 	streamout=argv[3];
 	/* launch read and write threads */
 	pfshi = pfstream_start_read_thread(streamin);
-	if(pfshi==NULL) elog_die(1,"Read from %s thread create failed\n",argv[2]);
+	if(pfshi==NULL) elog_die(1,"Read thread  %s create failed\n",argv[2]);
 	pfsho = pfstream_start_write_thread(streamout);
-	if(pfsho==NULL) elog_die(1,"Read from %s thread create failed\n",argv[2]);
+	if(pfsho==NULL) elog_die(1,"Write thread %s create failed\n",argv[2]);
 
 	for(i=4;i<argc;++i)
 	{
@@ -219,7 +219,7 @@ void main(int argc, char **argv)
 			usage();
 	}
 	/* this set's default pf  name */
-	if(pfinfl==NULL) pfinfl=(char *)strdup("dbpmel");
+	if(pfinfl==NULL) pfinfl=(char *)strdup("pmelgrid");
 	if(pfread(pfinfl,&pf)) die(1,"pfread error from %s\n",pfinfl);
 	o = parse_options_pf(pf);
 	/* Pmel is known to fail if this option is turned on */
@@ -427,6 +427,8 @@ option which is know to cause problems\nrecenter set off\n");
 		}
 		/* This inserts revised attributes into the pfe */
 		update_ensemble(pfe,pf,h0,ta);
+		/* We have to recreate the header block for pfe */
+		pfehead=pfensemble_convert_group(pfe);
 		/* This builds a separate structure for pmel extension
 		tables that are stored in a different block */
 		pfesc = build_sc_ensemble(gridid,smatrix,pf);
@@ -434,10 +436,12 @@ option which is know to cause problems\nrecenter set off\n");
 		pfensemble_put_string(pfesc,"pmelrun",runname);
 		pfensemble_put_double(pfesc,"sswrodgf",smatrix->sswrodgf);
 		pfensemble_put_int(pfesc,"ndgf",smatrix->ndgf);
+		pfensemble_put_int(pfesc,"gridid",gridid);
 		pfensemble_put_double(pfesc,"sdobs",smatrix->rmsraw);
-		pfo=build_ensemble(2,"pmel_arrivals",NULL,pfe,
+		pfo=build_ensemble(2,"pmel_arrivals",pfehead,pfe,
 				"station_corrections",NULL,pfesc);
 		free_Pf_ensemble(pfe);
+		pffree(pfehead);
 		free_Pf_ensemble(pfesc);
 		if(pfstream_put_ensemble(pfsho,pfo)!=0)
 			elog_complain(1,"pfstream_put_ensemble failed\n");	
@@ -458,5 +462,16 @@ option which is know to cause problems\nrecenter set off\n");
 	 * This function must be called or chaos will follow */
 	MPI_Finalize();
 #endif
+	/* Wait for the output queue to empty before exiting or 
+	data at the end of the stream will be truncated */
+	while(pmtfifo_data_available(pfsho->mtf))
+	{
+		fprintf(stderr,"Waiting for queue to exit: sleeping for 10\n");
+		sleep(10);
+	}
+	sleep(30);
+/*
+	pthread_exit(NULL);
+*/
 	exit(0);
 }

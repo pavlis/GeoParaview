@@ -145,10 +145,11 @@ void update_ensemble(
 
 	for(i=0;i<pfe->ngroups;++i)
 	{
-		double delta,seaz,esaz,wgt;
-		Arrival *a;
-		int narrivals;
-
+    	    double delta,seaz,esaz,wgt;
+    	    Arrival *a;
+    	    int narrivals;
+	    if(h[i].used)
+	    {
 		rc = project_covariance( C, model, &conf,
                             h[i].rms_weighted, h[i].degrees_of_freedom,
                             &smajax, &sminax, &strike, &sdepth, &stime );
@@ -193,6 +194,8 @@ void update_ensemble(
 			pfput_time(pfe->pf[j],"origin.time",h[i].time);
 			pfput_string(pfe->pf[j],"algorithm","pmelgrid");
 			pfput_string(pfe->pf[j],"auth",auth);
+			/* special Boolean to mark these records ok*/
+			pfput_boolean(pfe->pf[j],"data_valid",1);
 		}
 		/*This is a somewhat different loop to create assoc.
 		* it is more complex because of searching described below */
@@ -249,6 +252,15 @@ void update_ensemble(
 			pfput_double(pfe->pf[j],"timeres",a->res.raw_residual);
 			pfput_double(pfe->pf[j],"wgt",wgt);
 		}
+	    }
+	    else
+	    {
+		/* This is a bit dangerous.  We set this boolean and 
+		downstream better catch it since numerous parameters 
+		will not be set that since the above is bypassed */
+		for(j=pfe->group_start[i];j<=pfe->group_end[i];++j)
+			pfput_boolean(pfe->pf[j],"data_valid",0);
+	    }
 	}
 	free_matrix((char **)C,0,3,0);
 }
@@ -315,6 +327,7 @@ Pf_ensemble *build_sc_ensemble(int gridid, SCMatrix *s, Pf *pf)
 				pfput_double(pfesc->pf[ii],"tsc",s->sc[icol]);
 				pfput_double(pfesc->pf[ii],"tscref",s->scref[icol]);
 				pfput_double(pfesc->pf[ii],"tscbias",s->scbias[icol]);
+				pfput_boolean(pfesc->pf[ii],"data_valid",1);
 			}
 			else
 			{
