@@ -1,5 +1,6 @@
 // Test program for basic functionality of gclgrid library
 #include <iostream>
+#include <fstream>
 #include "stock.h"
 #include "pf.h"
 #include "dmatrix.h"
@@ -12,6 +13,27 @@ void load_constant(GCLscalarfield3d& g,double c)
 		for(j=0;j<g.n2;++j)
 			for(k=0;k<g.n3;++k)
 				g.val[i][j][k]=c;
+}
+void fill_pattern(GCLgrid *g)
+{
+	for(int i=0;i<g->n1;++i)
+		for(int j=0;j<g->n2;++j)
+		{
+			g->x1[i][j]=i;
+			g->x2[i][j]=j;
+			g->x3[i][j]=i+j;
+		}
+}
+void fill_pattern(GCLgrid3d *g)
+{
+	for(int i=0;i<g->n1;++i)
+		for(int j=0;j<g->n2;++j)
+		for(int k=0;k<g->n3;++k)
+		{
+			g->x1[i][j][k]=i;
+			g->x2[i][j][k]=j;
+			g->x3[i][j][k]=k;
+		}
 }
 
 
@@ -44,12 +66,21 @@ int main(int arc, char **argv)
 	cout << "Trying integer size constructors " << endl;
 
 	
-	g2d=new GCLgrid(100,50);
-	g3d=new GCLgrid3d(100,50,20);
-	s2d=new GCLscalarfield(100,50);
-	v2d=new GCLvectorfield(100,50,5);
-	s3d=new GCLscalarfield3d(100,50,20);
-	v3d=new GCLvectorfield3d(100,50,20,3);
+	g2d=new GCLgrid(3,3);
+	g3d=new GCLgrid3d(3,3,2);
+	s2d=new GCLscalarfield(3,3);
+	v2d=new GCLvectorfield(3,3,2);
+	s3d=new GCLscalarfield3d(3,3,2);
+	v3d=new GCLvectorfield3d(3,3,2,3);
+	fill_pattern(dynamic_cast<GCLgrid*>(s2d));
+	fill_pattern(dynamic_cast<GCLgrid*>(v2d));
+	fill_pattern(dynamic_cast<GCLgrid3d*>(s3d));
+	fill_pattern(dynamic_cast<GCLgrid3d*>(v3d));
+// temp
+//cout << *s2d;
+//cout << *v2d;
+//cout << *s3d;
+//cout << *v3d;
 
 	cout << "construction successful.  Destroying" << endl;
 
@@ -71,8 +102,8 @@ int main(int arc, char **argv)
 
 	string name("testgrid1");
 	g3d=new GCLgrid3d(20,20,10,const_cast<char *>(name.c_str()),
-		9.0,-63.0,6371.0,
-		100.0,50.0,50.0,30.0,
+		rad(9.0),rad(-63.0),6371.0,
+		rad(100.0),50.0,50.0,30.0,
 		10,10);
 	name="testgrid2";
 	GCLgrid3d *grid2=new GCLgrid3d(*g3d);
@@ -91,8 +122,12 @@ int main(int arc, char **argv)
 	cout << "testing += operator" << endl;
 
 	testgrid1 += testgrid2;
+	cout << "Saving results to testgrid1.out" << endl;
+	ofstream out1;
+	out1.open("testgrid1.out",ios::out);
 
-	cout << testgrid1;
+	out1 << testgrid1;
+	out1.close();
 
 	cout << "Creating test grids for summation test" << endl;
 	cout << " test grid 2.  lat lon offset test";
@@ -100,13 +135,13 @@ int main(int arc, char **argv)
 
 	name="testgrid1";
 	g3d=new GCLgrid3d(20,20,10,const_cast<char *>(name.c_str()),
-		9.0,-63.0,6371.0,
-		100.0,50.0,50.0,30.0,
+		rad(9.0),rad(-63.0),6371.0,
+		rad(100.0),50.0,50.0,30.0,
 		10,10);
 	name="testgrid3";
 	grid2=new GCLgrid3d(20,20,10,const_cast<char *>(name.c_str()),
-		10.0,-64.0,6371.0,
-		100.0,50.0,50.0,30.0,
+		rad(10.0),rad(-64.0),6371.0,
+		rad(110.0),50.0,50.0,30.0,
 		10,10);
 	cout << "grids created.  Creating 3d scalar field" << endl;
 	GCLscalarfield3d testgrid3(*g3d);
