@@ -1,7 +1,6 @@
 #include "gclgrid.h"
 #include "dmatrix.h"
 #include "seispp.h"
-#include "vmodel.h"
 #include "ray1d.h"
 #include "pf.h"
 using namespace std;
@@ -28,9 +27,8 @@ coordinate system in finite element style boxes.  This means the
 path needs to be inverted (first column of path is placed at 
 the n3-1 position in the raygrid).  
 */
-int copy_path(dmatrix *path,GCLgrid3d& raygrid,int i, int j)
+int copy_path(dmatrix& ray,GCLgrid3d& raygrid,int i, int j)
 {
-	dmatrix& ray=*path;
 	int k,kk;
 	int path_length=ray.columns();
 	if(path_length<2) return(-1);
@@ -49,7 +47,7 @@ int copy_path(dmatrix *path,GCLgrid3d& raygrid,int i, int j)
 		dx1=ray(0,path_length-1)-ray(0,path_length-2);
 		dx2=ray(1,path_length-1)-ray(1,path_length-2);
 		dx3=ray(2,path_length-1)-ray(2,path_length-2);
-		for(kk=raygrid.n3-pathlength;kk>0;--k)
+		for(kk=raygrid.n3-path_length;kk>0;--k)
 		{
 			raygrid.x1[i][j][kk]=raygrid.x1[i][j][kk-1]+dx1;
 			raygrid.x2[i][j][kk]=raygrid.x2[i][j][kk-1]+dx2;
@@ -57,7 +55,7 @@ int copy_path(dmatrix *path,GCLgrid3d& raygrid,int i, int j)
 		}
 		return(+1);
 	}
-	else (path_length>raypath.n3) 
+	else if (path_length>raygrid.n3) 
 		return(0);
 }
 
@@ -120,7 +118,7 @@ GCLgrid3d *Build_GCLraygrid(bool fixed_u_mode,
 
 	// call the simple, parameterized GCLgrid constructor that allocs space but has no content
 	GCLgrid3d *rgptr = new GCLgrid3d(parent.n1, parent.n2, base_ray.npts);
-	GCLgrid3d raygrid& = *rptr;
+	GCLgrid3d& raygrid = *rgptr;
 	// clone these parent grid variable
 	strcpy(raygrid.name,parent.name);
 	raygrid.lat0=parent.lat0;
@@ -152,19 +150,19 @@ GCLgrid3d *Build_GCLraygrid(bool fixed_u_mode,
 			try {
 			    if(fixed_u_mode)
 			    {
-				path = GCLgrid_Ray_project(parent,base_ray&, 
-					theta, i,j)
+				path = GCLgrid_Ray_project(parent,base_ray, 
+					theta, i,j);
 			    }
 			    else
 			    {
 				Slowness_vector uij=h.pslow(parent.lat(i,j),
 					parent.lon(i,j),0.0);
-				ray = RayPathSphere(vmod, uij.mag(), zmax, tmax, dt, "t");
-				path = GCLgrid_Ray_project(parent,ray&, 
-					theta, i,j)
+				RayPathSphere ray(vmod, uij.mag(), zmax, tmax, dt, "t");
+				path = GCLgrid_Ray_project(parent,ray, 
+					theta, i,j);
 
 			    }
-			    ierr=copy_path(path,raygrid,i,j);
+			    ierr=copy_path(*path,raygrid,i,j);
 			    delete path;
 			    if(ierr<0) 
 			    {

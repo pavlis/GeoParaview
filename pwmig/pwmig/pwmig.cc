@@ -11,11 +11,12 @@
 #include "interpolator1d.h"
 using namespace std;
 using namespace SEISPP;
+using namespace INTERPOLATOR1D;
 #include "pwmig.h"
 
 void usage()
 {
-        cbanner((char *)"$Revision: 1.8 $ $Date: 2004/12/02 20:51:22 $",
+        cbanner((char *)"$Revision: 1.9 $ $Date: 2004/12/06 13:31:50 $",
                 (char *)"db  [-V -pf pfname]",
                 (char *)"Gary Pavlis",
                 (char *)"Indiana University",
@@ -271,41 +272,6 @@ dmatrix *ray_path_tangent(dmatrix& ray)
 	for(j=0;j<3;++j) gamma(j,nx-1)=gamma(j,nx-2);
 	return(gptr);
 }
-/* similar function to above in concept, but this one computes the set of local
-verticals along the ray path in the GCLgrid cartesian system
-*/
-/*
-dmatrix *compute_local_verticals(dmatrix& ray)
-{
-	dmatrix *vptr;
-	dmatrix& verticals=*vptr;
-	int *sz,nx;
-	Geographic_point x0_geo;
-	Cartesian_point x0_c;
-	const double DR=100.0;
-
-	double dx[3];
-	double nrmdx;
-	int i,j;
-
-	sz = ray.size();
-	// assume number rows = 3.   could test and throw exception, but this
-	// function is not viewed as a library function
-	nx=sz[1];
-	delete [] sz;
-	vptr = new dmatrix(3,nx);
-	for(i=0;i<nx;++i)
-	{
-		x0_geo = g.ctog(path(0,0),path(1,0),path(2,0));
-		x0_geo.r -= DR;
-		x0_c = g.gtoc(x0_geo);
-		verticals(0,i) = (path(0,i) - x0_c.x1)/DR;
-		verticals(1,i) = (path(1,i) - x0_c.x2)/DR;
-		verticals(2,i) = (path(2,i) - x0_c.x3)/DR;
-	}
-	return(vptr);
-}
-*/
 
 /* Computes a dmatrix of gradient S vectors for a ray GCLgrid defining the x3
 grid line from x1,x2 grid position ix1,ix2 (convention in this program).
@@ -632,6 +598,9 @@ int main(int argc, char **argv)
 		double zmax=control.get_double("maximum_depth");
 		double tmax=control.get_double("maximum_time_lag");
 		bool fixed_u_mode=control.get_bool("fixed_u_mode");
+		double dux=control.get_double("slowness_grid_deltau");
+		double duy=dux;
+		double dz=control.get_double("ray_trace_depth_increment");
 		// Create a database handle for reading data objects
 		dbopen(const_cast<char *>(dbname.c_str()),"r+",&db);
 		if(db.record == dbINVALID) die(1,"Cannot open database %s\n",dbname);
@@ -663,7 +632,7 @@ int main(int argc, char **argv)
 // unnecessarily complex.  A p=0 approximation for an elevation correction is pretty
 // good for teleseismic data and is unlikely to be a big problem.
 		// Load the default attribute map
-		Attribute_Map am();
+		Attribute_Map am;
 		// Need this set of attributes extraction lists to 
 		// load correct metadata into the ensmble and each member
 		Metadata_list mdlin=pfget_mdlist(pf,"Station_mdlist");
@@ -707,7 +676,6 @@ int main(int argc, char **argv)
 			GCLscalarfield3d domega(raygrid);
 			GCLvectorfield3d pwdgrid(raygrid,3);
 			string area;  // key for database when multiple areas are stored in database
-			RayPathSphere *rayupdux,*rayupduy;
 			int iux1, iux2;   // index positions for slowness grid
 
 			// This builds a 3d grid using ustack slowness rays with
@@ -764,7 +732,6 @@ int main(int argc, char **argv)
 				// travel time down this ray path (i.e. ordered from surface down)
 				dmatrix *pathptr=extract_gridline(raygrid,i,j,raygrid.n3-1,3,true);
 				Stime = compute_gridttime(Vs3d,i,j,Vs1d,raygrid,*pathptr);
-				delete pathptr;
 				// Now we compute the gradient in the S ray travel time
 				// for each point on the ray.  Could have been done with 
 				// less memory use in the loop below, but the simplification
@@ -820,24 +787,30 @@ int main(int argc, char **argv)
 					// the slow, exact method
 					troptr=new Ray_Transformation_Operator(
 						dynamic_cast<GCLgrid&>(raygrid),
-						path,
-						ustack.azimuth,
+						*pathptr,
+						ustack.azimuth(),
 						nup);
 				}
 				else
 				{
 					// the fast approximation
-					troptr=new Ray_Transformation_operator(
+					troptr=new Ray_Transformation_Operator(
 						dynamic_cast<GCLgrid&>(raygrid),
-						path,
-						ustack.azimuth);
+						*pathptr,ustack.azimuth());
 				}
 				trans_operator.apply(work);
+				// done with these now
+				delete pathptr;
 				delete troptr;
 
+				// This computes domega for a ray path in constant dz mode
+				// We would have to interpolate anyway to mesh with 
+				// time data choose the faster, coarser dz method here
 				domega_ij=compute_domega_for_path(ustack,dux,duy,
 					Vs1d, zmax,dz,raygrid, i, j, gradTp);
 				dweight_ij=compute_weight_for_path(gradTp,gradTs);
+//GAP HERE.  DOMEGA_IJ AND DWEIGHT_IJ NEED TO BE INTERPOLATED TO MATCH
+// RAY PATH WHICH WAS COMPUTED INCONSTANT T MODE
 				//
 				// copy transformed data to vector field
 				// copy weights and domega at same time
@@ -848,13 +821,11 @@ int main(int argc, char **argv)
 					{
 						pwdgrid.val[i][j][k][l]=work(l,k);
 					}
-					dweight.val[i][j][k]=weight_ij[k];
-					domega.val[i][j][k]=omega_ij[k];
+					weights.val[i][j][k]=dweight_ij[k];
+					omega.val[i][j][k]=domega_ij[k];
 				}
 				delete pwdata;
 				delete ray0;
-				delete rayupdux;
-				delete rayupduy;
 			}
 			// last but not least, add this component to the stack
 			//
@@ -866,9 +837,9 @@ int main(int argc, char **argv)
 
 		}
 	}
-	catch (GCLgrid_dberror gcldbe)
+	catch (GCLgrid_error gcle)
 	{
-		gcldbe.log_error();
+		gcle.log_error();
 		die(1,"GCLgrid library fatal error\n");
 	}
 	catch (Metadata_error mde)

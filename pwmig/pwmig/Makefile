@@ -1,9 +1,9 @@
-BIN=pwstack
+BIN=pwmig
 PF=pwmig.pf
 
 #MAN1=pwmig.1
 cflags=-g
-ldflags=-lglputil -lpfstream -lseispp $(DBLIBS) -lgclgrid -lperf -lsunmath -lm
+ldflags=-lseispp -ltrvltm -lgclgrid $(TRLIBS) $(DBLIBS) -lperf -lsunmath -lm
 
 include $(ANTELOPEMAKE) 
 OBJS= mdutils.o \
