@@ -10,7 +10,7 @@ ldlibs= -lgenloc -lglputil $(DBLIBS) $(F77LIBS) \
 include $(ANTELOPEMAKE)  	# This line must appear following the definitions above, 
 
 OBJS=dbpmel.o dbpmel_load_stations.o \
-	dbsubs.o fixlist_utilities.o ftest.o shape.o \
+	dbsubs.o fixlist_utilities.o \
 	pmel.o pmel_process.o scmatrixsubs.o mdebug.o
 $(BIN) : $(OBJS)
 	$(CC) $(CFLAGS) -o $@ $(OBJS) $(LDFLAGS) $(LDLIBS)

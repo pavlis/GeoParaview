@@ -8,20 +8,6 @@
 #include "glputil.h"
 #include "dbpmel.h"
 #define SSWR_TEST_LEVEL 0.99
-/* This is a temporary interface function for the ftest fortran routine.
-Eventually this should be replaced with a C function that allows one
-to specify the confidence level of the ftest.  This interface routine
-ignores this and uses the fixed critical level fortran function */
-int ftest(double f1, int nu1, double f2, int nu2, double critical_value)
-{
-	float rf1,rf2;
-	rf1 = (float)f1;
-	rf2 = (float)f2;
-	if(ftest_(&rf1,&nu1,&rf2,&nu2))
-		return(1);
-	else
-		return(0);
-}
 /* This routine takes advantage of the sparse form of the S matrix 
 that forms what is used to form the matrix SN (see PMEL paper).  That
 is, S is a scrambled diagonal matrix.  Because of this fact it is much
@@ -265,6 +251,8 @@ int pmel(int nevents,
     double escale;
     /* These are pmel control parameters parsed from pf */
     double esmin,esinit;
+    double sswrodgf_min;
+    double sswr_test,ndgf_test;
     int maxscit;
     int delete_bad;
     double F_critical_value;
@@ -313,6 +301,7 @@ int pmel(int nevents,
     /* We now extract parameters from pf specific to pmel */
     esmin = pfget_double(pf,"pmel_minimum_error_scale");
     esinit = pfget_double(pf,"pmel_initial_error_scale");
+    sswrodgf_min = pfget_double(pf,"pmel_minimum_sswrodgf");
     maxscit = pfget_int(pf,"pmel_maximum_sc_iterations");
     delete_bad = pfget_boolean(pf,"pmel_autodelete_high_rms");
     F_critical_value = pfget_double(pf,"pmel_F_test_critical_value");
@@ -332,8 +321,8 @@ int pmel(int nevents,
     o->min_error_scale = escale;
 
     /* Top of processing loop for this group */
-    elog_log(0,"Iteration Raw_rms sswrodf Escale  ndgf  Nevents\
- Nused\n");
+    elog_log(0,"Iteration Raw_rms Escale  sswrodgf sswrodgf2 ndgf  ndgf2\
+Nevents Nevents_used\n");
     sc_iterations = 0;
     do {
         Hypocenter *current_hypo;
@@ -419,9 +408,9 @@ int pmel(int nevents,
 		if((current_hypo->degrees_of_freedom)<=0)
 				continue;
                 if(sc_iterations>0 && delete_bad)
-                    if(ftest(current_wssq,
+                    if(ftest1(current_wssq,
                          current_hypo->degrees_of_freedom,
-			(s->sswrodgf)*((double)(s->ndgf)),s->ndgf,
+			sswr_test,ndgf_test,
                          F_critical_value)) continue;
                       
                 total_ndgf += current_hypo->degrees_of_freedom;
@@ -572,10 +561,24 @@ ds_over_s=dnrm2_(&nc,sc_solved,&one)/dnrm2_(&nc,s->scdata,&one);
 	s->ndgf = total_ndgf;
 	s->sswrodgf = sswrodgf;
 	total_rms_raw = sqrt(total_ssq_raw/((double)total_ndgf));
+	if(sswrodgf<sswrodgf_min) 
+	{
+		sswr_test = sswrodgf_min*((double)total_ndgf);
+		ndgf_test = total_ndgf;
+	}
+	else
+	{
+		sswr_test = total_wssq;
+		ndgf_test = total_ndgf;
+	}
+/* Turned off until the test level can be generalized.  Currently
+fixed at 95% 
 	if(sc_iterations>0)
 		if(ftest(sswrodgf, total_ndgf, s->sswrodgf, s->ndgf,
 			SSWR_TEST_LEVEL)==0)
 		    pushtbl(*sc_converge_reasons,"No improvement in data fit");
+*/
+
 	/* now the second measure */
 	if(data_space_null_project(s->S,nr,nused,nrows_S,scrhs,bwork))
 		elog_complain(0,"Problems in data_space_null_project\n");

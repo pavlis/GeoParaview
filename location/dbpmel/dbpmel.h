@@ -52,6 +52,6 @@ void destroy_SCMatrix(SCMatrix *);
 int update_scarr(SCMatrix *,Arr *);
 int hypo_is_bad(Hypocenter *);
 /* this is an old fortran function.  It should eventually be replaced */
-int ftest_(double *, int *, double *, int *);
+int ftest_(float *, int *, float *, int *);
 char *get_fixlist(Arr *,int);
 Arr *load_calibration_events(Pf *);
