@@ -74,6 +74,7 @@ public:
 	// This compiles a large string with pfcompile to load a full pf
         void load_metadata(string);
 	void load_metadata(char *);
+	void print_all_metadata();
 private:
         Pf *pf;  // Antelope's pf handle
 };

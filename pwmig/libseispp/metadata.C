@@ -284,3 +284,18 @@ void  copy_selected_metadata(Metadata& mdin, Metadata& mdout,
 		}
 	}
 }
+// Simple function to dump all metadata in a md object to 
+// stdout
+//
+void Metadata::print_all_metadata()
+{
+	char *md_contents;
+	md_contents=pf2string(pf);
+	if(md_contents==NULL)
+		cout << "ERROR: Metadata object is empty";
+	else
+	{
+		cout << md_contents;
+		free(md_contents);
+	}
+}
