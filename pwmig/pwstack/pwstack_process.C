@@ -110,7 +110,7 @@ int pwstack_ensemble(Three_Component_Ensemble& indata,
 		ix2=indata.get_int("ix2");
 		evid=indata.get_int("evid");
 		gridname=indata.get_string("gridname");
-	} catch (Metadata_get_error mderr)
+	} catch (Metadata_get_error& mderr)
 	{
 		// The above are all set by main so this is the 
 		// correct error message.  Could perhaps be dropped
@@ -175,7 +175,7 @@ int pwstack_ensemble(Three_Component_Ensemble& indata,
 			lon = rad(lon);
 			geographic_to_dne(lat0, lon0, lat, lon, &(dnorth[i]),&(deast[i]));
 			elev[i]=(*iv).get_double("site.elev");
-		} catch (Metadata_error merr)
+		} catch (Metadata_error& merr)
 		{
 			throw merr;
 		}
@@ -362,20 +362,21 @@ int pwstack_ensemble(Three_Component_Ensemble& indata,
 these attributes using attributes of the Time_Series class.
 		stackout->put_metadata("wfprocess.samprate",1.0/dt);
 		stackout->put_metadata("wfprocess.nsamp",nsout);
+*/
 		stackout->put_metadata("samprate",1.0/dt);
 		stackout->put_metadata("nsamp",nsout);
-*/
 		stackout->put_metadata("wfprocess.algorithm","pwstack");
 
 		apply_top_mute(*stackout,stackmute);
 
-		// Have to handle integer id problem using Datascope dbnextid 
-		// method for now.  
-		int pwfid=dbnextid(dshandle.db,"pwfid");
-		stackout->put_metadata("wfprocess.pwfid",pwfid);
 
 		try{
 			dbsave(*stackout,dshandle.db,table_name,mdlout,am);
+			// dbsave updates the key pwfid.  We need to fetch
+			// it to cross link related tables
+			int pwfid;
+			dbgetv(dshandle.db,0,"pwfid",&pwfid,0);
+			// now fill in the special table for this program
 			dbstack.append();
 			dbstack.put("gridname",gridname);
 			dbstack.put("ix1",ix1);
@@ -391,7 +392,6 @@ these attributes using attributes of the Time_Series class.
 			// the migration algorithm where a velocity available.
 			// Here we'd have to get that information to this point
 			dbstack.put("elev",avg_elev);
-
 			//
 			// Now for event link table -- awful database table, but 
 			// see now way around it if we are to retain a css back
@@ -402,7 +402,7 @@ these attributes using attributes of the Time_Series class.
 			dbevl.put("pwfid",pwfid);
 
 		}
-		catch(seispp_error err)
+		catch(seispp_error& err)
 		{
 			err.log_error();
 			cerr << "Write failure abort:  cannot continue"<<endl;

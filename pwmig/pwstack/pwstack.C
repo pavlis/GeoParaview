@@ -20,7 +20,7 @@ string MakeDfileName(int evid, int x1, int x2)
 }
 void usage()
 {
-        cbanner((char *)"$Revision: 1.13 $ $Date: 2005/01/22 22:16:37 $",
+        cbanner((char *)"$Revision: 1.14 $ $Date: 2005/01/26 18:49:58 $",
 		(char *)"dbin dbout [-v -V -pf pfname]",
                 (char *)"Gary Pavlis",
                 (char *)"Indiana University",
@@ -106,7 +106,7 @@ int main(int argc, char **argv)
     	    Metadata_list station_mdl=pfget_mdlist(pf,"station_metadata");
     	    Metadata_list ensemble_mdl=pfget_mdlist(pf,"ensemble_metadata");
     	    Metadata_list stack_mdl=pfget_mdlist(pf,"stack_metadata");
-	    Attribute_Map am;
+	    Attribute_Map am("pwmig1.1");
     	    Depth_Dependent_Aperture aperture(pf,aperture_tag);
 	    Top_Mute mute(pf,string("Data_Top_Mute"));
 	    Top_Mute stackmute(pf,string("Stack_Top_Mute"));
@@ -206,7 +206,7 @@ ensemble.put_metadata("uy0",0.02);
 			<< " has no data in pseudoarray aperture"<<endl
 			<< "Pseudostation grid point indices (i,j)="
 			<< "("<<i<<","<<j<<")"<<endl;
-		} catch (Metadata_error mderr1)
+		} catch (Metadata_error& mderr1)
 		{
 			mderr1.log_error();
 			cerr << "Ensemble " << rec << " data skipped" << endl;
@@ -215,15 +215,11 @@ ensemble.put_metadata("uy0",0.02);
 		}
 	    }
 	    }
-	} catch (seispp_error err)
+	} catch (seispp_error& err)
 	{
 		err.log_error();
 	}
-	catch (seispp_dberror derr)
-	{
-		derr.log_error();
-	}
-	catch (Metadata_error mderr)
+	catch (Metadata_error& mderr)
 	{
 		mderr.log_error();
 	}
