@@ -1,4 +1,3 @@
-sleep_time 30
 virtual_table_name pmel_arrivals
 ensemble_mode true
 ensemble_keys &Tbl{
@@ -54,10 +53,11 @@ gridname string gridname
 hypocentroid.dlat real  grid.lat
 hypocentroid.dlon real  grid.lon
 hypocentroid.depth real  grid.depth
+evname string evname
 origin.jdate	int	origin.jdate
 origin.nass	int	nass
-ndef	int	ndef
-ndp	int 	ndp
+origin.ndef	int	ndef
+origin.ndp	int	ndp
 grn	int 	grn
 srn	int	srn
 etype	string 	etype
@@ -71,12 +71,36 @@ msid	int	msid
 ml	real	ml
 mlid	int	mlid
 auth	string	auth
+algorithm string algorithm
 belief	double  belief
 assoc.delta double delta
 assoc.seaz  double seaz
 assoc.esaz  double esaz
 assoc.timeres  double timeres
 assoc.timedef  string timedef
+assoc.azdef  string azdef
+assoc.slodef  string slodef
+assoc.azres	double azres
+assoc.slores	double slores
+assoc.emares	double emares
 assoc.wgt double wgt
-chan	string	chan
+assoc.vmodel string vmodel
+arrival.jdate int arrival.jdate
+stassid int stassid
+chanid int chanid
+stype string stype
+azimuth double azimuth
+delaz double delaz
+slow double slow
+delslo double delslo
+ema double ema
+rect double rect
+amp double amp
+per double per
+logat double logat
+clip string clip
+fm string fm
+snr double snr
+qual string qual
+arrival.auth string arrival.auth
 }

@@ -350,7 +350,7 @@ cause the program to abort.  Both contain pointers to Attribute_map*/
 			for(i=0,dbv.record=is_ensemble;i<nmembers;
 				++i,++dbv.record)
 			{
-				pfe->pf[i]=pfnew(0);
+				pfe->pf[i]=pfnew(PFARR);
 				ierr=db2pf(dbv,require,pfe->pf[i]);
 				if(ierr!=0)
 				{
