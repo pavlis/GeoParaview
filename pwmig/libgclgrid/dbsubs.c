@@ -13,6 +13,10 @@ Arguments:
 
 Normally returns a pointer to the GCL3Dgrid object.  Returns a NULL
 pointer if errors occur and leaves messages in the error log.
+Note this will leave a memory leak if this is called excessively
+with repeated failures in the read block.  This function is 
+sloppy about recovery from these errors under an assumption the
+caller should die in this condition.
 */
 GCL3Dgrid *GCL3Dgrid_load_db(Dbptr db,char *gridname)
 {
@@ -140,35 +144,30 @@ GCL3Dgrid *GCL3Dgrid_load_db(Dbptr db,char *gridname)
 	{
 		elog_notify(0,"%s %s reading x1\n",
 			base_message,read_error);
-		free_3dgrid_contiguous(g->x1,g->n1,g->n2);
 		return(NULL);
 	}
 	if(fread(g->x2[0][0],sizeof(double),gridsize,fp) != gridsize)
 	{
 		elog_notify(0,"%s %s reading x2\n",
 			base_message,read_error);
-		free_3dgrid_contiguous(g->x2,g->n1,g->n2);
 		return(NULL);
 	}
 	if(fread(g->x3[0][0],sizeof(double),gridsize,fp) != gridsize)
 	{
 		elog_notify(0,"%s %s reading x3\n",
 			base_message,read_error);
-		free_3dgrid_contiguous(g->x3,g->n1,g->n2);
 		return(NULL);
 	}
 	if(fread(g->lat[0][0],sizeof(double),gridsize,fp) != gridsize)
 	{
 		elog_notify(0,"%s %s reading latitude\n",
 			base_message,read_error);
-		free_3dgrid_contiguous(g->lat,g->n1,g->n2);
 		return(NULL);
 	}
 	if(fread(g->lon[0][0],sizeof(double),gridsize,fp) != gridsize)
 	{
 		elog_notify(0,"%s %s reading longitude\n",
 			base_message,read_error);
-		free_3dgrid_contiguous(g->lon,g->n1,g->n2);
 		
 	return(NULL);
 	}
@@ -177,7 +176,6 @@ GCL3Dgrid *GCL3Dgrid_load_db(Dbptr db,char *gridname)
 	{
 		elog_notify(0,"%s %s reading radius\n",
 			base_message,read_error);
-		free_3dgrid_contiguous(g->r,g->n1,g->n2);
 		return(NULL);
 	}
 	return(g);
@@ -308,35 +306,30 @@ GCL2Dgrid *GCL2Dgrid_load_db(Dbptr db,char *gridname)
 	{
 		elog_notify(0,"%s %s reading x1\n",
 			base_message,read_error);
-		free_2dgrid_contiguous(g->x1,g->n1);
 		return(NULL);
 	}
 	if(fread(g->x2[0],sizeof(double),gridsize,fp) != gridsize)
 	{
 		elog_notify(0,"%s %s reading x2\n",
 			base_message,read_error);
-		free_2dgrid_contiguous(g->x2,g->n1);
 		return(NULL);
 	}
 	if(fread(g->x3[0],sizeof(double),gridsize,fp) != gridsize)
 	{
 		elog_notify(0,"%s %s reading x3\n",
 			base_message,read_error);
-		free_2dgrid_contiguous(g->x3,g->n1);
 		return(NULL);
 	}
 	if(fread(g->lat[0],sizeof(double),gridsize,fp) != gridsize)
 	{
 		elog_notify(0,"%s %s reading latitude\n",
 			base_message,read_error);
-		free_2dgrid_contiguous(g->lat,g->n1);
 		return(NULL);
 	}
 	if(fread(g->lon[0],sizeof(double),gridsize,fp) != gridsize)
 	{
 		elog_notify(0,"%s %s reading longitude\n",
 			base_message,read_error);
-		free_2dgrid_contiguous(g->lon,g->n1);
 		return(NULL);
 	}
 
@@ -344,7 +337,6 @@ GCL2Dgrid *GCL2Dgrid_load_db(Dbptr db,char *gridname)
 	{
 		elog_notify(0,"%s %s reading radius\n",
 			base_message,read_error);
-		free_2dgrid_contiguous(g->r,g->n1);
 		return(NULL);
 	}
 	return(g);

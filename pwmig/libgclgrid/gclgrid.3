@@ -36,6 +36,18 @@ necessarily aligned with the geographic reference.
 
 This library is an attempt at a fairly general, but restricted
 gridding scheme for defining 2D or 3D functions that
+are defined on a spherical earth.  The concepts behind the
+library are described in a paper in preparation and a poster
+by Fan and Pavlis [2002] presented at the fall 2002 AGU meeting.
+Consult the Antelope User Group Web pages for updates of these
+sources (http://www.indiana.edu/~aug).  The man page will not 
+attempt to describe the concepts but will focus on 
+documenting the C interface
+functions to the library.
+
+The GCL2Dgrid and GCL3Dgrid are complex data objects defined
+with a typedef found in the include file gclgrid.h.  Since 
+both involve 2 or 3D arrays they can easily get huge.  
 
 Regional scale data processing problems often involve 
 #
@@ -95,15 +107,14 @@ MT-Safe ?
 # Describe error messages and give cautionary advice.
 .SH "SEE ALSO"
 .nf
-#
-# List related manual entries and section (lowercase, bold)., eg "file(1)"
-# or related documents
+Look for the C++ man page as it evolves.
 .fi
 .SH "BUGS AND CAVEATS"
-#
-# Describe any shortcomings of the programs, known bugs, or surprising 
-# results.
+This C interface was the original development for the concepts of 
+this library.  Be aware that it is being depricated almost as soon
+as it is added in favor of a C++ implementation.  
 .SH AUTHOR
-# Put the author's name here (person who wrote the code) (roman).
-# This is just an id line from rcs.
-.\" $Id: gclgrid.3,v 1.1 2002/12/22 13:59:06 pavlis Exp $
+Gary L. Pavlis and Chengliang Fan, Department of Geological Sciences,
+Indiana University, Bloomington, IN  47405 
+(pavlis@indiana.edu, cfan@indiana.edu)
+.\" $Id: gclgrid.3,v 1.2 2002/12/30 05:13:54 pavlis Exp $
