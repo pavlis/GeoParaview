@@ -12,18 +12,6 @@ void dr3mxv(double *, double *, double *);
 void dr3sub(double *, double *, double *);
 void dr3sxv(double ,double *,double *);
 void dr3tran(double *,double *);
-/* Earth ellipticity constants from Turcotte and Schubert */
-#define R_EQUATOR 6378.139
-#define FLATTENING 0.00335282
-/* r0_ellipse returns the sea level geoid radius at latitute
-lat in radians */
-double r0_ellipse(double lat)
-{
-	double r, sinlat;
-	sinlat = sin(lat);
-	r = R_EQUATOR*(1.0 - sinlat*sinlat*FLATTENING);
-	return(r);
-}
 /* This small function builds a baseline vector of latitude and
 longitude values along a specified azimuth with a prescribed 
 origin.
@@ -80,7 +68,7 @@ void usage(char *prog)
 {
 	elog_die(0,"Usage:  %s db [-pf pffile]\n",prog);
 }
-main(int argc, char **argv)
+void main(int argc, char **argv)
 {
 	char *version="1.0 (August 2000)";
 	GCL2Dgrid grid2d;
@@ -94,7 +82,7 @@ main(int argc, char **argv)
 	to avoid all the strange pointer constructs */
 	double lat0, lon0,r0;
 	double azimuth_x, rotation_angle, azimuth_i;
-	double dx1, dx2, dx3;
+	double dx1, dx2, dx3, dx1_rad, dx2_rad;
 	int n1, n2, n3;
 	int i0,j0,k0;
 	double xlow,xhigh,ylow,yhigh,zlow,zhigh;
@@ -114,7 +102,7 @@ main(int argc, char **argv)
 	double x[3],x0[3];
 	char *dir;
 	double rmatrix[9],rmtrans[9];
-	double xwork[3];
+	double xwork[3],xwork2[3];
 
 	/* Initialize the error log and write a version notice */
         elog_init (argc, argv);
@@ -154,19 +142,21 @@ main(int argc, char **argv)
 	lon0 = pfget_double(pf,"origin_longitude");
 	lat0 = rad(lat0);
 	lon0 = rad(lon0);
+	r0 = r0_ellipse(lat0);
 	azimuth_x = pfget_double(pf,"x_axis_azimuth");
 	rotation_angle = rad(90.0 - azimuth_x);
 	dx1 = pfget_double(pf,"delta_x1");
 	dx2 = pfget_double(pf,"delta_x2");
-	dx1 = rad(dx1);
-	dx2 = rad(dx2);
+	dx1_rad = dx1/r0;
+	dx2_rad = dx2/r0;
 	n1 = pfget_int(pf,"n1");
 	n2 = pfget_int(pf,"n2");
 	i0 = pfget_int(pf,"origin_offset_x1");
 	j0 = pfget_int(pf,"origin_offset_x2");
 	create_3d = pfget_boolean(pf,"build_3d_grid");
 	dir = pfget_string(pf,"gridfile_directory");
-	r0 = r0_ellipse(lat0);
+	if(makedir(dir)) elog_die(0,"Cannot create output directory %s\n",
+				dir);
 	if(create_3d)
 	{
 		dx3 = pfget_double(pf,"delta_x3");
@@ -183,7 +173,7 @@ main(int argc, char **argv)
 	allot(double *,baseline_lat,n1);
 	allot(double *,baseline_lon,n1);
 	build_baseline(lat0,lon0,
-		rotation_angle,dx1,n1,i0,baseline_lat,baseline_lon);
+		rotation_angle,dx1_rad,n1,i0,baseline_lat,baseline_lon);
 	/* We need to compute the pole to our base line to use as a 
 	target for grid lines that are locally perpendicular along
 	the grid lines -- like longitude lines at the equator */
@@ -246,8 +236,8 @@ main(int argc, char **argv)
 		dist(baseline_lat[i],baseline_lon[i],pole_lat, pole_lon,
 			&delta,&azimuth_i);
 		if(azimuth_i < 0.0) azimuth_i += (2.0*M_PI);
-		delta = dx2*(-(double)j0);
-		for(j=0;j<n2;++j,delta+=dx2)
+		delta = dx2_rad*(-(double)j0);
+		for(j=0;j<n2;++j,delta+=dx2_rad)
 		{
 			if(j<j0)
 				latlon(baseline_lat[i],baseline_lon[i],
@@ -292,14 +282,14 @@ main(int argc, char **argv)
 	for(i=0;i<n1;++i) 
 		for(j=0;j<n2;++j)
 		{
-			dsphcar(grid2d.lat[i][j],grid2d.lon[i][j],x);
+			dsphcar(grid2d.lon[i][j],grid2d.lat[i][j],x);
 			grid2d.x1[i][j] = x[0]*grid2d.r[i][j];
 			grid2d.x2[i][j] = x[1]*grid2d.r[i][j];
 			grid2d.x3[i][j] = x[2]*grid2d.r[i][j];
 		}
 	/* This computes the radial direction from the latitude and longitude.
 	We translate the origin in this direction below */
-	dsphcar(lat0,lon0,x0);
+	dsphcar(lon0,lat0,x0);
 	/* We construct the transformation matrix for rotation of coordinates
 	from the origin using unit vectors computed as follows:
 	column 3= local vertical = copy of x0
@@ -308,7 +298,7 @@ main(int argc, char **argv)
 	This yields a rotation matrix stored in fortran order in rmatrix 
 	Note use of ugly pointer arithmetic done to store the matrix this way */
 	for(i=0;i<3;++i)rmatrix[i+6]=x0[i];
-	dsphcar(pole_lat,pole_lon,rmatrix+3);
+	dsphcar(pole_lon,pole_lat,rmatrix+3);
 	dr3cros(rmatrix+3,rmatrix+6,rmatrix);
 	/* We actually need the transpose of this matrix */
 	dr3tran(rmatrix,rmtrans);
@@ -325,11 +315,11 @@ main(int argc, char **argv)
 			xwork[2] = grid2d.x3[i][j];
 
 			dr3sub(xwork,x0,xwork);
-			dr3mxv(rmtrans,xwork,xwork);
+			dr3mxv(rmtrans,xwork,xwork2);
 
-			grid2d.x1[i][j] = xwork[0];
-			grid2d.x2[i][j] = xwork[1];
-			grid2d.x3[i][j] = xwork[2];
+			grid2d.x1[i][j] = xwork2[0];
+			grid2d.x2[i][j] = xwork2[1];
+			grid2d.x3[i][j] = xwork2[2];
 		}
 	/* Now apply the same transformations to the 3d grid */
 	if(create_3d)
@@ -339,11 +329,11 @@ main(int argc, char **argv)
 	    {
 		for(k=0;k<n3;++k)
 		{
-			dsphcar(grid3d.lat[i][j][k],grid3d.lon[i][j][k],x);
+			dsphcar(grid3d.lon[i][j][k],grid3d.lat[i][j][k],x);
 			dr3sxv(grid3d.r[i][j][k],x,xwork);
 
-			dr3sub(xwork,x0,xwork);
-			dr3mxv(rmtrans,xwork,xwork);
+			dr3sub(xwork,x0,xwork2);
+			dr3mxv(rmtrans,xwork2,xwork);
 
 			grid3d.x1[i][j][k] = xwork[0];
 			grid3d.x2[i][j][k] = xwork[1];
@@ -377,9 +367,13 @@ main(int argc, char **argv)
 	grid2d.zhigh = zhigh;
 	if(create_3d)
 	{
-		/* I intentionally use the previous values for xlow
-		xhigh, etc because the 2d version is just a section of
-		the 3d version here */
+		xlow=grid2d.x1[0][0];
+		xhigh=grid2d.x1[0][0];
+		ylow=grid2d.x2[0][0];
+		yhigh=grid2d.x2[0][0];
+		zlow=grid2d.x3[0][0];
+		zhigh=grid2d.x3[0][0];
+
 		for(i=0;i<n1;++i)
 		    for(j=0;j<n2;++j)
 			for(k=0;k<n3;++k)
