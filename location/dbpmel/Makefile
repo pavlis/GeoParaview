@@ -1,6 +1,6 @@
 BIN=dbpmel
-DATADIR=	# directory under $(ANTELOPE)/data in which to put $(DATA) files
-DATA=		# data files to be placed in data/$(DATADIR)
+DATADIR=schemas2
+DATA=genloc1.1
 PF=dbpmel.pf
 
 MAN1=	dbpmel.1
