@@ -3,9 +3,30 @@
 // constructors for the Time_Series object are defined inline
 // in seispp.h
 //
+// Default constructor for Three_Component_Seismogram could be 
+// done inline in seispp.h, but it is complication enough I put
+// it here
+//
+Three_Component_Seismogram::Three_Component_Seismogram()
+{
+	dt=0.0;
+	t0=0.0;
+	ns=0;
+	tref=absolute;
+	components_are_orthogonal=true;
+	components_are_cardinal=true;
+	for(int i=0;i<3;++i)
+		for(int j=0;j<3;++j)
+			if(i==j) 
+				tmatrix[i][i]=1.0;
+			else
+				tmatrix[i][j]=0.0;
+}
+
+//
 // here is the parameterized constructor for a 3c seismogram
 //
-Three_Component_Seismogram::Three_Component_Seismogram(int nsin) : :
+Three_Component_Seismogram::Three_Component_Seismogram(int nsin) 
 {
 	for(int i=0; i<3;++i) 
 		x[i].s = new double(nsin);

@@ -13,21 +13,50 @@ public:
 	int ns;
 	Time_Reference_Type tref;
 	double *s;
-	Time_Series() {s=NULL;dt=0.0; t0=0.0;};
-	Time_Series(int nsin) {dt=0.0; t0=0.0; s = new double(nsin);};
+	Time_Series() {s=NULL;dt=0.0; t0=0.0; ns=0; tref=absolute;};
+	Time_Series(int nsin) {dt=0.0; t0=0.0; ns=nsin;
+		tref=absolute; s = new double(nsin);};
 	~Time_Series() {  if(s!=NULL) delete s; };
 };
 
+// 
+// Spherical coordinate angles are convenient for trace rotation
+// definitions
+//
+typedef struct Spherical_Coordinate_{
+        double radius;
+	// in radians 
+        double theta;
+        double phi;
+} Spherical_Coordinate;
 class Three_Component_Seismogram
 {
 public:
 	Metadata md;
+	double dt,t0;
+	int ns;
+	Time_Reference_Type tref;
+	bool components_are_orthogonal;  
+	bool components_are_cardinal;  // true if x1=e, x2=n, x3=up
+	// This is the transformation matrix applied relative to standard
+	double tmatrix[3][3]; 
 	//Using a Time_Series object adds overhead and memory use 
 	//by duplicating metadata, but adds generality
 	Time_Series x[3];
 	Three_Component_Seismogram();
 	Three_Component_Seismogram(int nsamp);
 	~Three_Component_Seismogram();
+	void rotate_to_standard();
+	// This overloaded pair do the same thing for a vector
+	// specified as a unit vector nu or as spherical coordinate angles
+	void rotate(Spherical_Coordinate);
+	void rotate(double nu[3]);
+	// This applies a general transform with a 3x3 matrix.  
+	// User should set components_are_orthogonal true if they
+	// are after this transformation as the default assumes no
+	// Note this is routine does NOT return to standard before
+	// applying the transformation so this is accumulative.
+	void apply_transformation_matrix(a[3][3]);
 };
 class Time_Series_Ensemble
 {
@@ -62,4 +91,5 @@ public:
 private:
 	Tbl *mdlist;
 };
+
 #endif
