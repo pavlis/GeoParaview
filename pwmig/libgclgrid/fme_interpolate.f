@@ -243,55 +243,6 @@ C
 
       RETURN
       END
-      SUBROUTINE READNN(inf,nx,ny,nz,XCOORD)
-C
-C     READS NODAL POINT DATA
-C
-      IMPLICIT NONE
-      INTEGER INF,NX,NY,NZ
-      DOUBLE PRECISION  XCOORD(INF,*),dx,dy,dz
-      INTEGER i,j,k,nnn
-
-      dx=1.
-      dy=1.
-      dz=1.
-      nnn=0
-      do k=1,nz+1
-         do j=1,ny+1
-            do i=1,nx+1
-               nnn=nnn+1
-               xcoord(nnn,1)=dx*(i-1)
-               xcoord(nnn,2)=dy*(j-1)
-               xcoord(nnn,3)=dz*(k-1)
-            enddo
-         enddo
-      enddo
-      return
-      end
-
-      subroutine simple_function(inf,nn,xcoord,func)
-      implicit none
-      integer inf,nn,i
-      double precision xcoord(inf,3),func(*),x,y,z,ff
-
-      do i=1,nn
-         x=xcoord(i,1)
-         y=xcoord(i,2)
-         z=xcoord(i,3)
-         func(i)=ff(x,y,z)
-      enddo
-
-      return
-      end
-
-      double precision function ff(x,y,z)
-      double precision x,y,z
-c
-c     ff=xy-yxz^2+1+4x-x^2*y^2
-c
-      ff=x*y-y*x*z*z+1.+4*x-x*x*y*2.
-      return
-      end
 
       SUBROUTINE MATMUL(A,IA,B,IB,C,IC,L,M,N)
 C
