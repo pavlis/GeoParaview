@@ -1,9 +1,12 @@
 #include <math.h>
+#include <stdio.h>
 #include "stock.h"
 #include "arrays.h"
+#include "coords.h"
 #include "db.h"
 #include "pf.h"
 #include "elog.h"
+#include "location.h"
 #include "dbpmel.h"
 
 /* Simple little function to read the 3D reference model pf 
@@ -16,13 +19,13 @@ Arr *parse_3D_phase(Pf *pf)
 	Pf *pf3d;
 	Arr *a;
 
-	if(pfget(pf,"3Dphase_definitions",&pf3d) != PFSTRING)
+	if(pfget(pf,"3Dphase_definitions",(void**)(&pf3d)) != PFSTRING)
 		die(0,"pf error reading 3Dphase_definition block\n");
 	a = parse_phase_parameter_file(pf3d);
 	return(a);
 }
 
-initialize_hypocenter(Hypocenter *h)
+void initialize_hypocenter(Hypocenter *h)
 {
 	h->dx=0.0;
 	h->dy=0.0;
@@ -74,6 +77,31 @@ int load_hypocentroid(Dbptr dbv,int rec, Hypocenter *h)
 	h->z = depth;
 	return(0);
 }
+/* 
+This function saves new origin estimates for a group of nevents 
+hypocenters in the origin table.  It does this by matching evids,
+grabbing all auxiliary fields from the origin table for the prefor,
+and writing these back with updated hypocenter information.
+
+Arguments 
+	db - database to read and write to
+	nevents - number of events in this group
+	h - vector of Hypocenter structures containing new 
+		hypocenter estimates to be added to the database.
+	evid - parallel vector of ints that are the css3.0 evid
+		ids with each element of h.  That is, evid[i] is
+		the event id for the hypocenter stored in h[i].
+
+Author:  Gary Pavlis
+*/
+int dbpmel_save_hypos(Dbptr db, int nevents, Hypocenter *h,int evid)
+{
+	/* incomplete -- needs to be done eventually*/
+	int i;
+	/* needs a call to hypo_is_bad to test for hypos marked as 
+	diverged  or with inflated rms */
+	return(0);
+}
 #define EVIDGRP "evidgroup"
 /* this is the main processing routine for dbpmel.  It takes an input
 list of grid point, which are defined by integers gridid that are
@@ -86,7 +114,7 @@ parameter file.
 
 Arguments:
 	db - input db view of formed by a complex sequence (see below).
-	gridid - input Tbl list of gridids stored as pure
+	gridlist - input Tbl list of gridids stored as pure
 		integers in the Tbl.   i.e. they are extracted
 		as gridid = (int)gettbl(...)
 	pf - parameter space of options.  It is important that
@@ -121,7 +149,7 @@ multiple channels.
 Author:  Gary Pavlis
 Written:  Fall 2000
 */
-int dbpmel_process(Dbptr db, Tbl *gridid_list,Pf *pf)
+int dbpmel_process(Dbptr db, Tbl *gridlist,Pf *pf)
 {
 	Location_options o;
 	Arr *arr_phase;
@@ -141,7 +169,6 @@ int dbpmel_process(Dbptr db, Tbl *gridid_list,Pf *pf)
 	Dbptr dbgs;
 	Dbptr dbbundle;
 	Dbptr dbcs;
-	int evid;
 	Tbl **ta;  /* We use an array of Tbls for arrival times to 
 			allow a simple loop through an event group.*/
 	Hypocenter *h0;  
@@ -157,10 +184,10 @@ int dbpmel_process(Dbptr db, Tbl *gridid_list,Pf *pf)
 	correction elements.  WARNING: it is built up in pieces below,
 	and later modifications most handle this carefully.*/
 	SCMatrix *smatrix;
-	int worksize;
 	Tbl *converge;
+	Arr *arr_phase_3D;
 
-	initialize_hypocenter(hypocentroid);
+	initialize_hypocenter(&hypocentroid);
 
 	/* DB is now set up correctly, now we turn to the parameter files */
 	o = parse_options_pf (pf);
@@ -188,7 +215,7 @@ int dbpmel_process(Dbptr db, Tbl *gridid_list,Pf *pf)
 	that feature, but lets the decision of how to handle
 	this problem be set in pf.*/
 	badclocks = newarr(0);
-	if(db_badclock_definitions(db,pf,badclocks))
+	if(db_badclock_definition(db,pf,badclocks))
 		elog_notify(0,"Problems in database definitions of bad clocks time periods\n");
 	pfget_badclocks(pf,badclocks);
 	/* nbcs is used as a boolean below, but the cntarr sets it 
@@ -231,6 +258,7 @@ int dbpmel_process(Dbptr db, Tbl *gridid_list,Pf *pf)
 		int is,ie;
 		int ndata;
 		Dbptr dbhypo; 
+		int ierr;
 
 		gridid = (int)gettbl(gridlist,i);
 
@@ -245,7 +273,7 @@ int dbpmel_process(Dbptr db, Tbl *gridid_list,Pf *pf)
 		}
 		allot(Tbl **,ta,nevents);
 		allot(Hypocenter *,h0,nevents);
-		allot(double *,evid,nevents);
+		allot(int *,evid,nevents);
 		allot(char **,fixlist,nevents);
 		
 		/* reclist now contains a collection of record numbers
@@ -254,7 +282,7 @@ int dbpmel_process(Dbptr db, Tbl *gridid_list,Pf *pf)
 		{
 			char testevid[12];
 			dbevid_grp.record = (int)gettbl(reclist,i);
-			dbgetv(dgevid_grp,0,"evid",evid+j,
+			dbgetv(dbevid_grp,0,"evid",evid+j,
 				"bundle",&dbbundle,0);
 			dbget_range(dbbundle,&is,&ie);
 
@@ -262,8 +290,8 @@ int dbpmel_process(Dbptr db, Tbl *gridid_list,Pf *pf)
                                 is,ie,stations, arr_phase);
 			if(nbcs)
 			{
-				if(minus_phase_arrival_edit(ta[j],
-					arr_phase,badclocsk))
+				if(minus_phases_arrival_edit(ta[j],
+					arr_phase,badclocks))
 				{
 					elog_notify(0,"Warning (dbpmel_process):  problems in editing arrival table for minus phases in minus_phases_arrival function\n");
 				}
@@ -295,7 +323,7 @@ int dbpmel_process(Dbptr db, Tbl *gridid_list,Pf *pf)
 		in travel time between the model defined in the arr_phase_3D
 		definition and that in arr_phase.  */
 		ierr = initialize_station_corrections(arr_phase,arr_phase_3D,
-			stations) )
+			stations,&hypocentroid);
 		if(ierr>0)
 		{
 			elog_notify(0,"%d problems setting path anomaly corrections for gridid=%d\n",
@@ -310,17 +338,14 @@ int dbpmel_process(Dbptr db, Tbl *gridid_list,Pf *pf)
 			continue;
 		}
 		/* We make the S work space of size ndata times smatrix->ncol
-		to avoid having to could fixed coordinates.  We could work in
+		to avoid having to handle fixed coordinates.  We could work in
 		a space as small as ndata-4*nevents if all events had free 
 		coordinates,but this would be too small if any coordinates are
 		fixed.  Hence, we may waste some memory, but this should not
-		be a large factor.  Note the use of realloc which causes this
+		be a large factor.  Note the use of reallot which causes this
 		workspace to be dynamic from group to group */
-		worksize = sizeof(double)*ndata*(smatrix->ncol);
-		if((realloc(smatrix->S,worksize))!=worksize)
-			die(0,"realloc failure trying to build S matrix of %d bytes\n",
-				workspace);
-		s->nrow = ndata;
+		reallot(double *,smatrix->S,ndata*(smatrix->ncol));
+		smatrix->nrow = ndata;
 		for(k=0;k<(ndata*(smatrix->ncol));++k) smatrix->S[k]=0.0;
 
 		/* This routine creates an initializes the station
@@ -329,25 +354,26 @@ int dbpmel_process(Dbptr db, Tbl *gridid_list,Pf *pf)
 
 		/* This computes the set of reference station corrections
 		for this group of events */
-		if(compute_scref(scmatrix, &hypocentroid,
-				arr_phase,arr_phase_3D))
+		ierr = compute_scref(smatrix, &hypocentroid,stations,
+			arr_phase,arr_phase_3D);
+		if(ierr)
 		{
-			error call
+			elog_notify(0,"%d errors in compute_scref\n",ierr);
 		}
 		/* This is the main processing routine.  It was 
 		intentionally built without any db hooks to make it
 		more portable */
-		converge=pmel(nevents,ta,h0,fixlist,&hypocentroid,&smatrix,pf);
+		converge=pmel(nevents,ta,h0,fixlist,&hypocentroid,smatrix,pf);
 		fprintf(stdout,"Cluster id=%d pmel convergence reason\n",
 			gridid);
 		fprintf(stdout,"sswr/dgf = %lf, dgf = %d, rawrms = %lf\n",
-			smatrix.sswrodgf,smatrix.ndgf,smatrix.rawrms);
-		dbpmel_save_hypos(nevents,h0,evid);
+			smatrix->sswrodgf,smatrix->ndgf,smatrix->rmsraw);
+		dbpmel_save_hypos(db,nevents,h0,evid);
 		if(dbaddv(dbcs,0,"gridid",gridid,
 				"time",now(),
-				"sswrodgf",smatrix.sswrodgf,
-				"ndgf",smatrix.ndgf,
-				"rawrms",smatrix.rawrms,0) == dbINVALID)
+				"sswrodgf",smatrix->sswrodgf,
+				"ndgf",smatrix->ndgf,
+				"rawrms",smatrix->rmsraw,0) == dbINVALID)
 		{
 			elog_complain(0,"dbaddv error for gridid %d adding to gridstat table\n",
 				gridid);

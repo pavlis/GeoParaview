@@ -6,6 +6,17 @@
 #include "location.h"
 #include "dbpmel.h"
 #define SSWR_TEST_LEVEL 0.99
+/* This is a temporary interface function for the ftest fortran routine.
+Eventually this should be replaced with a C function that allows one
+to specify the confidence level of the ftest.  This interface routine
+ignores this and uses the fixed critical level fortran function */
+int ftest(double f1, int nu1, double f2, int nu2, double critical_value)
+{
+	if(ftest_(&f1,&nu1,&f2,&nu2))
+		return(1);
+	else
+		return(0);
+}
 /* This routine takes advantage of the sparse form of the S matrix 
 that forms what is used to form the matrix SN (see PMEL paper).  That
 is, S is a scrambled diagonal matrix.  Because of this fact it is much
@@ -147,6 +158,17 @@ void set_hypo_as_bad(Hypocenter *h)
 	h->t0 = -1000.0;
 	h->z0 = -10000.0;
 }
+/* inverse routine that test if a hypo set as above is so marked */
+int hypo_is_bad(Hypocenter *h)
+{
+	if(h->rms_raw<=0.0) return(0);
+	if(h->rms_weighted<=0.0) return(0);
+	if(h->number_data<=0)return(0);
+	if(h->degrees_of_freedom<=0)return(0);
+	return(1);
+}
+	
+	
 
 
 /* 
@@ -210,7 +232,7 @@ Tbl *pmel(int nevents,
 			mark as S is filled */
 
     /* These are total residual figures */
-    double total_ssq_raw, total_wssq;
+    double total_rms_raw,total_ssq_raw, total_wssq;
     double rhsnrm;
     double *bwork;
     double sswrodgf;
@@ -440,7 +462,7 @@ Tbl *pmel(int nevents,
 	dgesvd('o','a',nrows_S,nc,s->S,nr,svalue,U,nc,Vt,nc,&svdinfo);
 	if(svdinfo) 
 	{
-	    elog_deliver(0,"pmel:  svd error inverting station correction matrix\n");
+	    elog_complain(0,"pmel:  svd error inverting station correction matrix\n");
 	    svd_error(svdinfo);
 	    retcode = -1;
 	    break;
@@ -448,7 +470,8 @@ Tbl *pmel(int nevents,
 	/* This is a pseudoinverse solver. It returns the number of
 	singular values used for the solution which we used below to
 	do subspace projections */
-	nused = dpinv_solver(s->S,nr,svalue,Vt,nc,scrhs,sc_solved,rsvc);
+	nused = dpinv_solver(nrows_S,nc,s->S,nr,svalue,Vt,nc,
+		scrhs,sc_solved,rsvc);
 
 	/* Now we apply the projectors.  We first add the current solution
 	as a perturbation factor to the current total station correction
@@ -476,7 +499,8 @@ Tbl *pmel(int nevents,
 	space projection of the right hand side vector with the
 	left singular vectors used to compute the station correction.
 	This is necessary because of the way we form the solution.*/
-	if(data_space_null_project(s->S,nr,nused,nrows_S,scrhs,bwork);
+	if(data_space_null_project(s->S,nr,nused,nrows_S,scrhs,bwork))
+		elog_complain(0,"Problems in data_space_null_project\n");
 	rhsnrm = dnrm2(nrows_S,bwork,1);
 	total_wssq = rhsnrm*rhsnrm;
 	/*We alter the minimum error scale used in the locator
@@ -502,7 +526,7 @@ Tbl *pmel(int nevents,
 	if(sc_iterations<maxscit) pushtbl(sc_converge_reasons,
 			"Hit station correction iteration limit");
     }
-    while (maxtbl(sc_converge_reason)<=0);
+    while (maxtbl(sc_converge_reasons)<=0);
     free(A);
     free(U);
     free(Vt);
@@ -517,7 +541,7 @@ Tbl *pmel(int nevents,
     free(r);
     free(w);
     free(reswt);
-    free_matrix((char **)Amatrix,0,nc-1,0)
+    free_matrix((char **)Amatrix,0,nc-1,0);
     freetbl(tu,free);
-    return(sc_converge_reason);
+    return(sc_converge_reasons);
 }

@@ -4,6 +4,7 @@
 #include "db.h"
 #include "pf.h"
 #include "elog.h"
+#include "location.h"
 #include "dbpmel.h"
 /* Creates an associative array of column index positions using
 pattern from associative array of Station structures keyed by sta name.
@@ -43,7 +44,7 @@ Arr *create_sta_index(Arr *sa)
 	}
 	return(aout);
 }
-/* Creation routine for an SCMAtrix structure used internally 
+/* Creation routine for an SCMatrix structure used internally 
 as the working internal object of pmel.  It defines static 
 sizes and indices that define the columns of the working matrix.
 It then allocs memory for the working vectors of station correction
@@ -92,11 +93,11 @@ SCMatrix *create_SCMatrix(Arr *stalist, Arr *arrp)
 	/* We set the initial number of rows to 1 and depend on 
 	a realloc late to make the S workspace larger. */
 	s->nrow = 1;
-	allot(double *,s->S,(s->nrow)*(s->.ncol));
-	allot(double *,s->scref,ncol);
-	allot(double *,s->sc,ncol);
-	allot(double *,s->scbias,ncol);
-	allot(double *,s->scdata,ncol);
+	allot(double *,s->S,(s->nrow)*(s->ncol));
+	allot(double *,s->scref,s->ncol);
+	allot(double *,s->sc,s->ncol);
+	allot(double *,s->scbias,s->ncol);
+	allot(double *,s->scdata,s->ncol);
 
 	tkeys = keysarr(arrp);
 	s->phase_index = newarr(0);
@@ -105,14 +106,14 @@ SCMatrix *create_SCMatrix(Arr *stalist, Arr *arrp)
 	{
 		key = gettbl(tkeys,i);
 		allot(int *,phase_col,1);
-		*phase_col = i*(s.nsta);
+		*phase_col = i*(s->nsta);
 		setarr(s->phase_index,key,phase_col);
 	}
 	freetbl(tkeys,0);
 	return(0);
 }
-/* Destroy routine for an SCMAtrix object */
-destroy_SCMatrix(SCMatrix *s)
+/* Destroy routine for an SCMatrix object */
+void destroy_SCMatrix(SCMatrix *s)
 {
 	free(s->S);
 	free(s->scref);
@@ -284,7 +285,13 @@ Arguments:
 	pha3d - bias generating model (usually 3d) to compute
 		corrections from.  This is actually an associative
 		array of phase handle similar to pha.  
-int compute_scref(SCMAtrix *s, Hypocenter *h, Arr *stalist,
+
+Returns 0 for no problems.  Positive number is the count of the 
+number of problems in computing travel times.  
+
+Author:  G pavlis
+*/
+int compute_scref(SCMatrix *s, Hypocenter *h, Arr *stalist,
 	Arr *pha, Arr *pha3D)
 {
 	Tbl *phskeys,*stakeys;
@@ -296,6 +303,7 @@ int compute_scref(SCMAtrix *s, Hypocenter *h, Arr *stalist,
 	Phase_handle *phand,*p3dhand;
 	Station *sobj;
 	double *sc; 
+	int ierr=0;
 
 	/* Need to initialize this vector to zeros first since
 	the loop below isn't guaranteed to hit each element especially
@@ -316,6 +324,7 @@ int compute_scref(SCMAtrix *s, Hypocenter *h, Arr *stalist,
 		{
 			elog_complain(0,"Cannot compute reference path anomaly corrections for phase %s\nIncomplete phase handles for this phase\nCheck that this phase is defined for both reference model and 3D model\nPath anomaly vector set to 0 for this phase.\n",
 				phase);
+			++ierr;
 			continue;
 		}
 		for(i=0;i<maxtbl(stakeys);++i)
@@ -328,6 +337,7 @@ int compute_scref(SCMAtrix *s, Hypocenter *h, Arr *stalist,
 			{
 				elog_complain(0,"Lookup failed for station %s\nReference path anomaly for phase %s set to 0 for this station\n",
 					sta,phase);
+				++ierr;
 				continue;
 			}
 			x.sta = sta;
@@ -339,16 +349,16 @@ int compute_scref(SCMAtrix *s, Hypocenter *h, Arr *stalist,
 			x.rz = -(sobj->elev);
 			t = phand->ttcalc(x,phase,RESIDUALS_ONLY);
 			t3d = p3dhand->ttcalc(x,phase,RESIDUALS_ONLY);
-			s->sref[icol]=(t.time)-(t3d.time);
+			s->scref[icol]=(t.time)-(t3d.time);
 			/* We actually apply any station corrections defined
 			in the phase handle for either model */
 			sc = (double *)getarr(phand->time_station_corrections,
 				sta);
-			if(sc != NULL) s->sref[icol] += (*sc);
+			if(sc != NULL) s->scref[icol] += (*sc);
 			sc = (double *)getarr(p3dhand->time_station_corrections,
 				sta);
-			if(sc != NULL) s->sref[icol] -= (*sc);
+			if(sc != NULL) s->scref[icol] -= (*sc);
 		}
 	}
-	return(0);
+	return(ierr);
 }

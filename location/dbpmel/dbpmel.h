@@ -39,3 +39,16 @@ Dbptr dbform_working_view(Dbptr, Pf *, char *);
 Arr *dbpmel_load_stations(Dbptr, Pf *);
 int dbpmel_process(Dbptr, Tbl *, Pf *);
 Tbl *pmel(int, Tbl **, Hypocenter *, char **,Hypocenter *,SCMatrix *,Pf *);
+
+int dpinv_solver(int, int, double *,int, double *,double *,int,
+	double *, double *,double);
+int model_space_null_project(double *, int, int, int,double *, double *);
+int model_space_range_project(double *, int, int, int,double *, double *);
+int data_space_null_project(double *, int, int, int, double *, double *);
+SCMatrix *create_SCMatrix(Arr *, Arr *);
+Hypocenter db_load_initial(Dbptr,int);
+int compute_scref(SCMatrix *, Hypocenter *, Arr *, Arr *, Arr *);
+void destroy_SCMatrix(SCMatrix *);
+int hypo_is_bad(Hypocenter *);
+/* this is an old fortran function.  It should eventually be replaced */
+int ftest_(double *, int *, double *, int *);
