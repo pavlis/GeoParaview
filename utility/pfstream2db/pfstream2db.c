@@ -46,17 +46,26 @@ assoc &Tbl{
 }
 }
 
+In this example char *tag="save_by_row"
+
+IMPORTANT:  note because we use the same function used for the
+inverse operation in db2pfstream, the entries for each table
+are in the order:  dbname type pfname
+This is somewhat backward from a copy convention one might
+guess (it isn't from to it s to from).  
+
 Author:  Gary Pavlis
 Written:  October 2002
 */
-Tbl *build_attribute_list(char *tag,Pf *pfi)
+Arr *build_attribute_list(char *tag,Pf *pfi)
 {
-	Tbl *t,tout;
+	Tbl *t;
+	Arr *a;
 	Pf *pf;
 	Tbl *table_list;
 	int i;
 
-	tout=newtbl(0);
+	a = newarr(0);
 	/* silently return an empty list if the tag is not defined.
 	This allows loops to be driven cleanly by range of the arr*/
 	if(pfget(pfi,tag,"(void **)&pf) != PFARR) return(ta);
@@ -68,10 +77,11 @@ Tbl *build_attribute_list(char *tag,Pf *pfi)
 		/* this libpfstream function pushes Attribute_map objects 
 		onto the current list */
 		t=pfget_Attribute_map(pf,table);
-		/* this makes a list of pointers to lists */
-		pushtbl(tout,t);
+		/* this places the list of Attribute_map pointers into 
+		an associative array keyed by the table name */
+		setarr(a,table,t);
 	}
-	return(tout);
+	return(a);
 }
 		
 
@@ -84,6 +94,7 @@ main(int argc, char **argv)
 	to Attribute_maps.  They are built from input parameter file 
 	descriptions */
 	Tbl *save_by_row,*save_by_group,*save_by_ensemble;
+	Pf_ensemble *pfe;
 	
 
 	PF2DBSVerbose=0;
@@ -126,6 +137,19 @@ main(int argc, char **argv)
 	save_by_group = build_attribute_list("save_by_group",pf);
 	save_by_ensemble = build_attribute_list("save_by_ensemble",pf);
 
+	/* We have to open the input stream without exclusive access
+	priveleges to guarantee a fifo is kept open until the last 
+	data block is transmitted.  The read routine in the while
+	loop below opens and closes the file for each block.  This
+	will cause the last block of data to be flushed and lost when
+	the writer we are feeding from terminates.  */
+	fd = open(streamin,O_RDONLY);
+
 	while((pfi=pfstream_read(streamin))!=NULL)
 	{
+		int ii;
+
 		pfe = pfget_Pf_ensemble(pfi,"arrivals");
+		for(i=0,ii=0;i<pfe->nmembers;++i)
+		{
+			
