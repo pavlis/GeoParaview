@@ -84,7 +84,7 @@ Pfstream_handle *pfstream_start_read_thread(char *fname)
 	allot(Pfstream_control *, pfsc, 1);
 	
 	/* brttutil routine to create a multithreaded, posix compatible thread */
-	pfh->mtf = pmtfifo_create(PFSTREAM_MAXQUEUE,1,1); 
+	pfh->mtf = pmtfifo_create(PFSTREAM_MAXQUEUE,1,0); 
 	if(pfh->mtf == NULL) 
 	{
 		register_error(1,"pfstream_start_read_thead:  Could not create mtfifo\n");
@@ -137,7 +137,7 @@ Pfstream_handle *pfstream_start_write_thread(char *fname)
 	allot(Pfstream_control *, pfsc, 1);
 	
 	/* brttutil routine to create a multithreaded, posix compatible thread */
-	pfh->mtf = pmtfifo_create(PFSTREAM_MAXQUEUE,1,1); 
+	pfh->mtf = pmtfifo_create(PFSTREAM_MAXQUEUE,1,0); 
 	if(pfh->mtf == NULL) 
 	{
 		register_error(1,"pfstream_start_write_thead:  Could not create mtfifo\n");
