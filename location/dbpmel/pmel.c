@@ -354,10 +354,10 @@ Nevents Nevents_used\n");
         for(i=0,total_ssq_raw=0.0,total_wssq=0.0,centroid_lat=0.0,
 		centroid_lon=0.0,centroid_z=0.0;i<nevents;++i)
         {
+	    for(j=0;j<4;++j)o->fix[j]=0;
 	    fix = get_fixlist(fixarr,evid[i]);
 	    if(fix==NULL)
 	    {
-		for(j=0;j<4;++j)o->fix[j]=0;
 		ncol_amatrix = 4;
 	    }
 	    else
@@ -434,7 +434,8 @@ Nevents Nevents_used\n");
 			if(h0[i].used) adjust_sc_ok = 0;
 			current_hypo->used = 0;
 		}
-                else if(sc_iterations>0 && delete_bad)
+                else if(sc_iterations>0 && delete_bad
+			&& (ncol_amatrix>0))
 		{
 			if(h0[i].used)
 			{
@@ -485,6 +486,8 @@ Nevents Nevents_used\n");
 		        wts[j] = ((double)w[j])*((double)reswt[j]);
 		        residuals[j] = (double)b[j];
 		    }
+		    if(ncol_amatrix>0)
+		    {
 		    if(cluster_mode)
 		    {
 		    /* The hypocentroid has no time field.  We set it
@@ -535,6 +538,18 @@ Nevents Nevents_used\n");
 						residuals,1);
 		    }
 		    nrows_S += nnull; 
+		    }
+		    else
+		    {
+			/* Special block for all fixed coordinates */
+			form_column_indices(s,ta[i],cindex);
+			for(j=0,k=nrows_S;j<nrow_amatrix;++j,++k)
+			{
+				scrhs[k]=residuals[j];
+				s->S[k+cindex[j]*(s->nrow)]=wts[j];
+			}
+			nrows_S+=nrow_amatrix;
+		    }
 		}   
             }
             if(maxtbl(history))freetbl(history,free);

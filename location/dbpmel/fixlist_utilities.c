@@ -44,6 +44,7 @@ Arr *load_calibration_events(Pf *pf)
 	int evid;
 	char *evidstr;
 	char fix[5],*line;
+	char *fptr;
 	Arr *a;
 	int i;
 
@@ -62,7 +63,8 @@ Arr *load_calibration_events(Pf *pf)
 			line = (char *)gettbl(t,i);
 			sscanf(line,"%d%s",&evid,fix);
 			evidstr = make_evid_key(evid);
-			setarr(a,evidstr,fix);
+			fptr=strdup(fix);
+			setarr(a,evidstr,fptr);
 			free(evidstr);
 		}
 			

@@ -1,12 +1,13 @@
 BIN=dbpmel
-DATADIR=schemas2
+DATADIR=schemas
 DATA=genloc1.1
 PF=dbpmel.pf
 
 #MAN1=	dbpmel.1
+cflags=-g
 ldflags=-L/opt/SUNWspro/lib
 ldlibs= -lgenloc -lglputil $(DBLIBS) $(F77LIBS) \
--ltt -ldl -lm -xlic_lib=sunperf,fui,fai,fsu -dalign
+-ltrvltm -ldl -lm -xlic_lib=sunperf,fui,fai,fsu -dalign
 include $(ANTELOPEMAKE)  	# This line must appear following the definitions above, 
 
 OBJS=dbpmel.o dbpmel_load_stations.o \
