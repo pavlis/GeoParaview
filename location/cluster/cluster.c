@@ -5,9 +5,10 @@
 #include "elog.h"
 #include "pf.h"
 #include "gclgrid.h"
+#include "glputil.h"
 void usage()
 {
-	banner(Program_Name, "$Revision: 1.2 $ $Date: 2001/07/09 16:38:02 $") ;
+	banner(Program_Name, "$Revision: 1.3 $ $Date: 2001/08/01 13:05:32 $") ;
 	elog_die(0,"usage:  %s db [-pf pfname]\n",Program_Name);
 }
 /* This program is a companion to dbpmel.  It reads a gclgrid file and an input
@@ -55,7 +56,7 @@ void main(int argc, char **argv)
 	double hypocen_lat,hypocen_lon,hypocen_z;
 
 	elog_init(argc,argv);
-	elog_notify (0, "$Revision: 1.2 $ $Date: 2001/07/09 16:38:02 $") ;
+	elog_notify (0, "$Revision: 1.3 $ $Date: 2001/08/01 13:05:32 $") ;
 	if(argc<2) usage();
 
 	dbin = argv[1];
@@ -80,7 +81,7 @@ void main(int argc, char **argv)
 	dz = pfget_double(pf,"depth_range");
 	dz /= 2.0;
 
-        if(dbopen(dbin,"r",&db) == dbINVALID)
+        if(dbopen(dbin,"r+",&db) == dbINVALID)
                 die(1,"Unable to open input database %s\n",dbin);
 
 	/* load the gcl grid from the database by name. */
@@ -94,10 +95,16 @@ void main(int argc, char **argv)
 	if(grd == NULL) elog_die(0,"Problems in GCL3Dgrid_load_db\n");
 
 	dbv = dbform_working_view(db,pf,"working_view");
+	dbquery(dbv,dbRECORD_COUNT,&nrecs);
+	if(nrecs<=0)
+		elog_die(0,"Working view is empty\nCheck event->origin join\n");
+	else
+		elog_log(0,"Working view has %d events\n",nrecs);
 	dbc = dblookup(db,0,"cluster",0,0);
 	dbh = dblookup(db,0,"hypocentroid",0,0);
 
 	/*3d looping */
+	elog_log(0,"Grid point hit counts (lat, long, count)\n");
 	for(i=0,gridid=0;i<(grd->n1);++i)
 	    for(j=0;j<(grd->n2);++j)
 		for(k=0;k<(grd->n3);++k)
@@ -129,12 +136,15 @@ void main(int argc, char **argv)
 			dbfree(dbs);
 			search_radius_km += dr;
 		    }
-		    if(nrecs<minimum_events) continue;
-		    hypocen_lat = 0.0;
-		    hypocen_lon = 0.0;
-		    hypocen_z = 0.0;
-		    for(dbs.record=0;dbs.record<nrecs;++dbs.record)
+		    if(nrecs>=minimum_events) 
 		    {
+			hypocen_lat = 0.0;
+			hypocen_lon = 0.0;
+			hypocen_z = 0.0;
+			elog_log(0,"%lf %lf %d\n",deg(grd->lat[i][j][k]),
+			deg(grd->lon[i][j][k]),nrecs);
+			for(dbs.record=0;dbs.record<nrecs;++dbs.record)
+			{
 			/* We have to be careful about crossing
 			the equator or the prime meridian*/
 			int lon_is_positive;
@@ -169,12 +179,21 @@ void main(int argc, char **argv)
 			hypocen_z += z;
 			if(dbaddv(dbc,0,"gridname",gridname,
 				"gridid",gridid,
-				"evid",evid)<0) elog_die(0,"Error appending to cluster table for gridid %d and evid %d\n",
+				"evid",evid,0)<0) elog_die(0,"Error appending to cluster table for gridid %d and evid %d\n",
 					gridid,evid);
+			}
+			dbfree(dbs);
+			hypocen_lat /= (double)nrecs;
+			hypocen_lon /= (double)nrecs;
+			hypocen_z /= (double)nrecs;
 		    }
-		    hypocen_lat /= (double)nrecs;
-		    hypocen_lon /= (double)nrecs;
-		    hypocen_z /= (double)nrecs;
+		    else
+		    {
+			hypocen_lat=deg(grd->lat[i][j][k]);
+			hypocen_lon=deg(grd->lon[i][j][k]);
+			hypocen_z=gridz;
+			nrecs=0;
+		    }
 		    if(dbaddv(dbh,0,"gridname",gridname,
 			"gridid",gridid,
 			"dlat",deg(grd->lat[i][j][k]),
@@ -191,8 +210,3 @@ void main(int argc, char **argv)
 					i,j,k);
 		}
 }
-			
-
-	
-
-
