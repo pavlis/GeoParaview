@@ -29,24 +29,6 @@ Arr *parse_3D_phase(Pf *pf)
 	return(a);
 }
 
-void initialize_hypocenter(Hypocenter *h)
-{
-	h->dx=0.0;
-	h->dy=0.0;
-	h->dz=0.0;
-	h->dt=0.0;
-	h->lat=0.0;
-	h->lon=0.0;
-	h->z = 0.0;
-	h->lat0=0.0;
-	h->lon0=0.0;
-	h->z0 = 0.0;
-	h->rms_raw=0.0;
-	h->rms_weighted=0.0;
-	h->interquartile = 0.0;
-	h->number_data = 0;
-	h->degrees_of_freedom = 0;
-}
 /* This small routine loads the hypocentroid from the view pointer.
 It will fail if the hypocentroid extension table has not been joined
 to the working view.
@@ -96,7 +78,7 @@ void edit_phase_handle(Arr *a,Tbl *keeplist)
 {
 	Tbl *akeys;
 	Arr *akeeper;
-	int *dummy;  /* used purely as a placeholder in akeeper*/
+	int dummy;  /* used purely as a placeholder in akeeper*/
 	char *phase;
 	int i,n;
 	Phase_handle *ph;
@@ -109,7 +91,7 @@ Check phases_to_keep parameter setting\n");
 	for(i=0;i<maxtbl(keeplist);++i)
 	{
 		phase = (char *)gettbl(keeplist,i);
-		setarr(akeeper,phase,dummy);
+		setarr(akeeper,phase,&dummy);
 		ph = (Phase_handle *)getarr(a,phase);
 		if(ph==NULL)elog_die(0,
 			"Don't know how to handle required phase %s\n",
@@ -462,7 +444,7 @@ for cluster id %d\n",
 		}
 		for(k=0;k<nevents;++k) freetbl(ta[k],free);
 		free(ta);
-		freetbl(converge,free);
+		freetbl(converge,0);
 		freetbl(pmelhistory,free);
 		converge=NULL;
 		pmelhistory=NULL;

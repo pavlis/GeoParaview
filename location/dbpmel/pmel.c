@@ -279,11 +279,15 @@ int pmel(int nevents,
 
     nr = s->nrow;
     nc = s->ncol;
-    allot(double *,A,4*nc);
+    /* 
+    The +4 is a fudge factor to fix an apparent bug in sunperf's
+    C interface to dgesvd that generates rua errors in access checking
+    */
+    allot(double *,A,4*nc+4);
     allot(double *,U,nc*nc);
     /* Vt and svalue are used as work space in inversion of S matrix 
     as well as accumulation phase for individual events */
-    allot(double *,Vt,nc*nc);
+    allot(double *,Vt,nc*nc+2);
     allot(double *,svalue,nc);
     allot(double *,wts,nc);
     allot(double *,residuals,nc);
@@ -567,6 +571,7 @@ Nevents Nevents_used\n");
 	s->ndgf = total_ndgf;
 	s->sswrodgf = sswrodgf;
 	total_rms_raw = sqrt(total_ssq_raw/((double)total_ndgf));
+	s->rmsraw = total_rms_raw;
 	if(sswrodgf<sswrodgf_min) 
 	{
 		sswr_test = sswrodgf_min*((double)total_ndgf);
@@ -659,6 +664,7 @@ ds_over_s=dnrm2_(&nc,sc_solved,&one)/dnrm2_(&nc,s->scdata,&one);
 	    /* compute the new hypocentroid 
 	    initialize the new hypocentroid this way */
 	    allot(Hypocenter *,hypocen_history,1);
+	    initialize_hypocenter(hypocen);
 	    copy_hypocenter(hypocen,hypocen_history);
 	    hypocen_history->lat0 = hypocen_history->lat;
 	    hypocen_history->lon0 = hypocen_history->lon;

@@ -23,7 +23,7 @@ char *make_evid_key(int evid)
 	/* We just left justify the string and not worry about 
 	leading zeros.  This will not produce correct sort order
 	necessarily, but for the application here this doesn't matter.*/
-	sprintf(s,"%-9d",evid);
+	sprintf(s,"%-8d",evid);
 	return(s);
 }
 
