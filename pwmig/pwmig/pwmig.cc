@@ -7,7 +7,7 @@
 
 void usage()
 {
-        cbanner((char *)"$Revision: 1.6 $ $Date: 2004/11/23 18:37:46 $",
+        cbanner((char *)"$Revision: 1.7 $ $Date: 2004/11/29 10:58:37 $",
                 (char *)"db  [-V -pf pfname]",
                 (char *)"Gary Pavlis",
                 (char *)"Indiana University",
@@ -544,8 +544,33 @@ vector<double> compute_domega_for_path(Slowness_vector& u0,double dux, double du
 
 	return(domega);  // pointer to domega defined above 
 }
-	
+/* Much simpler routine to compute weight of this each member of a ray path
+ * in generalized radon transform formula.  gradTp and gradTs are gradients
+ * for P and S ray directions a defined in the Poppeliers and Pavlis (2003)
+ * and Bostock et al. (2001).  Note this function drops the A term that
+ * could be computed from geometric spreading because the assumption is
+ * the this term is negligible for plane waves
+ */
+vector<double> compute_weight_for_path(dmatrix& gradTp,dmatrix& gradTs)
+{
+	const double eightpisq=78.95683521;
+	double sum[3],nrmsum;
+	int np=gradTp.size();
+	int i,j;
+	vector<double> weight(np);
 
+	for(j=0;j<np;++j)
+	{
+		for(i=0;i<3;++i)
+		{
+			sum[i]=gradTp(i,j)+gradTs(i,j);
+		}
+		nrmsum=dnrm2(3,sum,1);
+		weight[j]=nrmsum*nrmsum*nrmsum/eightpisq;
+	}
+	return(weight);
+}
+	
 
 int main(int argc, char **argv)
 {
@@ -555,7 +580,7 @@ int main(int argc, char **argv)
 	Three_Component_Ensemble *pwdata;
 	int i,j,k;
 	string pfin("pwmig");
-	dmatrix gradTp(),gradTs();
+	dmatrix gradTs();
 
         ios::sync_to_stdio();
         elog_init(argc,argv);
@@ -584,6 +609,8 @@ int main(int argc, char **argv)
 		string Pmodel1d_name=control.get_string("P_velocity_model1d_name");
 		string Smodel1d_name=control.get_string("S_velocity_model1d_name");
 		string parent_grid_name=control.get_string("Parent_GCLgrid_Name");
+		bool use_depth_variable_transformation
+			=control.get_boolean("use_depth_variable_transformation");
 		// Create a database handle for reading data objects
 		dbopen(dbname,'r+',&db);
 		if(db.record == dbINVALID) die(1,"Cannot open database %s\n",dbname);
@@ -593,13 +620,11 @@ int main(int argc, char **argv)
 		Velocity_Model Vp1d(db,Pmodel_name,pvfnm);
 		Velocity_Model Vs1d(db,Smodel_name,svfnm);
 		GCLgrid parent(db,parent_grid_name.c_str());
-		// these hold travel times for rays so they are simple vectors
-		vector<double> Stime, Ptime, domega_ij;
 
 		// This loads the image volume assuming this was precomputed with
 		// makegclgrid
 
-		GCLvectorfield migrated_image(db,stack_grid_name,NULL);
+		GCLvectorfield migrated_image(db,stack_grid_name,NULL,3);
 		GCLscalarfield omega(db,stack_grid_name,NULL);
 		GCLscalarfield weights(db,stack_grid_name,NULL);
 
@@ -626,6 +651,8 @@ int main(int argc, char **argv)
 			pwdata = new Three_Component_Ensemble(dynamic_cast<Database_Handle&>
 					(dbh),mdlin,mdens,am);
 			Hypocenter hypo;
+			Ray_Transformation_Operator *troptr;
+			Ray_Transformation_Operator& trans_operator=*troptr;
 			hypo.lat=pwdata->get_double("origin.lat");
 			hypo.lon=pwdata->get_double("origin.lon");
 			hypo.z=pwdata->get_double("origin.depth");
@@ -634,7 +661,7 @@ int main(int argc, char **argv)
 			// slowness vector for the plane wave stack.  We extract this
 			// from the ensemble metadata.  
 			Slowness_vector ustack;
-			// Kind of evil OOP style placing data members inline line is instead
+			// Kind of evil OOP style placing data members inline instead
 			// of in a constructor.  Prone to error if class structure changes
 			ustack.ux=pwdata->get_double("ux");
 			ustack.uy=pwdata->get_double("uy");
@@ -652,7 +679,7 @@ int main(int argc, char **argv)
 			// intractable
 			GCLscalarfield3d dweight(raygrid);
 			GCLscalarfield3d domega(raygrid);
-			GCLvectorefield3d pwdgrid(raygrid,3);
+			GCLvectorfield3d pwdgrid(raygrid,3);
 			string area;  // key for database when multiple areas are stored in database
 			RayPathSphere *rayupdux,*rayupduy;
 			int iux1, iux2;   // index positions for slowness grid
@@ -670,9 +697,15 @@ int main(int argc, char **argv)
 
 			for(i=0;i<pwdata->tcse.size();++i)
 			{
-				dmatrix work(3,pwdata->tcse[i].ns);
+				// convenient shorthand variables.  ns is data length
+				// while n3 is the ray path onto which data are mapped
+				int ns=pwdata->tcse[i].ns;
+				int n3=raygrid.n3;
+				dmatrix work(3,ns);
 				double zmax,tmax;
 				RayPathSphere *ray0;
+				vector<double> Stime(n3), SPtime(n3), 
+					domega_ij(n3),dweight_ij(n3);
 
 				dt=pwdata->tcse[i].dt;
 				// first decide in which grid cell to place this seismogram 
@@ -708,14 +741,16 @@ int main(int argc, char **argv)
 				// less memory use in the loop below, but the simplification
 				// it provides seems useful to me
 				gradTs = compute_gradS(raygrid,i,j,Vs1d);
-				gradTp = dmatrix(3,raygrid.n3);
+				dmatrix gradTp(3,n3);
+				dmatrix nup(3,n3);
+
 				// Now loop over each point on this ray computing the 
 				// p wave path and using it to compute the P time and
 				// fill the vector gradP matrix
 				for(k=0;k<raygrid.n3;++k)
 				{
 					double tlag;
-					double nup[3];
+					double nu[3];
 					double nrmdx;
 					dmatrix Pinc_ray = compute_P_incident_ray(raygrid,i,j,k,
 							uincident,ray0);
@@ -728,35 +763,73 @@ int main(int argc, char **argv)
 					// Note these point in the gradP and gradS directions
 					// This requires opposite signs on the finite differences
 					// as our ray geometry is defined internally here
-					for(l=0;l<3;++l) nup[l]=Pinc_ray(l,2)-Pinc_ray(l,0);
-					nrmdx=nrm2(3,nup,1);
+					for(l=0;l<3;++l) 
+					{
+						nu[l]=Pinc_ray(l,2)-Pinc_ray(l,0);
+						nup(l,k)=nu[l];
+					}
+					nrmdx=nrm2(3,nu,1);
 					vp=Vp1d.getv(raygrid.depth(i,j,k));
 					for(l=0;l<3;++l) gradTp(l,k)=nu[l]/(nrmdx*vp);
 					// Computer time lag between incident P and scattered S
 					tlag = compute_lag(raygrid,i,j,
 							Pinc_ray,uincident,Vp3d,Stime[k]);
-		// WARNING:  need a way to clear Ptime or initilize it.  This line is 
-		// incomplete at best.
-					Ptime.push_back(tlag);
+					SPtime[k]=tlag;
 				}
 				// We now interpolate the data with tlag values to map
 				// the data from time to an absolute location in space
 				linear_vector_regular_to_irregular(t0,dt,pwdata->tcse[i].u,
-					&(Ptime[0]),work);
-				// Call the variable depth transformation function here
-				
+					&(SPtime[0]),work);
+				// Compute the transformation vector for each 
+				// ray point in space.  This comes in two flavors.
+				// A fast, inexact version and a exact slow version
+				//
+				if(use_depth_variable_transformation)
+				{
+					// the slow, exact method
+					troptr=new Ray_Transformation_Operator(
+						dynamic_cast<GCLgrid&>(raygrid),
+						path,
+						ustack.azimuth,
+						nup);
+				}
+				else
+				{
+					// the fast approximation
+					troptr=new Ray_Transformation_operator(
+						dynamic_cast<GCLgrid&>(raygrid),
+						path,
+						ustack.azimuth);
+				}
+				trans_operator.apply(work);
+				delete troptr;
 
-				// apply transformations to rotate data.
-
-				// copy transformed data to vector field
 				domega_ij=compute_domega_for_path(ustack,dux,duy,
 					Vs1d, raygrid, i, j, gradTp);
-
+				dweight_ij=compute_weight_for_path(gradTp,gradTs);
+				//
+				// copy transformed data to vector field
+				// copy weights and domega at same time
+				//
+				for(k=0;k<n3;++k)
+				{
+					for(l=0;l<3;++l)
+					{
+						pwdgrid.val[i][j][k][l]=work(l,k);
+					}
+					dweight.val[i][j][k]=weight_ij[k];
+					domega.val[i][j][k]=omega_ij[k];
+				}
 				delete pwdata;
 				delete ray0;
 				delete rayupdux;
 				delete rayupduy;
 			}
+			// last but not least, add this component to the stack
+			//
+			migrated_image += pwdgrid;
+			weights += dweight;
+			omega += domega;
 
 			delete grdptr;
 
