@@ -9,6 +9,7 @@ Written: Nov 1994
 */
 
 #include <malloc.h>
+#include <sunmath.h>
 #include "stock.h"
 #include "db.h"
 #include "spectrum.h"
@@ -40,6 +41,7 @@ Spectrum s,pattern;
 	{
 		free(work);
 		return(s);
+	}
 	else
 	{
 	/* this is block for decimation */
