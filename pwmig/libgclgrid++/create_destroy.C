@@ -203,12 +203,12 @@ GCLgrid::GCLgrid(const GCLgrid& g)
 	n2=g.n2;
 	i0=g.i0;
 	j0=g.j0;
-	xlow=g.xlow;
-	xhigh=g.xhigh;
-	ylow=g.ylow;
-	yhigh=g.yhigh;
-	zlow=g.zlow;
-	zhigh=g.zhigh;
+	x1low=g.x1low;
+	x1high=g.x1high;
+	x2low=g.x2low;
+	x2high=g.x2high;
+	x3low=g.x3low;
+	x3high=g.x3high;
 	cartesian_defined=g.cartesian_defined;
 	geographic_defined=g.geographic_defined;
 	x1=create_2dgrid_contiguous(n1,n2);
@@ -251,12 +251,12 @@ GCLgrid3d::GCLgrid3d(const GCLgrid3d& g)
 	n3=g.n3;
 	i0=g.i0;
 	j0=g.j0;
-	xlow=g.xlow;
-	xhigh=g.xhigh;
-	ylow=g.ylow;
-	yhigh=g.yhigh;
-	zlow=g.zlow;
-	zhigh=g.zhigh;
+	x1low=g.x1low;
+	x1high=g.x1high;
+	x2low=g.x2low;
+	x2high=g.x2high;
+	x3low=g.x3low;
+	x3high=g.x3high;
 	cartesian_defined=g.cartesian_defined;
 	geographic_defined=g.geographic_defined;
 	x1=create_3dgrid_contiguous(n1,n2,n3);
@@ -305,12 +305,12 @@ GCLgrid& GCLgrid::operator=(const GCLgrid& g)
 		n2=g.n2;
 		i0=g.i0;
 		j0=g.j0;
-		xlow=g.xlow;
-		xhigh=g.xhigh;
-		ylow=g.ylow;
-		yhigh=g.yhigh;
-		zlow=g.zlow;
-		zhigh=g.zhigh;
+		x1low=g.x1low;
+		x1high=g.x1high;
+		x2low=g.x2low;
+		x2high=g.x2high;
+		x3low=g.x3low;
+		x3high=g.x3high;
 		cartesian_defined=g.cartesian_defined;
 		geographic_defined=g.geographic_defined;
 		x1=create_2dgrid_contiguous(n1,n2);
@@ -360,12 +360,12 @@ GCLgrid3d& GCLgrid3d::operator=(const GCLgrid3d& g)
 		n3=g.n3;
 		i0=g.i0;
 		j0=g.j0;
-		xlow=g.xlow;
-		xhigh=g.xhigh;
-		ylow=g.ylow;
-		yhigh=g.yhigh;
-		zlow=g.zlow;
-		zhigh=g.zhigh;
+		x1low=g.x1low;
+		x1high=g.x1high;
+		x2low=g.x2low;
+		x2high=g.x2high;
+		x3low=g.x3low;
+		x3high=g.x3high;
 		cartesian_defined=g.cartesian_defined;
 		geographic_defined=g.geographic_defined;
 		x1=create_3dgrid_contiguous(n1,n2,n3);
@@ -466,8 +466,7 @@ GCLgrid::GCLgrid(int n1in, int n2in,
 	double deltax, deltay, delta;  
 	double z;
 	double x[3],x0[3];
-	double rmatrix[9],rmtrans[9];
-	double xwork[3],xwork2[3];
+	double xwork[3];
 	double rotation_angle,azimuth_i;
 	double dx1_rad,dx2_rad;
 
@@ -540,88 +539,46 @@ GCLgrid::GCLgrid(int n1in, int n2in,
 			r[i][j] = r0_ellipse(lat[i][j]);
 		}
 	}
-
-	/* We now compute the Cartesian coordinates of all these points
-	with an origin at the earth's center.  After we do compute all 
-	the Cartesian coordinates we then do a translation of the 
-	coordinates to the grid origin to make the numbers more 
-	manageable*/
-	for(i=0;i<n1;++i) 
-		for(j=0;j<n2;++j)
-		{
-			dsphcar(lon[i][j],lat[i][j],x);
-			x1[i][j] = x[0]*r[i][j];
-			x2[i][j] = x[1]*r[i][j];
-			x3[i][j] = x[2]*r[i][j];
-		}
-	/* This computes the radial direction from the latitude and longitude.
-	We translate the origin in this direction below */
-	dsphcar(lon0,lat0,x0);
-	/* We construct the transformation matrix for rotation of coordinates
-	from the origin using unit vectors computed as follows:
-	column 3= local vertical = copy of x0
-	column 2 = local y = constructed from pole to baseline
-	column 1 = y cross z 
-	This yields a rotation matrix stored in fortran order in rmatrix 
-	Note use of ugly pointer arithmetic done to store the matrix this way */
-	for(i=0;i<3;++i)rmatrix[i+6]=x0[i];
-	dsphcar(pole_lon,pole_lat,rmatrix+3);
-	dr3cros(rmatrix+3,rmatrix+6,rmatrix);
-	/* We actually need the transpose of this matrix */
-	dr3tran(rmatrix,rmtrans);
 	//
-	//Store this matrix and translation vector 
-	//in the GCLgrid object definition
+	// This function standarizes setting the tranformation from geo to cartesian
+	// This then sets the Cartesian section
 	//
-	dcopy(3,rmatrix,1,gtoc_rmatrix[0],1);
-	dcopy(3,rmatrix+3,1,gtoc_rmatrix[1],1);
-	dcopy(3,rmatrix+6,1,gtoc_rmatrix[2],1);
-	dcopy(3,x0,1,translation_vector,1);
-	dscal(3,r0,translation_vector,1);
-
-	/* We now apply the combined translation and rotation 
-	change of coordinates */
-	r0=r0_ellipse(lat0);
-	for(i=0;i<3;++i) x0[i]*=r0;
+	GCLset_transformation_matrix();
+	Cartesian_point cpt;
 	for(i=0;i<n1;++i) 
-		for(j=0;j<n2;++j)
-		{
-			xwork[0] = x1[i][j];
-			xwork[1] = x2[i][j];
-			xwork[2] = x3[i][j];
+	    for(j=0;j<n2;++j)
+	    {
+			cpt = gtoc(lat[i][j],lon[i][j],
+					r[i][j]);
 
-			dr3sub(xwork,x0,xwork);
-			dr3mxv(rmtrans,xwork,xwork2);
-
-			x1[i][j] = xwork2[0];
-			x2[i][j] = xwork2[1];
-			x3[i][j] = xwork2[2];
-		}
-
+			x1[i][j] = cpt.x1;
+			x2[i][j] = cpt.x2;
+			x3[i][j] = cpt.x3;
+	    }
 	/* We have to compute the extents parameters as the minimum 
 	and maximum in each cartesian direction */
-	xlow=x1[0][0];
-	xhigh=x1[0][0];
-	ylow=x2[0][0];
-	yhigh=x2[0][0];
-	zlow=x3[0][0];
-	zhigh=x3[0][0];
+	x1low=x1[0][0];
+	x1high=x1[0][0];
+	x2low=x2[0][0];
+	x2high=x2[0][0];
+	x3low=x3[0][0];
+	x3high=x3[0][0];
 	for(i=0;i<n1;++i)
 		for(j=0;j<n2;++j)
 		{
-			xlow = MIN(x1[i][j],xlow);
-			xhigh = MAX(x1[i][j],xhigh);
-			ylow = MIN(x2[i][j],ylow);
-			yhigh = MAX(x2[i][j],yhigh);
-			zlow = MIN(x3[i][j],zlow);
-			zhigh = MAX(x3[i][j],zhigh);
+			x1low = MIN(x1[i][j],x1low);
+			x1high = MAX(x1[i][j],x1high);
+			x2low = MIN(x2[i][j],x2low);
+			x2high = MAX(x2[i][j],x2high);
+			x3low = MIN(x3[i][j],x3low);
+			x3high = MAX(x3[i][j],x3high);
 		}
-	xlow = xlow;
-	ylow = ylow;
-	zlow = zlow;
-	xhigh = xhigh;
-	yhigh = yhigh;
-	zhigh = zhigh;
+	x1low = x1low;
+	x2low = x2low;
+	x3low = x3low;
+	x1high = x1high;
+	x2high = x2high;
+	x3high = x3high;
 
 	delete baseline_lat;
 	delete baseline_lon;
@@ -643,8 +600,7 @@ GCLgrid3d::GCLgrid3d(int n1in, int n2in, int n3in,
 	double deltax, deltay,delta;  
 	double z0,z;
 	double x[3],x0[3];
-	double rmatrix[9],rmtrans[9];
-	double xwork[3],xwork2[3];
+	double xwork[3];
 	double dx1_rad,dx2_rad;
 	double rotation_angle, azimuth_i;
 
@@ -746,78 +702,42 @@ GCLgrid3d::GCLgrid3d(int n1in, int n2in, int n3in,
 				r[i][j][k] = r0_ellipse(lat[i][j][top_of_grid]) - z;
 			}
 	}
-
-	/* We now compute the Cartesian coordinates of all these points
-	with an origin at the earth's center.  After we do compute all 
-	the Cartesian coordinates we then do a translation of the 
-	coordinates to the grid origin to make the numbers more 
-	manageable.  First we computes the radial direction from the 
-	latitude and longitude.
-	We translate the origin in this direction below */
-	dsphcar(lon0,lat0,x0);
-	/* We construct the transformation matrix for rotation of coordinates
-	from the origin using unit vectors computed as follows:
-	column 3= local vertical = copy of x0
-	column 2 = local y = constructed from pole to baseline
-	column 1 = y cross z 
-	This yields a rotation matrix stored in fortran order in rmatrix 
-	Note use of ugly pointer arithmetic done to store the matrix this way */
-	for(i=0;i<3;++i)rmatrix[i+6]=x0[i];
-	dsphcar(pole_lon,pole_lat,rmatrix+3);
-	dr3cros(rmatrix+3,rmatrix+6,rmatrix);
-	/* We actually need the transpose of this matrix */
-	dr3tran(rmatrix,rmtrans);
 	//
-	//Store this matrix and translation vector 
-	//in the GCLgrid object definition
+	// This function standarizes setting the tranformation from geo to cartesian
 	//
-	dcopy(3,rmatrix,1,gtoc_rmatrix[0],1);
-	dcopy(3,rmatrix+3,1,gtoc_rmatrix[1],1);
-	dcopy(3,rmatrix+6,1,gtoc_rmatrix[2],1);
-
-	/* We now apply the combined translation and rotation 
-	change of coordinates */
-	for(i=0;i<3;++i) x0[i]*=r0;
-	dcopy(3,x0,1,translation_vector,1);
-
-	/* Now apply the same transformations to the 3d grid */
-
+	GCLset_transformation_matrix();
+	Cartesian_point cpt;
 	for(i=0;i<n1;++i) 
 	    for(j=0;j<n2;++j)
-	    {
-		for(k=0;k<n3;++k)
+		for(k=0;k<n3;++k) 
 		{
-			dsphcar(lon[i][j][k],lat[i][j][k],x);
-			dr3sxv(r[i][j][k],x,xwork);
+			cpt = gtoc(lat[i][j][k],lon[i][j][k],
+					r[i][j][k]);
 
-			dr3sub(xwork,x0,xwork2);
-			dr3mxv(rmtrans,xwork2,xwork);
-
-			x1[i][j][k] = xwork[0];
-			x2[i][j][k] = xwork[1];
-			x3[i][j][k] = xwork[2];
+			x1[i][j][k] = cpt.x1;
+			x2[i][j][k] = cpt.x2;
+			x3[i][j][k] = cpt.x3;
 		}
-	    }
 	/* We have to compute the extents parameters as the minimum 
 	and maximum in each cartesian direction */
 
-	xlow=x1[0][0][0];
-	xhigh=x1[0][0][0];
-	ylow=x2[0][0][0];
-	yhigh=x2[0][0][0];
-	zlow=x3[0][0][0];
-	zhigh=x3[0][0][0];
+	x1low=x1[0][0][0];
+	x1high=x1[0][0][0];
+	x2low=x2[0][0][0];
+	x2high=x2[0][0][0];
+	x3low=x3[0][0][0];
+	x3high=x3[0][0][0];
 
 	for(i=1;i<n1;++i)
 	    for(j=1;j<n2;++j)
 		for(k=1;k<n3;++k)
 		{
-			xlow = MIN(x1[i][j][k],xlow);
-			xhigh = MAX(x1[i][j][k],xhigh);
-			ylow = MIN(x2[i][j][k],ylow);
-			yhigh = MAX(x2[i][j][k],yhigh);
-			zlow = MIN(x3[i][j][k],zlow);
-			zhigh = MAX(x3[i][j][k],zhigh);
+			x1low = MIN(x1[i][j][k],x1low);
+			x1high = MAX(x1[i][j][k],x1high);
+			x2low = MIN(x2[i][j][k],x2low);
+			x2high = MAX(x2[i][j][k],x2high);
+			x3low = MIN(x3[i][j][k],x3low);
+			x3high = MAX(x3[i][j][k],x3high);
 		}
 
 	delete baseline_lat;
@@ -866,14 +786,18 @@ GCLscalarfield::GCLscalarfield(GCLgrid& g) : GCLgrid(g.n1, g.n2)
 	n2=g.n2;
 	i0=g.i0;
 	j0=g.j0;
-	xlow=g.xlow;
-	xhigh=g.xhigh;
-	ylow=g.ylow;
-	yhigh=g.yhigh;
-	zlow=g.zlow;
-	zhigh=g.zhigh;
+	x1low=g.x1low;
+	x1high=g.x1high;
+	x2low=g.x2low;
+	x2high=g.x2high;
+	x3low=g.x3low;
+	x3high=g.x3high;
 	cartesian_defined=g.cartesian_defined;
 	geographic_defined=g.geographic_defined;
+	dcopy(3,g.gtoc_rmatrix[0],1,gtoc_rmatrix[0],1);
+	dcopy(3,g.gtoc_rmatrix[1],1,gtoc_rmatrix[1],1);
+	dcopy(3,g.gtoc_rmatrix[2],1,gtoc_rmatrix[2],1);
+	dcopy(3,g.translation_vector,1,translation_vector,1);
 	// We don't waste this effort unless these arrays contain something
 	if(cartesian_defined)
 	{
@@ -910,14 +834,18 @@ GCLvectorfield::GCLvectorfield(GCLgrid& g, int n3) : GCLgrid(g.n1, g.n2)
 	n2=g.n2;
 	i0=g.i0;
 	j0=g.j0;
-	xlow=g.xlow;
-	xhigh=g.xhigh;
-	ylow=g.ylow;
-	yhigh=g.yhigh;
-	zlow=g.zlow;
-	zhigh=g.zhigh;
+	x1low=g.x1low;
+	x1high=g.x1high;
+	x2low=g.x2low;
+	x2high=g.x2high;
+	x3low=g.x3low;
+	x3high=g.x3high;
 	cartesian_defined=g.cartesian_defined;
 	geographic_defined=g.geographic_defined;
+	dcopy(3,g.gtoc_rmatrix[0],1,gtoc_rmatrix[0],1);
+	dcopy(3,g.gtoc_rmatrix[1],1,gtoc_rmatrix[1],1);
+	dcopy(3,g.gtoc_rmatrix[2],1,gtoc_rmatrix[2],1);
+	dcopy(3,g.translation_vector,1,translation_vector,1);
 	// We don't waste this effort unless these arrays contain something
 	if(cartesian_defined)
 	{
@@ -981,37 +909,41 @@ GCLscalarfield3d::GCLscalarfield3d(GCLgrid3d& g) : GCLgrid3d(g.n1, g.n2, g.n3)
 	n3=g.n3;
 	i0=g.i0;
 	j0=g.j0;
-	xlow=g.xlow;
-	xhigh=g.xhigh;
-	ylow=g.ylow;
-	yhigh=g.yhigh;
-	zlow=g.zlow;
-	zhigh=g.zhigh;
+	x1low=g.x1low;
+	x1high=g.x1high;
+	x2low=g.x2low;
+	x2high=g.x2high;
+	x3low=g.x3low;
+	x3high=g.x3high;
 	cartesian_defined=g.cartesian_defined;
 	geographic_defined=g.geographic_defined;
+	dcopy(3,g.gtoc_rmatrix[0],1,gtoc_rmatrix[0],1);
+	dcopy(3,g.gtoc_rmatrix[1],1,gtoc_rmatrix[1],1);
+	dcopy(3,g.gtoc_rmatrix[2],1,gtoc_rmatrix[2],1);
+	dcopy(3,g.translation_vector,1,translation_vector,1);
 	if(cartesian_defined)
 	{
 	    for(i=0;i<n1;++i)
 		for(j=0;j<n2;++j) 
-			for(k=0;k<n3;++k) x1[i][j]=g.x1[i][j];
+			for(k=0;k<n3;++k) x1[i][j][k]=g.x1[i][j][k];
 	    for(i=0;i<n1;++i)
 		for(j=0;j<n2;++j) 
-			for(k=0;k<n3;++k) x2[i][j]=g.x2[i][j];
+			for(k=0;k<n3;++k) x2[i][j][k]=g.x2[i][j][k];
 	    for(i=0;i<n1;++i)
 		for(j=0;j<n2;++j) 
-			for(k=0;k<n3;++k) x3[i][j]=g.x3[i][j];
+			for(k=0;k<n3;++k) x3[i][j][k]=g.x3[i][j][k];
 	}
 	if(geographic_defined)
 	{
 	    for(i=0;i<n1;++i)
 		for(j=0;j<n2;++j) 
-			for(k=0;k<n3;++k) lat[i][j]=g.lat[i][j];
+			for(k=0;k<n3;++k) lat[i][j][k]=g.lat[i][j][k];
 	    for(i=0;i<n1;++i)
 		for(j=0;j<n2;++j) 
-			for(k=0;k<n3;++k) lon[i][j]=g.lon[i][j];
+			for(k=0;k<n3;++k) lon[i][j][k]=g.lon[i][j][k];
 	    for(i=0;i<n1;++i)
 		for(j=0;j<n2;++j) 
-			for(k=0;k<n3;++k) r[i][j]=g.r[i][j];
+			for(k=0;k<n3;++k) r[i][j][k]=g.r[i][j][k];
 
 	}
 	val=create_3dgrid_contiguous(g.n1, g.n2, g.n3);
@@ -1033,37 +965,41 @@ GCLvectorfield3d::GCLvectorfield3d(GCLgrid3d& g, int n4)
 	n3=g.n3;
 	i0=g.i0;
 	j0=g.j0;
-	xlow=g.xlow;
-	xhigh=g.xhigh;
-	ylow=g.ylow;
-	yhigh=g.yhigh;
-	zlow=g.zlow;
-	zhigh=g.zhigh;
+	x1low=g.x1low;
+	x1high=g.x1high;
+	x2low=g.x2low;
+	x2high=g.x2high;
+	x3low=g.x3low;
+	x3high=g.x3high;
 	cartesian_defined=g.cartesian_defined;
 	geographic_defined=g.geographic_defined;
+	dcopy(3,g.gtoc_rmatrix[0],1,gtoc_rmatrix[0],1);
+	dcopy(3,g.gtoc_rmatrix[1],1,gtoc_rmatrix[1],1);
+	dcopy(3,g.gtoc_rmatrix[2],1,gtoc_rmatrix[2],1);
+	dcopy(3,g.translation_vector,1,translation_vector,1);
 	if(cartesian_defined)
 	{
 	    for(i=0;i<n1;++i)
 		for(j=0;j<n2;++j) 
-			for(k=0;k<n3;++k) x1[i][j]=g.x1[i][j];
+			for(k=0;k<n3;++k) x1[i][j][k]=g.x1[i][j][k];
 	    for(i=0;i<n1;++i)
 		for(j=0;j<n2;++j) 
-			for(k=0;k<n3;++k) x2[i][j]=g.x2[i][j];
+			for(k=0;k<n3;++k) x2[i][j][k]=g.x2[i][j][k];
 	    for(i=0;i<n1;++i)
 		for(j=0;j<n2;++j) 
-			for(k=0;k<n3;++k) x3[i][j]=g.x3[i][j];
+			for(k=0;k<n3;++k) x3[i][j][k]=g.x3[i][j][k];
 	}
 	if(geographic_defined)
 	{
 	    for(i=0;i<n1;++i)
 		for(j=0;j<n2;++j) 
-			for(k=0;k<n3;++k) lat[i][j]=g.lat[i][j];
+			for(k=0;k<n3;++k) lat[i][j][k]=g.lat[i][j][k];
 	    for(i=0;i<n1;++i)
 		for(j=0;j<n2;++j) 
-			for(k=0;k<n3;++k) lon[i][j]=g.lon[i][j];
+			for(k=0;k<n3;++k) lon[i][j][k]=g.lon[i][j][k];
 	    for(i=0;i<n1;++i)
 		for(j=0;j<n2;++j) 
-			for(k=0;k<n3;++k) r[i][j]=g.r[i][j];
+			for(k=0;k<n3;++k) r[i][j][k]=g.r[i][j][k];
 
 	}
 	nv=n4;

@@ -18,10 +18,11 @@ void GCLgrid::GCLset_transformation_matrix()
 	//these unit vectors are stored in rows of transformation matrix
 	//yielding the matrix from geo to rotated cartesian of GCLgrid object
 	//
-	dcopy(3,x0,1,gtoc_rmatrix[0],1);
+	dcopy(3,x0,1,gtoc_rmatrix[2],1);
 	dcopy(3,xpole,1,gtoc_rmatrix[1],1);
-	dcopy(3,xcros,1,gtoc_rmatrix[2],1);
+	dcopy(3,xcros,1,gtoc_rmatrix[0],1);
 	dcopy(3,x0,1,translation_vector,1);
+	dscal(3,r0,translation_vector,1);
 }
 Cartesian_point GCLgrid::gtoc(double plat, double plon, double pr)
 {

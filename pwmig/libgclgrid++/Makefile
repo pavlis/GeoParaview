@@ -17,7 +17,7 @@ include $(ANTELOPEMAKE)
 DLD=CC -G -Kpic
 
 
-OBJS=	converters.o create_destroy.o dbsubs.o ellipsoid.o error_handlers.o \
+OBJS=	converters.o create_destroy.o dbsubs.o ellipsoid.o \
     fme_weights.o interpolate.o lookup.o operators.o dr3.o
 $(LIB) : $(OBJS)
 	rm -f $@

@@ -31,7 +31,7 @@ class GCLgrid
 		double dx1_nom, dx2_nom;  // nominal grid spacing 
 		int n1,n2;  // grid size in each component direction
 		int i0, j0;  // origin location in grid 
-		double xlow, xhigh, ylow, yhigh, zlow, zhigh;// bounding box 
+		double x1low, x1high, x2low, x2high, x3low, x3high;// bounding box 
 		int cartesian_defined, geographic_defined;
 		double **x1, **x2, **x3; //cartesian coordinates of nodes
 		double **lat, **lon, **r;  //geographical coordinates of nodes
@@ -43,16 +43,17 @@ class GCLgrid
 		GCLgrid(int n1size, int n2size, char *n, double la0, double lo0,
 			double radius0, double az, double dx1n, double dx2n, 
 			int iorigin, int jorigin);
-		GCLgrid(Dbptr db, char *nm);  // acquire from Antelope database 
+		GCLgrid(Dbptr db, char *nm) throw(int);  // acquire from Antelope database 
 		GCLgrid(const GCLgrid&);  //standard copy constructor
 		GCLgrid& operator=(const GCLgrid& );
-		void dbsave(Dbptr, char *);
-		void lookup(double, double);
+		void dbsave(Dbptr, char *) throw(int);
+		int lookup(double, double);
 		void reset_index() {ix1=i0; ix2=j0;};
 		void get_index(int *ind) {ind[0]=ix1; ind[1]=ix2;};
 		Geographic_point ctog(double, double, double);
 		Cartesian_point gtoc(double, double, double);
 		void GCLset_transformation_matrix();
+		double depth(int,int);
 		~GCLgrid();
 		//
 		//These derived classes need private access so are declared
@@ -89,13 +90,14 @@ class GCLgrid3d : public GCLgrid
 			double radius0, double az, 
 			double dx1n, double dx2n, double dx3n,
 			int iorigin, int jorigin);
-		GCLgrid3d(Dbptr db, char *nm); 
+		GCLgrid3d(Dbptr db, char *nm) throw(int); 
 		GCLgrid3d(const GCLgrid3d&); 
 		GCLgrid3d& operator=(const GCLgrid3d& );
-		void dbsave(Dbptr, char *);
-		void lookup(double, double, double);
+		void dbsave(Dbptr, char *) throw(int);
+		int lookup(double, double, double);
 		void reset_index() {ix1=i0; ix2=j0; ix3=k0;};
 		void get_index(int *ind) {ind[0]=ix1; ind[1]=ix2; ind[2]=ix3;};
+		double depth(int,int,int);
 		~GCLgrid3d();
 	private:
 		int ix1, ix2, ix3;
@@ -165,6 +167,7 @@ class GCLvectorfield3d : public GCLgrid3d
 //
 //C++ helpers
 //
+double r0_ellipse(double);
 #endif
 
 #ifdef	__cplusplus
@@ -176,11 +179,9 @@ extern "C" {
 //
 // plain C helper function prototypes 
 //
-double r0_ellipse(double);
 double ****create_4dgrid_contiguous(int, int, int, int);
 double ***create_3dgrid_contiguous(int, int, int);
 double **create_2dgrid_contiguous(int, int);
-void GCLlookup_error_handler(int);
 void fme_weights_ (double *, double *, double *);
 #ifdef  __cplusplus
 }

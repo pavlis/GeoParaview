@@ -15,7 +15,7 @@
 //completely so this condition must be caught and handled.  The
 //details are assumed to be told to the user through messages
 //written through the antelope elog mechanism.
-GCLgrid3d::GCLgrid3d(Dbptr db, char *gridname)
+GCLgrid3d::GCLgrid3d(Dbptr db, char *gridname) throw(int)
 {
 	Dbptr dbgrd;
 	char sstring[40];
@@ -61,12 +61,12 @@ GCLgrid3d::GCLgrid3d(Dbptr db, char *gridname)
 		"n1",&(n1),
 		"n2",&(n2),
 		"n3",&(n3),
-		"xlow",&(xlow),
-		"xhigh",&(xhigh),
-		"ylow",&(ylow),
-		"yhigh",&(yhigh),
-		"zlow",&(zlow),
-		"zhigh",&(zhigh),
+		"xlow",&(x1low),
+		"xhigh",&(x1high),
+		"ylow",&(x2low),
+		"yhigh",&(x2high),
+		"zlow",&(x3low),
+		"zhigh",&(x3high),
 		"i0",&(i0),
 		"j0",&(j0),
 		"k0",&(k0),
@@ -102,21 +102,21 @@ GCLgrid3d::GCLgrid3d(Dbptr db, char *gridname)
 	{
 		elog_notify(0,"%s data type %s not allowed.  Currently only support t8\n",
 			base_message, datatype);
-		throw 1;
+		throw 2;
 	}
 	/* Get the file name to read the gclgrid data from.*/
 	if(dbextfile(dbgrd,"gclgdisk",filename) <=0)
 	{
 		elog_notify(0,"%s Cannot find grid file named %s in directory %s\n",
 			base_message,dfile,dir);
-		throw 1;
+		throw 2;
 	}
 	fp = fopen(filename,"r");
 	if(fp == NULL)
 	{
 		elog_notify(0,"%s file %s cannot be openned for read\n",
 			base_message,filename);
-		throw 1;
+		throw 2;
 	}
 	fseek(fp,foff,SEEK_SET);
 	/* We alloc all memory first before reading so we can call a 
@@ -135,42 +135,42 @@ GCLgrid3d::GCLgrid3d(Dbptr db, char *gridname)
 	{
 		elog_notify(0,"%s %s reading x1\n",
 			base_message,read_error);
-		throw 1;
+		throw 2;
 	}
 	if(fread(x2[0][0],sizeof(double),gridsize,fp) != gridsize)
 	{
 		elog_notify(0,"%s %s reading x2\n",
 			base_message,read_error);
-		throw 1;
+		throw 2;
 	}
 	if(fread(x3[0][0],sizeof(double),gridsize,fp) != gridsize)
 	{
 		elog_notify(0,"%s %s reading x3\n",
 			base_message,read_error);
-		throw 1;
+		throw 2;
 	}
 	if(fread(lat[0][0],sizeof(double),gridsize,fp) != gridsize)
 	{
 		elog_notify(0,"%s %s reading latitude\n",
 			base_message,read_error);
-		throw 1;
+		throw 2;
 	}
 	if(fread(lon[0][0],sizeof(double),gridsize,fp) != gridsize)
 	{
 		elog_notify(0,"%s %s reading longitude\n",
 			base_message,read_error);
-		throw 1;
+		throw 2;
 	}
 
 	if(fread(r[0][0],sizeof(double),gridsize,fp) != gridsize)
 	{
 		elog_notify(0,"%s %s reading radius\n",
 			base_message,read_error);
-		throw 1;
+		throw 2;
 	}
 }
 /* close companion to the above for 2d grid */
-GCLgrid::GCLgrid(Dbptr db,char *gridname)
+GCLgrid::GCLgrid(Dbptr db,char *gridname) throw(int)
 {
 	Dbptr dbgrd;
 	char sstring[40];
@@ -214,12 +214,12 @@ GCLgrid::GCLgrid(Dbptr db,char *gridname)
 		"dx2nom",&(dx2_nom),
 		"n1",&(n1),
 		"n2",&(n2),
-		"xlow",&(xlow),
-		"xhigh",&(xhigh),
-		"ylow",&(ylow),
-		"yhigh",&(yhigh),
-		"zlow",&(zlow),
-		"zhigh",&(zhigh),
+		"xlow",&(x1low),
+		"xhigh",&(x1high),
+		"ylow",&(x2low),
+		"yhigh",&(x2high),
+		"zlow",&(x3low),
+		"zhigh",&(x3high),
 		"i0",&(i0),
 		"j0",&(j0),
 		"cdefined",cdef,
@@ -255,21 +255,21 @@ GCLgrid::GCLgrid(Dbptr db,char *gridname)
 	{
 		elog_notify(0,"%s data type %s not allowed.  Currently only support t8\n",
 			base_message, datatype);
-		throw 1;
+		throw 2;
 	}
 	/* Get the file name to read the gclgrid data from.*/
 	if(dbextfile(dbgrd,"gclgdisk",filename) <=0)
 	{
 		elog_notify(0,"%s Cannot find grid file named %s in directory %s\n",
 			base_message,dfile,dir);
-		throw 1;
+		throw 2;
 	}
 	fp = fopen(filename,"r");
 	if(fp == NULL)
 	{
 		elog_notify(0,"%s file %s cannot be openned for read\n",
 			base_message,filename);
-		throw 1;
+		throw 2;
 	}
 	fseek(fp,foff,SEEK_SET);
 	/* We alloc all memory first before reading so we can call a 
@@ -287,38 +287,38 @@ GCLgrid::GCLgrid(Dbptr db,char *gridname)
 	{
 		elog_notify(0,"%s %s reading x1\n",
 			base_message,read_error);
-		throw 1;
+		throw 2;
 	}
 	if(fread(x2[0],sizeof(double),gridsize,fp) != gridsize)
 	{
 		elog_notify(0,"%s %s reading x2\n",
 			base_message,read_error);
-		throw 1;
+		throw 2;
 	}
 	if(fread(x3[0],sizeof(double),gridsize,fp) != gridsize)
 	{
 		elog_notify(0,"%s %s reading x3\n",
 			base_message,read_error);
-		throw 1;
+		throw 2;
 	}
 	if(fread(lat[0],sizeof(double),gridsize,fp) != gridsize)
 	{
 		elog_notify(0,"%s %s reading latitude\n",
 			base_message,read_error);
-		throw 1;
+		throw 2;
 	}
 	if(fread(lon[0],sizeof(double),gridsize,fp) != gridsize)
 	{
 		elog_notify(0,"%s %s reading longitude\n",
 			base_message,read_error);
-		throw 1;
+		throw 2;
 	}
 
 	if(fread(r[0],sizeof(double),gridsize,fp) != gridsize)
 	{
 		elog_notify(0,"%s %s reading radius\n",
 			base_message,read_error);
-		throw 1;
+		throw 2;
 	}
 }
 
@@ -338,12 +338,11 @@ Modified:  December 2002
 Converted to C++ with subsequent name change.  Little of the code
 changed.
 */
-void GCLgrid3d::dbsave(Dbptr db, char *dir)
+void GCLgrid3d::dbsave(Dbptr db, char *dir) throw(int)
 {
 	FILE *fp;
 	char *filename;
 	int fssize;
-	int errcount=0;
 	long int fpos;
 	int foff;
 	int gridsize;
@@ -355,7 +354,7 @@ void GCLgrid3d::dbsave(Dbptr db, char *dir)
 	if(db.record == dbINVALID)
 	{
 		elog_notify(0,"lookup failed for gclgdisk table.  Extension table probably not defined\n");
-		throw -1;
+		throw 1;
 	}
 	/*Save the data first so that in the event of a failure we don't 		have to patch the database afterwards. */
 	fssize = strlen(dir) + strlen(name) + 1;
@@ -369,7 +368,7 @@ void GCLgrid3d::dbsave(Dbptr db, char *dir)
 	{
 		elog_notify(0,"Cannot open output file %s\nNothing save\n",
 			filename);
-		throw -1;
+		throw 2;
 	}
 	fseek(fp,0,SEEK_END);
 	/* The use of the int cast is unnecessary on some machines,
@@ -381,32 +380,32 @@ void GCLgrid3d::dbsave(Dbptr db, char *dir)
 	if(fwrite(x1[0][0],sizeof(double),gridsize,fp) != gridsize)
 	{
 		elog_notify(0,fwerr,filename);
-		++errcount;
+		throw 2;
 	}
 	if(fwrite(x2[0][0],sizeof(double),gridsize,fp) != gridsize)
 	{
 		elog_notify(0,fwerr,filename);
-		++errcount;
+		throw 2;
 	}
 	if(fwrite(x3[0][0],sizeof(double),gridsize,fp) != gridsize)
 	{
 		elog_notify(0,fwerr,filename);
-		++errcount;
+		throw 2;
 	}
 	if(fwrite(lat[0][0],sizeof(double),gridsize,fp) != gridsize)
 	{
 		elog_notify(0,fwerr,filename);
-		++errcount;
+		throw 2;
 	}
 	if(fwrite(lon[0][0],sizeof(double),gridsize,fp) != gridsize)
 	{
 		elog_notify(0,fwerr,filename);
-		++errcount;
+		throw 2;
 	}
 	if(fwrite(r[0][0],sizeof(double),gridsize,fp) != gridsize)
 	{
 		elog_notify(0,fwerr,filename);
-		++errcount;
+		throw 2;
 	}
 	fclose(fp);
 	/* Now we write a row in the database for this grid.  Note
@@ -424,12 +423,12 @@ void GCLgrid3d::dbsave(Dbptr db, char *dir)
 		"n1",n1,
 		"n2",n2,
 		"n3",n3,
-		"xlow",xlow,
-		"xhigh",xhigh,
-		"ylow",ylow,
-		"yhigh",yhigh,
-		"zlow",zlow,
-		"zhigh",zhigh,
+		"xlow",x1low,
+		"xhigh",x1high,
+		"ylow",x2low,
+		"yhigh",x2high,
+		"zlow",x3low,
+		"zhigh",x3high,
 		"i0",i0,
 		"j0",j0,
 		"k0",k0,
@@ -442,18 +441,16 @@ void GCLgrid3d::dbsave(Dbptr db, char *dir)
 		0) < 0)
 	{
 		elog_notify(0,"dbaddv error for 3d grid into gclgdisk table\n");
-		throw -1;
+		throw 1;
 	}
 	free(filename);
-	if(errcount)throw errcount;
 }
 /* Parallel routine for 2d*/
-void GCLgrid::dbsave(Dbptr db, char *dir)
+void GCLgrid::dbsave(Dbptr db, char *dir) throw(int)
 {
 	FILE *fp;
 	char *filename;
 	int fssize;
-	int errcount=0;
 	long int fpos;
 	int foff;
 	int gridsize;
@@ -465,7 +462,7 @@ void GCLgrid::dbsave(Dbptr db, char *dir)
 	if(db.record == dbINVALID)
 	{
 		elog_notify(0,"lookup failed for gclgdisk table.  Extension table probably not defined\n");
-		throw -1;
+		throw 1;
 	}
 	/*Save the data first so that in the event of a failure we don't 		have to patch the database afterwards. */
 	fssize = strlen(dir) + strlen(name) + 1;
@@ -479,7 +476,7 @@ void GCLgrid::dbsave(Dbptr db, char *dir)
 	{
 		elog_notify(0,"Cannot open output file %s\nNothing save\n",
 			filename);
-		throw -1;
+		throw 2;
 	}
 	fseek(fp,0,SEEK_END);
 	/* The use of the int cast is unnecessary on some machines,
@@ -491,32 +488,32 @@ void GCLgrid::dbsave(Dbptr db, char *dir)
 	if(fwrite(x1[0],sizeof(double),gridsize,fp) != gridsize)
 	{
 		elog_notify(0,fwerr,filename);
-		++errcount;
+		throw 2;
 	}
 	if(fwrite(x2[0],sizeof(double),gridsize,fp) != gridsize)
 	{
 		elog_notify(0,fwerr,filename);
-		++errcount;
+		throw 2;
 	}
 	if(fwrite(x3[0],sizeof(double),gridsize,fp) != gridsize)
 	{
 		elog_notify(0,fwerr,filename);
-		++errcount;
+		throw 2;
 	}
 	if(fwrite(lat[0],sizeof(double),gridsize,fp) != gridsize)
 	{
 		elog_notify(0,fwerr,filename);
-		++errcount;
+		throw 2;
 	}
 	if(fwrite(lon[0],sizeof(double),gridsize,fp) != gridsize)
 	{
 		elog_notify(0,fwerr,filename);
-		++errcount;
+		throw 2;
 	}
 	if(fwrite(r[0],sizeof(double),gridsize,fp) != gridsize)
 	{
 		elog_notify(0,fwerr,filename);
-		++errcount;
+		throw 2;
 	}
 	fclose(fp);
 	/* Now we write a row in the database for this grid*/
@@ -531,12 +528,12 @@ void GCLgrid::dbsave(Dbptr db, char *dir)
 		"dx2nom",dx2_nom,
 		"n1",n1,
 		"n2",n2,
-		"xlow",xlow,
-		"xhigh",xhigh,
-		"ylow",ylow,
-		"yhigh",yhigh,
-		"zlow",zlow,
-		"zhigh",zhigh,
+		"xlow",x1low,
+		"xhigh",x1high,
+		"ylow",x2low,
+		"yhigh",x2high,
+		"zlow",x3low,
+		"zhigh",x3high,
 		"i0",i0,
 		"j0",j0,
 		"cdefined",cdef,
@@ -548,8 +545,7 @@ void GCLgrid::dbsave(Dbptr db, char *dir)
 		0) < 0)
 	{
 		elog_notify(0,"dbaddv error for 2d grid into gclgdisk table\n");
-		throw -1;
+		throw 1;
 	}
 	free(filename);
-	if(errcount) throw errcount;
 }
