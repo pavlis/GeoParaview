@@ -3,9 +3,6 @@ origin &Tbl{
 orid
 }
 }
-group_keys &Tbl{
-evid
-}
 save_by_row &Arr{
 arrival &Tbl{
 arid	int	arid

@@ -20,6 +20,7 @@ Written:  Octovber 2002
 #include "db.h"
 #include "elog.h"
 #include "pfstream.h"
+int PF2DBSVerbose;
 
 void usage()
 {
@@ -68,7 +69,7 @@ Arr *build_attribute_list(char *tag,Pf *pfi)
 	a = newarr(0);
 	/* silently return an empty list if the tag is not defined.
 	This allows loops to be driven cleanly by range of the arr*/
-	if(pfget(pfi,tag,"(void **)&pf) != PFARR) return(ta);
+	if(pfget(pfi,tag,(void **)&pf) != PFARR) return(ta);
 	table_list = pfkeys(pf);
 	for(i=0;i<maxtbl(t);++i)
 	{
@@ -83,10 +84,80 @@ Arr *build_attribute_list(char *tag,Pf *pfi)
 	}
 	return(a);
 }
-		
+/* adds one row to table pointed to by db using attributes stored in
+pf.  Names space mapping is defined by the list of Attribute_map
+pointers stored in the input list t.  The algorithm is an iterator
+on the list t.  First add a null row then fill in each attribute
+plucked from pf one by one using dbputv.  
 
+Note because of the use of dbaddnull there is no checking in the
+output db for matching primary keys.  The routine blindly assumes
+this will be ok.
+
+Normal return with all ok is 0.  Returns dbINVALID if nothing 
+could be appended to the table.  A positive number indicates the
+number of errors posted to the error log caused by one of two
+possible attribute mapping problems.  
+*/
+		
+int dbadd_row_pfe(Dbptr db, Pf *pf, Tbl *t)
+{
+	Attribute_map *m;
+	int i;
+	int record;
+	int put_errors=0;
+
+	record = dbaddnull(db);
+	if(record==dbINVALID)
+		return(dbINVALID);
+	db.record=record;
+
+	for(i=0;i<maxtbl(t);++i)
+	{
+		void **test;
+		int itest;
+		double dvalue;
+		int ivalue;
+		char *cvalue;
+
+		m = (Attribute_map *)gettbl(t,i);
+		itest=pfget(pf,m->pfname,test);
+		if(itest==NULL) 
+		{
+			if(PF2DBSVerbose)
+			  elog_notify(0,
+				"pfname=%s, dbname=%s, not in pfstream\n",
+				m->pfname,m->dbname);
+			++put_errors;
+			continue;
+		}
+		switch(m->type)
+		{
+		case DBREAL:
+			dvalue = pfget_double(pf,m->pfname);
+			itest=dbputv(db,0,m->dbname,dvalue,0);
+		case DBINT:
+			ivalue = pfget_int(pf,m->pfname);
+			itest=ibputv(db,0,m->dbname,ivalue,0);
+		case DBTIME:
+			dvalue = pfget_time(pf,m->pfname);
+			itest=dbputv(db,0,m->dbname,dvalue,0);
+		case DBSTR:
+		default:
+			cvalue = pfget_string(pf,m->pfname);
+			itest=dbputv(db,0,m->dbname,cvalue,0);
+		}
+		if(itest==dbINVALID)
+		{
+			++put_errors;
+			if(PF2DBSVerbose)
+			  elog_notify(0,"dbputv error for %s\n",
+				m->dbname);
+		}
+	}
+	return(put_errors);
 }
-int PF2DBSVerbose;
+
 main(int argc, char **argv)
 {
 	Dbptr db;
@@ -95,6 +166,8 @@ main(int argc, char **argv)
 	descriptions */
 	Tbl *save_by_row,*save_by_group,*save_by_ensemble;
 	Pf_ensemble *pfe;
+	int fd;
+	Tbl *table_list;
 	
 
 	PF2DBSVerbose=0;
@@ -148,8 +221,42 @@ main(int argc, char **argv)
 	while((pfi=pfstream_read(streamin))!=NULL)
 	{
 		int ii;
+		char *table;
+		Tbl *tam;  /* list of Attribute maps */
 
-		pfe = pfget_Pf_ensemble(pfi,"arrivals");
-		for(i=0,ii=0;i<pfe->nmembers;++i)
+		table_list = keysarr(save_by_ensemble);
+		for(i=0;i<maxtbl(table_list);++i)
 		{
-			
+			table = gettbl(table_list,i);
+			tam = (Tbl *)getarr(save_by_ensemble,table);
+			pfe = pfget_Pf_ensemble(pfi,table);
+			db = dblookup(db,0,table,0,0);
+			dbadd_row_pfe(db,pfe->pf[0],tam);
+		}
+		table_list = keysarr(save_by_group);
+		for(i=0;i<maxtbl(table_list);++i)
+		{
+			table = gettbl(table_list,i);
+			tam = (Tbl *)getarr(save_by_group,table);
+			pfe = pfget_Pf_ensemble(pfi,table);
+			db = dblookup(db,0,table,0,0);
+			for(j=0;j<pfe->ngroups;++j)
+			{
+				dbadd_row_pfe(db,pfe->pf[j],tam);
+			}
+		}
+		table_list = keysarr(save_by_row);
+		for(i=0;i<maxtbl(table_list);++i)
+		{
+			table = gettbl(table_list,i);
+			tam = (Tbl *)getarr(save_by_row,table);
+			pfe = pfget_Pf_ensemble(pfi,table);
+			db = dblookup(db,0,table,0,0);
+			for(j=0;j<pfe->nmembers;++j)
+			{
+				dbadd_row_pfe(db,pfe->pf[j],tam);
+			}
+		}
+	}
+}
+
