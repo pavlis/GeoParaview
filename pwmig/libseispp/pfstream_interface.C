@@ -20,7 +20,7 @@ using namespace std;
  * This is not very elegant, but appropriate for planned usage.
  */
 vector<Time_Series> *get_next_ensemble(Pfstream_handle *pfh, char *tag)
-		throw(string)
+		throw(seispp_error)
 {
 	Pf *pfin;
 	Pf_ensemble *pfe;
@@ -41,9 +41,11 @@ vector<Time_Series> *get_next_ensemble(Pfstream_handle *pfh, char *tag)
 	// We next parse the input pf encapsulated in a single
 	// set of curly brackets into an ensemble
 	pfe = pfget_Pf_ensemble(pfin,tag);
-	if(pfe==NULL) elog_die(0,
-		(char *)"get_next_ensemble:  input stream error\nParsing pf for name %s yielded nothing\n",
-			tag);
+	if(pfe==NULL)
+	{
+		pffree(pfin);
+		return(NULL);
+	}
 	// For this type of ensemble groups are meaningless.  Just 
 	// build a simple vector of the results and discard anything like
 	// that if present.  We build a vector of 
@@ -63,12 +65,6 @@ vector<Time_Series> *get_next_ensemble(Pfstream_handle *pfh, char *tag)
 		try{
 			ts->md.load_metadata((string)pfstr);
 			free(pfstr);
-		} 
-		catch(int ierr)
-		{
-			elog_die(0,(char *)"get_next_ensemble:  pfcompile error on input\nInput stream has been corrupted\n");
-		}
-		try {
 		// Name space here is frozen.  Not elegant, but a starter
 		// We are extracting required parameters placed into the 
 		// Time_Series object.  
@@ -102,9 +98,12 @@ vector<Time_Series> *get_next_ensemble(Pfstream_handle *pfh, char *tag)
 				}
 			}
 		} 
-		catch(int ierr_mdparse)
+		// This catches multiple metadata_error objects throw by
+		// load_metadata and get routines above
+		catch(Metadata_error mde)
 		{
-			elog_die(0,(char *)"get_next_ensemble:  error parsing required metadata\n");
+			mde.log_error();
+			elog_die(0,(char *)"get_next_ensemble:  fatal problem handling metadata\n");
 		}
 		// I do this here because of the try/catch block.
 		// I want the function to throw an exception that
@@ -119,7 +118,8 @@ vector<Time_Series> *get_next_ensemble(Pfstream_handle *pfh, char *tag)
 			if (foff>0)fseek(fp,(long)foff,SEEK_SET);
 			ts->s = new double[ts->ns];
 			if(fread((void *)(ts[i].s),sizeof(double),ts[i].ns,fp)
-					!= (ts[i].ns) ) throw(fname);
+					!= (ts[i].ns) ) 
+				throw(seispp_error("fread error on file "+fname);
 			fclose(fp);
 		}
 		tse->push_back(*ts);

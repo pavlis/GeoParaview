@@ -50,7 +50,8 @@ Metadata::~Metadata()
 {
 	pffree(pf);
 };
-Metadata::Metadata(const Metadata& md) throw(Metadata_parse_error)
+Metadata::Metadata(const Metadata& md)
+	throw(Metadata_parse_error)
 {
 	char *pfstr;  
 	int ierr;
@@ -81,7 +82,8 @@ Metadata& Metadata::operator=(const Metadata& md)
 //
 // These functions get and convert values
 //
-double Metadata::get_double(string s) throw(Metadata_get_error)
+double Metadata::get_double(string s)
+	throw(Metadata_get_error)
 {
 	void *result;
 	double val;
@@ -95,7 +97,8 @@ double Metadata::get_double(string s) throw(Metadata_get_error)
 	val = atof(char_val);
 	return(val);
 }
-int Metadata::get_int(string s)throw(Metadata_get_error)
+int Metadata::get_int(string s)
+	throw(Metadata_get_error)
 {
 	void *result;
 	int val;
@@ -108,7 +111,8 @@ int Metadata::get_int(string s)throw(Metadata_get_error)
 	val = atoi(char_val);
 	return(val);
 }
-string Metadata::get_string(string s) throw(Metadata_get_error)
+string Metadata::get_string(string s) 
+	throw(Metadata_get_error)
 {
 	void *result;
 	string val;
@@ -121,7 +125,8 @@ string Metadata::get_string(string s) throw(Metadata_get_error)
 	val = char_val; //= is overloaded for this case so is a simple assign
 	return(val);
 }
-bool Metadata::get_bool(string s)throw(Metadata_get_error)
+bool Metadata::get_bool(string s)
+	throw(Metadata_get_error)
 {
 	void *result;
 	int val;
@@ -136,7 +141,8 @@ bool Metadata::get_bool(string s)throw(Metadata_get_error)
 	else 
 		return(false);
 }
-Tbl *Metadata::get_list(string s)throw(Metadata_get_error)
+Tbl *Metadata::get_list(string s)
+	throw(Metadata_get_error)
 {
 	void *result;
 	int val;
@@ -148,7 +154,8 @@ Tbl *Metadata::get_list(string s)throw(Metadata_get_error)
 	t = pfget_tbl(pf,(char *)s.c_str());
 	return(t);
 }
-Arr *Metadata::get_map(string s)throw(Metadata_get_error)
+Arr *Metadata::get_map(string s)
+	throw(Metadata_get_error)
 {
 	void *result;
 	int val;
@@ -196,7 +203,8 @@ void Metadata::put_metadata(string name, bool val)
 	else
 		pfput_boolean(pf,(char *)name.c_str(),0);
 }
-void Metadata::load_metadata(string mdin) throw(Metadata_parse_error)
+void Metadata::load_metadata(string mdin) 
+	throw(Metadata_parse_error)
 {
 	int ierr;
 	// We might think this was needed:  if(pf!=NULL) pffree(pf);
@@ -209,7 +217,8 @@ void Metadata::load_metadata(string mdin) throw(Metadata_parse_error)
 	if(ierr!=0) throw Metadata_parse_error(ierr,"Failure in load_metadata");
 }
 // near dup of above done for convenience
-void Metadata::load_metadata(char *mdin)  throw(Metadata_parse_error)
+void Metadata::load_metadata(char *mdin) 
+	throw(Metadata_parse_error)
 {
 	int ierr;
 	// We might think this was needed:  if(pf!=NULL) pffree(pf);
@@ -227,7 +236,7 @@ void Metadata::load_metadata(char *mdin)  throw(Metadata_parse_error)
 
 void  copy_selected_metadata(Metadata& mdin, Metadata& mdout,
 		                list<Metadata_typedef>& mdlist)
-					throw(Metadata_error)
+	throw(Metadata_error)
 {
 	list<Metadata_typedef>::iterator i;
 	Metadata_typedef& mdti=*i;

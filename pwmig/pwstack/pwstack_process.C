@@ -99,6 +99,7 @@ int pwstack_ensemble(Three_Component_Ensemble& indata,
 	extract them once from the gather.*/
 	double *dnorth=new double[nsta];
 	double *deast=new double[nsta];
+	double *elev = new double[nsta]; // need elevations to compute geometric statics
 	for(i=0,iv=indata.tcse.begin();iv!=indata.tcse.end();++iv,++i)
 	{
 		double lat,lon;
@@ -110,6 +111,7 @@ int pwstack_ensemble(Three_Component_Ensemble& indata,
 			lat = rad(lat);
 			lon = rad(lon);
 			geographic_to_dne(lat0, lon0, lat, lon, dnorth+i, deast+i);
+			elev[i]=(*iv).x[0].md.get_double("elev");
 		} catch (Metadata_error merr)
 		{
 			throw merr;
@@ -155,6 +157,14 @@ int pwstack_ensemble(Three_Component_Ensemble& indata,
 	for(i=0;i<3;++i)stack[i]=new double[nsout];
 	double *stack_weight=new double[nsout];
 	double *twork=new double[nsout];
+
+	double avg_elev,sum_wgt;  // computed now as weighted sum of station elevations
+	for(i=0,avg_elev=0.0,sum_wgt=0.0;i<nsout;++i)
+	{
+		avg_elev += weights[i][0]*elev[i];
+		sum_wgt += weights[i][0];
+	}
+	avg_elev /= sum_wgt;
 
 	//
 	// Loop over slowness grid range storing results in new output ensemble
@@ -239,6 +249,14 @@ int pwstack_ensemble(Three_Component_Ensemble& indata,
 		// somewhere here we need to load metadata for the stack object.
 		// What needs to be loaded and how requires some thought.
 		// putting this aside to work on it in background
+		stackout->md.put_metadata("ux",ux);
+		stackout->md.put_metadata("uy",uy);
+		stackout->md.put_metadata("dux",dux);
+		stackout->md.put_metadata("duy",duy);
+		// may want to output a static here, but it is probably better to 
+		// just keep a good estimate of elevation and deal with this in the
+		// migration algorithm. 
+		stackout->md.put_metadata("elev",avg_elev);
 		for(j=0;j<3;++j) apply_top_mute(stackout->x[j],stackmute);
 
 		// place holder for now.  Dependent on final mpi design
@@ -254,8 +272,9 @@ int pwstack_ensemble(Three_Component_Ensemble& indata,
 	delete [] moveout;
 	delete [] stack_weight;
 	delete [] work;
-	delete []twork;
+	delete [] twork;
 	for(i=0;i<nsta;++i) delete[]stack[i];
+	delete [] elev;
 	return(0);
 }
 	

@@ -7,9 +7,9 @@
 #include "gclgrid.h"
 
 /*
- * Traces a ray and returns result in RayPathSphere object 
+ * Full constructor that traces a ray to yield a RayPathSphere object
  * for velocity model vmod and ray parameter u.  vmod is
- * assumed to have units of s/km and u is assumed to have
+ * assumed to have units of km/s and u is assumed to have
  * units of s/km.  Internally s/radians are used, but 
  * to use s/rad externally would be very confusing.
  * When mode=="z" aims for equal z intervals of size del.
@@ -38,9 +38,9 @@
  * tmax large.
  */
 
-RayPathSphere *Trace_Ray_Sphere(Velocity_Model& vmod,
+RayPathSphere::RayPathSphere(Velocity_Model& vmod,
 		double u, double zmax, double tmax,
-		double del, string mode)
+		double del, const string mode)
 {
 	list <double> ddlist;
 	list <double> dzlist;
@@ -95,7 +95,6 @@ RayPathSphere *Trace_Ray_Sphere(Velocity_Model& vmod,
 	// choose one to compute the size of the output vector
 	// Is +1 because this is segments versus points
 	npoints=ddlist.size()+1;
-	RayPathSphere *path=new RayPathSphere(npoints);
 	// Now we build the output structure by simple accumulation
 	// The lists will be delted on exit and provided a useful
 	// alternative to realloc.  Because this lists are parallel
@@ -103,19 +102,17 @@ RayPathSphere *Trace_Ray_Sphere(Velocity_Model& vmod,
 	// on the others.  This could have been done with a list of a
 	// temporary structure, but that's a judgment call on memory
 	// use versus clarity.
-	path->r[0]=R0;
-	path->t[0]=0.0;
-	path->delta[0]=0.0;
+	npts = npoints;
+	r[0]=R0;
+	t[0]=0.0;
+	delta[0]=0.0;
 	for(i=1,it=dtlist.begin(),id=ddlist.begin(),iz=dzlist.begin();
 			it!=dtlist.end();++it,++id,++iz,++i) 
 	{
-		path->r[i]=path->r[i-1] - (*iz);
-		path->t[i]=path->t[i-1] + (*it);
-		path->delta[i]=path->delta[i-1] + (*id);
+		r[i]=r[i-1] - (*iz);
+		t[i]=t[i-1] + (*it);
+		delta[i]=delta[i-1] + (*id);
 	}
-	// Don't need to set path->npts assuming constructor set it
-	
-	return(path);
 }
 /*  This function takes an input of a ray path in spherical coordinates
  *  defined by a RayPathSphere object.  This is assumed to be spherical
@@ -136,7 +133,6 @@ RayPathSphere *Trace_Ray_Sphere(Velocity_Model& vmod,
  *
  *  Author:  Gary L. Pavlis
 */
-/*
 dmatrix GCLgrid_Ray_gtoc(GCLgrid& grid, RayPathSphere& path)
 {
 	dmatrix pathout(3,path.npts);  // the output object
@@ -149,7 +145,7 @@ dmatrix GCLgrid_Ray_gtoc(GCLgrid& grid, RayPathSphere& path)
 	for(int i=0;i<path.npts;++i)
 	{
 		double lat,lon;
-		latlon(grid.lat0,grid.lon0,path.r[i],azimuth,&lat,&lon);
+		latlon(grid.lat0,grid.lon0,path.delta[i],azimuth,&lat,&lon);
 		this_point = grid.gtoc(lat,lon,r[i]);
 		pathout(0,i)=this_point.x1;
 		pathout(1,i)=this_point.x2;
@@ -158,4 +154,3 @@ dmatrix GCLgrid_Ray_gtoc(GCLgrid& grid, RayPathSphere& path)
 	return(pathout);
 }
 
-*/

@@ -4,7 +4,6 @@
 #include "metadata.h"
 #include "pfstream.h"
 
-
 enum Time_Reference_Type {absolute,relative};
 class Time_Series
 {
@@ -120,6 +119,7 @@ class seispp_error
 {
 public:
 	string message;
+	seispp_error(const string mess){message=mess};);
 	virtual void log_error(){cerr << "seispp error: "<<message<<endl;};
 };
 
@@ -133,7 +133,49 @@ public:
 		cerr<<"Error message = "<<message;
 	}
 };
-
+// Warning the following names collide with location.h
+class Slowness_vector
+{
+public:
+	double ux,uy;   // base vector stored as components in s/km units
+	double mag(){return(hypot(ux,uy);};
+	double azimuth(){
+		double phi;
+		phi=M_PI_2-atan2(uy,ux);
+		if(phi>M_PI)
+			return(phi-2.0*M_PI);
+		else
+			return(phi);
+	};
+	double baz(){
+		double phi;
+		phi = M_PI_2-atan2(-uy,-ux);
+		if(phi>M_PI)
+			return(phi-2.0*M_PI);
+		else
+			return(phi);
+	};
+};
+// An assignment operator is not necessary for this object as it
+//stands since it is constructed of simple types.
+class Hypocenter
+{
+public:
+	double lat,lon,z;
+	double time;
+	Hypocenter(){method=strdup("tttaup"); model=strdup("iasp91"););  // default
+	double distance(double lat0, double lon0);
+	double esaz(double lat0, double lon0);
+	double seaz(double lat0, double lon0);
+	double ptime(double lat0, double lon0, double elev);
+	Slowness_vector pslow(double lat0, double lon0, double elev);
+	double phasetime(double lat0, lon0, double elev, string phase);
+	Slowness_vector phaseslow(double lat0, double lon0, double elev, string phase);
+	void tt_setup(string meth, string mod); // change default method:model
+private:
+	char *method;
+	char *model;
+};
 //
 //Helpers
 //
