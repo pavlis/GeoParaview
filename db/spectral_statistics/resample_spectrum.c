@@ -6,6 +6,13 @@ spectrum.  Note we also free the old s.spec before doing this.
 
 Author:  Gary Pavlis
 Written: Nov 1994
+Revised:  October 2001
+Major enhancement.  Earlier version was very limited.  This one
+should handle all variants correctly.  freq0 and nfreq are 
+adjusted as required to match overlapping area to be resampled.
+That is, the pattern and s spectra can overlap in a variety of
+ways.  The result is returned with the overlap area only set.
+This varies nfreq and freq0.
 */
 
 #include <malloc.h>
@@ -22,7 +29,10 @@ Spectrum s,pattern;
 	int navg;  /* 2*navg2 + 1 */
 	
 	int i,j,is,k;
-	double freq;
+	double freq,freq0;
+
+	/* Do nothing when df matches */
+	if(s.df == pattern.df) return(s);
 
 	work = (float *) calloc(pattern.nfreq,sizeof(float));
 	if(work == NULL)
@@ -34,17 +44,45 @@ Spectrum s,pattern;
 
 	if(s.df > pattern.df)
 	{
-		fprintf(stderr,"Upsampling not implemented\n");
-		exit(-1);
-	}
-	else if(s.df == pattern.df)
-	{
-		free(work);
-		return(s);
+	/* This is block for interpolation.  Uses a 
+	simple linear interpolation between points */
+		if(pattern.freq0<s.freq0)
+		{
+			freq0=s.freq0;
+			fprintf(stderr,"Warning(resample_spectrum:  First frequency mismatch:  pattern freq0=%lf is less than requested %lf\nUsing freq0=%lf\n",
+				pattern.freq0,s.freq0,s.freq0);
+		}
+		else
+		{
+			freq0=pattern.freq0;
+		}
+		for(i=0,freq=freq0;i<pattern.nfreq;
+				++i,freq+=pattern.df)
+		{
+			float grad,freq_grid;
+			is=(int)((freq-s.freq0)/s.df);
+			if((is+1)>=s.nfreq)break;
+			grad = (s.spec[is+1]-s.spec[is])/s.df;
+			freq_grid = s.freq0+((double)is)*s.df;
+			work[i] = s.spec[is]
+				+ grad*(freq-freq_grid);
+		}
+		s.freq0=freq0;
+		s.nfreq=i;
 	}
 	else
 	{
 	/* this is block for decimation */
+		if(pattern.freq0<s.freq0)
+		{
+			freq0=s.freq0;
+			fprintf(stderr,"Warning(resample_spectrum:  First frequency mismatch:  pattern freq0=%lf is less than requested %lf\nUsing freq0=%lf\n",
+				pattern.freq0,s.freq0,s.freq0);
+		}
+		else
+		{
+			freq0=pattern.freq0;
+		}
 		navg2 = nint ( (pattern.df)/(s.df));
 		navg2 /= 2;
 		navg = 2*navg2 + 1;
@@ -55,11 +93,11 @@ Spectrum s,pattern;
 				navg,s.nfreq);
 			exit(-1);
 		}
-
-		for(i=0;i<pattern.nfreq;++i)
+		for(i=0,freq=freq0;i<pattern.nfreq;
+				++i,freq+=pattern.df)
 		{
-			freq = (pattern.df)*((double)i);
-			is = nint(freq/s.df);
+			is = nint((freq-s.freq0)/s.df);
+			if(is>=s.nfreq) break;
 			if(is<navg2)
 				is = 0;
 			else if( (is+navg2) >= s.nfreq)
@@ -70,13 +108,11 @@ Spectrum s,pattern;
 			for(j=is,k=0;k<navg;++j,++k) work[i] += s.spec[j];
 			work[i] /= navg; 
 		}
+		s.freq0=freq0;
+		s.nfreq = i;
 	}
-	free(s.spec);
-	s.nfreq = pattern.nfreq;
 	s.df = pattern.df;
+	free(s.spec);
 	s.spec = work;
 	return(s);
 }
-	
-			
-
