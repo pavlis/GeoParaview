@@ -34,6 +34,7 @@ int dpinv_solver(int m, int n,
 {
 	int i,j;  /* counters*/
 	int nsvused;  /* number of nonzero singular values used in solution*/
+	int nsize;
 	double sv_cutoff, smax;
 	double *work;  /* work space */
 
@@ -45,11 +46,12 @@ int dpinv_solver(int m, int n,
 	scale factor.*/
 	smax = s[0];
 	sv_cutoff = smax*rsvc;
+	nsize = MIN(m,n);
 
 
 	/* multiply by S-1 * UT */
 	nsvused = 0;
-	for(j=0;j<n;++j)
+	for(j=0;j<nsize;++j)
 	{
 		if(s[j]<sv_cutoff)break;
 		/* dgesvd stores left singular vectors in fortran columns */
