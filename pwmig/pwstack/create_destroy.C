@@ -6,8 +6,8 @@ Rectangular_Slowness_Grid::Rectangular_Slowness_Grid(Pf *pf)
 	name = pfget_string(pf,(char *)"slowness_grid_name");
 	uxlow = pfget_double(pf,(char *)"uxlow");
 	uylow = pfget_double(pf,(char *)"uylow");
-	nux = pfget_double(pf,(char *)"number_ux");
-	nuy = pfget_double(pf,(char *)"number_uy");
+	nux = pfget_int(pf,(char *)"number_ux");
+	nuy = pfget_int(pf,(char *)"number_uy");
 }
 Top_Mute::Top_Mute(Pf *pf)
 {

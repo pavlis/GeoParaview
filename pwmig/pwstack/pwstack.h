@@ -34,3 +34,17 @@ int compute_pseudostation_weights(int nsta, double *dnorth, double *deast,
                 double aperture, double cutoff, double *w);
 void compute_moveout(int nsta,double *deast, double *dnorth,
                 double ux, double uy, double *moveout);
+int pwstack_ensemble(Three_Component_Ensemble& indata,
+	Rectangular_Slowness_Grid& ugrid,
+	Top_Mute& mute,
+	Top_Mute& stackmute,
+	double lat0,
+	double lon0,
+	double ux0,
+	double uy0,
+	double tstart,
+	double tend,
+	Depth_Dependent_Aperture& aperture,
+	list<Metadata_typedef>& mdlist,
+	string dir,
+	Pfstream_handle *pfsho) throw (Metadata_error);

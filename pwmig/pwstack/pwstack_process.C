@@ -1,6 +1,9 @@
-#include <sunmath.h>
-#include <perf.h>
+#include <math.h>
+#include <cstdio>
+#include <vector>
+#include "perf.h"
 #include "coords.h"
+#include "seispp.h"
 #include "pwstack.h"
 
 void dzero(int n, double *d, int inc)
@@ -49,12 +52,21 @@ Arguments
 		(see above)
 	mdlist - defines metadata to copy from the raw data
 		ensemble to each stack output
+	dir - directory to write output data into.  Assumed to 
+		exist (caller should make sure of this).  Output
+		file names are generated internally and if there
+		is a collision they are simply appended to.  
 	pfsho - output stream handle.  Data are pushed to 
 		this routine for output.
 
 Normal return is 0.  Returns nonzero if stack was null.
 (This is not an exception as it will happen outside the boundaries 
 of an array and this case needs to be handled cleanly.
+
+Throws a Metadata_error exception object if there are problems
+parsing required metadata from any trace.  Current caller will
+abort the program on this condition, but evolution might want
+to produce a handler.
 */
 int pwstack_ensemble(Three_Component_Ensemble& indata,
 	Rectangular_Slowness_Grid& ugrid,
@@ -68,11 +80,12 @@ int pwstack_ensemble(Three_Component_Ensemble& indata,
 	double tend,
 	Depth_Dependent_Aperture& aperture,
 	list<Metadata_typedef>& mdlist,
-	Pfstream_handle *pfsho)
+	string dir,
+	Pfstream_handle *pfsho) throw (Metadata_error)
 {
 	int i,j;
 	vector<Three_Component_Seismogram>::iterator iv,ov;
-	int nsta = indata.nsta;   // used so much having this alias is useful
+	int nsta = indata.tcse.size();
 	// This computes the output gather size.  It assumes all data have
 	// a common sample rate and we can just grab the first one in the
 	// list.  It also quietly assumes a relative time base 
@@ -90,13 +103,15 @@ int pwstack_ensemble(Three_Component_Ensemble& indata,
 	int nsout = iend-istart+1;
 	int ismute = nint(mute.t1/dt);
 	int ismute_this, ie_this;
+	string tag="PWstack_output";  // for now this output tag is frozen as this constant
+	const string base_fname="PWSTACK";
 
 	if(istart>=indata.tcse[0].ns)
 		elog_die(0,(char *)"Irreconcilable window request:  Requested stack time window = %lf to %lf\nThis is outside range of input data\n",
 			tstart,tend);
 
 	/* Apply front end mutes to all traces */
-	apply_top_mute_3c_ensemble(indata,mute);
+	apply_top_mute(indata,mute);
 
 	/* We need dnorth, deast vectors to compute moveout sensibly
 	for this program.  Since we use them repeatedly we will
@@ -181,6 +196,8 @@ int pwstack_ensemble(Three_Component_Ensemble& indata,
 		double ux,uy,dux,duy;
 		int iend_this;
 		int ismin;
+		string dfile;
+		char buffer[128];
 
 		for(i=0;i<3;++i) dzero(nsout,stack[i],1);
 		dzero(nsout,stack_weight,1);
@@ -200,7 +217,7 @@ int pwstack_ensemble(Three_Component_Ensemble& indata,
 			iv<indata.tcse.end();++iv,++i)
 		{
 			int is0, is, ismin, ns_to_copy; 
-			is0 = istart + moveout[i];
+			is0 = istart + nint( moveout[i]);
 			// need this to define latest front mute time
 			ismute_this = max(ismute+nint(moveout[i]),ismute_this);
 			// This computes starting position for the input trace  
@@ -259,10 +276,15 @@ int pwstack_ensemble(Three_Component_Ensemble& indata,
 		stackout->md.put_metadata("elev",avg_elev);
 		for(j=0;j<3;++j) apply_top_mute(stackout->x[j],stackmute);
 
-		// place holder for now.  Dependent on final mpi design
-		// concept is that each stack is pushed to output stream as
-		// individual 3component trace objects.
-		save_stack(stackout,pfsho);
+		// save the results.  If the write function here fails we have to die
+		sprintf(buffer,"%s_%d_%d",base_fname.c_str(),i,j);
+		dfile=buffer;
+		try{pfstream_save_3cseis(stackout,tag,dir,dfile,pfsho);}
+		catch(seispp_error err)
+		{
+			err.log_error();
+			elog_die(0,"Aborting due to write failures\n");
+		}
 	    }
 	}
 	for(i=0;i<nsta;++i) delete [] weights[i];

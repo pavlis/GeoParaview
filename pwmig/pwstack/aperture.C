@@ -24,19 +24,19 @@ using namespace std;
 Depth_Dependent_Aperture::Depth_Dependent_Aperture(Pf *pf,string tag)
 		throw (string)
 {
-	Tbl *t;
+	Tbl *tlist;
 
-	t = pfget_tbl(pf,(char *)tag.c_str());
-	if(t==NULL) throw "Aperture definition missing from parameter file";
-	npoints = maxtbl(t);
+	tlist = pfget_tbl(pf,(char *)tag.c_str());
+	if(tlist==NULL) throw "Aperture definition missing from parameter file";
+	npoints = maxtbl(tlist);
 	t=new double[npoints];
 	aperture=new double[npoints];
 	cutoff=new double[npoints];
 
-	for(int i=0;i<maxtbl(t);++i)
+	for(int i=0;i<maxtbl(tlist);++i)
 	{
 		char *tline;
-		tline = (char *)gettbl(t,i);
+		tline = (char *)gettbl(tlist,i);
 		istrstream instr(tline);
 		instr >> t[i];
 		instr >> aperture[i];

@@ -11,7 +11,7 @@
 
 void usage()
 {
-        cbanner((char *)"$Revision: 1.4 $ $Date: 2003/06/01 16:47:57 $",
+        cbanner((char *)"$Revision: 1.5 $ $Date: 2003/07/05 14:37:41 $",
 		(char *)"pfstreamin pfstreamout [-V -pf pfname]",
                 (char *)"Gary Pavlis",
                 (char *)"Indiana University",
@@ -28,6 +28,8 @@ int main(int argc, char **argv)
 	Pf *pf;
 	Pf *pfnext;
 	Pfstream_handle *pfshi, *pfsho;
+	char *ensemble_tag;
+	char *dir;
 
 	// This is the input data ensemble
 	Three_Component_Ensemble *din;
@@ -76,38 +78,64 @@ int main(int argc, char **argv)
 	Top_Mute mute(pf);
 	Top_Mute stackmute(pf);
 	double ts,te;
-	ts = pfget_double(pf,"stack_time_start");
-	te = pfget_double(pf,"stack_time_end");
-	try{ 
-		Depth_Dependent_Apeture(pf,aperture_tag);
-	} catch (string serr)
-	{
-		elog_die(0,"pf error:  %s\n",serr.c_str());
-	}
-	list<Metadata_typedef> *mdlptr;
-	mdlptr=pfget_mdlist(pf,mdlist_tag);
-	list<Metadata_typedef> mdlist& = *mdlptr;
+	ts = pfget_double(pf,(char *)"stack_time_start");
+	te = pfget_double(pf,(char *)"stack_time_end");
+	ensemble_tag = pfget_string(pf,"pfensemble_tag");
+	if(ensemble_tag==NULL)
+		elog_die(0,"Missing required parameter pfensemble_tag\n");
+	// This constructor can throw an exception we will intentionally
+	// ignore.  An uncaught exception will abort the program anyway
+	//
+	Depth_Dependent_Aperture aperture(pf,aperture_tag);
+	list<Metadata_typedef> mdlist;
+	mdlist=pfget_mdlist(pf,mdlist_tag);
+	dir = pfget_string(pf,"waveform_directory");
+	if(dir==NULL)
+		dir=strdup("./pwstack");
+	if(makedir(dir))
+		elog_die(0,"Cannot create directory %s\n",dir);
+	
 
 	// Start up reader and writer
 	pfshi = pfstream_start_read_thread(pfstreamin);
 	pfsho = pfstream_start_write_thread(pfstreamout);
+	// this is the object that holds the primary processing input here
+	Three_Component_Ensemble *indata_ptr;
+	Three_Component_Ensemble& indata=*indata_ptr; //stardard use of reference
 
+	try{
+	    while( (indata_ptr = get_next_3c_ensemble(pfshi,ensemble_tag,mdlist))
+		!=NULL)
+	    {
+		double lat0,lon0,ux0,uy0;
+		int iret;
+		lat0=indata.md.get_double("lat0");
+		lon0=indata.md.get_double("lon0");
+		ux0=indata.md.get_double("ux0");
+		uy0=indata.md.get_double("uy0");
+		iret = pwstack_ensemble(indata,
+			ugrid,
+			mute,
+			stackmute,
+			lat0,
+			lon0,
+			ux0,
+			uy0,
+			ts,
+			te,
+			aperture,
+			mdlist,
+			dir,
+			pfsho);
+		if(iret)
 
-	while ( (pfnext = pfstream_get_next_ensemble(pfshi))!=NULL)
-	{
-		Three_Component_Ensemble *indata_ptr;
-		indata_ptr = pfstream_load_3censemble(pfnext);
-		Three_Component_Ensemble& indata=*indata_ptr;
-		// may need to crack the data object here with something like
-		//din = build_input_ensemble(pfnext);
-		pffree(pfnext);
-
-		//dout = pwstack_ensemble(din, pf);
 		// We can release the input data now
-		//delete din;
-		// save output ensemble here 
-		//delete dout;
+		delete indata_ptr;
+	    }
+	} catch (seispp_error err)
+	{
+		err.log_error();
+		elog_die(0,"Fatal processing error:  cannot fix exception\n");
 	}
-	// Residual cleanup here
 }	
 

@@ -3,7 +3,7 @@ PF=pwstack.pf
 
 #MAN1=pwstack.1
 cflags=-g
-ldflags=$(DBLIBS)
+ldflags=$(DBLIBS) -lglputil -lpfstream -lseispp
 
 include $(ANTELOPEMAKE) 
 OBJS=pwstack.o \
