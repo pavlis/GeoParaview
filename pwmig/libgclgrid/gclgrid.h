@@ -105,3 +105,5 @@ int map_full_grid(GCL3Dgrid *,double ****,GCL3Dgrid *,double ****,
 	int, int ***);
 void GCL3D_grid_stack(double ***, double ***, int ***, int ***,
 	int, int, int);
+double r0_ellipse(double);
+double r_to_depth(double, double);
