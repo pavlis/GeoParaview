@@ -47,7 +47,7 @@ int copy_path(dmatrix& ray,GCLgrid3d& raygrid,int i, int j)
 		dx1=ray(0,path_length-1)-ray(0,path_length-2);
 		dx2=ray(1,path_length-1)-ray(1,path_length-2);
 		dx3=ray(2,path_length-1)-ray(2,path_length-2);
-		for(kk=raygrid.n3-path_length;kk>0;--k)
+		for(kk=raygrid.n3-path_length;kk>0;--kk)
 		{
 			raygrid.x1[i][j][kk]=raygrid.x1[i][j][kk-1]+dx1;
 			raygrid.x2[i][j][kk]=raygrid.x2[i][j][kk-1]+dx2;
@@ -157,6 +157,8 @@ GCLgrid3d *Build_GCLraygrid(bool fixed_u_mode,
 			    {
 				Slowness_vector uij=h.pslow(parent.lat(i,j),
 					parent.lon(i,j),0.0);
+				umag=uij.mag();
+				theta=uij.baz();
 				RayPathSphere ray(vmod, uij.mag(), zmax, tmax, dt, "t");
 				path = GCLgrid_Ray_project(parent,ray, 
 					theta, i,j);
