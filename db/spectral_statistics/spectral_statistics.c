@@ -248,7 +248,7 @@ char **argv;
 		else if(nmatches>1)
 		{
 			elog_notify(0,"Warning:  %d matches in noise list for sta:chan:orid=%s:%s:%d\nUsing first one found\n",
-				sr.sta,sr.chan,orid);
+				nmatches,sr.sta,sr.chan,orid);
 		}
 		
 		dbwork = copy_dbptr(dbnoise);
