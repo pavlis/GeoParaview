@@ -1,5 +1,13 @@
+#include <iostream.h>
+#include <string>
+using namespace std;
+#include "stock.h"
 #include "pf.h"
 #include "metadata.h"
+//
+// needed until antelope 4.5
+//
+Pf *pfdup(Pf*);
 //
 // This file is used to create a shared object library.  This 
 // approach may not be universally applicable, but it is known to work
@@ -10,7 +18,7 @@
 static Pf *Metadata_defaults_pf;
 void _init()
 {
-	char *mddname="metadata_defaults";
+	char *mddname=(char *)"metadata_defaults";
 	char *name_from_env;
 	char *name;
 	int ierr;
@@ -25,7 +33,7 @@ void _init()
 	ierr = pfread(name,&Metadata_defaults_pf);
 	if(ierr)
 	{
-		cerr << "Metadata_default initialization failed\npfread failed for << name <<".pf\n";
+		cerr << "Metadata_default initialization failed\npfread failed for" << name <<".pf\n";
 		exit(-1);
 	}
 }
@@ -44,6 +52,7 @@ Metadata::~Metadata()
 Metadata::Metadata(const Metadata& md)
 {
 	char *pfstr;  
+	int ierr;
 
 	// This approach uses the default as a template then compiles
 	// the contents of md.pf on top of the defaults.  This is the
@@ -68,108 +77,116 @@ Metadata& Metadata::operator=(const Metadata& md)
 //
 // These functions get and convert values
 //
-double get_metadata_by_name(string s)
+double Metadata::get_double(string s) throw(int)
 {
 	void *result;
 	double val;
 	int pftype_return;
 	char *char_val;
 
-	pftype_return = pfget(pf,s.c_str(),&result);
+	pftype_return = pfget(pf,(char *)s.c_str(),&result);
 	if(pftype_return != PFSTRING) throw pftype_return;
-	char_val=pfget_string(pf,s.c_str());
-	val = atof(s.c_str());
+	char_val=pfget_string(pf,(char *)s.c_str());
+	val = atof(char_val);
 	return(val);
 }
-int get_metadata_by_name(string s)
+int Metadata::get_int(string s)throw(int)
 {
 	void *result;
 	int val;
 	int pftype_return;
 	char *char_val;
-
-	pftype_return = pfget(pf,s.c_str(),&result);
+	pftype_return = pfget(pf,(char *)s.c_str(),&result);
 	if(pftype_return != PFSTRING) throw pftype_return;
-	char_val=pfget_string(pf,s.c_str());
-	val = atoi(s.c_str());
+	char_val=pfget_string(pf,(char *)s.c_str());
+	val = atoi(char_val);
 	return(val);
 }
-string get_metadata_by_name(string s)
+string Metadata::get_string(string s)throw(int)
 {
 	void *result;
 	string val;
 	int pftype_return;
 	char *char_val;
-
-	pftype_return = pfget(pf,s.c_str(),&result);
+	pftype_return = pfget(pf,(char *)s.c_str(),&result);
 	if(pftype_return != PFSTRING) throw pftype_return;
-	char_val=pfget_string(pf,s.c_str());
+	char_val=pfget_string(pf,(char *)s.c_str());
 	val = char_val; //= is overloaded for this case so is a simple assign
 	return(val);
 }
-bool get_metadata_by_name(string s)
+bool Metadata::get_bool(string s)throw(int)
 {
 	void *result;
 	int val;
 	int pftype_return;
-
 	//
 	// Boolean will default to false if not found in the pf
 	// this is consistent with documentation and is rational behaviour
 	//
-	val = pfget_boolean(pf,s.c_str());
+	val = pfget_boolean(pf,(char *)s.c_str());
 	if(val) 
 		return(true);
 	else 
 		return(false);
 }
-Tbl *get_metadata_by_name(string s)
+Tbl *Metadata::get_list(string s)throw(int)
 {
 	void *result;
 	int val;
 	int pftype_return;
 	Tbl *t;
-
-	pftype_return = pfget(pf,s.c_str(),&result);
-	if(pftype_return != PFTBL) thrwo pftype_return;
-	t = pfget_tbl(pf,s.c_str());
+	pftype_return = pfget(pf,(char *)s.c_str(),&result);
+	if(pftype_return != PFTBL) throw pftype_return;
+	t = pfget_tbl(pf,(char *)s.c_str());
 	return(t);
+}
+Arr *Metadata::get_map(string s)throw(int)
+{
+	void *result;
+	int val;
+	int pftype_return;
+	Arr *a;
+	pftype_return = pfget(pf,(char *)s.c_str(),&result);
+	if(pftype_return != PFARR) throw pftype_return;
+	a = pfget_arr(pf,(char *)s.c_str());
+	return(a);
 }
 
 //
 // Functions to put things into metadata object
 //
-void put_metadata_by_name(string name, double val)
+void Metadata::put_metadata(string name, double val)
 {
-	pfput_double(pf,name.c_str(),val);
+	pfput_double(pf,(char *)name.c_str(),val);
 }
-void put_metadata_by_name(string name, int val)
+void Metadata::put_metadata(string name, int val)
 {
-	pfput_int(pf,name.c_str(),val);
+	pfput_int(pf,(char *)name.c_str(),val);
 }
-void put_metadata_by_name(string name, string val)
+void Metadata::put_metadata(string name, string val)
 {
-	pfput_string(pf,name.c_str(),val.c_str());
+	pfput_string(pf,(char *)name.c_str(),(char *)val.c_str());
 }
 // for C style strings, we should not depend on the compiler
-void put_metadata_by_name(string name, char *val)
+void Metadata::put_metadata(string name, char *val)
 {
-	pfput_string(pf,name.c_str(),val);
+	pfput_string(pf,(char *)name.c_str(),val);
 }
-void put_metadata_by_name(string name, bool val)
+void Metadata::put_metadata(string name, bool val)
 {
 	if(val)
-		pfput_boolean(pf,name.c_str(),1);
+		pfput_boolean(pf,(char *)name.c_str(),1);
 	else
-		pfput_boolean(pf,name.c_str(),0);
+		pfput_boolean(pf,(char *)name.c_str(),0);
 }
-void load_metadata(string mdin)
+void Metadata::load_metadata(string mdin) throw(int)
 {
+	int ierr;
 	// We might think this was needed:  if(pf!=NULL) pffree(pf);
 	// it is not because pfcompile checks for *pf==NULL and
 	// assumes it is valid and to be updated if nonzero.
 	// This is a handy way to deal with defaults
-	ierr = pfcompile(mdin.c_str(),&pf);
+	ierr = pfcompile((char *)mdin.c_str(),&pf);
 	if(ierr!=0) throw ierr;
 }
 //
@@ -179,7 +196,7 @@ void load_metadata(string mdin)
 void get_metadata_error_handler(string name, int ecode)
 {
 	string base_message="get_metadata_by_name:  type conflict for parameter name=";
-	switch ecode
+	switch (ecode)
 	{
 	case PFFILE:
 		cerr << base_message << name << "\nParsed as a pffile\n";
@@ -199,6 +216,6 @@ void get_metadata_error_handler(string name, int ecode)
 }
 void load_metadata_error_handler(int ecode)
 {
-	elog_notify(0,"pfcompile failed in load_metadata\nWill continue but metadata may be incomplete\n");
+	elog_notify(0,(char *)"pfcompile failed in load_metadata\nWill continue but metadata may be incomplete\n");
 }
 
