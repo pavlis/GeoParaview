@@ -1,4 +1,4 @@
-.TH DB2PFSTREAM 1 "$Date: 2002/10/02 14:43:16 $"
+.TH DB2PFSTREAM 1 "$Date: 2002/11/12 04:09:12 $"
 .SH NAME
 db2pfstream - build database view and send metadata as a pfstream
 .SH SYNOPSIS
@@ -8,7 +8,7 @@ db2pfstream  db file [-n -V -v -pf pffile -sift expression]
 .SH DESCRIPTION
 .LP
 db2pfstream is a generalized input function for a processing system
-based on a concept of a pfstream.  A pfstream is a encapsulated 
+based on a concept of a pfstream.  A pfstream is an encapsulated 
 pieces of metadata data that could be attached to an arbitrary 
 data object to define it.  This program is designed to build a 
 (potentially long) stream of these pf blocks and feed the results
@@ -43,13 +43,45 @@ stream is being driven by a scripting language to do something
 like event based processing one event at a time or for manually
 spitting up flow between banks of processors.  
 .SH FILES
-#
-# Describe input and output files (but not down to bits).
-#
-.SH ENVIRONMENT
-#
-# Describe any special environment variables
-#
+.LP
+Here is an example pfstream output file with 5 rows and 2 attributes
+(columns).  This example has no grouping defined.
+.nf
+example &Arr{
+    ensemble    &Arr{
+        00000   &Arr{
+            arid        2378
+            orid        316
+        }
+        00001   &Arr{
+            arid        2379
+            orid        316
+        }
+        00002   &Arr{
+            arid        2380
+            orid        316
+        }
+        00003   &Arr{
+            arid        2381
+            orid        316
+        }
+        00004   &Arr{
+            arid        2382
+            orid        316
+        }
+        00005   &Arr{
+            arid        2383
+            orid        316
+        }
+    }
+    ensemble_keys       &Tbl{
+        gridid
+    }
+}
+__EOF__
+__EOI__
+
+.fi
 .SH PARAMETER FILE
 .LP
 \fIdbprocess_list\fR is a Tbl list that is passed directly to dbprocess
@@ -71,7 +103,7 @@ ensemble &Arr{
    ... 
 }  
 .fi
-This format is described in more detail under FILES below.
+(see example above)
 When \fIensemble_mode\fR is true this program searchs for 
 two lists called 
 \fIensemble_keys\fR and \fIgrouping_keys\fR. 
@@ -88,49 +120,33 @@ A typical example of this might be an ensemble of
 three-component seismograms with the gather defining
 the ensemble and the grouping defining the collections of
 three-components for each station.  
-.SH EXAMPLE
-#
-# This section should contain an example that the user can follow
-# verbatim.  For a command, this should show a sample command line and output.
-# Use the same fonts as in \fBSYNOPSIS\fR. What the user types in should
-# be bold, and program response or output should be roman. All commands 
-# should be preceded by a representative UNIX prompt.
-#
-# For a library, you might show an example program (This is usually only 
-# done for more complex routines or packages.)
-#
-.ft CW
-.in 2c
-.nf
-.fi
-.in
-.ft R
-.SH RETURN VALUES
-#
-# Describe the return values for each subroutine or command.  The usual
-# is to return 0 for normal execution and something else for errors.
-#
-.SH LIBRARY
-#
-# Indicate the libraries which need to be linked in (for library routines only)
-# in the form of the ldlibs Makefile line, eg "-ldb -lstock -lm"
-#
-.SH ATTRIBUTES
-MT-Safe ?
-.SH DIAGNOSTICS
-#
-# Describe error messages and give cautionary advice.
+.LP
+\fIvirtual_table_name\fR is the tag assigned to the outer block
+defining an ensemble.  That is, multiple ensembles with 
+different tags can be embedded in a single pfstream block.
+This allows a fairly general way to map from one name space
+to another or one database schema to another.  For the example
+described in the FILES section above this tag was set to example.
+.LP
+\fIsleep_time\fR sets the time the program will sleep before 
+closing it's output file.  This should be set to the maximum
+expected execution time for downstream processing of one 
+data object.  It can be set to zero if the output is an
+ordinary file.  
 .SH "SEE ALSO"
 .nf
-#
-# List related manual entries and section (lowercase, bold)., eg "file(1)"
-# or related documents
+pfstream2db(1)
 .fi
 .SH "BUGS AND CAVEATS"
-#
-# Describe any shortcomings of the programs, known bugs, or surprising 
-# results.
+.LP
+The sleep_time parameter is unquestionably a kludge.  It is a less
+than elegant way to work around a problem with a fifo when downstream
+processes operate in feeding mode (i.e. open, read one block, close)
+from a fifo.  It is necessary because if db2pfstream closes and the
+other end does not have the fifo open for read the last block of
+data will be dropped.  This could probably be done better by using
+bidirectional communication capabilities of named pipes described
+in streamio(7).
 .SH AUTHOR
-# Put the author's name here (person who wrote the code) (roman).
-# This is just an id line from rcs.
-.\" $Id: db2pfstream.1,v 1.1 2002/10/02 14:43:16 pavlis Exp $
+Gary L. Pavlis, Indiana University (pavlis@indiana.edy)
+.\" $Id: db2pfstream.1,v 1.2 2002/11/12 04:09:12 pavlis Exp $

@@ -1,3 +1,5 @@
+sleep_time 30
+virtual_table_name pmel_arrivals
 ensemble_mode true
 ensemble_keys &Tbl{
 gridid

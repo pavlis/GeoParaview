@@ -16,7 +16,7 @@ cflags=-g
 fflags=
 ldflags=
 #ldlibs=-lglputil  -xlic_lib=sunperf,fui,fai,fsu $(DBLIBS)
-ldlibs=-lglputil  -xlic_lib=sunperf $(DBLIBS) -lpfstream
+ldlibs=-lglputil  -xlic_lib=sunperf $(DBLIBS) -lbrttutil -lpfstream
 
 include $(ANTELOPEMAKE)
 

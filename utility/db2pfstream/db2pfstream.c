@@ -2,7 +2,7 @@
 related list of attributes.  The pfstream is pushed to an output file
 name that would normally be a fifo, but could also be a regular file.
 
-Usage:  db2pfstream db file [-n -v -pf pffile -sift expressin]
+Usage:  db2pfstream db file [-n -v -pf pffile -sift expression]
 
 where 
 db is input database
@@ -24,6 +24,7 @@ Written:  September 2002
 #include "stock.h"
 #include "db.h"
 #include "elog.h"
+#include "brttutil.h"
 #include "pfstream.h"
 #include "glputil.h"
 
@@ -36,24 +37,6 @@ void usage()
 	exit(-1);
 }
 
-/* Output an ensemble to stream fp.  Writes header block using pfhead
-then writes npfe pieces with separators defined by a simple numbering
-scheme.  Blocks is terminated with ENDPF_SENTINEL defined in pfstream.h
-as a marker to define the end of one ensemble
-*/
-void pfensemble_to_stream(Pf *pfhead,Pf **pfensemble,int npfe,FILE *fp)
-{
-	int ipf,i;
-	pfout(fp,pfhead);
-	fprintf(fp,"ensemble &Arr{\n");
-	for(i=0,ipf=1;i<npfe;++i,++ipf)
-	{
-		fprintf(fp,"%6.6d &Arr{\n",ipf);
-		pfout(fp,pfensemble[i]);
-		fprintf(fp,"}\n");
-	}
-	fprintf(fp,"}\n%s\n",ENDPF_SENTINEL);
-}
 
 /*  This function adds a list of attributes stored in one
 row of a datascope database to a pf.  What attributes are extracted
@@ -183,7 +166,7 @@ int db2pf(Dbptr db, Tbl *t, Pf *pf)
 	
 
 int DB2PFS_verbose;
-main(int argc, char **argv)
+void main(int argc, char **argv)
 {
 	Dbptr db, dbv, dbge, dbgg;
 	/*ensemble_mode is primary grouping, grouping_on set if secondary on*/
@@ -192,11 +175,10 @@ main(int argc, char **argv)
 	Tbl *group_keys;
 	int i;
 	char *pfi=NULL;
-	Pf *pf;
-	Pf *pfo_head;
+	Pf *pf,*pfo_head,*pfo_total;
 	Tbl *process_list;
 	int dryrun=0;
-	char *sift_exp;
+	char *sift_exp=NULL;
 	int sift;
 /*Attributes listed in require will abort program if missing
 passthrough parameters will generate an error message but not
@@ -205,7 +187,8 @@ cause the program to abort.  Both contain pointers to Attribute_map*/
 	Attribute_map *amap;
 	FILE *fp;
 	int ierr;
-
+	char *tag;
+	int sleep_time;  
 
 	DB2PFS_verbose=0;
 
@@ -217,12 +200,7 @@ cause the program to abort.  Both contain pointers to Attribute_map*/
 		elog_complain(0,"dbopen failed on database %s\n",argv[1]);
 		usage();
 	}
-	fp=fopen(argv[2],"r+");
-	if(fp==NULL)
-	{
-		elog_complain(0,"Cannot open %s\n",argv[2]);
-		usage();
-	}
+
 	for(i=3;i<argc;++i)
 	{
 		if(!strcmp(argv[i],"-pf"))
@@ -247,10 +225,22 @@ cause the program to abort.  Both contain pointers to Attribute_map*/
 		else
 			usage();
 	}
+	if(!dryrun)
+	{
+		fp=open_pfstream_output(argv[2]);
+		if(fp==NULL) usage();
+	}
 	
 	if(pfi==NULL) pfi=strdup("db2pfstream");
 	if(pfread(pfi,&pf))
 		elog_die(0,"Error reading parameter file %s.pf\n",pfi);
+	sleep_time=pfget_int(pf,"sleep_time");
+	/* The output view gets a virtual table name that tags the
+	overall collection of stuff.  This comes from the parameter file
+	to make this program general, BUT it must be coordinated with
+	the reader code. */
+	tag = pfget_string(pf,"virtual_table_name");
+	if(tag==NULL)elog_die(0,"Required parameter (virtual_table_name) missing from parameter file\n");
 	ensemble_mode = pfget_boolean(pf,"ensemble_mode");
 	if(ensemble_mode)
 	{
@@ -292,6 +282,7 @@ cause the program to abort.  Both contain pointers to Attribute_map*/
 	dbv=dbform_working_view(db,pf,"dbprocess_list");
 	if(dbv.record==dbINVALID)
 		elog_die(0,"dbprocess failed:  check database and parameter file parameter dbprocess_list\n");
+	if(sift_exp!=NULL)dbv=dbsubset(dbv,sift_exp,0);
 	/*Now we form the groupings if needed */
 	if(ensemble_mode)
 	{
@@ -343,32 +334,39 @@ cause the program to abort.  Both contain pointers to Attribute_map*/
 		for(dbge.record=0;dbge.record<number_ensembles;
 					++dbge.record)
 		{
-			Pf **pfensemble;
+			Pf_ensemble *pfe;
 			int nmembers;
 			char *grp_records;
 			Tbl *grplist;
 
 			dbgetv(dbge,0,"bundle",&db_bundle_1,0);
 			dbget_range(db_bundle_1,&is_ensemble,&ie_ensemble);
-			nmembers = ie_ensemble-is_ensemble+1;
-			allot(Pf **,pfensemble,nmembers);
+			nmembers = ie_ensemble-is_ensemble;
+			/* pfe does not need to hold the group records
+			for this application so the ngroups variable is 
+			passed as 0*/
+			pfe=create_Pf_ensemble(nmembers,0);
 			/*Now loop through and load the array of pf's
 			with parameters defined by the attribute maps*/
 			for(i=0,dbv.record=is_ensemble;i<nmembers;
 				++i,++dbv.record)
 			{
-				pfensemble[i]=pfnew(0);
-				ierr=db2pf(dbv,require,pfensemble[i]);
+				pfe->pf[i]=pfnew(0);
+				ierr=db2pf(dbv,require,pfe->pf[i]);
 				if(ierr!=0)
 				{
 				    if(dryrun)
 					elog_notify(0,"%d database errors in ensemble %d need to be fixed\n",
 						ierr,dbge.record);
 				    else
+				    {
+					fprintf(fp,"%s\n",END_OF_DATA_SENTINEL);
+					fflush(fp);
 					elog_die(0,"%d database errors in ensemble %d\nCannot continue without required attributes\n",
 						ierr,dbge.record);
+				    }
 				}
-				ierr=db2pf(dbv,passthrough,pfensemble[i]);
+				ierr=db2pf(dbv,passthrough,pfe->pf[i]);
 				if(DB2PFS_verbose)
 					elog_log(0,"%d errors in extracting passthrough parameters for ensemble %d\n",
 						ierr,dbge.record);
@@ -390,13 +388,15 @@ cause the program to abort.  Both contain pointers to Attribute_map*/
 				pfput_tbl(pfo_head,"group_records",grplist);
 			}
 
-			pfensemble_to_stream(pfo_head,pfensemble,nmembers,fp);
-					
-			for(i=0;i<nmembers;++i)
+			pfo_total=build_ensemble(pfo_head,pfe,tag);
+			free_Pf_ensemble(pfe);
+			if(!dryrun) 
 			{
-				pffree(pfensemble[i]);
+				pfwrite_stream(pfo_total,argv[2],fp,0);
+				fprintf(fp,"%s\n",ENDPF_SENTINEL);
+				fflush(fp);
 			}
-			free(pfensemble);
+			pffree(pfo_total);
 		}
 	}
 	else
@@ -416,16 +416,30 @@ cause the program to abort.  Both contain pointers to Attribute_map*/
 				elog_notify(0,"%d database errors for record %d need to be fixed\n",
 						ierr,dbv.record);
 			    else
+			    {
+				fprintf(fp,"%s\n",END_OF_DATA_SENTINEL);
+				fflush(fp);
 				elog_die(0,"%d database errors in record %d\nCannot continue without required attributes\n",
 						ierr,dbv.record);
+			    }
 			}
 			ierr=db2pf(dbv,passthrough,pfo);
 			if(DB2PFS_verbose)
 				elog_log(0,"%d errors in extracting passthrough parameters for ensemble %d\n",
 						ierr,dbv.record);
-			pfout(fp,pfo);
-			fprintf(fp,"__EOF__\n");
+			if(!dryrun)
+			{
+				pfout(fp,pfo);
+				fprintf(fp,"%s\n",ENDPF_SENTINEL);
+			}
 		}
+	}
+	if(!dryrun)
+	{
+		fprintf(fp,"%s\n",END_OF_DATA_SENTINEL);
+		fflush(fp);
+		sleep(sleep_time);
+		fclose(fp);
 	}
 	exit(0);
 }
