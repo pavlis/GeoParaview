@@ -57,7 +57,7 @@ int save_spectrum(Dbptr db,Spectrum *s)
 	
 	char fname[40];
 	char auth[16];
-	char *user;  
+	char user[64];  
 
 	db = dblookup(db,0,"psdisc",0,0);
 	psid = dbnextid(db,"psid");
@@ -74,7 +74,7 @@ int save_spectrum(Dbptr db,Spectrum *s)
 		/* this should also be a fatal error */
 		return (-1);
 	}
-	user = cuserid(NULL);
+	cuserid(user);
 	sprintf(auth,"db_ratio:%s",user);
 
 	if(( dberr = dbaddv(db,0,
@@ -104,7 +104,6 @@ int save_spectrum(Dbptr db,Spectrum *s)
 		fprintf(stderr,"dbaddv error:  return code = %d\n",dberr);
 		return(-2);
 	}
-	free(user);
 	return(0);
 }
 void save_spectrum_error(Spectrum *s,int code)

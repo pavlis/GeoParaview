@@ -357,10 +357,20 @@ char **argv;
 		job of sorting out the right set of 3 components and 
 		assembling the structure of 2-d arrays called a 
 		"Spectrum_gather" in db_ratio.h  This routine does most
-		of the messy work for this code */
+		of the messy work for this code.
+		The conditional here on station_ration determines 
+		handling of the pattern for mixed sample rates and
+		window sizes.  That is, in station_ratio mode the
+		reference station is used to determine the pattern
+		of frequency binning.  Otherwise a global search
+		of the group is used. */
 
-		gather = data_gather(spec,n_spectra,threeC_channels,
-					threeCspec,&n3cspec);
+		if(station_ratio)
+			gather = data_gather(spec,n_spectra,sta_denom,
+				threeC_channels,threeCspec,&n3cspec);
+		else
+			 gather = data_gather(spec,n_spectra,NULL,
+				threeC_channels,threeCspec,&n3cspec);
 		if(gather.n1gather<=1) continue;
 		if(gather.nfreq < 0) 
 		{
@@ -467,14 +477,14 @@ char **argv;
 
 		if(station_ratio)
 		{
-		    if(ratio_indices.chan1 > 0)
+		    if(ratio_indices.chan1 >= 0)
 		    {
 			for(j=0;j<n_spectra;++j)
 			{
 				if( (!strcmp(spec[j].chan,threeC_channels[0]))
 				  || (!strcmp(spec[j].chan,threeC_channels[3])))
 				{
-				    if(!strcmp(spec[j].sta,sta_denom))
+				    if(strcmp(spec[j].sta,sta_denom))
 				    {
 					spectral_ratio(spec[j].spec,spec[ratio_indices.chan1].spec,
 						spec[j].nfreq);
@@ -486,14 +496,14 @@ char **argv;
 				}
 			}
 		    }
-		    if(ratio_indices.chan2 > 0)
+		    if(ratio_indices.chan2 >= 0)
 		    {
 			for(j=0;j<n_spectra;++j)
 			{
 				if( (!strcmp(spec[j].chan,threeC_channels[1]))
 				  || (!strcmp(spec[j].chan,threeC_channels[4])))
 				{
-				    if(!strcmp(spec[j].sta,sta_denom))
+				    if(strcmp(spec[j].sta,sta_denom))
 				    {
 					spectral_ratio(spec[j].spec,spec[ratio_indices.chan2].spec,
 						spec[j].nfreq);
@@ -505,14 +515,14 @@ char **argv;
 				}
 			}
 		    }
-		    if(ratio_indices.chan3 > 0)
+		    if(ratio_indices.chan3 >= 0)
 		    {
 			for(j=0;j<n_spectra;++j)
 			{
 				if( (!strcmp(spec[j].chan,threeC_channels[2]))
 				  || (!strcmp(spec[j].chan,threeC_channels[5])))
 				{
-				    if(!strcmp(spec[j].sta,sta_denom))
+				    if(strcmp(spec[j].sta,sta_denom))
 				    {
 					spectral_ratio(spec[j].spec,spec[ratio_indices.chan3].spec,
 						spec[j].nfreq);

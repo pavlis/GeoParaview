@@ -75,12 +75,14 @@ Written:  November 1994
 
 Spectrum_gather data_gather(Spectrum *spec,
 	int nspec,
+	char *reference_station,
 	char *chanids[6],
 	Spectrum threeCspec[],
 	int *nthreeCspec)
 {
 	Spectrum_gather sg;
         int nstations;
+	Spectrum pattern;  /* used to define pattern for resampling */
         int i,j,k,l;
         /* test variables */
 	char laststa[10];
@@ -91,13 +93,46 @@ Spectrum_gather data_gather(Spectrum *spec,
 	int index[6];  /* channel index array */ 
 	int threeC_index[3];  /* used for assembling 3component power spectrum*/
 
+	if(nspec<=0)
+	{
+		elog_notify(0,"data_gather:  no data to process\n");
+		sg.nfreq=-1;
+		return(sg);
+	}
         /* Scan for largest value of nfreq in group and use this to set 
         size */
-        nfreq = 0;
-        for(i=0;i<nspec;++i) nfreq = MAX(spec[i].nfreq,nfreq);
-
-	sg.nfreq = nfreq;
-
+	if(reference_station==NULL)
+	{
+        	nfreq=spec[0].nfreq;
+		freq0=spec[0].freq0;
+		df = spec[0].df;
+        	for(i=1;i<nspec;++i) 
+		{
+			nfreq = MAX(spec[i].nfreq,nfreq);
+			freq0 = MAX(spec[i].freq0,freq0);
+			df = MIN(spec[i].df,df);
+		}
+		sg.nfreq = nfreq;
+	}
+	else
+	{
+		for(i=0;i<nspec;++i)
+			if(!strcmp(reference_station,spec[i].sta))break;
+		if(i==nspec)
+		{
+			elog_notify(0,"Reference station %s spectrum not found in ensemble\n",
+				reference_station);
+			sg.nfreq=-1;
+			return(sg);
+		}
+		nfreq = spec[i].nfreq;
+		freq0 = spec[i].freq0;
+		df = spec[i].df;
+		sg.nfreq = nfreq;
+	}
+	pattern.nfreq = nfreq;
+	pattern.df = df;
+	pattern.freq0 = freq0;
         /* Establish the number of actual stations in this group */
         nstations = 0;
         for(i=1;i<nspec;++i) if(strcmp(spec[i].sta,spec[i-1].sta))++nstations;
@@ -115,22 +150,6 @@ Spectrum_gather data_gather(Spectrum *spec,
 			sg.nfreq = -1;
 			return(sg);
 		}
-        }
-        /* this won't always work, but it should unless the user really
-        screws up and mixes grossly different data types with different
-        sample rates.  We scan for the first entry with spec.nfreq == nfreq.
-        We assume df and freq0 from this channel are representative.  This
-        should always be true with dbspectra because it only trims windows
-        down never up.  Problems are possible if one appends data from multiple
-        runs, but you can't correct for all levels of stupidity. */
-        for(i=0;i<nspec;++i)
-        {
-                if(spec[i].nfreq == nfreq)
-                {
-                        df = spec[i].df;
-                        freq0 = spec[i].freq0;
-                        break;
-                }
         }
 
         strcpy(laststa,spec[0].sta);
@@ -169,6 +188,9 @@ Spectrum_gather data_gather(Spectrum *spec,
                 		|| ( fabs( (df-spec[j].df)/df) > FLOAT_TEST_RATIO)
                 		|| ( fabs( (freq0-spec[j].freq0)/freq0) > FLOAT_TEST_RATIO) )
 				{
+					spec[j]=resample_spectrum(spec[j],
+							pattern);
+/* OLD CODE`
 					for(k=0;k<6;++k)
 					{ 
 						if(index[k]==j) 
@@ -178,6 +200,7 @@ Spectrum_gather data_gather(Spectrum *spec,
 						}
 					}
 
+END OLD CODE*/
 				}
 			}
 			/* Now copy appropriate spectra to sg.chan arrays.
