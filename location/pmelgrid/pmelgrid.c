@@ -425,20 +425,16 @@ option which is know to cause problems\nrecenter set off\n");
 			is used to flag a failure. */
 			if(strstr(swork,"ABORT")!=NULL) pmelfail=1;
 		}
-		/* This function edits the existing Pf_ensemble with updates
-		from this run */
-		
-
-		/* Now put results to an output stream.  First we
-		place a few global parameters into the full ensemble */
-		pfensemble_put_string(pfe,"pmelrun",runname);
-		pfensemble_put_double(pfe,"sswrodgf",smatrix->sswrodgf);
-		pfensemble_put_int(pfe,"ndgf",smatrix->ndgf);
-		pfensemble_put_double(pfe,"sdobs",smatrix->rmsraw);
 		/* This inserts revised attributes into the pfe */
 		update_ensemble(pfe,pf,h0,ta);
-		/* now we write most results to primary output stream */
+		/* This builds a separate structure for pmel extension
+		tables that are stored in a different block */
 		pfesc = build_sc_ensemble(gridid,smatrix,pf);
+		/* These are added per ensemble */
+		pfensemble_put_string(pfesc,"pmelrun",runname);
+		pfensemble_put_double(pfesc,"sswrodgf",smatrix->sswrodgf);
+		pfensemble_put_int(pfesc,"ndgf",smatrix->ndgf);
+		pfensemble_put_double(pfesc,"sdobs",smatrix->rmsraw);
 		pfo=build_ensemble(2,"pmel_arrivals",NULL,pfe,
 				"station_corrections",NULL,pfesc);
 		free_Pf_ensemble(pfe);

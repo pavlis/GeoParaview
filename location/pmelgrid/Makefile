@@ -5,7 +5,7 @@ PF=pmelgrid.pf
 cflags=-g 
 ldflags=-L/opt/SUNWspro/lib
 ldlibs= $(DBLIBS) $(F77LIBS) -xlic_lib=sunperf,fui,fai,fsu \
-    -ltrvltm -ldl -Bdynamic -lgenloc -lpfstream -lglputil -lpmel -lm -dalign
+    -ltrvltm -ldl -Bdynamic -lgenloc -lpfstream -lglputil -lpmel -lbrttutil -lm -dalign
 include $(ANTELOPEMAKE)  	# This line must appear following the definitions above, 
 
 OBJS=pmelgrid.o pfutilities.o
