@@ -7,7 +7,7 @@
 
 void usage()
 {
-        cbanner((char *)"$Revision: 1.1 $ $Date: 2003/05/18 13:17:06 $",
+        cbanner((char *)"$Revision: 1.2 $ $Date: 2003/09/09 11:07:39 $",
                 (char *)"db pfi pfo [-V -pf pfname]",
                 (char *)"Gary Pavlis",
                 (char *)"Indiana University",
@@ -302,6 +302,139 @@ if(ii==0) cerr<<"Closure error="<<deltar<<endl;
 				r0);
 	}
 }
+/* Returns a 3x nx-1  matrix of ray path unit vectors pointing in
+direction of tangent to the path defined by the 3 x nx  input matrix 
+passed as ray.  The algorithm is a simple forward difference scheme 
+with no checking for possible roundoff problems.  Because we use forward
+differences the output vector at point i is computed from the segment 
+immediately forward (x[i+1]-x[i]).
+
+Note the dmatrix is created with new here and needs to be cleared by caller.
+
+Author:  Gary Pavlis
+Written:  August 2003
+*/
+
+dmatrix *ray_path_tangent(dmatrix& ray)
+{
+	dmatrix *gptr;
+	dmatrix& gamma=*gptr;
+	int *sz,nx;
+	double dx[3];
+	double nrmdx;
+	int i,j;
+
+	sz = ray.size();
+	// assume number rows = 3.   could test and throw exception, but this
+	// function is not viewed as a library function
+	nx=sz[1];
+	delete [] sz;
+	gptr = new dmatrix(3,nx-1);
+
+	for(i=0;i<nx-1;++i)
+	{
+		dx[0]=ray(0,i+1)-ray(0,i);
+		dx[1]=ray(1,i+1)-ray(1,i);
+		dx[2]=ray(2,i+1)-ray(2,i);
+		nrmdx=dnrm2(3,dx,1);
+		dscal(3,1.0/nrmdx,dx,1);
+		for(j=0;j<3;++j) gamma(j,i)=dx[j];
+	}
+	return(gptr);
+}
+/* computes depth dependent transformation matrix assuming a scattering
+is specular.  That is, transformation matrices will yield a form of
+L,R,T 
+*/
+
+class Ray_Transformation_Operator
+{
+public:
+	int npoints;
+	dmatrix U[];
+	Ray_Transformation_Operator(int np)
+	{
+		U=new dmatrix(3,3)[np];
+	}
+	// constructor for constant azimuth 
+	Ray_Transformation_Operator(GCLgrid&g, dmatrix& path, double azimuth);
+	// constructor for depth dependent operator
+	Ray_Transformation_Operator(GCLgrid&g, dmatrix& path);
+	~Ray_Transformation_Operator(){delete [] U;);
+	dmatrix *apply(dmatrix& in);
+};
+dmatrix *Ray_Transformation_Operator::apply(dmatrix& in)
+{
+	int i,j;
+	double *p;
+	int *insize=in.size()
+	int nrow=insize[0],ncol=insize[1];
+	delete insize;
+	// This could be trapped as an exception but since this
+	// is expected to only be used in this program this is
+	// simpler
+	if( (nrow!=3) !! (ncol!=in.npoints) )
+	{
+		cerr << "Coding error:  Ray_Transformation_Operator has "
+			<< in.npoints << "elements but matrix passed is "
+			<< nrow << "X" << ncol << endl;
+		exit(-1);
+	}
+	dmatrix *optr=new dmatrix(nrow,ncol);
+	dmatrix& out=*optr;
+
+	// my dmatrix class doesn't know about matrix vector multiply
+	// so I hand code this using an admittedly opaque approach
+	// using pointers.  Algorithm works because dmatrix elements
+	// are stored in packed storage ala fortran
+	for(i=0;i<ncol;++i)
+	{
+		double work[3];
+		work[0]=in(0,i);
+		work[1]=in(1,i);
+		work[2]=in(2,i);
+		p=U[i].get_address(0,0);
+		out(0,i)=p[0]*work[0]+p[1]*work[1]+p[2]*work[2];
+		out(1,i)=p[3]*work[0]+p[4]*work[1]+p[5]*work[2];
+		out(2,i)=p[6]*work[0]+p[7]*work[1]+p[8]*work[2];
+	}
+	return(optr);
+}
+// Constructor for simple cast with all matrices going to surface R,T,L coordinates
+Ray_Transformation_Operator::Ray_Transformation_Operator(GCLgrid& g, 
+	dmatrix& path,double azimuth)
+{
+	int *insize=path.size();
+	int np=insize[1];
+	delete [] insize;
+	dmatrix U0(3,3);  // final matrix copied to all elements here
+	double x[3];  //work vector to compute unit vectors loaded to U0
+	Geographic_point x0_geo;
+
+	//first we need the geographic coordinates of the ray emergence point
+	x0_geo = g.ctog(path(0,0),path(1,0),path(2,0));
+	
+	// this holds transformation matrix from local geo TO the GCLgrid 
+	// reference frame
+	dmatrix Ugeo=ustrans(g,x0_geo.lat,x0_geo.lon);
+	
+	U = new dmatrix(3,3)[np];
+	// Get the L direction from the first pair of points in path
+	x[0]= path(0,0) - path(0,1);
+	x[1]= path(1,0) - path(1,1);
+	x[2]= path(2,0) - path(2,1);
+	
+// ran out of time here.  See "rotate" function in rotation.C of libseispp 
+// to derive transformation matrix for ray coordinates.  This is currently
+// potentially backwards in a couple places.  Should be able to just
+// use the matrix computed in the rotate function as this is a conversion
+to ray coordinates.  The next function needs the complications I was
+working away at here.
+
+		
+	
+	
+
 /* Computes the domega term for the inverse Radon transform inversion formula.
 Computed solid angle subtened the region formed by the difference u-du/2 to u+du/2
 in both the x and y directions.  The product is the solid angle subtended.
@@ -595,15 +728,63 @@ int main(int argc, char **argv)
 }
 
 into pseudocode mode:
+Modified August 20, 2003 to not use precompute function
 
-	//set up grid stack volume as a GCLvectorfield3d with 3 vectors using pf or metadata object
+	set up grid stack volume as a GCLvectorfield3d with 3 vectors using pf or metadata object
 	open database
 	get 3d P velocity model GCLscalarfield from database
 	get 3d S velocity model GCLscalarfield from database
+	check consistency (require P and S to match exactly, implement with an == operator in gclgrid library) throw exception and exit if not (DONE:  now in libgclgrid )`
+	get 1d P velocity model
+	get 1d S velocity model
+	get parameters for slowness grid object
+	build slowness grid object
 	start read thread to bring in data through pfstream
 
-	while( data are available)
+	while( data are available get next ensemble )
 	{
+	    foreach ensemble member
+	    {
+		build 3c trace object T
+		get ux, uy from T
+		get lat, lon of pseudostation position
+		get ux0, uy0 (incident wave slowness vector)
+		trace ray for ux,uy
+		trace base ray for ux0,uy0
+		match ux,uy to slowness grid (may use index)
+		determine updux = u+dux
+		determine upduy = u+duy
+		trace rays for updux and upduy
+		refernce all rays to S3d and P3D
+		compute pathintegral for u using S3d
+		for i=0 to end of S raypath
+			compute P ray path from point i to surface
+			compute pathintegral of truncated ray path using P3d
+			compute deltax = xr - xp where xp = emergence point of p ray
+			compute lag using dt[i] = TS-TP+(?)u0.deltax
+			compute gamma_s and gamma_p (unit vectors) (NEW FUNCTION ABOVE)
+			compute transformation matrices for each ray point
+			compute tau_P and Tau_S
+			compute || tau_P - tau_S ||
+			compute solid angle domega[i]
+			compute weight[i]
+		interpolate data onto dt[i] grid (resample operation)
+		for i=0 to end of S raypath
+			data[i] *= weight[i]
+		add metadata required 
+		push to output
+	    }
+	}
+		
+// some items about object output form:
+- needs to be <vector> type of higher order objectg
+- object needs lat,lon, r format not GCLgrid cartesian coordinates
+- object should have ncomponents 
+			
+		
+			
+		
+/// older pseudocode
 		crack input to build a 3C ensemble object of input data
 		get slowness vector from input metadata
 		match to databased
@@ -640,6 +821,5 @@ awkward.
 			
 
 
-		foreach 
 
 
