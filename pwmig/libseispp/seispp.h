@@ -109,6 +109,27 @@ public:
 	Top_Mute(Pf *pf);
 };
 //
+// We use an abstract base class and derived classes to allow variations
+// in errors thrown.  This uses methods described in books by Stroustrup
+//
+class seispp_error
+{
+public:
+	string message;
+	virtual void log_error(){cerr << "seispp error: "<<message<<endl;
+};
+class SAC_data_error : public seispp_error
+{
+public:
+	SAC_data_error(const string mess){message=mess;};
+	virtual void log_error()
+	{
+		cerr<<"Error processing SAC format time series"<<endl;
+		cerr<<"Error message = "<<message;
+	}
+};
+
+//
 //Helpers
 //
 void apply_top_mute(Time_Series &ts,Top_Mute& mute);

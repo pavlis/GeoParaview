@@ -21,7 +21,7 @@ class Metadata_error
 {
 public:
 	string message;
-	virtual void log_error(){cerr<<"Pf error: %s"<< message<<endl;}
+	virtual void log_error(){cerr<<"Pf error: "<< message<<endl;}
 };
 class Metadata_get_error : public Metadata_error
 {
