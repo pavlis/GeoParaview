@@ -13,7 +13,10 @@ using namespace std;
 // damped least squares solver companion to dgesvd
 // similar to one in libgenloc
 //
-/*
+/*  This funciton is currently commented out because the program
+was seg faulting and I decided it was easier to just use matlab
+for what it did.
+
 void lminverse_solver(dmatrix &U,
 	double *s,
 	dmatrix &Vt,
