@@ -1,5 +1,3 @@
-#include "stock.h"
-#include "perf.h"
 #include "gclgrid.h"
 /* function prototype used only here (FORTRAN routine) */
 void fme_weights_(double *,double *,double *);

@@ -1,8 +1,5 @@
 #include <cstdio>
 #include <cstring>
-#include "stock.h"
-#include "coords.h"
-#include "db.h"
 #include "gclgrid.h"
 // Constructor creating a GCLgrid object by reading data from
 // an Antelope database.  Uses an extension table used to index
@@ -341,7 +338,7 @@ Modified:  December 2002
 Converted to C++ with subsequent name change.  Little of the code
 changed.
 */
-void GCLgrid3d::dbsave(GCLgrid3d& g, Dbptr db, char *dir)
+void GCLgrid3d::dbsave(Dbptr db, char *dir)
 {
 	FILE *fp;
 	char *filename;
@@ -361,9 +358,12 @@ void GCLgrid3d::dbsave(GCLgrid3d& g, Dbptr db, char *dir)
 		throw -1;
 	}
 	/*Save the data first so that in the event of a failure we don't 		have to patch the database afterwards. */
-	fssize = strlen(dir) + strlen(g.name) + 1;
+	fssize = strlen(dir) + strlen(name) + 1;
 	allot(char *,filename,fssize);
 	
+	strcpy(filename,dir);
+	strcat(filename,"/");
+	strcat(filename,name);
 	fp = fopen(filename,"a+");
 	if(fp==NULL)
 	{
@@ -377,33 +377,33 @@ void GCLgrid3d::dbsave(GCLgrid3d& g, Dbptr db, char *dir)
 	32 to 64.   This is safe if overkill*/
 	fpos = ftell(fp);
 	foff = (int)fpos;
-	gridsize = (g.n1)*(g.n2)*(g.n3);
-	if(fwrite(g.x1[0][0],sizeof(double),gridsize,fp) != gridsize)
+	gridsize = (n1)*(n2)*(n3);
+	if(fwrite(x1[0][0],sizeof(double),gridsize,fp) != gridsize)
 	{
 		elog_notify(0,fwerr,filename);
 		++errcount;
 	}
-	if(fwrite(g.x2[0][0],sizeof(double),gridsize,fp) != gridsize)
+	if(fwrite(x2[0][0],sizeof(double),gridsize,fp) != gridsize)
 	{
 		elog_notify(0,fwerr,filename);
 		++errcount;
 	}
-	if(fwrite(g.x3[0][0],sizeof(double),gridsize,fp) != gridsize)
+	if(fwrite(x3[0][0],sizeof(double),gridsize,fp) != gridsize)
 	{
 		elog_notify(0,fwerr,filename);
 		++errcount;
 	}
-	if(fwrite(g.lat[0][0],sizeof(double),gridsize,fp) != gridsize)
+	if(fwrite(lat[0][0],sizeof(double),gridsize,fp) != gridsize)
 	{
 		elog_notify(0,fwerr,filename);
 		++errcount;
 	}
-	if(fwrite(g.lon[0][0],sizeof(double),gridsize,fp) != gridsize)
+	if(fwrite(lon[0][0],sizeof(double),gridsize,fp) != gridsize)
 	{
 		elog_notify(0,fwerr,filename);
 		++errcount;
 	}
-	if(fwrite(g.r[0][0],sizeof(double),gridsize,fp) != gridsize)
+	if(fwrite(r[0][0],sizeof(double),gridsize,fp) != gridsize)
 	{
 		elog_notify(0,fwerr,filename);
 		++errcount;
@@ -412,32 +412,32 @@ void GCLgrid3d::dbsave(GCLgrid3d& g, Dbptr db, char *dir)
 	/* Now we write a row in the database for this grid.  Note
 	some quantities have to be converted from radians to degrees.*/
 	if(dbaddv(db,0,
-		"gridname",g.name,
+		"gridname",name,
 		"dimensions",dimensions,
-		"lat",deg(g.lat0),
-		"lon",deg(g.lon0),
-		"radius",g.r0,
-		"azimuth_y",deg(g.azimuth_y),
-		"dx1nom",g.dx1_nom,
-		"dx2nom",g.dx2_nom,
-		"dx3nom",g.dx3_nom,
-		"n1",g.n1,
-		"n2",g.n2,
-		"n3",g.n3,
-		"xlow",g.xlow,
-		"xhigh",g.xhigh,
-		"ylow",g.ylow,
-		"yhigh",g.yhigh,
-		"zlow",g.zlow,
-		"zhigh",g.zhigh,
-		"i0",g.i0,
-		"j0",g.j0,
-		"k0",g.k0,
+		"lat",deg(lat0),
+		"lon",deg(lon0),
+		"radius",r0,
+		"azimuth_y",deg(azimuth_y),
+		"dx1nom",dx1_nom,
+		"dx2nom",dx2_nom,
+		"dx3nom",dx3_nom,
+		"n1",n1,
+		"n2",n2,
+		"n3",n3,
+		"xlow",xlow,
+		"xhigh",xhigh,
+		"ylow",ylow,
+		"yhigh",yhigh,
+		"zlow",zlow,
+		"zhigh",zhigh,
+		"i0",i0,
+		"j0",j0,
+		"k0",k0,
 		"cdefined",cdef,
 		"geodefined",gdef,
 		"datatype","t8",
 		"dir",dir,
-		"dfile",g.name,
+		"dfile",name,
 		"foff",foff,
 		0) < 0)
 	{
@@ -448,7 +448,7 @@ void GCLgrid3d::dbsave(GCLgrid3d& g, Dbptr db, char *dir)
 	if(errcount)throw errcount;
 }
 /* Parallel routine for 2d*/
-void GCLgrid::dbsave(GCLgrid& g, Dbptr db, char *dir)
+void GCLgrid::dbsave(Dbptr db, char *dir)
 {
 	FILE *fp;
 	char *filename;
@@ -468,12 +468,12 @@ void GCLgrid::dbsave(GCLgrid& g, Dbptr db, char *dir)
 		throw -1;
 	}
 	/*Save the data first so that in the event of a failure we don't 		have to patch the database afterwards. */
-	fssize = strlen(dir) + strlen(g.name) + 1;
+	fssize = strlen(dir) + strlen(name) + 1;
 	allot(char *,filename,fssize);
 	
 	strcpy(filename,dir);
 	strcat(filename,"/");
-	strcat(filename,g.name);
+	strcat(filename,name);
 	fp = fopen(filename,"a+");
 	if(fp==NULL)
 	{
@@ -487,33 +487,33 @@ void GCLgrid::dbsave(GCLgrid& g, Dbptr db, char *dir)
 	be safe */
 	fpos = ftell(fp);
 	foff = (int)fpos;
-	gridsize = (g.n1)*(g.n2);
-	if(fwrite(g.x1[0],sizeof(double),gridsize,fp) != gridsize)
+	gridsize = (n1)*(n2);
+	if(fwrite(x1[0],sizeof(double),gridsize,fp) != gridsize)
 	{
 		elog_notify(0,fwerr,filename);
 		++errcount;
 	}
-	if(fwrite(g.x2[0],sizeof(double),gridsize,fp) != gridsize)
+	if(fwrite(x2[0],sizeof(double),gridsize,fp) != gridsize)
 	{
 		elog_notify(0,fwerr,filename);
 		++errcount;
 	}
-	if(fwrite(g.x3[0],sizeof(double),gridsize,fp) != gridsize)
+	if(fwrite(x3[0],sizeof(double),gridsize,fp) != gridsize)
 	{
 		elog_notify(0,fwerr,filename);
 		++errcount;
 	}
-	if(fwrite(g.lat[0],sizeof(double),gridsize,fp) != gridsize)
+	if(fwrite(lat[0],sizeof(double),gridsize,fp) != gridsize)
 	{
 		elog_notify(0,fwerr,filename);
 		++errcount;
 	}
-	if(fwrite(g.lon[0],sizeof(double),gridsize,fp) != gridsize)
+	if(fwrite(lon[0],sizeof(double),gridsize,fp) != gridsize)
 	{
 		elog_notify(0,fwerr,filename);
 		++errcount;
 	}
-	if(fwrite(g.r[0],sizeof(double),gridsize,fp) != gridsize)
+	if(fwrite(r[0],sizeof(double),gridsize,fp) != gridsize)
 	{
 		elog_notify(0,fwerr,filename);
 		++errcount;
@@ -521,29 +521,29 @@ void GCLgrid::dbsave(GCLgrid& g, Dbptr db, char *dir)
 	fclose(fp);
 	/* Now we write a row in the database for this grid*/
 	if(dbaddv(db,0,
-		"gridname",g.name,
+		"gridname",name,
 		"dimensions",dimensions,
-		"lat",deg(g.lat0),
-		"lon",deg(g.lon0),
-		"radius",g.r0,
-		"azimuth_y",deg(g.azimuth_y),
-		"dx1nom",g.dx1_nom,
-		"dx2nom",g.dx2_nom,
-		"n1",g.n1,
-		"n2",g.n2,
-		"xlow",g.xlow,
-		"xhigh",g.xhigh,
-		"ylow",g.ylow,
-		"yhigh",g.yhigh,
-		"zlow",g.zlow,
-		"zhigh",g.zhigh,
-		"i0",g.i0,
-		"j0",g.j0,
+		"lat",deg(lat0),
+		"lon",deg(lon0),
+		"radius",r0,
+		"azimuth_y",deg(azimuth_y),
+		"dx1nom",dx1_nom,
+		"dx2nom",dx2_nom,
+		"n1",n1,
+		"n2",n2,
+		"xlow",xlow,
+		"xhigh",xhigh,
+		"ylow",ylow,
+		"yhigh",yhigh,
+		"zlow",zlow,
+		"zhigh",zhigh,
+		"i0",i0,
+		"j0",j0,
 		"cdefined",cdef,
 		"geodefined",gdef,
 		"datatype","t8",
 		"dir",dir,
-		"dfile",g.name,
+		"dfile",name,
 		"foff",foff,
 		0) < 0)
 	{

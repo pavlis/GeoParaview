@@ -1,12 +1,4 @@
-//#include "perf.h"
-//
-//perf.h seems to have an error.  I'll declare the required prototypes here.
-//
-extern "C" {
-extern void daxyp(int, double, double *, int, double *, int);
-extern double ddot(int,double *, int, double *, int);
-extern double dnrm2(int,double *, int);
-}
+#include <math.h>
 #include "gclgrid.h"
 /* This is an indexing routine for finding the location of a point in 3 space
 within what I'm calling here a geographical curvilinear grid (gclgrid).  

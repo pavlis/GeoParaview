@@ -1,4 +1,12 @@
+#ifndef _GCLGRID_H_
+#define _GCLGRID_H_
+#endif
+#include <stdlib.h>
+#include "stock.h"
 #include "db.h"
+#include "perf.h"
+#include "coords.h"
+
 #ifdef	__cplusplus
 
 typedef struct geo_{
@@ -38,7 +46,7 @@ class GCLgrid
 		GCLgrid(Dbptr db, char *nm);  // acquire from Antelope database 
 		GCLgrid(const GCLgrid&);  //standard copy constructor
 		GCLgrid& operator=(const GCLgrid& );
-		void dbsave(GCLgrid&, Dbptr, char *);
+		void dbsave(Dbptr, char *);
 		void lookup(double, double);
 		void reset_index() {ix1=i0; ix2=j0;};
 		void get_index(int *ind) {ind[0]=ix1; ind[1]=ix2;};
@@ -84,7 +92,7 @@ class GCLgrid3d : public GCLgrid
 		GCLgrid3d(Dbptr db, char *nm); 
 		GCLgrid3d(const GCLgrid3d&); 
 		GCLgrid3d& operator=(const GCLgrid3d& );
-		void dbsave(GCLgrid3d&, Dbptr, char *);
+		void dbsave(Dbptr, char *);
 		void lookup(double, double, double);
 		void reset_index() {ix1=i0; ix2=j0; ix3=k0;};
 		void get_index(int *ind) {ind[0]=ix1; ind[1]=ix2; ind[2]=ix3;};
@@ -173,6 +181,7 @@ double ****create_4dgrid_contiguous(int, int, int, int);
 double ***create_3dgrid_contiguous(int, int, int);
 double **create_2dgrid_contiguous(int, int);
 void GCLlookup_error_handler(int);
+void fme_weights_ (double *, double *, double *);
 #ifdef  __cplusplus
 }
 #endif

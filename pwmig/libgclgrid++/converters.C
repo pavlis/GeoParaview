@@ -1,15 +1,6 @@
-#include "coords.h"
+#include <stdio.h>
+#include <math.h>
 #include "gclgrid.h"
-//
-//perf.h or sunperf define these, but something is messed up
-//so for now they are defined explicitly here.
-//
-extern "C" {
-extern void daxpy(int, double, double *, int, double *, int);
-extern double dnrm2(int,double *, int);
-extern double ddot(int,double *, int, double *, int);
-extern void dcopy(int,double *, int, double *, int);
-}
 
 
 void GCLgrid::GCLset_transformation_matrix()
