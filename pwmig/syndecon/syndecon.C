@@ -57,6 +57,7 @@ int main(int argc, char **argv)
 	vector<Time_Series>::iterator iz,ir;
 	int i;
 	Time_Series *s;
+	Time_Series *sptr;
 	double theta;
 	int n,m;
 
@@ -66,11 +67,17 @@ int main(int argc, char **argv)
 	ifstream inlist(listfile.c_str(), ios::in);
 	// Read the list of files and put them into a list container
 	do {
-		string zf,rf;
+		string *zp=new string;
+                string *rp=new string;
+		string& zf=*zp, rf=*rp;
 		inlist >> zf;
+                if(inlist.eof()) break;
 		inlist >> rf;
-		zfiles.push_back(zf);
-		rfiles.push_back(rf);
+		// Note this reverses the list.  This is useful
+		// for synthetics from herrmann's programs as I've
+		// run them at this time.
+		zfiles.push_front(zf);
+		rfiles.push_front(rf);
 	} while (! inlist.eof());
 	
 	for(izf=zfiles.begin(),i=0;izf!=zfiles.end();++izf,++i)
@@ -83,21 +90,24 @@ int main(int argc, char **argv)
 			cerr<< "Attempting to read " << *izf << endl;
 			exit(1);
 		}
-		z[i]=*s;
+		sptr = new Time_Series(*s);
+                z.push_back(sptr);
 		delete s;
 	}
 	for(irf=rfiles.begin(),i=0;irf!=zfiles.end();++irf,++i)
 	{
 		try{
 			s=Read_SAC_ascii(*irf);
+                        cout << *irf << "= file "<< i<< endl;
 		} catch (SAC_data_error err)
 		{
 			err.log_error();
 			cerr<< "Attempting to read " << *irf << endl;
 			exit(1);
 		}
-		r[i]=*s;
-		delete s;
+                sptr = new Time_Series(*s);
+                r.push_back(sptr);
+                delete s;
 	}		
 	if(r.size() != z.size())
 	{

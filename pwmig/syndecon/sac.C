@@ -2,8 +2,8 @@
 #include <fstream>
 #include "seispp.h"
 using namespace std;
-const double sac_magic_real=12345.0;
-const int sac_magic_int=12345;
+const double sac_magic_real=-12345.0;
+const int sac_magic_int=-12345;
 const string sac_magic_string="-12345";
 
 Time_Series* Read_SAC_ascii(string fname)
@@ -282,6 +282,8 @@ Time_Series* Read_SAC_ascii(string fname)
 	infile >> shdr;
 	if(shdr!=sac_magic_string) ssac.md.put_metadata("KT6",shdr);
 	infile >> shdr;
+	if(shdr!=sac_magic_string) ssac.md.put_metadata("KT7",shdr);
+	infile >> shdr;
 	if(shdr!=sac_magic_string) ssac.md.put_metadata("KT8",shdr);
 	infile >> shdr;
 	if(shdr!=sac_magic_string) ssac.md.put_metadata("KT9",shdr);
@@ -301,6 +303,9 @@ Time_Series* Read_SAC_ascii(string fname)
 	if(shdr!=sac_magic_string) ssac.md.put_metadata("KDATRD",shdr);
 	infile >> shdr;
 	if(shdr!=sac_magic_string) ssac.md.put_metadata("KINST",shdr);
+cout << fname << endl;
+ssac.md.print_all_metadata();
+
 	ssac.s = new double[ssac.ns];
 	for(int i=0;i<ssac.ns;++i)
 	{
