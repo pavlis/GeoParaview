@@ -8,7 +8,7 @@
 #include "glputil.h"
 void usage()
 {
-	banner(Program_Name, "$Revision: 1.4 $ $Date: 2001/08/02 20:56:29 $") ;
+	banner(Program_Name, "$Revision: 1.5 $ $Date: 2001/08/05 08:34:06 $") ;
 	elog_die(0,"usage:  %s db [-pf pfname]\n",Program_Name);
 }
 /* This is an internal definition of an event location object that holds
@@ -136,7 +136,7 @@ void main(int argc, char **argv)
 	Tbl *allevents,*keepers;
 
 	elog_init(argc,argv);
-	elog_notify (0, "$Revision: 1.4 $ $Date: 2001/08/02 20:56:29 $") ;
+	elog_notify (0, "$Revision: 1.5 $ $Date: 2001/08/05 08:34:06 $") ;
 	if(argc<2) usage();
 
 	dbin = argv[1];
@@ -232,10 +232,10 @@ void main(int argc, char **argv)
 			int lon_is_positive;
 			double lat,lon,z;
 
-			e = (EVENTlocation *)gettbl(keepers,i);
+			e = (EVENTlocation *)gettbl(keepers,ie);
 			lat = deg(e->lat);
 			lon = deg(e->lon);
-			z = deg(e->z);
+			z = (e->z);
 			if(ie==0)
 			{
 				if(lon>0.0)
