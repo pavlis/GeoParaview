@@ -120,6 +120,32 @@ Attribute hcdepth
                 Depth of the hypocentroid of a group of events.
         }
         ;
+Attribute ztop
+        Real (9)
+        Format ( "%9.4lf" )
+        Null ( "-999.0000" )
+        Range ( "ztop >= -10.0 && ztop < 1000.0" )
+        Units ( "Kilometer" )
+        Description ( "Top of a depth range" )
+        Detail {
+                Regions can be specified in terms of a top and bottom
+		depth.  This is the top.
+        }
+        ;
+
+Attribute zbot
+        Real (9)
+        Format ( "%9.4lf" )
+        Null ( "-999.0000" )
+        Range ( "zbot >= -10.0 && zbot < 1000.0" )
+        Units ( "Kilometer" )
+        Description ( "Bottom of a depth range" )
+        Detail {
+                Regions can be specified in terms of a top and bottom
+		depth.  This is the bottom.
+        }
+        ;
+
 Attribute velocity
         Real (9)
         Format ( "%9.6lf" )
@@ -307,7 +333,8 @@ Relation emodel
 
 Relation hypocentroid
 	Fields (
-		gridname gridid dlat dlon depth hclat hclon hcdepth lddate
+		gridname gridid dlat dlon depth hclat hclon hcdepth nass delta ztop zbot lddate
+
 	)
 	Primary ( gridname gridid )
 	Description ( "hypocentroid of a group of seismic events" )
@@ -316,7 +343,9 @@ Relation hypocentroid
 		useful concept called a hypocentroid.  This table 
 		stores the hypocentroid corresponding to a cluster of
 		events tied to a particular grid point defined with the
-		reference point dlat, lon, depth.
+		reference point dlat, lon, depth. nass is the number of 
+		events within a distance range delta from dlat,dlon and 
+		within a depth interval zupper to zlower.
 	}
 	;
 
