@@ -378,7 +378,6 @@ Pf *build_ensemble(int ntags,...)
 	char *pfimage;
 	int sum_block_sizes,pfimage_size=0;
 	char *hdrblock;
-	int hdrsize;
 	int i;
 	Pf *pfresult=NULL;
 	int npf;  /* useful shorthand */
@@ -403,7 +402,7 @@ Pf *build_ensemble(int ntags,...)
 		else
 		{
 			hdrblock=pf2string(ensemble_pf);
-			pfimage_size += hdrsize;
+			pfimage_size += strlen(hdrblock);
 		}
 		/* this is a generous estimate of the size of the full pf image*/
 		pfimage_size += sum_block_sizes + npf*20+150;

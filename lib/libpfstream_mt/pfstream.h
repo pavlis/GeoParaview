@@ -1,3 +1,6 @@
+#ifndef _PFSTREAM_H_
+#define _PFSTREAM_H_
+#include "brttutil.h"
 typedef struct Pf_ensemble {
 	Tbl *ensemble_keys;
 	Tbl *group_keys;
@@ -57,6 +60,4 @@ Pf *pfdup(Pf *);
 #ifdef  __cplusplus
 }
 #endif
-
-
-
+#endif

@@ -172,7 +172,7 @@ Pfstream_handle *pfstream_start_write_thread(char *fname)
 	pfsc->fp = fopen(fname,"r+");
 	if(pfsc->fp==NULL)
 	{
-		register_error(1,"pfstream_start_write_thread:  Cannot open input stream %s\n",
+		register_error(1,"pfstream_start_write_thread:  Cannot open output stream %s\n",
 			fname);
 		pmtfifo_destroy(pfh->mtf,free);
 		free(pfh);
