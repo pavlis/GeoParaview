@@ -64,7 +64,7 @@ void save_run_parameters(Dbptr db,Pf *pf)
 		     dfile);
 		dfile=(char *)malloc(20);
 		sprintf(dfile,"%dpmel",getpid());
-		elog_log(0,"Trying again with pmelrun=%s\n",dfile);
+		elog_notify(0,"Trying again with pmelrun=%s\n",dfile);
 		ierr=dbaddv(db,0,"pmelrun",dfile,
 	               "vmodel",vm,
 	                "vmodel3d",vm3d,
@@ -341,7 +341,8 @@ option which is know to cause problems\nrecenter set off\n");
 					pfe->group_end[i],
 					arr_phase,
 					stations);
-			evid[i]=pfget_int(pfe->pf[0],"evid");
+			evid[i]=pfget_int(
+				pfe->pf[pfe->group_start[i]],"evid");
 			ndata += maxtbl(ta[i]);
 		}
 		/* This function alters the phase handles by setting
@@ -408,18 +409,18 @@ option which is know to cause problems\nrecenter set off\n");
 			events_to_fix,&hypocentroid,smatrix,
 			arr_phase,&o,pf,&converge,&pmelhistory))
 		{
-			elog_log(0,
+			elog_notify(0,
 			  "No solution from pmel for cluster id = %d\n",
 				gridid);
 			continue;
 		}
-		elog_log(0,"Cluster id=%d pmel convergence reason\n",
+		fprintf(stdout,"Cluster id=%d pmel convergence reason\n",
 			gridid);
 		for(k=0,pmelfail=0;k<maxtbl(converge);++k)
 		{
 			char *swork;
 			swork = (char *)gettbl(converge,k);
-			elog_log(0,"%s\n",swork);
+			fprintf(stdout,"%s\n",swork);
 
 			/* The string ABORT in the convergence list
 			is used to flag a failure. */

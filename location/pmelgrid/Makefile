@@ -1,7 +1,7 @@
 BIN=pmelgrid
 PF=pmelgrid.pf
 
-#MAN1=	pmelgrid.1
+MAN1=	pmelgrid.1
 cflags=-g 
 ldflags=-L/opt/SUNWspro/lib
 #ldlibs= $(DBLIBS) $(F77LIBS) -xlic_lib=sunperf,fui,fai,fsu \
