@@ -35,7 +35,7 @@ int compute_pseudostation_weights(int nsta, double *dnorth, double *deast,
                 double aperture, double cutoff, double *w);
 void compute_pwmoveout(int nsta,double *deast, double *dnorth,
                 double ux, double uy, double *moveout);
-int pwstack_ensemble(Three_Component_Ensemble *indata,
+int pwstack_ensemble(Three_Component_Ensemble& indata,
 	Rectangular_Slowness_Grid& ugrid,
 	Top_Mute& mute,
 	Top_Mute& stackmute,
@@ -45,5 +45,7 @@ int pwstack_ensemble(Three_Component_Ensemble *indata,
 	Metadata_list& mdlcopy,
 	Metadata_list& mdlout,
 	Attribute_Map& am,
+	string dir,
+	string dfile,
 	Database_Handle& dbh);
 string virtual_station_name(int ix1, int ix2);

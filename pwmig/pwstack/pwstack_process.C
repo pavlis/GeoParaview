@@ -58,10 +58,11 @@ Arguments
 		(see above)
 	mdlcopy - defines metadata to copy from the raw data
 		ensemble to each stack output
-	dir - directory to write output data into.  Assumed to 
-		exist (caller should make sure of this).  Output
-		file names are generated internally and if there
-		is a collision they are simply appended to.  
+	mdlout - list of metadata to be saved to output database 
+		(fixed for a given schema)
+	am - Attribute_Map object defining mapping of internal to
+		external namespace (invariant between calls)
+	dir and dfile - define file name where output written (dir/dfile)
 	dbh - Database_Handle object for output
 
 Normal return is 0.  Returns nonzero if stack was null.
@@ -76,7 +77,7 @@ Change Jan 15,2004
 Used to pass lat0, lon0 by arg list, now passed through the
 ensemble metadata.
 */
-int pwstack_ensemble(Three_Component_Ensemble *indata,
+int pwstack_ensemble(Three_Component_Ensemble& indata,
 	Rectangular_Slowness_Grid& ugrid,
 	Top_Mute& mute,
 	Top_Mute& stackmute,
@@ -86,6 +87,8 @@ int pwstack_ensemble(Three_Component_Ensemble *indata,
 	Metadata_list& mdlcopy,
 	Metadata_list& mdlout,
 	Attribute_Map& am,
+	string dir,
+	string dfile,
 	Database_Handle& dbh) 
 {
 	// lat0 and lon0 are location of target pseudostation grid point
@@ -98,15 +101,15 @@ int pwstack_ensemble(Three_Component_Ensemble *indata,
 	int ix1, ix2;
 	int evid;
 	try {
-		lat0=indata->get_double("lat0");
-		lon0=indata->get_double("lon0");
-		elev0=indata->get_double("elev0");
-		ux0=indata->get_double("ux0");
-		uy0=indata->get_double("uy0");
-		ix1=indata->get_int("ix1");
-		ix2=indata->get_int("ix2");
-		evid=indata->get_int("evid");
-		gridname=indata->get_string("gridname");
+		lat0=indata.get_double("lat0");
+		lon0=indata.get_double("lon0");
+		elev0=indata.get_double("elev0");
+		ux0=indata.get_double("ux0");
+		uy0=indata.get_double("uy0");
+		ix1=indata.get_int("ix1");
+		ix2=indata.get_int("ix2");
+		evid=indata.get_int("evid");
+		gridname=indata.get_string("gridname");
 	} catch (Metadata_get_error mderr)
 	{
 		// The above are all set by main so this is the 
@@ -122,15 +125,15 @@ int pwstack_ensemble(Three_Component_Ensemble *indata,
 	string sta=virtual_station_name(ix1,ix2);
 	int i,j;
 	vector<Three_Component_Seismogram>::iterator iv,ov;
-	int nsta = indata->tcse.size();
+	int nsta = indata.tcse.size();
 	// This computes the output gather size.  It assumes all data have
 	// a common sample rate and we can just grab the first one in the
 	// list.  It also quietly assumes a relative time base 
 	// so all times are computed relative to the start of
 	// each trace.  Caller should guarantee this.
 	//
-	double dt=indata->tcse[0].dt;
-	int nsin = indata->tcse[0].ns;
+	double dt=indata.tcse[0].dt;
+	int nsin = indata.tcse[0].ns;
 
 
 	Three_Component_Seismogram *stackout;
@@ -146,12 +149,12 @@ int pwstack_ensemble(Three_Component_Ensemble *indata,
 	Datascope_Handle dbevl(dshandle);
 	dbevl.lookup("evlink");
 
-	if(istart>=indata->tcse[0].ns)
+	if(istart>=indata.tcse[0].ns)
 		elog_die(0,(char *)"Irreconcilable window request:  Requested stack time window = %lf to %lf\nThis is outside range of input data\n",
 			tstart,tend);
 
 	/* Apply front end mutes to all traces */
-	apply_top_mute(*indata,mute);
+	apply_top_mute(indata,mute);
 
 	/* We need dnorth, deast vectors to compute moveout sensibly
 	for this program.  Since we use them repeatedly we will
@@ -160,18 +163,18 @@ int pwstack_ensemble(Three_Component_Ensemble *indata,
 	vector <double> deast;
 	vector <double> elev;
 	dnorth.resize(nsta);   deast.resize(nsta);  elev.resize(nsta);
-	for(i=0,iv=indata->tcse.begin();iv!=indata->tcse.end();++iv,++i)
+	for(i=0,iv=indata.tcse.begin();iv!=indata.tcse.end();++iv,++i)
 	{
 		double lat,lon;
 		int ierr;
 		try{
-			lat = (*iv).get_double("lat");
-			lon = (*iv).get_double("lon");
+			lat = (*iv).get_double("site.lat");
+			lon = (*iv).get_double("site.lon");
 			// assume metadata store these in degrees so we have to convert
 			lat = rad(lat);
 			lon = rad(lon);
 			geographic_to_dne(lat0, lon0, lat, lon, &(dnorth[i]),&(deast[i]));
-			elev[i]=(*iv).get_double("elev");
+			elev[i]=(*iv).get_double("site.elev");
 		} catch (Metadata_error merr)
 		{
 			throw merr;
@@ -180,7 +183,7 @@ int pwstack_ensemble(Three_Component_Ensemble *indata,
 	//
 	// We want to make sure that all stations are in standard coordinates
 	//
-	for(iv=indata->tcse.begin();iv!=indata->tcse.end();++iv)
+	for(iv=indata.tcse.begin();iv!=indata.tcse.end();++iv)
 	{
 		(*iv).rotate_to_standard();
 	}
@@ -201,7 +204,7 @@ int pwstack_ensemble(Three_Component_Ensemble *indata,
 		nused=compute_pseudostation_weights(nsta, &(dnorth[0]),&(deast[0]),
 		    aperture.get_aperture(tstart+dt*(double)i),
 		    aperture.get_cutoff(tstart+dt*(double)i),&(work[0]));
-		for(j=0;j<nsta;++i) weights(j,i)=work[j];
+		for(j=0;j<nsta;++j) weights(j,i)=work[j];
 		stack_count=max(nused,stack_count);
 	}
 	///
@@ -217,7 +220,7 @@ int pwstack_ensemble(Three_Component_Ensemble *indata,
 	vector<double>twork(nsout);
 
 	double avg_elev,sum_wgt;  // computed now as weighted sum of station elevations
-	for(i=0,avg_elev=0.0,sum_wgt=0.0;i<nsout;++i)
+	for(i=0,avg_elev=0.0,sum_wgt=0.0;i<nsta;++i)
 	{
 		avg_elev += weights(i,0)*elev[i];
 		sum_wgt += weights(i,0);
@@ -235,7 +238,6 @@ int pwstack_ensemble(Three_Component_Ensemble *indata,
 		double ux,uy,dux,duy;
 		int iend_this;
 		int ismin;
-		string dfile;
 		char buffer[128];
 		string table_name("wfprocess");
 
@@ -254,27 +256,47 @@ int pwstack_ensemble(Three_Component_Ensemble *indata,
 		// moveout computed here and used below assumes the
 		// data are aligned on the P arrival
 		compute_pwmoveout(nsta,&(deast[0]),&(dnorth[0]),dux,duy,&(moveout[0]));
-		for(i=0,iv=indata->tcse.begin(),ismute_this=0,iend_this=0,ismin=nsout;
-			iv<indata->tcse.end();++iv,++i)
+		for(i=0,iv=indata.tcse.begin(),ismute_this=0,iend_this=0,ismin=nsout;
+			iv!=indata.tcse.end();++iv,++i)
 		{
-			int is0, is, ismin, ns_to_copy; 
-			is0 = istart + nint( moveout[i]);
-			// need this to define latest front mute time
-			ismute_this = max(ismute+nint(moveout[i]),ismute_this);
-			// This computes starting position for the input trace  
-			if(is0<0)
-			{ 
-				is=0;
-				ismin = 0;
-				ns_to_copy = min(nsin+is0,nsout);
-				iend_this = max(iend_this,ns_to_copy-1);
+			int is0,ie0, is, ns_to_copy; 
+			int j0;
+			double lag;
+			lag = tstart - (iv->t0) + moveout[i];
+			is0=nint(lag);
+			if(is0>=0)
+			{
+				j0=0;
+				is=is0;
+				ismin = min(is,ismin);
+				ie0=is0+nsout-1;
+				if(ie0<=nsin)
+				{
+					ns_to_copy=nsout;
+					iend_this=nsout;
+				}
+				else
+				{
+					ns_to_copy=nsin-is;
+					iend_this=max(ns_to_copy,iend_this);
+				}
 			}
 			else
 			{
-				is = is0;
-				ismin = min(is,ismin);
-				ns_to_copy = min(nsin-is0,nsout-is0);
-				iend_this = max(iend_this,ns_to_copy+is0-1);
+				j0=-is0;
+				is=0;
+				ismin=0;
+				ie0=nsout+is0-1;  // a subtraction by is0 since is0 is negative
+				ns_to_copy=nsout+is0;
+				if(ns_to_copy>nsin) 
+				{
+					ns_to_copy=nsin+is0;
+					iend_this=max(nsin,iend_this);
+				}
+				else
+				{
+					iend_this=nsout;
+				}
 			}
 
 			for(j=0;j<3;++j)
@@ -284,12 +306,12 @@ int pwstack_ensemble(Three_Component_Ensemble *indata,
 				// ugly expression below depends on data being
 				// stored in FORTRAN order in the dmatrix object
 				dcopy(ns_to_copy,(*iv).u.get_address(j,is),3,
-					&(twork[0]),1);
-				vscal(iend_this,weights.get_address(i,0),nsta,&(twork[0]),1);
-				vscal(iend_this,weights.get_address(i,0),nsta,&(twork[0]),1);
-				vadd(iend_this,&(twork[0]),1,stack.get_address(j,0),3);
+					&(twork[j0]),1);
+				vscal(nsout,weights.get_address(i,0),nsta,&(twork[0]),1);
+				vscal(nsout,weights.get_address(i,0),nsta,&(twork[0]),1);
+				vadd(nsout,&(twork[0]),1,stack.get_address(j,0),3);
 				// Need to accumulate the sum of weights to normalize
-				if(j==0) vadd(iend_this,weights.get_address(i,0),nsta,&(stack_weight[0]),1);
+				if(j==0) vadd(nsout,weights.get_address(i,0),nsta,&(stack_weight[0]),1);
 			}
 		}
 		// normalize the stack.
@@ -297,7 +319,7 @@ int pwstack_ensemble(Three_Component_Ensemble *indata,
 		// Use a hard limit based on ismax and iend_this and then 
 		// assume mutes kill possible transients in mute zone
 		for(j=0;j<3;++j)
-			for(i=ismin;i<=iend_this;++i)
+			for(i=ismin;i<iend_this;++i)
 			{
 				if(stack_weight[i]>0)
 					stack(j,i)/=stack_weight[i];
@@ -305,8 +327,11 @@ int pwstack_ensemble(Three_Component_Ensemble *indata,
 		// Create the output stack as a 3c trace object and copy
 		// metadata from the input into the output object.
 		stackout = new Three_Component_Seismogram(nsout);
+		stackout->dt=dt;
+		stackout->t0=tstart;
+		stackout->live=true;
 		stackout->u=stack;
-		copy_selected_metadata(dynamic_cast<Metadata&>(*indata),
+		copy_selected_metadata(dynamic_cast<Metadata&>(indata),
 			dynamic_cast<Metadata&>(*stackout),mdlcopy);
 		stackout->put_metadata("ux",ux);
 		stackout->put_metadata("uy",uy);
@@ -325,12 +350,24 @@ int pwstack_ensemble(Three_Component_Ensemble *indata,
 		// just keep a good estimate of elevation and deal with this in the
 		// migration algorithm. 
 		stackout->put_metadata("elev",avg_elev);
+		// These are needed in out waveform output file and 
+		// with this method they need to be pushed to the Metadata
+		// area of the stackout object.
+		stackout->put_metadata("wfprocess.time",stackout->t0);
+		stackout->put_metadata("wfprocess.endtime",stackout->endtime());
+		stackout->put_metadata("wfprocess.timetype","r"); // always relative
+		stackout->put_metadata("wfprocess.dir",dir);
+		stackout->put_metadata("wfprocess.dfile",dfile);
+		stackout->put_metadata("wfprocess.samprate",1.0/dt);
+		stackout->put_metadata("wfprocess.nsamp",nsout);
+		stackout->put_metadata("wfprocess.algorithm","pwstack");
+
 		apply_top_mute(*stackout,stackmute);
 
 		// Have to handle integer id problem using Datascope dbnextid 
 		// method for now.  
 		int pwfid=dbnextid(dshandle.db,"pwfid");
-		stackout->put_metadata("pwfid",pwfid);
+		stackout->put_metadata("wfprocess.pwfid",pwfid);
 
 		try{
 			dbsave(*stackout,dshandle.db,table_name,mdlout,am);

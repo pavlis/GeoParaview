@@ -1,4 +1,5 @@
 #include <string>
+#include <sstream>
 #include "stock.h"
 #include "elog.h"
 #include "pf.h"
@@ -10,9 +11,16 @@ using namespace std;
 using namespace SEISPP;
 
 bool Verbose;
+string MakeDfileName(int evid, int x1, int x2)
+{
+	string dfile;
+	ostringstream sbuf(dfile);
+	sbuf<<"pwstack_"<<evid<<"_"<<x1<<"_"<<x2;
+	return(dfile);
+}
 void usage()
 {
-        cbanner((char *)"$Revision: 1.11 $ $Date: 2005/01/16 14:07:37 $",
+        cbanner((char *)"$Revision: 1.12 $ $Date: 2005/01/22 15:40:25 $",
 		(char *)"dbin dbout [-v -V -pf pfname]",
                 (char *)"Gary Pavlis",
                 (char *)"Indiana University",
@@ -34,8 +42,7 @@ int main(int argc, char **argv)
 
 	// This is the input data ensemble
 	Three_Component_Ensemble *din;
-	// This is the output ensemble built on a grid of plane waves
-	Three_Component_Ensemble *dout;
+	Three_Component_Ensemble ensemble;
 	// Tbl tag used in pf to define depth-dependent apeture.
 	// frozen here as this constant but passed as a ariable to the 
 	// appropriate constructor below
@@ -52,7 +59,7 @@ int main(int argc, char **argv)
         dbname_in = argv[1];
         dbname_out = argv[2];
 
-        for(i=2;i<argc;++i)
+        for(i=3;i<argc;++i)
         {
 		if(!strcmp(argv[i],"-V"))
 			usage();
@@ -80,6 +87,12 @@ int main(int argc, char **argv)
 	    double ts,te;
 	    ts = pfget_double(pf,(char *)"stack_time_start");
 	    te = pfget_double(pf,(char *)"stack_time_end");
+	    // the data are windowed around arrivals to this interval
+	    // normally should be ts:te with sufficient allowance for moveout
+	    double tsfull, tefull;  // normally longer than ts and te to allow 
+	    tsfull = pfget_double(pf,"data_time_window_start");
+	    tefull = pfget_double(pf,"data_time_window_end");
+	    Time_Window data_window(tsfull,tefull);
 	    dir = pfget_string(pf,"waveform_directory");
 	    if(dir==NULL)
 		    dir=strdup("./pwstack");
@@ -92,7 +105,7 @@ int main(int argc, char **argv)
 	    //
     	    Metadata_list station_mdl=pfget_mdlist(pf,"station_metadata");
     	    Metadata_list ensemble_mdl=pfget_mdlist(pf,"ensemble_metadata");
-    	    Metadata_list stack_mdl=pfget_mdlist(pf,"ensemble_metadata");
+    	    Metadata_list stack_mdl=pfget_mdlist(pf,"stack_metadata");
 	    Attribute_Map am;
     	    Depth_Dependent_Aperture aperture(pf,aperture_tag);
 	    Top_Mute mute(pf,string("Data_Top_Mute"));
@@ -105,6 +118,10 @@ int main(int argc, char **argv)
 	    string dbnmi(dbname_in);  // this temporary seems necessary for g++
 	    Datascope_Handle dbh(dbnmi,false);
 	    dbh=Datascope_Handle(dbh.db,pf,string("dbprocess_commands"));
+	    list<string> group_keys;
+	    group_keys.push_back("evid");
+	    dbh.group(group_keys);
+	    dbh.rewind();
 	    // This is the output database which probably should always
 	    // be different than the input database.
 	    string dbnmo(dbname_out);
@@ -119,7 +136,7 @@ int main(int argc, char **argv)
 	    // need this information though.
 	    //
 	    char *stagridname;
-	    stagridname=pfget_string(pf,"Station_GCLgrid_name");
+	    stagridname=pfget_string(pf,"pseudostation_grid_name");
 	    string grdnm(stagridname);
 	    GCLgrid stagrid(dbh.db,grdnm);
 
@@ -127,6 +144,7 @@ int main(int argc, char **argv)
 	    for(rec=0,dbh.rewind();rec<dbh.number_tuples();++rec,++dbh)
 	    {
 		int iret;
+		int evid;
 		// ensemble is read once for entire grid in this 
 		// version of the program.  This assumes newer 
 		// methods like that under development by Fan 
@@ -136,6 +154,12 @@ int main(int argc, char **argv)
 		din = new Three_Component_Ensemble(
 		    dynamic_cast<Database_Handle&>(dbh),
 		    station_mdl, ensemble_mdl,am);
+		ensemble=Arrival_Time_Reference(*din,"arrival.time",data_window);
+		// this should probably be in a try block, but we need to
+		// extract it here or we extract it many times later.
+		evid=ensemble.get_int("evid");
+		// Release this potentially large memory area
+		delete din;
 		double lat0,lon0,elev0,ux0,uy0;
 		for(i=0;i<stagrid.n1;++i) for(j=0;j<stagrid.n2;++j)
 		{
@@ -147,43 +171,48 @@ int main(int argc, char **argv)
 		// slowness vector.  Stacks are made relative to this
 		// and the data are aligned using P wave arrival times
 		try {
-		    // This code used to contain these two lines which
-		    // were then passed to pwstack_ensemble.  We now 
-		    // simply treat them as metadata extracted in the
-		    // process function for consistency with lat0 and lon0
-		    // set below
-		    //ux0=din->get_double("ux0");
-		    //uy0=din->get_double("uy0");
 		    //
 		    // this is a backdoor method to pass this information
 		    // to the main processing program called just below.
 		    // perhaps bad form, but it is logical as these
 		    // are metadata related to these data by any measure.
-		    din->put_metadata("ix1",i);
-		    din->put_metadata("ix2",j);
-		    din->put_metadata("lat0",lat0);
-		    din->put_metadata("lon0",lon0);
-		    din->put_metadata("elev0",elev0);
-		    din->put_metadata("gridname",stagridname);
-		    iret=pwstack_ensemble(din,
+		    ensemble.put_metadata("ix1",i);
+		    ensemble.put_metadata("ix2",j);
+		    ensemble.put_metadata("lat0",lat0);
+		    ensemble.put_metadata("lon0",lon0);
+		    ensemble.put_metadata("elev0",elev0);
+		    ensemble.put_metadata("gridname",stagridname);
+		    // generate dfile name from evid and grid position
+		    string dfile=MakeDfileName(evid,i,j);
+// Set manually for now
+//
+ensemble.put_metadata("ux0",0.05);
+ensemble.put_metadata("uy0",0.02);
+		    iret=pwstack_ensemble(ensemble,
 			ugrid,
 			mute,
 			stackmute,
 			ts,
 			te,
 			aperture,
-			station_mdl,
+			ensemble_mdl,
 			stack_mdl,
 			am,
+			dir,
+			dfile,
 			dbho);
 		    if((iret<0) && (Verbose))
-			cout << "Ensemble number "<< rec << " has no data in pseudoarray aperture"<<endl;
+			cout << "Ensemble number "<< rec 
+			<< " has no data in pseudoarray aperture"<<endl
+			<< "Pseudostation grid point indices (i,j)="
+			<< "("<<i<<","<<j<<")"<<endl;
 		} catch (Metadata_error mderr1)
 		{
 			mderr1.log_error();
-			cerr << "Ensemble " << i << " data skipped" << endl;
+			cerr << "Ensemble " << rec << " data skipped" << endl;
+			cerr << "Pseudostation grid point indices (i,j)="
+                        << "("<<i<<","<<j<<")"<<endl;
 		}
-		delete din;
 	    }
 	    }
 	} catch (seispp_error err)
