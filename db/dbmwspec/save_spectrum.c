@@ -249,6 +249,7 @@ int save_spectrum(Dbptr db,
 	}
 	free(phase);
 	free(sname);
+	free(user);
 	return(0);	
 			
 }
