@@ -25,9 +25,9 @@ void pfget_aperture_parameters(Pf *pf,string tag,
 	// that sets the entries null.  If the parameterized constuctor
 	// were called this will create a memory leak.
 	d.npoints = maxtbl(t);
-	new double d.t=double(d.npoints);
-	new double d.aperture=double(d.npoints);
-	new double d.cutoff=double(d.npoints);
+	new double d.t=double[d.npoints];
+	new double d.aperture=double[d.npoints];
+	new double d.cutoff=double[d.npoints];
 
 	for(int i=0;i<maxtbl(t);++i)
 	{

@@ -18,14 +18,17 @@ public:
 	double *t;
 	double *aperture;
 	double *cutoff;
-	Depth_Dependent_Aperture(){npoints=0;t=NULL;aperture=NULL;};
+	Depth_Dependent_Aperture()
+		{npoints=0;t=NULL;aperture=NULL;cutoff=NULL};
 	Depth_Dependent_Aperture(int npt){npoints=npts;
-		new double *t=double(npts);
-		new double *aperture=double(npts);
-		new double *cutoff=double(npts);
+		new double *t=double[npts];
+		new double *aperture=double[npts];
+		new double *cutoff=double[npts];
 	};
 	~Depth_Dependent_Aperture(){
-		if(t!=NULL)delete t; if(aperture!=NULL)delete aperture;
+		if(t!=NULL)delete [] t; 
+		if(aperture!=NULL)delete [] aperture;
+		if(cutoff!=NULL)delete [] cutoff;
 	};
 	double get_aperture(double tnow);
 	double get_cutoff(double tnow);

@@ -92,7 +92,7 @@ int pwstack_ensemble(Three_Component_Ensemble& indata,
 
 	double *weights[nsta];
 	for(i=0;i<nsta;++i) 
-		new double *weights[i]=double(nsout);
+		new double *weights[i]=double[nsout];
 	int stack_count=0;  //maximum number of traces not zeroed
 	for(i=0;i<nsout;++i)
 	{
