@@ -66,14 +66,12 @@ public:
   friend dmatrix operator/(const dmatrix&, const double&);
   friend dmatrix tr(const dmatrix&);
   friend dmatrix inv(const dmatrix&);
-#ifndef stdout
+  double* get_address(int r, int c);
   friend ostream& operator<<(ostream&, dmatrix&);
   friend istream& operator>>(istream&, dmatrix&);
-#endif
-
 private:
-   int length;
    double *ary;
+   int length;
    int nrr, ncc, matoff;
 };
 #endif

@@ -116,8 +116,9 @@ class seispp_error
 {
 public:
 	string message;
-	virtual void log_error(){cerr << "seispp error: "<<message<<endl;
+	virtual void log_error(){cerr << "seispp error: "<<message<<endl;};
 };
+
 class SAC_data_error : public seispp_error
 {
 public:

@@ -1,5 +1,6 @@
 #include <iostream>
 #include "dmatrix.h"
+
 using namespace std;
 dmatrix::dmatrix(int nr, int nc, int stval)
 {
@@ -39,7 +40,26 @@ double &dmatrix::operator()(int rowindex, int colindex)
   if (colindex<matoff) out_of_range=1;
   if (out_of_range)
 	throw dmatrix_index_error(nrr,ncc,rowindex,colindex);
-  return (ary[colindex-matoff+(ncc-matoff+1)*(rowindex-matoff)]);
+// old, stored in column order
+//  return (ary[colindex-matoff+(ncc-matoff+1)*(rowindex-matoff)]);
+  return (ary[rowindex-matoff+(nrr-matoff+1)*(colindex-matoff)]);
+}
+//
+// subtle difference here.  This one returns a pointer to the 
+// requested element
+//
+double* dmatrix::get_address(int rowindex, int colindex)
+{
+  double *ptr;
+  int out_of_range=0;
+  if (rowindex>nrr) out_of_range=1;
+  if (rowindex<matoff) out_of_range=1;
+  if (colindex>ncc) out_of_range=1;
+  if (colindex<matoff) out_of_range=1;
+  if (out_of_range)
+        throw dmatrix_index_error(nrr,ncc,rowindex,colindex);
+  ptr = ary + rowindex-matoff+(nrr-matoff+1)*(colindex-matoff);
+  return(ptr);
 }
 
 void dmatrix::operator=(const dmatrix& other)
@@ -127,7 +147,6 @@ int i;
 return tempmat;
   }  
 
-#ifdef find_inv
 
 dmatrix inv(const dmatrix& x1)
 {
@@ -145,6 +164,7 @@ if(x1.nrr<x1.ncc)   // underdetermined crude pseudoinverse
   dmatrix x1T(1,1,1);
   x1T=tr(x1);
   return (x1T*(inv(x1*x1T)));
+  }
  dmatrix a(x1.ncc,x1.ncc,x1.matoff);
  a=x1;
  a.matoff=1;
@@ -227,8 +247,6 @@ temp.ary[i-temp.matoff+(temp.ncc-temp.matoff+1)*(j-temp.matoff)]=
 return temp;
 }
 
-#endif
-#ifndef stdout
 
 ostream& operator<<(ostream& os, dmatrix& x1)
   {
@@ -250,4 +268,4 @@ istream& operator>>(istream& is, dmatrix& x1)
   }
   return is;
   }
-#endif
+

@@ -18,7 +18,7 @@ DLD=CC -G -Kpic
 
 
 OBJS=	converters.o create_destroy.o dbsubs.o ellipsoid.o \
-    fme_weights.o interpolate.o lookup.o operators.o dr3.o
+    fme_weights.o interpolate.o lookup.o operators.o
 $(LIB) : $(OBJS)
 	rm -f $@
 #	$(AR) $(ARFLAGS) $@ $(LORDER) $(OBJS) $(TSORT)
