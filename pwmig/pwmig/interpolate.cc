@@ -1,3 +1,6 @@
+#include <float.h>
+#include "perf.h"
+#include "dmatrix.h"
 /* This is a collection of interpolators for 1D scalar or vector
 functions of one variable.  I have stolen portions from Igor Morozov, but
 changed the wrapper completely.  The collection is wrapped in a namespace
@@ -8,7 +11,7 @@ linear_scale() or you are likely to have a name conflict.  This
 library could have been fully objectized, but I chose to keep it 
 procedural because these operations are commonly done on primitives.*/
 #include <math.h>
-namespace INTERPOLATOR1D;
+namespace INTERPOLATOR1D
 {
 /* primitive for 2 point linear interpolation.  Uses a weight formula
 instead of an explicit point-slope to reduce operation counts.  
@@ -24,7 +27,7 @@ double linear_scalar ( double x, double x1, double y1,
 {
 	double a,dx,adx;
 	if(fabs((x1-x2)/x1)<=DBL_EPSILON)
-		return((y1+y2)/2.0;
+		return((y1+y2)/2.0);
 	else
 	{
 		a = 1.0/(x2-x1);
@@ -163,20 +166,20 @@ and returns a vector of doubles that is the interpolated vector. */
 double *linear_vector_regular ( double	xp, double x0, double dx,dmatrix& y)
 {
 	int	i;
-	int nx = y.nc;
-	int nv = y.nr;
+	int nx = y.columns();
+	int nv = y.rows();
 	double *yout = new double[nv];
 	double x1;
 	i = INTERPOLATOR1D::regular_lookup(xp,x0,dx);
 	if(i<0)
-		dcopy(nv,y.get_address(0,0),1,yout,1);
+		dcopy(nv,&y(0,0),1,yout,1);
 	else if(i>(nx-2)) 
-		dcopy(nv,y.get_address(0,nx-1),1,yout,1);
+		dcopy(nv,&y(0,nx-1),1,yout,1);
 	else
 	{
 		x1 = x0 + ((double)i)*dx;
-		INTERPOLATOR1D::linear_vector(xp, x1,y.get_address(0,i),
-					x1+dx, y.get_address(0,i+1),nv,yout);
+		INTERPOLATOR1D::linear_vector(xp, x1,&y(0,i),
+					x1+dx, &y(0,i+1),nv,yout);
 	}
 	return(yout);
 }
@@ -185,19 +188,19 @@ double *linear_vector_regular ( double	xp, double x0, double dx,dmatrix& y)
 double *linear_vector_irregular(double xp,double *x, dmatrix& y)
 {
 	int i;
-	int nx = y.nc;
-	int nv = y.nr;
+	int nx = y.columns();
+	int nv = y.rows();
 	double *yout = new double[nv];
 
 	i = INTERPOLATOR1D::irregular_lookup(xp,x,nx);
 	if(i<0)
-		dcopy(nv,y.get_address(0,0),1,yout,1);
+		dcopy(nv,&y(0,0),1,yout,1);
 	else if(i>(nx-2)) 
-		dcopy(nv,y.get_address(0,nx-1),1,yout,1);
+		dcopy(nv,&y(0,nx-1),1,yout,1);
 	else
 	{
-		INTERPOLATOR1D::linear_vector(xp, x[i],y.get_address(0,i),
-					x[i+1], y.get_address(0,i+1),nv,yout);
+		INTERPOLATOR1D::linear_vector(xp, x[i],&y(0,i),
+					x[i+1], &y(0,i+1),nv,yout);
 	}
 	return(yout);
 }
@@ -205,9 +208,9 @@ double *linear_vector_irregular(double xp,double *x, dmatrix& y)
 void linear_vector_regular_to_regular(double x0in, double dxin, dmatrix& yin,
 		double x0out, double dxout, dmatrix& yout)
 {
-	int nin = yin.nc;
-	int nout = yout.nc;
-	int nv = yin.nr;
+	int nin = yin.columns();
+	int nout = yout.columns();
+	int nv = yin.rows();
 	double *ytmp;
 
 	for(int i=0;i<nout;++i)
@@ -215,23 +218,23 @@ void linear_vector_regular_to_regular(double x0in, double dxin, dmatrix& yin,
 		double xp;
 		xp = x0out + ((double)i)*dxout;
 		ytmp = INTERPOLATOR1D::linear_vector_regular(xp,x0in,dxin,yin);
-		dcopy(nv,ytmp,1,yout.get_address(0,i),1);
+		dcopy(nv,ytmp,1,&yout(0,i),1);
 		delete [] ytmp;
 	}
 }
 void linear_vector_irregular_to_regular(double *xin, dmatrix& yin,
 		double x0out, double dxout, dmatrix& yout)
 {
-	int nin = yin.nc;
-	int nout = yout.nc;
-	int nv = yin.nr;
+	int nin = yin.columns();
+	int nout = yout.columns();
+	int nv = yin.rows();
 	double *ytmp;
 	for(int i=0;i<nout;++i)
 	{
 		double xp;
 		xp = x0out + ((double)i)*dxout;
 		ytmp = INTERPOLATOR1D::linear_vector_irregular(xp,xin,yin);
-		dcopy(nv,ytmp,1,yout.get_address(0,i),1);
+		dcopy(nv,ytmp,1,&yout(0,i),1);
 		delete [] ytmp;
 	}
 }
@@ -239,30 +242,33 @@ void linear_vector_irregular_to_regular(double *xin, dmatrix& yin,
 void linear_vector_regular_to_irregular(double x0in, double dxin, dmatrix& yin,
 		double *xout, dmatrix& yout)
 {
-	int nin = yin.nc;
-	int nout = yout.nc;
-	int nv = yin.nr;
+	int nin = yin.columns();
+	int nout = yout.columns();
+	int nv = yin.rows();
 	double *ytmp;
 
 	for(int i=0;i<nout;++i)
 	{
-		ytmp = INTERPOLATOR1D::linear_vector_regular(xp,x0in,dxin,yin);
-		dcopy(nv,ytmp,1,yout.get_address(0,i),1);
+		ytmp = INTERPOLATOR1D::linear_vector_regular(xout[i],x0in,dxin,yin);
+		dcopy(nv,ytmp,1,&yout(0,i),1);
 		delete [] ytmp;
 	}
 }
-void linear_vector_irregular_to_irregular(double *xin, double *yin,
-		int nout, double *xout, double *yout)
+void linear_vector_irregular_to_irregular(double *xin, dmatrix& yin,
+		double *xout, dmatrix& yout)
 {
-	int nin = yin.nc;
-	int nout = yout.nc;
-	int nv = yin.nr;
+	int nin = yin.columns();
+	int nout = yout.columns();
+	int nv = yin.rows();
 	double *ytmp;
 
 	for(int i=0;i<nout;++i)
 	{
-		ytmp = INTERPOLATOR1D::linear_vector_irregular(xp,xin,yin);
-		dcopy(nv,ytmp,1,yout.get_address(0,i),1);
+		ytmp = INTERPOLATOR1D::linear_vector_irregular(xout[i],xin,yin);
+		dcopy(nv,ytmp,1,&yout(0,i),1);
 		delete [] ytmp;
 	}
+}
+
+// end of namespace
 }
