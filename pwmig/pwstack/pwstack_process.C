@@ -138,10 +138,10 @@ int pwstack_ensemble(Three_Component_Ensemble& indata,
 
 	Three_Component_Seismogram *stackout;
 
-	int istart = nint(tstart/dt);
-	int iend = nint(tend/dt);
+	int istart = SEISPP::nint(tstart/dt);
+	int iend = SEISPP::nint(tend/dt);
 	int nsout = iend-istart+1;
-	int ismute = nint(mute.t1/dt);
+	int ismute = SEISPP::nint(mute.t1/dt);
 	int ismute_this, ie_this;
 	Datascope_Handle& dshandle=dynamic_cast<Datascope_Handle&>(dbh);
 	Datascope_Handle dbstack(dshandle);
@@ -263,7 +263,7 @@ int pwstack_ensemble(Three_Component_Ensemble& indata,
 			int j0;
 			double lag;
 			lag = tstart - (iv->t0) + moveout[i];
-			is0=nint(lag);
+			is0=SEISPP::nint(lag);
 			if(is0>=0)
 			{
 				j0=0;
@@ -302,7 +302,6 @@ int pwstack_ensemble(Three_Component_Ensemble& indata,
 			for(j=0;j<3;++j)
 			{
 				dzero(nsout,&(twork[0]),1);
-				dzero(nsout,&(work[0]),1);
 				// ugly expression below depends on data being
 				// stored in FORTRAN order in the dmatrix object
 				dcopy(ns_to_copy,(*iv).u.get_address(j,is),3,

@@ -5,7 +5,8 @@ DATA=pwmig1.1
 
 #MAN1=pwstack.1
 cflags=-g
-ldflags=-lseispp -ltrvltm -lpfstream -lbrttutil $(TRLIBS) $(DBLIBS) -lperf -lgclgrid
+ldflags=-lseispp -lgclgrid -ltrvltm -lpfstream -lbrttutil $(TRLIBS) $(DBLIBS) -lperf -lgclgrid
+
 
 include $(ANTELOPEMAKE) 
 OBJS=pwstack.o \
@@ -13,4 +14,4 @@ OBJS=pwstack.o \
 	aperture.o \
 	pwstack_process.o 
 $(BIN) : $(OBJS)
-	$(CXX) $(CXXFLAGS) -o $@ $(OBJS) $(LDFLAGS) $(LDLIBS)
+	$(CXX) $(CXXFLAGS) -o $@ $(OBJS) $(DBX) $(LDFLAGS) $(LDLIBS)

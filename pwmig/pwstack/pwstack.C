@@ -20,7 +20,7 @@ string MakeDfileName(int evid, int x1, int x2)
 }
 void usage()
 {
-        cbanner((char *)"$Revision: 1.15 $ $Date: 2005/01/29 13:30:56 $",
+        cbanner((char *)"$Revision: 1.16 $ $Date: 2005/01/30 00:39:57 $",
 		(char *)"dbin dbout [-v -V -pf pfname]",
                 (char *)"Gary Pavlis",
                 (char *)"Indiana University",
@@ -52,7 +52,7 @@ int main(int argc, char **argv)
 
 	ios::sync_with_stdio();
         /* Initialize the error log and write a version notice */
-        elog_init (argc, argv);
+        //elog_init (argc, argv);
 
         /* usual cracking of command line */
         if(argc < 2) usage();
@@ -189,6 +189,8 @@ int main(int argc, char **argv)
 //
 ensemble.put_metadata("ux0",0.05);
 ensemble.put_metadata("uy0",0.02);
+
+cerr << "Working on grid i,j = " << i << "," << j << endl;
 		    iret=pwstack_ensemble(ensemble,
 			ugrid,
 			mute,
