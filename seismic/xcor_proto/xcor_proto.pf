@@ -51,3 +51,36 @@ dbgroup evid sta
 # Needs to be either receiver or source.  
 # Only the exact word source causes source gather -- garbage gives receiver
 gather_type receiver
+# All data will be resampled to this target sample rate
+target_samprate 40 
+resample_definitions	&Arr{
+    100	&Arr{
+        Decimator_response_files	&Tbl{
+            4	response/RT72A_4_f
+	    0.625 resample
+        }
+        high_limit	101
+        low_limit	99
+    }
+    20	&Arr{
+        Decimator_response_files	&Tbl{
+            0.5 resample
+        }
+        high_limit	21
+        low_limit	19
+    }
+    33.5	&Arr{
+        Decimator_response_files	&Tbl{
+            0.8375	resample
+        }
+        high_limit	35
+        low_limit	30
+    }
+    40	&Arr{
+        Decimator_response_files	&Tbl{
+            1  none
+        }
+        high_limit	41
+        low_limit	39
+    }
+}

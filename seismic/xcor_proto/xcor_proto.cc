@@ -8,6 +8,8 @@ using namespace std;
 #include "db.h"
 #include "seispp.h"
 using namespace SEISPP;
+#include "resample.h"
+#include "perf.h"
 /* This is a core program that will eventually be a generalized
 time-domain cross correlation gizmo.  For now it simply does i/o 
 and writes output that will be passed to matlab for processing.  
@@ -32,15 +34,20 @@ void output_data(Three_Component_Ensemble *d, int component)
 		{
 			if(d->tcse[i].is_gap(j))
 			{
-				cout << "0.0,";
+				cout << "0.0 ";
 				cerr << "Warning:  gap at sample "
 					<< j 
 					<< " at emsemble member "
 					<< i << endl;
 			}
 			else
-				cout << d->tcse[i].u(component,j)
-					<< " ";
+			{
+				if(j<d->tcse[i].u.columns() )
+					cout << d->tcse[i].u(component,j)
+						<< " ";
+				else
+					cout << "0.0 ";
+			}
 		}
 		cout << endl;
 	}
@@ -92,7 +99,7 @@ int main(int argc, char **argv)
 	Dbptr db;
 	Pf *pf;
 	Three_Component_Ensemble *d;
-	int i;
+	int i,j;
 	string testarg;
 	string sstring;
 	bool do_subset=false;
@@ -144,6 +151,10 @@ int main(int argc, char **argv)
 		int component=md.get_int("component_to_extract");
 		// correct to C convention
 		--component;
+		double target_samprate=md.get_double("target_samprate");
+		double dtout=1.0/target_samprate;
+		Resampling_Definitions rd(pf);
+
 
 		if(dbopen(const_cast<char *>(dbname.c_str()),"r",&db))
                       die(0,"dbopen failed on database %s",dbname.c_str());
@@ -172,10 +183,39 @@ cerr << "View size = "<<dbhi0.number_tuples() << endl;
 			//Attribute_Map amtest(string("test"));
 			vector<Three_Component_Seismogram>::iterator smember;
 			Three_Component_Ensemble cutdata;
+			Time_Series *comp;
 			d=new Three_Component_Ensemble(dynamic_cast<Database_Handle&>
 				(dbhi),md_to_input,md_to_input,am);
 				//(dbhi),md_to_input,md_to_input,amtest);
 				//(dbhi),mdl1,mdl2,amtest);
+			for(i=0;i<d->tcse.size();++i)
+			{
+				Three_Component_Seismogram tcs(d->tcse[i]);
+				cout << tcs.get_string("sta") 
+					<< " has dt " 
+					<< tcs.dt << endl;
+				int nsout;
+				for(j=0;j<3;++j)
+				{
+					comp=Extract_Component(d->tcse[i],j);
+					Time_Series tsdec=Resample_Time_Series(*comp,
+						rd,dtout,false);
+
+					// Need a different sized matrix to hold output
+					if(j==0)
+					{
+						nsout = tsdec.s.size();
+						tcs.u=dmatrix(3,nsout);
+					}
+cerr << i << "," << j << "ns="<<d->tcse[i].ns<<" nsout="<<nsout<<endl;
+cerr << "t0in="<<d->tcse[i].t0<<" t0resampled="<< tsdec.t0<<endl;
+					dcopy(nsout,&(tsdec.s[0]),1,
+							tcs.u.get_address(j,0),3);
+				}
+				tcs.dt=dtout;
+				d->tcse[i]=tcs;
+			}
+			
 			cutdata = Arrival_Time_Reference(*d,akey,tw);
 			if(rotate_data)
 				rotate_ensemble(&cutdata,vp,vs,afst);
