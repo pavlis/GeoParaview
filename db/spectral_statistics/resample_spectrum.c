@@ -37,6 +37,8 @@ Spectrum s,pattern;
 		exit(-1);
 	}
 	else if(s.df == pattern.df)
+	{
+		free(work);
 		return(s);
 	else
 	{
