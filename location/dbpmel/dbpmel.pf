@@ -25,87 +25,40 @@ pmel_autodelete_high_rms
 pmel_cluster_mode
 }
 }
-pmel_run_name test
-gridname kyrghyz
+author dbpmel:pavlis
+pmel_run_name knet2
+gridname knet
 pmelrun_archive_directory pmelruns
 
-dbpmel_dbview_definition &Tbl{
-dbsubset gridid<1000
-	dbjoin cluster
-	dbjoin event
-	dbjoin origin
-	dbsubset orid==prefor
-	dbjoin assoc
-	dbjoin arrival
-}
-author dbpmel:pavlis
-use_all_stations false
+use_all_stations true
 use_dnorth_deast false
 pmel_autodelete_high_rms true
 pmel_cluster_mode true
 pmel_initial_error_scale 10.0
 pmel_minimum_error_scale  1.0
-pmel_minimum_sswrodgf 1.0
+pmel_minimum_sswrodgf 1.0 
 pmel_F_test_critical_value 0.95
 pmel_svd_relative_cutoff  0.001
 pmel_sc_fraction_convergence_error 0.01
 pmel_stations &Arr{
-AAK
-AHQI  
-AKSU  
-AML   
-ANA   
-ARA   
-ATUS  
-BCHU  
-BGK2  
-CHAT  
-CHM   
-DGE   
-EKS2  
-ERPT  
-HARA  
-HLQI  
-KAI   
-KAR   
-KARL  
-KASH  
-KAZ   
-KBK
-KDJ   
-KENS  
-KHA   
-KOPG  
-KSA   
-KZA   
-MAK   
-MAKZ  
-NRN   
-PDG   
-PIQG  
-POGR  
-TERE  
-TGMT  
-TKM   
-TKM2
-TLG   
-UCH   
-ULHL
-USP   
-WQIA  
-XIKR  
 }
 #
 #  This contains a list of evids and coordinates to fix
 # x=ew, y=ns, z=up/down, t=origin time
 #
 pmel_calibration_events &Tbl{
-10  xyzt
-11  xyz
 }
-3Dreference_model ttlvz/iasp91
-travel_time_model	ttlvz/iasp91
-pmel_maximum_sc_iterations 5
+#
+#  This produces an unbiased solution - bias projects to 0
+#
+3Dreference_model 1dcvl/kyrghyz
+travel_time_model	1dcvl/kyrghyz
+phases_to_use &Tbl{
+P
+S
+Lg
+}
+pmel_maximum_sc_iterations 10
 #
 # This is copied from dbgenloc.pf -- it probably has unnecessary
 parameters
@@ -114,21 +67,21 @@ arrival_residual_weight_method	huber
 bad_clocks	&Tbl{
 }
 center_depth	10.0
-center_latitude	38.2057
-center_longitude	-88.1706
+center_latitude	42.1311
+center_longitude	73.6941
 clock_error_cutoff	0.1
 confidence	0.683
 damp_adjust_factor	5.0
 deltax_convergence_size	0.1
 depth_ceiling	0.0
-depth_floor	100.0
+depth_floor	500.0
 depth_range	5.0
 ellipse_type	chi_square
 fix_depth	0
 fix_latitude	0
 fix_longitude	0
 fix_origin_time	0
-generalized_inverse	marquardt
+generalized_inverse	pseudoinverse
 gridsearch_norm	raw
 initial_depth	50
 initial_latitude	42.1311
@@ -153,7 +106,7 @@ nlon	20
 number_points_azimuth	36
 number_points_r	19
 output_file	location_output
-recenter	1
+recenter	0
 relative_rms_convergence_value	0.01
 singular_value_cutoff	0.0001
 slowness_distance_weighting	0
