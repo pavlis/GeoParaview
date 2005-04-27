@@ -1,0 +1,12 @@
+gridname testvmod
+fieldname Bolivar1_P
+fieldtype scalar3d
+#
+#  Used only for vector fields
+#
+save_as_vector_field false
+#
+# Only referenced for vector fields when save_as_vector_field is false
+# Which component of vector will be saved as scalar field file
+#
+vector_component 0
