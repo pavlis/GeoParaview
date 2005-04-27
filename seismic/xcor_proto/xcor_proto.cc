@@ -141,6 +141,15 @@ int main(int argc, char **argv)
 		if(rotate_data)
 			afst=md.get_bool("apply_free_surface_transformation");
 		int component=md.get_int("component_to_extract");
+		string TTmethod,TTmodel;
+		try {
+			TTmethod=md.get_string("TTmethod");
+			TTmodel=md.get_string("TTmodel");
+		} catch (Metadata_get_error mderr)
+		{
+			cerr << "TTmethod:TTmodel not defined.  using default\n"
+				<< endl;
+		}
 		// correct to C convention
 		--component;
 		double target_samprate=md.get_double("target_samprate");
@@ -190,12 +199,26 @@ cerr << "View size = "<<dbhi0.number_tuples() << endl;
 				(dbhi),md_to_input,md_to_input,am);
 				//(dbhi),md_to_input,md_to_input,amtest);
 				//(dbhi),mdl1,mdl2,amtest);
+				 
 			for(i=0;i<d->tcse.size();++i)
 			{
 				if(!(d->tcse[i].live)) continue;
 				Three_Component_Seismogram tcs(d->tcse[i]);
-				arid = tcs.get_int("arrival.arid");
-				cout << arid <<" ";
+				// Need to push these to the station metadata
+				if(!(TTmethod.empty() || TTmethod.empty()))
+				{
+					tcs.put_metadata("TTmethod",TTmethod);
+					tcs.put_metadata("TTmodel",TTmodel);
+				}
+				if(gather_type=="source")
+				{
+					arid = tcs.get_int("arrival.arid");
+					cout << arid <<" ";
+				}
+				else
+				{
+					cout << tcs.get_string("sta") <<" ";
+				}
 				int nsout;
 				for(j=0;j<3;++j)
 				{
