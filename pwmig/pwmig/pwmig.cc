@@ -17,7 +17,7 @@ using namespace INTERPOLATOR1D;
 
 void usage()
 {
-        cbanner((char *)"$Revision: 1.13 $ $Date: 2005/04/04 22:23:26 $",
+        cbanner((char *)"$Revision: 1.14 $ $Date: 2005/04/27 12:09:54 $",
                 (char *)"db  [-V -pf pfname]",
                 (char *)"Gary Pavlis",
                 (char *)"Indiana University",
@@ -644,6 +644,7 @@ int main(int argc, char **argv)
 		GCLscalarfield3d Vp3d(db,vmodel_grid_name,Pmodel3d_name);
 		GCLscalarfield3d Vs3d(db,vmodel_grid_name,Smodel3d_name);
 		/*  DEBUG fix to correct endian problem -- Hack fix */
+/*
 		for(int ig=0;ig<Vp3d.n1;++ig)
 			for(int jg=0;jg<Vp3d.n2;++jg)
 				for(int kg=0;kg<Vp3d.n3;++kg)
@@ -651,6 +652,7 @@ int main(int argc, char **argv)
 					Vp3d.val[ig][jg][kg]=8.0;
 					Vp3d.val[ig][jg][kg]=4.5;
 				}
+*/
 		Velocity_Model_1d Vp1d(db,Pmodel1d_name,pvfnm);
 		Velocity_Model_1d Vs1d(db,Smodel1d_name,svfnm);
 		GCLgrid parent(db,const_cast<char*>(parent_grid_name.c_str()) );
@@ -661,6 +663,31 @@ int main(int argc, char **argv)
 		GCLvectorfield3d migrated_image(db,stack_grid_name,"",3);
 		GCLscalarfield3d omega(db,stack_grid_name,"");
 		GCLscalarfield3d weights(db,stack_grid_name,"");
+		// 
+		if(dynamic_cast<BasicGCLgrid&>(migrated_image)
+			!= dynamic_cast<BasicGCLgrid&>(parent))
+		{
+			cerr << "pwmig(warning):  image grid and pseudostation grid are not congruent"
+				<< endl
+				<< "  This can increase run time"
+				<< endl;
+		}
+		// Let's make sure these are initialized
+		migrated_image.zero();
+		omega.zero();
+		weights.zero();
+		//
+		// silently remap the velocity model grids if necessary
+		//
+		if(dynamic_cast<BasicGCLgrid&>(Vp3d)
+			!= dynamic_cast<BasicGCLgrid&>(parent))
+				Vp3d=remap_grid(dynamic_cast<GCLgrid3d&>(Vp3d),
+					dynamic_cast<BasicGCLgrid&>(parent));
+		if(dynamic_cast<BasicGCLgrid&>(Vs3d)
+			!= dynamic_cast<BasicGCLgrid&>(parent))
+				Vs3d=remap_grid(dynamic_cast<GCLgrid3d&>(Vs3d),
+					dynamic_cast<BasicGCLgrid&>(parent));
+		
 
 //YET ANOTHER NOTE.  HAVE TO DECIDE HOW TO HANDLE ZERO DATUM.  DO WE DO A GEOMETRIC STATIC
 // AS IN REFLECTION PROCESSING?  PROBABLY SHOULD PUT THIS IN PWSTACK.  THAT IS STACK SHOULD
@@ -678,8 +705,9 @@ int main(int argc, char **argv)
 		Metadata_list mdens=pfget_mdlist(pf,"Ensemble_mdlist");
 		Datascope_Handle dbh(db,pf,"dbprocess_commands");
 		dbh.rewind();
-		//for(int record=0;record<dbh.number_tuples();++dbh,++record)
-		for(int record=0;record<1;++dbh,++record)
+		for(int record=0;record<dbh.number_tuples();++dbh,++record)
+//DEBUG
+		//for(int record=0;record<1;++dbh,++record)
 		{
 			double dt; // useful shorthard
 			// first read in the next ensemble
@@ -687,6 +715,7 @@ int main(int argc, char **argv)
 					(dbh),mdlin,mdens,am);
 			Hypocenter hypo;
 cout << "DEBUG:  processing ensemble "<<record<<endl;
+cout << "DEBUG: ensemble size="<<pwdata->tcse.size();
 			Ray_Transformation_Operator *troptr;
 			evid=pwdata->get_int("evid");
 			hypo.lat=pwdata->get_double("origin.lat");
@@ -701,6 +730,7 @@ cout << "DEBUG:  processing ensemble "<<record<<endl;
 			// of in a constructor.  Prone to error if class structure changes
 			ustack.ux=pwdata->get_double("ux");
 			ustack.uy=pwdata->get_double("uy");
+cout << "DEBUG: ux,uy="<<ustack.uy<<","<<ustack.uy<<endl;
 			// This constucts the slowness vector for the incident ray
 			// Uses a model.  Eventually may want an option to use something
 			// like the output of mwap.  Note also this uses one slowness vector
@@ -719,6 +749,7 @@ cout << "DEBUG:  processing ensemble "<<record<<endl;
 			GCLgrid3d& raygrid=*grdptr;  // convenient shorthand because we keep changing this
 			int n30;  // convenient since top surface is at n3-1
 			n30 = raygrid.n3 - 1;
+cout << "n3="<<raygrid.n3<<endl;
 			// create work spaces for accumation of this component
 			// This is a large memory model.  I'll use it until it proves
 			// intractable
@@ -731,8 +762,9 @@ cout << "DEBUG:  processing ensemble "<<record<<endl;
 			// loop through the ensemble associating each trace with a 
 			// point in the raygrid and interpolating to get time to depth.
 
-			//for(is=0;is<pwdata->tcse.size();++is)
-			for(is=0;is<3;++is)
+			for(is=0;is<pwdata->tcse.size();++is)
+//DEBUG
+			//for(is=0;is<1;++is)
 			{
 				// convenient shorthand variables.  ns is data length
 				// while n3 is the ray path onto which data are mapped
@@ -854,8 +886,6 @@ cout << "DEBUG:  processing member "<<is<<"=("<<i<<","<<j<<")"<<endl;
 				domega_ij=compute_domega_for_path(ustack,dux,duy,
 					Vs1d, zmax,dz,raygrid, i, j, gradTp);
 				dweight_ij=compute_weight_for_path(gradTp,gradTs);
-//GAP HERE.  DOMEGA_IJ AND DWEIGHT_IJ NEED TO BE INTERPOLATED TO MATCH
-// RAY PATH WHICH WAS COMPUTED INCONSTANT T MODE
 				//
 				// copy transformed data to vector field
 				// copy weights and domega at same time
@@ -866,12 +896,17 @@ cout << "DEBUG:  processing member "<<is<<"=("<<i<<","<<j<<")"<<endl;
 					{
 						pwdgrid.val[i][j][k][l]=work(l,k);
 					}
-					weights.val[i][j][k]=dweight_ij[k];
-					omega.val[i][j][k]=domega_ij[k];
+					dweight.val[i][j][k]=dweight_ij[k];
+					domega.val[i][j][k]=domega_ij[k];
 				}
 				delete ray0;
 			}
 			delete pwdata;
+cout << "plane wave data component" << endl;
+cout << pwdgrid;
+// fool compiler
+bool debugexit;
+debugexit=true;
 			// last but not least, add this component to the stack
 			//
 			migrated_image += pwdgrid;
@@ -879,6 +914,7 @@ cout << "DEBUG:  processing member "<<is<<"=("<<i<<","<<j<<")"<<endl;
 			omega += domega;
 
 			delete grdptr;
+if(debugexit) exit(1);
 
 		}
 		//
@@ -890,18 +926,15 @@ cout << "DEBUG:  processing member "<<is<<"=("<<i<<","<<j<<")"<<endl;
 		// dfile is generated as base+tag+evid
 		//
 
-/*
 		dfile=MakeDfileName(dfilebase+string("_data"),evid);
 		migrated_image.dbsave(db,"",fielddir,dfile,dfile);
 		dfile=MakeDfileName(dfilebase+string("_wt"),evid);
 		weights.dbsave(db,"",fielddir,dfile,dfile);
 		dfile=MakeDfileName(dfilebase+string("_omega"),evid);
 		omega.dbsave(db,"",fielddir,dfile,dfile);
-*/
-		//INCOMPLETE 
+		//
 		// zero field values so when we loop back they can
 		// be reused
-		// need zero loop here or add a zero method to objects
 		//
 		migrated_image.zero();
 		weights.zero();
