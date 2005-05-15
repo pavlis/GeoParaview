@@ -1,6 +1,7 @@
 #include <cstdio>
 #include <string>
 #include <sstream>
+#include <float.h>
 #include "stock.h"
 #include "coords.h"
 #include "pf.h"
@@ -10,6 +11,8 @@
 #include "ray1d.h"
 #include "seispp.h"
 #include "interpolator1d.h"
+//DEBUG
+#include "vtk_output.h"
 using namespace std;
 using namespace SEISPP;
 using namespace INTERPOLATOR1D;
@@ -17,7 +20,7 @@ using namespace INTERPOLATOR1D;
 
 void usage()
 {
-        cbanner((char *)"$Revision: 1.14 $ $Date: 2005/04/27 12:09:54 $",
+        cbanner((char *)"$Revision: 1.15 $ $Date: 2005/05/15 16:12:00 $",
                 (char *)"db  [-V -pf pfname]",
                 (char *)"Gary Pavlis",
                 (char *)"Indiana University",
@@ -37,10 +40,11 @@ double raydist(GCLgrid3d *ray,int i0, int j0, int k0)
 	return( sqrt( dx1*dx1 + dx2*dx2 + dx3*dx3));
 }
 /* computes travel times along a ray path defined by the input dmatrix of Cartesian
-coordinate (path) using a 3D model defined by the GCLsclarfield3d variable V3d.  
+coordinate (path) using a 3D model defined by the GCLsclarfield3d variable U3d.  
 The path is assumed to be congruent with the ray geometry GCLgrid (raygrid)
 but not necessarily congruent with the velocity model field.  Thus we use the
-not equal operator to test for conguence between raygride and V3d.  
+not equal operator to test for conguence between raygride and U3d.  
+It is assumed the U3d holds SLOWNESS values in units of s/km.
 
 Because most 3D Earth models have finite extents it is highly likely a ray can 
 traverse outside the reference model.  We allow for this here and use the 1d model
@@ -57,7 +61,7 @@ Note path is intentionally passed by value not by reference as remap
 path can redefine it.
 */
 
-vector<double> compute_gridttime(GCLscalarfield3d& V3d, 
+vector<double> compute_gridttime(GCLscalarfield3d& U3d, 
 	int ix1, int ix2,
 		Velocity_Model_1d& V1d, 
 			GCLgrid3d& raygrid,
@@ -65,10 +69,10 @@ vector<double> compute_gridttime(GCLscalarfield3d& V3d,
 {
 
 	// test to be sure the grids are congruent or paths will not mesh
-	if(dynamic_cast<BasicGCLgrid&>(V3d)
+	if(dynamic_cast<BasicGCLgrid&>(U3d)
 			!=dynamic_cast<BasicGCLgrid&>(raygrid))
-		path=remap_path(raygrid,path,V3d);
-	vector<double> times=pathintegral(V3d,path);
+		path=remap_path(raygrid,path,U3d);
+	vector<double> times=pathintegral(U3d,path);
 	// This fills the output vector with 1d values if the path wanders outside
 	// the 3d grid bounds
 	if(times.size()!= path.columns())
@@ -108,15 +112,22 @@ RayPathSphere *truncate_ray_path(RayPathSphere *ray0, double r0)
 	// this assumes the input ray is oriented so the points start at the surface
 	// and work downward.  This is reversed in the companion program that calls
 	// this function
-	if(r0>(ray0->r[0]) ) throw -1;
-	for(nn=0;nn<ray0->npts;++nn)
-		if((ray0->r[nn])<=r0) break;
+	if(r0>(ray0->r[0]) ) 
+	{
+		// a more cautious secondary test.  FLT is intentional to make it looser
+		if(fabs(r0-ray0->r[0])>FLT_EPSILON)  throw -1;
+		nn=1;
+	}
+	else
+	{
+		for(nn=0;nn<ray0->npts;++nn)
+			if((ray0->r[nn])<=r0) break;
+	}
 	if(nn>=ray0->npts) throw 1;
-	// need to add one point at the end that is interpolated plus one for 0 start
-	nr = nn;  // index points to ray0 position just above r0
-	nn += 2;  // length of output vector = +2, 1 for extra point, another because pts versus intervals
+	nr = nn;  // index points to ray0 position just below r0
+	nn += 1;  // length of output vector = +1 because of interval vs points
 	RayPathSphere *rayout = new RayPathSphere(nn);
-	for(i=0;i<nn-1;++i)
+	for(i=0;i<nr;++i)
 	{
 		rayout->r[i] = ray0->r[i];
 		rayout->delta[i] = ray0->delta[i];
@@ -124,12 +135,12 @@ RayPathSphere *truncate_ray_path(RayPathSphere *ray0, double r0)
 	}
 	// handle the last point by just taking the fraction of the total distance
 	// spanned by the last point to r0
-	rayout->r[nr-1]=r0;
+	rayout->r[nr]=r0;
 	dr=ray0->r[nr-1] - ray0->r[nr];
 	dr0=ray0->r[nr-1]-r0;
 	frac = dr0/dr;
-	rayout->delta[nn-1]= (ray0->delta[nn])*frac;
-	rayout->t[nn-1]= (ray0->t[nn])*frac;
+	rayout->delta[nr]= ray0->delta[nr-1]+(ray0->delta[nr] - ray0->delta[nr-1])*frac;
+	rayout->t[nr]= ray0->t[nr-1]+(ray0->t[nr] - ray0->t[nr-1])*frac;
 	return(rayout);
 }
 	
@@ -164,50 +175,38 @@ dmatrix compute_P_incident_ray(GCLgrid3d& grid,
 				Slowness_vector u0,
 					RayPathSphere *ray0) 
 {
-	double r0;  // convenient shorthand
+	double r0,delta0;  // convenient shorthand
+	double rsurface;  // radius of surface point including ellipticity
 	RayPathSphere *ray;
 	double azimuth;
 	int i,ii;
 	double r_ray;
+	int npoints;
 	
 	r0 = grid.r(ix1,ix2,ix3);
 	azimuth=u0.baz();
 	
 	try {
 		ray = truncate_ray_path(ray0,r0);
-		dmatrix coords(3,ray->npts);
+		npoints=ray->npts;
+		rsurface=ray->r[0];  // useful for efficiency and clarity to use this temporary
+		dmatrix coords(3,npoints);
 		// this is a little ugly because we have to reverse the orientation
 		// of the ray path.  The output order is opposite of that computed for
 		// the RayPathSphere object
-		for(i=0,ii=ray->npts-1,r_ray=grid.r(ix1,ix2,ix3);i<ray->npts;++i)
+		for(i=0,ii=npoints-1,r_ray=grid.r(ix1,ix2,ix3);i<ray->npts;++i,--ii)
 		{
 			double lat,lon;
 			double deltar;
 			Cartesian_point this_point;
+			deltar=ray->delta[npoints-1]-ray->delta[ii];
 			latlon(grid.lat(ix1,ix2,ix3),grid.lon(ix1,ix2,ix3),
-				ray->delta[ii],azimuth,&lat,&lon);
+				deltar,azimuth,&lat,&lon);
+			r_ray = r0_ellipse(lat)+ray->r[ii]-rsurface;
 			this_point = grid.gtoc(lat,lon,r_ray);
 			coords(0,i)=this_point.x1;
 			coords(1,i)=this_point.x2;
 			coords(2,i)=this_point.x3;
-			// we need to use deltar values because of ellipticity
-			// that is the ray object is in a standard coordinate system for
-			// a spherical earth but a GCLgrid uses a standard ellipsoid
-			if(ii>1)
-			{
-				deltar = ray->r[ii-1]-ray->r[ii];
-				r_ray -= deltar;
-			}
-			else
-			{
-				// this only is executed for the last point.  
-				// well, the last two passes but the final one has no effect
-				// we avoid a closure error from ellipticity by forcing
-				// this point to the surface ellipsoid value
-				deltar = r0_ellipse(lat) - ray->r[ii];
-//DEBUG
-if(ii==0) cerr<<"Closure error="<<deltar<<endl;
-			}
 		}
 	
 		delete ray;
@@ -323,8 +322,8 @@ the ix1,ix2,ix3=0:n3-1 grid line of the GCLgrid3 object raygrid.
 The P time is computed from incident ray geometry defined by the path variable.
 The S time is assumed already computed and passed as the variable Ts.
 It is assumed that path is defined in the coordinate system of raygrid, but
-we do not assume that path is congruent with the P velocity model defined
-by Vp.  Finally, the 1d velocity model for P is defined by Vp1d.  This is
+we do not assume that path is congruent with the P slowness model defined
+by Up.  Finally, the 1d velocity model for P is defined by Vp1d.  This is
 required to use the bombproof calculator that allows a ray path to be extendeed
 outside the 3d model and revert to a 1d model automatically
 */
@@ -332,13 +331,13 @@ outside the 3d model and revert to a 1d model automatically
 double compute_lag(GCLgrid3d& raygrid, int ix1, int ix2,
 	dmatrix& path, 
 		Slowness_vector u, 
-			GCLscalarfield3d& Vp, 
+			GCLscalarfield3d& Up, 
 				Velocity_Model_1d& Vp1d, 
 					double Ts)
 {
 	double lag;
 	// First get the P wave travel time from the input path
-	vector<double> Ptimes=compute_gridttime(Vp,ix1,ix2,Vp1d,raygrid,path);
+	vector<double> Ptimes=compute_gridttime(Up,ix1,ix2,Vp1d,raygrid,path);
 	// Now compute the moveout that was used to stack the data from
 	// the slowness defined by u.  lat0,lon0 is the image point for
 	// the data vector being projected.  lat,lon is the virtual point
@@ -573,6 +572,17 @@ string MakeDfileName(string base, int evid)
 	sbuf<<base<<"_"<<evid;
 	return(sbuf.str());
 }
+// 
+// We store velocity models externally in the database, but internally
+// slowness is more appropriate.  This converts a velocity field to a 
+// slowness field in an efficient way by altering the val array in place.
+//
+void VelocityFieldToSlowness(GCLscalarfield3d& g)
+{
+	for(int i=0;i<g.n1;++i)
+		for(int j=0;j<g.n2;++j)
+			for(int k=0;k<g.n3;++k) g.val[i][j][k]=1.0/g.val[i][j][k];
+}
 
 int main(int argc, char **argv)
 {
@@ -581,6 +591,7 @@ int main(int argc, char **argv)
 	const string pvfnm("P"), svfnm("S");
 	Three_Component_Ensemble *pwdata;
 	int is,i,j,k,l;
+	int kk;
 	string pfin("pwmig");
 	dmatrix gradTs;
 	Pf *pf;
@@ -641,16 +652,24 @@ int main(int argc, char **argv)
 			cerr << "Cannot open database " << dbname <<endl;
 			exit(-1);
 		}
-		GCLscalarfield3d Vp3d(db,vmodel_grid_name,Pmodel3d_name);
-		GCLscalarfield3d Vs3d(db,vmodel_grid_name,Smodel3d_name);
+		// These constructors load a velocity model into a GCLgrid
+		GCLscalarfield3d Up3d(db,vmodel_grid_name,Pmodel3d_name);
+		GCLscalarfield3d Us3d(db,vmodel_grid_name,Smodel3d_name);
+		// 
+		// For this program we need to convert velocities to slowness.
+		// This function called on P and S models does this in a procedural
+		// way by altering the field variables in place.
+		//
+		VelocityFieldToSlowness(Up3d);
+		VelocityFieldToSlowness(Us3d);
 		/*  DEBUG fix to correct endian problem -- Hack fix */
 /*
-		for(int ig=0;ig<Vp3d.n1;++ig)
-			for(int jg=0;jg<Vp3d.n2;++jg)
-				for(int kg=0;kg<Vp3d.n3;++kg)
+		for(int ig=0;ig<Up3d.n1;++ig)
+			for(int jg=0;jg<Up3d.n2;++jg)
+				for(int kg=0;kg<Up3d.n3;++kg)
 				{
-					Vp3d.val[ig][jg][kg]=8.0;
-					Vp3d.val[ig][jg][kg]=4.5;
+					Up3d.val[ig][jg][kg]=8.0;
+					Up3d.val[ig][jg][kg]=4.5;
 				}
 */
 		Velocity_Model_1d Vp1d(db,Pmodel1d_name,pvfnm);
@@ -679,13 +698,13 @@ int main(int argc, char **argv)
 		//
 		// silently remap the velocity model grids if necessary
 		//
-		if(dynamic_cast<BasicGCLgrid&>(Vp3d)
+		if(dynamic_cast<BasicGCLgrid&>(Up3d)
 			!= dynamic_cast<BasicGCLgrid&>(parent))
-				Vp3d=remap_grid(dynamic_cast<GCLgrid3d&>(Vp3d),
+				remap_grid(dynamic_cast<GCLgrid3d&>(Up3d),
 					dynamic_cast<BasicGCLgrid&>(parent));
-		if(dynamic_cast<BasicGCLgrid&>(Vs3d)
+		if(dynamic_cast<BasicGCLgrid&>(Us3d)
 			!= dynamic_cast<BasicGCLgrid&>(parent))
-				Vs3d=remap_grid(dynamic_cast<GCLgrid3d&>(Vs3d),
+				remap_grid(dynamic_cast<GCLgrid3d&>(Us3d),
 					dynamic_cast<BasicGCLgrid&>(parent));
 		
 
@@ -705,9 +724,9 @@ int main(int argc, char **argv)
 		Metadata_list mdens=pfget_mdlist(pf,"Ensemble_mdlist");
 		Datascope_Handle dbh(db,pf,"dbprocess_commands");
 		dbh.rewind();
-		for(int record=0;record<dbh.number_tuples();++dbh,++record)
+		//for(int record=0;record<dbh.number_tuples();++dbh,++record)
 //DEBUG
-		//for(int record=0;record<1;++dbh,++record)
+		for(int record=0;record<1;++dbh,++record)
 		{
 			double dt; // useful shorthard
 			// first read in the next ensemble
@@ -805,7 +824,7 @@ cout << "DEBUG:  processing member "<<is<<"=("<<i<<","<<j<<")"<<endl;
 				// current seismogram (i,j).  First we compute the S wave
 				// travel time down this ray path (i.e. ordered from surface down)
 				dmatrix *pathptr=extract_gridline(raygrid,i,j,raygrid.n3-1,3,true);
-				Stime = compute_gridttime(Vs3d,i,j,Vs1d,raygrid,*pathptr);
+				Stime = compute_gridttime(Us3d,i,j,Vs1d,raygrid,*pathptr);
 				// Now we compute the gradient in the S ray travel time
 				// for each point on the ray.  Could have been done with 
 				// less memory use in the loop below, but the simplification
@@ -817,7 +836,11 @@ cout << "DEBUG:  processing member "<<is<<"=("<<i<<","<<j<<")"<<endl;
 				// Now loop over each point on this ray computing the 
 				// p wave path and using it to compute the P time and
 				// fill the vector gradP matrix
-				for(k=0;k<raygrid.n3;++k)
+				// Note the double index, one running forward (k) and
+				// a second (kk) running backward.  This complication is
+				// caused by raygrid having upward oriented curves while
+				// the S ray path (pathptr) is oriented downward.  
+				for(k=0,kk=raygrid.n3-1;k<raygrid.n3;++k,--kk)
 				{
 					double tlag;
 					double nu[3];
@@ -844,11 +867,13 @@ cout << "DEBUG:  processing member "<<is<<"=("<<i<<","<<j<<")"<<endl;
 					for(l=0;l<3;++l) gradTp(l,k)=nu[l]/(nrmdx*vp);
 					// Computer time lag between incident P and scattered S
 					tlag = compute_lag(raygrid,i,j,
-							Pinc_ray,uincident,Vp3d,
-								Vp1d,Stime[k]);
-					SPtime[k]=tlag;
+							Pinc_ray,uincident,Up3d,
+								Vp1d,Stime[kk]);
+					SPtime[kk]=tlag;
 				}
-
+//DEBUG
+cout << "SP lag times\n";
+for(l=0;l<n3;++l) cout << SPtime[l] << endl;
 				// We now interpolate the data with tlag values to map
 				// the data from time to an absolute location in space
 				dmatrix work(3,SPtime.size());
@@ -890,23 +915,40 @@ cout << "DEBUG:  processing member "<<is<<"=("<<i<<","<<j<<")"<<endl;
 				// copy transformed data to vector field
 				// copy weights and domega at same time
 				//
+// DEBUG SECTION
+cout << "data (x,y,z) dweight omega for " << n3 << " point ray path" << endl;
 				for(k=0;k<n3;++k)
 				{
 					for(l=0;l<3;++l)
 					{
 						pwdgrid.val[i][j][k][l]=work(l,k);
+cout << work(l,k) << "  ";
 					}
 					dweight.val[i][j][k]=dweight_ij[k];
 					domega.val[i][j][k]=domega_ij[k];
+cout << dweight.val[i][j][k] << " " << domega.val[i][j][k] << endl; 
 				}
 				delete ray0;
 			}
 			delete pwdata;
 cout << "plane wave data component" << endl;
-cout << pwdgrid;
-// fool compiler
 bool debugexit;
 debugexit=true;
+/*
+cout << pwdgrid;
+*/
+/***********
+GCLscalarfield3d *sfptr;
+sfptr=extract_component(pwdgrid,0);
+output_gcl3d_to_vtksg(*sfptr,"component0.vtk");
+delete sfptr;
+sfptr=extract_component(pwdgrid,1);
+output_gcl3d_to_vtksg(*sfptr,"component1.vtk");
+delete sfptr;
+sfptr=extract_component(pwdgrid,2);
+output_gcl3d_to_vtksg(*sfptr,"component2.vtk");
+delete sfptr;
+*********/
 			// last but not least, add this component to the stack
 			//
 			migrated_image += pwdgrid;

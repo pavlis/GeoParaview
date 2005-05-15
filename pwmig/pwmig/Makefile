@@ -1,4 +1,5 @@
 BIN=pwmig
+DIRS=
 PF=pwmig.pf
 
 #MAN1=pwmig.1
