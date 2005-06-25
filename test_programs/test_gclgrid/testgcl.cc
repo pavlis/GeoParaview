@@ -101,13 +101,13 @@ int main(int arc, char **argv)
 
 
 	string name("testgrid1");
-	g3d=new GCLgrid3d(20,20,10,const_cast<char *>(name.c_str()),
+	g3d=new GCLgrid3d(20,20,10,name,
 		rad(9.0),rad(-63.0),6371.0,
 		rad(100.0),50.0,50.0,30.0,
 		10,10);
 	name="testgrid2";
 	GCLgrid3d *grid2=new GCLgrid3d(*g3d);
-	strcpy(grid2->name,name.c_str());
+	//strcpy(grid2->name,name.c_str());
 	cout << "grids created.  Creating 3d scalar field" << endl;
 	GCLscalarfield3d testgrid1(*g3d);
 	GCLscalarfield3d testgrid2(*grid2);
@@ -134,12 +134,12 @@ int main(int arc, char **argv)
 
 
 	name="testgrid1";
-	g3d=new GCLgrid3d(20,20,10,const_cast<char *>(name.c_str()),
+	g3d=new GCLgrid3d(20,20,10,name,
 		rad(9.0),rad(-63.0),6371.0,
 		rad(100.0),50.0,50.0,30.0,
 		10,10);
 	name="testgrid3";
-	grid2=new GCLgrid3d(20,20,10,const_cast<char *>(name.c_str()),
+	grid2=new GCLgrid3d(20,20,10,name,
 		rad(10.0),rad(-64.0),6371.0,
 		rad(110.0),50.0,50.0,30.0,
 		10,10);
@@ -158,8 +158,19 @@ int main(int arc, char **argv)
 	testgrid3 += testgrid4;
 
 	cout << testgrid3;
-
-
+	cout << "testing assignment operator for scalar field" << endl;
+	GCLscalarfield3d testgrid5=testgrid4;
+	cout << testgrid5;
+	cout << "testing == operator" << endl;
+	if(testgrid4==testgrid5)
+		cout << "Test passed.  equal grids yield equal"<<endl;
+	else
+		cout << "Test failed.  equal grids resolve no equal"<<endl;
+	cout << "testing remap functions" << endl;
+	GCLgrid3d remaptest=remap_grid(dynamic_cast<GCLgrid3d&>(testgrid3),
+		dynamic_cast<GCLgrid3d&>(testgrid4));
+	GCLscalarfield3d rmapfield(remaptest);
+	cout << rmapfield << endl;
 }
 	
 
