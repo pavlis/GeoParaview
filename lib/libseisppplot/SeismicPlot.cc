@@ -1,4 +1,6 @@
 #include <string>
+#include <math.h>
+#include <algorithm>
 
 #include "elog.h"
 #include "xplot.h"
@@ -99,6 +101,1083 @@ static void zoomBox (int x, int y, int w, int h,
         }
 }
 
+void xMouseLoc(Display *dpy, Window win, XEvent event, int style, Bool show,
+	int x, int y, int width, int height,
+	float x1begb, float x1endb, float x2begb, float x2endb,
+	float p2beg, float p2end)
+{
+	static XFontStruct *fs=NULL;
+	static XCharStruct overall;
+	static GC gc;
+	int dummy,xoffset=5,yoffset=5;
+	float x1,x2;
+	char string[256];
+
+	/* if first time, get font attributes and make gc */
+	if (fs==NULL) {
+		fs = XLoadQueryFont(dpy,"fixed");
+		gc = XCreateGC(dpy,win,0,NULL);
+
+		/* make sure foreground/background are black/white */
+		XSetForeground(dpy,gc,BlackPixel(dpy,DefaultScreen(dpy)));
+		XSetBackground(dpy,gc,WhitePixel(dpy,DefaultScreen(dpy)));
+
+		XSetFont(dpy,gc,fs->fid);
+		overall.width = 1;
+		overall.ascent = 1;
+		overall.descent = 1;
+	}
+
+	/* erase previous string */
+	XClearArea(dpy,win,xoffset,yoffset,
+		overall.width,overall.ascent+overall.descent,False);
+
+	/* if not showing, then return */
+	if (!show) return;
+
+	/* convert mouse location to (x1,x2) coordinates */
+	if (style==NORMAL) {
+		x1 = x1begb+(x1endb-x1begb)*(event.xmotion.x-x)/width;
+		x2 = p2end+x2endb+(p2beg+x2begb-x2endb-p2end)*
+			(event.xmotion.y-y)/height;
+	} else {
+		x1 = x1begb+(x1endb-x1begb)*(event.xmotion.y-y)/height;
+		x2 = p2beg+x2begb+(p2end+x2endb-x2begb-p2beg)*
+			(event.xmotion.x-x)/width;
+	}
+
+	/* draw string indicating mouse location */
+	sprintf(string,"(%0.6g,%0.6g)",x1,x2);
+	XTextExtents(fs,string,(int)strlen(string),&dummy,&dummy,&dummy,&overall);
+	XDrawString(dpy,win,gc,xoffset,yoffset+overall.ascent,
+		string,(int)strlen(string));
+}
+
+void xMousePrint(XEvent event, int style, FILE *mpicksfp,
+		 int x, int y, int width, int height,
+		 float x1begb, float x1endb, float x2begb, float x2endb,
+		 float p2beg, float p2end)
+{
+	float x1,x2;
+
+	/* convert mouse location to (x1,x2) coordinates */
+	if (style==NORMAL) {
+		x1 = x1begb+(x1endb-x1begb)*(event.xmotion.x-x)/width;
+		x2 = p2end+x2endb+(p2beg+x2begb-x2endb-p2end)*
+			(event.xmotion.y-y)/height;
+	} else {
+		x1 = x1begb+(x1endb-x1begb)*(event.xmotion.y-y)/height;
+		x2 = p2beg+x2begb+(p2end+x2endb-x2begb-p2beg)*
+			(event.xmotion.x-x)/width;
+	}
+
+	/* write string indicating mouse location */
+	fprintf(mpicksfp, "%0.6g  %0.6g\n", x1, x2);
+}
+/* Copyright (c) Colorado School of Mines, 2005.*/
+/* All rights reserved.                       */
+
+
+/*********************** self documentation **********************/
+/*****************************************************************************
+RFWTVA - Rasterize a Float array as Wiggle-Trace-Variable-Area.
+
+rfwtva	rasterize a float array as wiggle-trace-variable-area.
+
+******************************************************************************
+Function Prototype:
+void rfwtva (int n, float z[], float zmin, float zmax, float zbase,
+	int yzmin, int yzmax, int xfirst, int xlast,
+	int wiggle, int nbpr, unsigned char *bits, int endian);
+
+******************************************************************************
+Input:
+n		number of samples in array to rasterize
+z		array[n] to rasterize
+zmin		z values below zmin will be clipped
+zmax		z values above zmax will be clipped
+zbase		z values between zbase and zmax will be filled (see notes)
+yzmin		horizontal raster coordinate corresponding to zmin
+yzmax		horizontal raster coordinate corresponding to zmax
+xfirst		vertical raster coordinate of z[0] (see notes)
+xlast		vertical raster coordinate of z[n-1] (see notes)
+wiggle		=0 for no wiggle (VA only); =1 for wiggle (with VA)
+		wiggle 2<=wiggle<=5 for solid/grey coloring of VA option
+                shade of grey: wiggle=2 light grey, wiggle=5 black
+nbpr		number of bytes per row of bits
+bits		pointer to first (top,left) byte in image
+endian		byte order  =1 big endian  =0 little endian 
+
+Output:
+bits		pointer to first (top,left) byte in image
+
+******************************************************************************
+Notes:
+The raster coordinate of the (top,left) bit in the image is (0,0).
+In other words, x increases downward and y increases to the right.
+Raster scan lines run from left to right, and from top to bottom.
+Therefore, xfirst, xlast, yzmin, and yzmax should not be less than 0.
+Likewise, yzmin and yzmax should not be greater than nbpr*8-1, and 
+care should be taken to ensure that xfirst and xlast do not cause bits 
+to be set outside (off the bottom) of the image. 
+
+Variable area fill is performed on the right-hand (increasing y) side
+of the wiggle.  If yzmin is greater than yzmax, then z values between
+zmin will be plotted to the right of zmax, and z values between zbase
+and zmin are filled.  Swapping yzmin and yzmax is an easy way to 
+reverse the polarity of a wiggle.
+
+The variable "endian" must have a value of 1 or 0. If this is
+not a case an error is returned.
+
+******************************************************************************
+Author:  Dave Hale, Colorado School of Mines, 07/01/89
+MODIFIED:  Paul Michaels, Boise State University, 29 December 2000
+           Added solid/grey shading scheme, wiggle>=2 option for peaks/troughs
+*****************************************************************************/
+/**************** end self doc ********************************/
+
+
+void rfwtva (
+	int n, float z[], float zmin, float zmax, float zbase,
+	int yzmin, int yzmax, int xfirst, int xlast,
+	int wiggle, int nbpr, unsigned char *bits, int endian)
+/*****************************************************************************
+Rasterize a float array as wiggle-trace-variable-area.
+******************************************************************************
+Input:
+n		number of samples in array to rasterize
+z		array[n] to rasterize
+zmin		z values below zmin will be clipped
+zmax		z values above zmax will be clipped
+zbase		z values between zbase and zmax will be filled (see notes)
+yzmin		horizontal raster coordinate corresponding to zmin
+yzmax		horizontal raster coordinate corresponding to zmax
+xfirst		vertical raster coordinate of z[0] (see notes)
+xlast		vertical raster coordinate of z[n-1] (see notes)
+wiggle		=0 for no wiggle (VA only); =1 for wiggle (with VA)
+		wiggle 2<=wiggle<=5 for solid/grey coloring of VA option
+                shade of grey: wiggle=2 light grey, wiggle=5 black
+nbpr		number of bytes per row of bits
+bits		pointer to first (top,left) byte in image
+
+Output:
+bits		pointer to first (top,left) byte in image
+******************************************************************************
+Notes:
+The raster coordinate of the (top,left) bit in the image is (0,0).
+In other words, x increases downward and y increases to the right.
+Raster scan lines run from left to right, and from top to bottom.
+Therefore, xfirst, xlast, yzmin, and yzmax should not be less than 0.
+Likewise, yzmin and yzmax should not be greater than nbpr*8-1, and 
+care should be taken to ensure that xfirst and xlast do not cause bits 
+to be set outside (off the bottom) of the image. 
+
+Variable area fill is performed on the right-hand (increasing y) side
+of the wiggle.  If yzmin is greater than yzmax, then z values between
+zmin will be plotted to the right of zmax, and z values between zbase
+and zmin are filled.  Swapping yzmin and yzmax is an easy way to 
+reverse the polarity of a wiggle.
+
+The variable "endian" must have a value of 1 or 0. If this is
+not a case an error is returned.
+
+******************************************************************************
+Author:  Dave Hale, Colorado School of Mines, 07/01/89
+Modified:  Craig Artley, Colorado School of Mines, 04/14/92
+           Fixed bug in computing yoffset.  Previously, when zmin==zmax
+           the rasterized trace was shifted to the left by one trace.
+MODIFIED:  Paul Michaels, Boise State University, 29 December 2000
+           Added solid/grey color scheme, wiggle=2 option for peaks/troughs
+*****************************************************************************/
+{
+	int iscale,xscale,dx,dy,i,x,y,
+		ymin,ymax,ybase,ythis,ynext,xthis,xnext,xstep;
+	int igrey,ideci;
+	float yscale,yoffset,zthis,znext;
+	register int bit;
+	register unsigned char *byte;
+
+	/* if solid/grey coloring desired      */
+	if (wiggle>=2)
+	{  igrey=abs(wiggle); wiggle=1; }
+	else
+	{  igrey=0; }
+
+	/* determine min and max y coordinates */
+	ymin = (yzmin<yzmax)?yzmin:yzmax;
+	ymax = (yzmax>yzmin)?yzmax:yzmin;
+
+	/* restrict min and max y coordinates */
+	ymin = (ymin>0)?ymin:0;
+	ymax = (ymax<nbpr*8-1)?ymax:nbpr*8-1;
+	
+	/* determine sample index scale factor */
+	iscale = n-1;
+	
+	/* determine y scale factor and offset */
+	yscale = (zmax!=zmin)?(yzmax-yzmin)/(zmax-zmin):1.0;
+	yoffset = (zmax!=zmin)?yzmin-zmin*yscale:0.5*(yzmin+yzmax);
+	
+	/* determine x scale factor and step */
+	xscale = (n>1)?xlast-xfirst:0;
+	xstep = (xlast>xfirst)?1:-1;
+	
+	/* determine base y coordinate */
+	ybase = yoffset+zbase*yscale;
+	ybase = (ybase>ymin)?ybase:ymin;
+	ybase = (ybase<ymax)?ybase:ymax;
+	
+	/* initialize next values of x, y, and z */
+	znext = *z;
+	ynext = yoffset+znext*yscale;
+	xnext = xfirst;
+	
+	/* loop over samples */
+	for (i=0; i<n; i++,z++) {
+		
+		/* determine x coordinate for this sample */
+		xthis = xnext;
+		
+		/* determine x coordinate for next sample */
+		xnext = (i<iscale)?xfirst+(i+1)*xscale/iscale:xthis+xstep;
+
+		/* skip sample if next sample falls on same x coordinate */
+		if (xnext==xthis) continue;
+		
+		/* determine difference in x coordinates */
+		dx = xnext-xthis;
+		
+		/* determine this sample value */
+		zthis = znext;
+		
+		/* determine next sample value */
+		znext = (i<n-1)?*(z+1):zthis;
+		
+		/* determine y coordinate for this sample */
+		ythis = ynext;
+		
+		/* determine y coordinate for next sample */
+		ynext = yoffset+znext*yscale;
+		
+		/* determine difference in y coordinates */
+		dy = ynext-ythis;
+		
+		/* loop over x coordinates */
+		for (x=xthis,y=ythis; x!=xnext;
+			x+=xstep,y=ythis+(x-xthis)*dy/dx) {
+			
+			/* apply clip */
+			if (y<ymin) y = ymin;
+			if (y>ymax) y = ymax;
+			
+			/* determine the bit and byte */
+			/* original: bit = 7-y&7; */
+			bit = (7-y)&7;
+
+			byte = bits+x*nbpr+(y>>3);
+
+			/* if wiggle or filling, then set the bit */
+			if (wiggle || y>ybase) { 
+				if (endian==0) 
+					*byte |= 1<<(-bit+7);
+				else if (endian==1)
+					*byte |= 1<<bit;
+				else
+					fprintf(stderr,"endian must equal either 0 or 1\n");
+			}
+
+			
+			/* while y greater than base, set more bits (SOLID FILL PEAKS) */
+			while (y>ybase) {
+				y-=1;
+				bit+=1;
+				if (bit>=8) {
+					byte--;
+					bit = 0;
+				}
+				if (endian==0)
+					*byte |= 1<<(-bit+7);
+				else if (endian==1)
+					*byte |= 1<<bit;
+				else
+					fprintf(stderr,"endian must equal either 0 or 1\n");
+			}  /* endwhile */
+
+			/* while y less than base, set more bits (GREY FILL TROUGHS) */
+
+			if (igrey>0)
+			{
+			ideci=6-igrey;
+			if (ideci<1) ideci=1;
+			
+				while (y<ybase) {
+					y+=ideci;
+					bit-=ideci;
+					if (bit<0) {
+						byte++;
+						bit = 7;
+					}
+					if (endian==0)
+						*byte |= 1<<(-bit+7);
+					else if (endian==1)
+						*byte |= 1<<bit;
+					else
+						fprintf(stderr,"endian must equal either 0 or 1\n");
+				}  /* endwhile  */
+			}  /*  endif igrey   */
+
+		}  /* next x  */
+	}   /* next sample  */
+}   /* end rfwtva   */
+/* Copyright (c) Colorado School of Mines, 2005.*/
+/* All rights reserved.                       */
+
+/*********************** self documentation **********************/
+/*****************************************************************************
+SINC - Return SINC(x) for as floats or as doubles
+
+fsinc		return float value of sinc(x) for x input as a float
+dsinc		return double precision sinc(x) for double precision x
+
+******************************************************************************
+Function Prototype:
+double dsinc (double x);
+
+******************************************************************************
+Input:
+x		value at which to evaluate sinc(x)
+
+Returned: 	sinc(x)
+
+******************************************************************************
+Notes:
+    sinc(x) = sin(PI*x)/(PI*x) 
+
+******************************************************************************
+Author:  Dave Hale, Colorado School of Mines, 06/02/89
+*****************************************************************************/
+/**************** end self doc ********************************/
+
+
+double dsinc (double x)
+/*****************************************************************************
+Return sinc(x) = sin(PI*x)/(PI*x) (double version)
+******************************************************************************
+Input:
+x		value at which to evaluate sinc(x)
+
+Returned:	sinc(x)
+******************************************************************************
+Author:  Dave Hale, Colorado School of Mines, 06/02/89
+*****************************************************************************/
+{
+	double pix;
+
+	if (x==0.0) {
+		return 1.0;
+	} else {
+		pix = M_PI*x;
+		return sin(pix)/pix;
+	}
+}
+/* Copyright (c) Colorado School of Mines, 2005.*/
+/* All rights reserved.                       */
+
+/*********************** self documentation **********************/
+/*****************************************************************************
+STOEP - Functions to solve a symmetric Toeplitz linear system of equations
+	 Rf=g for f
+
+stoepd		solve a symmetric Toeplitz system - doubles
+stoepf		solve a symmetric Toeplitz system - floats
+
+******************************************************************************
+Function Prototypes:
+void stoepd (int n, double r[], double g[], double f[], double a[]);
+
+******************************************************************************
+Input:
+n		dimension of system
+r		array[n] of top row of Toeplitz matrix
+g		array[n] of right-hand-side column vector
+
+Output:
+f		array[n] of solution (left-hand-side) column vector
+a		array[n] of solution to Ra=v (Claerbout, FGDP, p. 57)
+
+******************************************************************************
+Notes:
+These routines do NOT solve the case when the main diagonal is zero, it
+just silently returns.
+
+The left column of the Toeplitz matrix is assumed to be equal to the top
+row (as specified in r); i.e., the Toeplitz matrix is assumed symmetric.
+
+******************************************************************************
+Author:  Dave Hale, Colorado School of Mines, 06/02/89
+*****************************************************************************/
+/**************** end self doc ********************************/
+
+
+void stoepd (int n, double r[], double g[], double f[], double a[])
+/*****************************************************************************
+Solve a symmetric Toeplitz linear system of equations Rf=g for f
+(double version)
+******************************************************************************
+Input:
+n		dimension of system
+r		array[n] of top row of Toeplitz matrix
+g		array[n] of right-hand-side column vector
+
+Output:
+f		array[n] of solution (left-hand-side) column vector
+a		array[n] of solution to Ra=v (Claerbout, FGDP, p. 57)
+******************************************************************************
+Notes:
+This routine does NOT solve the case when the main diagonal is zero, it
+just silently returns.
+
+The left column of the Toeplitz matrix is assumed to be equal to the top
+row (as specified in r); i.e., the Toeplitz matrix is assumed symmetric.
+******************************************************************************
+Author:  Dave Hale, Colorado School of Mines, 06/02/89
+*****************************************************************************/
+{
+	int i,j;
+	double v,e,c,w,bot;
+
+	if (r[0] == 0.0) return;
+
+	a[0] = 1.0;
+	v = r[0];
+	f[0] = g[0]/r[0];
+
+	for (j=1; j<n; j++) {
+		
+		/* solve Ra=v as in Claerbout, FGDP, p. 57 */
+		a[j] = 0.0;
+		f[j] = 0.0;
+		for (i=0,e=0.0; i<j; i++)
+			e += a[i]*r[j-i];
+		c = e/v;
+		v -= c*e;
+		for (i=0; i<=j/2; i++) {
+			bot = a[j-i]-c*a[i];
+			a[i] -= c*a[j-i];
+			a[j-i] = bot;
+		}
+
+		/* use a and v above to get f[i], i = 0,1,2,...,j */
+		for (i=0,w=0.0; i<j; i++)
+			w += f[i]*r[j-i];
+		c = (w-g[j])/v;
+		for (i=0; i<=j; i++)
+			f[i] -= c*a[j-i];
+	}
+}
+
+/* Copyright (c) Colorado School of Mines, 2005.*/
+/* All rights reserved.                       */
+
+/*********************** self documentation **********************/
+/*****************************************************************************
+MKSINC - Compute least-squares optimal sinc interpolation coefficients.
+
+mksinc		Compute least-squares optimal sinc interpolation coefficients.
+
+******************************************************************************
+Function Prototype:
+void mksinc (float d, int lsinc, float sinc[]);
+
+******************************************************************************
+Input:
+d		fractional distance to interpolation point; 0.0<=d<=1.0
+lsinc		length of sinc approximation; lsinc%2==0 and lsinc<=20
+
+Output:
+sinc		array[lsinc] containing interpolation coefficients
+
+******************************************************************************
+Notes:
+The coefficients are a least-squares-best approximation to the ideal
+sinc function for frequencies from zero up to a computed maximum
+frequency.  For a given interpolator length, lsinc, mksinc computes
+the maximum frequency, fmax (expressed as a fraction of the nyquist
+frequency), using the following empirically derived relation (from
+a Western Geophysical Technical Memorandum by Ken Larner):
+
+	fmax = min(0.066+0.265*log(lsinc),1.0)
+
+Note that fmax increases as lsinc increases, up to a maximum of 1.0.
+Use the coefficients to interpolate a uniformly-sampled function y(i) 
+as follows:
+
+            lsinc-1
+    y(i+d) =  sum  sinc[j]*y(i+j+1-lsinc/2)
+              j=0
+
+Interpolation error is greatest for d=0.5, but for frequencies less
+than fmax, the error should be less than 1.0 percent.
+
+******************************************************************************
+Author:  Dave Hale, Colorado School of Mines, 06/02/89
+*****************************************************************************/
+/**************** end self doc ********************************/
+
+
+void mksinc (float d, int lsinc, float sinc[])
+/*****************************************************************************
+Compute least-squares optimal sinc interpolation coefficients.
+******************************************************************************
+Input:
+d		fractional distance to interpolation point; 0.0<=d<=1.0
+lsinc		length of sinc approximation; lsinc%2==0 and lsinc<=20
+
+Output:
+sinc		array[lsinc] containing interpolation coefficients
+******************************************************************************
+Notes:
+The coefficients are a least-squares-best approximation to the ideal
+sinc function for frequencies from zero up to a computed maximum
+frequency.  For a given interpolator length, lsinc, mksinc computes
+the maximum frequency, fmax (expressed as a fraction of the nyquist
+frequency), using the following empirically derived relation (from
+a Western Geophysical Technical Memorandum by Ken Larner):
+
+	fmax = min(0.066+0.265*log(lsinc),1.0)
+
+Note that fmax increases as lsinc increases, up to a maximum of 1.0.
+Use the coefficients to interpolate a uniformly-sampled function y(i) 
+as follows:
+
+            lsinc-1
+    y(i+d) =  sum  sinc[j]*y(i+j+1-lsinc/2)
+              j=0
+
+Interpolation error is greatest for d=0.5, but for frequencies less
+than fmax, the error should be less than 1.0 percent.
+******************************************************************************
+Author:  Dave Hale, Colorado School of Mines, 06/02/89
+*****************************************************************************/
+{
+	int j;
+	double s[20],a[20],c[20],work[20],fmax;
+
+	/* compute auto-correlation and cross-correlation arrays */
+	fmax = 0.066+0.265*std::log((double)lsinc);
+	fmax = (fmax<1.0)?fmax:1.0;
+	for (j=0; j<lsinc; j++) {
+		a[j] = dsinc(fmax*j);
+		c[j] = dsinc(fmax*(lsinc/2-j-1+d));
+	}
+
+	/* solve symmetric Toeplitz system for the sinc approximation */
+	stoepd(lsinc,a,c,s,work);
+	for (j=0; j<lsinc; j++)
+		sinc[j] = s[j];
+}
+/* Copyright (c) Colorado School of Mines, 2005.*/
+/* All rights reserved.                       */
+
+/*********************** self documentation **********************/
+/*****************************************************************************
+INTTABLE8 -  Interpolation of a uniformly-sampled complex function y(x)
+		via a table of 8-coefficient interpolators
+
+intt8r	interpolation of a uniformly-sampled real function y(x) via a
+		table of 8-coefficient interpolators
+
+******************************************************************************
+Function Prototype:
+void intt8r (int ntable, float table[][8],
+	int nxin, float dxin, float fxin, float yin[], 
+	float yinl, float yinr, int nxout, float xout[], float yout[]);
+
+******************************************************************************
+Input:
+ntable		number of tabulated interpolation operators; ntable>=2
+table		array of tabulated 8-point interpolation operators
+nxin		number of x values at which y(x) is input
+dxin		x sampling interval for input y(x)
+fxin		x value of first sample input
+yin		array of input y(x) values:  yin[0] = y(fxin), etc.
+yinl		value used to extrapolate yin values to left of yin[0]
+yinr		value used to extrapolate yin values to right of yin[nxin-1]
+nxout		number of x values a which y(x) is output
+xout		array of x values at which y(x) is output
+
+Output:
+yout		array of output y(x) values:  yout[0] = y(xout[0]), etc.
+
+******************************************************************************
+NOTES:
+ntable must not be less than 2.
+
+The table of interpolation operators must be as follows:
+
+Let d be the distance, expressed as a fraction of dxin, from a particular
+xout value to the sampled location xin just to the left of xout.  Then,
+for d = 0.0,
+
+table[0][0:7] = 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0
+
+are the weights applied to the 8 input samples nearest xout.
+Likewise, for d = 1.0,
+
+table[ntable-1][0:7] = 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0
+
+are the weights applied to the 8 input samples nearest xout.  In general,
+for d = (float)itable/(float)(ntable-1), table[itable][0:7] are the
+weights applied to the 8 input samples nearest xout.  If the actual sample
+distance d does not exactly equal one of the values for which interpolators
+are tabulated, then the interpolator corresponding to the nearest value of
+d is used.
+
+Because extrapolation of the input function y(x) is defined by the left
+and right values yinl and yinr, the xout values are not restricted to lie
+within the range of sample locations defined by nxin, dxin, and fxin.
+
+******************************************************************************
+AUTHOR:  Dave Hale, Colorado School of Mines, 06/02/89
+*****************************************************************************/
+/**************** end self doc ********************************/
+
+
+void intt8r (int ntable, float table[][8],
+	int nxin, float dxin, float fxin, float yin[], float yinl, float yinr,
+	int nxout, float xout[], float yout[])
+{
+	int ioutb,nxinm8,ixout,ixoutn,kyin,ktable,itable;
+	float xoutb,xoutf,xouts,xoutn,frac,fntablem1,yini,sum,
+		*yin0,*table00,*pyin,*ptable;
+
+	/* compute constants */
+	ioutb = -3-8;
+	xoutf = fxin;
+	xouts = 1.0/dxin;
+	xoutb = 8.0-xoutf*xouts;
+	fntablem1 = (float)(ntable-1);
+	nxinm8 = nxin-8;
+	yin0 = &yin[0];
+	table00 = &table[0][0];
+
+	/* loop over output samples */
+	for (ixout=0; ixout<nxout; ixout++) {
+
+		/* determine pointers into table and yin */
+		xoutn = xoutb+xout[ixout]*xouts;
+		ixoutn = (int)xoutn;
+		kyin = ioutb+ixoutn;
+		pyin = yin0+kyin;
+		frac = xoutn-(float)ixoutn;
+		ktable = frac>=0.0?frac*fntablem1+0.5:(frac+1.0)*fntablem1-0.5;
+		ptable = table00+ktable*8;
+		
+		/* if totally within input array, use fast method */
+		if (kyin>=0 && kyin<=nxinm8) {
+			yout[ixout] = 
+				pyin[0]*ptable[0]+
+				pyin[1]*ptable[1]+
+				pyin[2]*ptable[2]+
+				pyin[3]*ptable[3]+
+				pyin[4]*ptable[4]+
+				pyin[5]*ptable[5]+
+				pyin[6]*ptable[6]+
+				pyin[7]*ptable[7];
+		
+		/* else handle end effects with care */
+		} else {
+	
+			/* sum over 8 tabulated coefficients */
+			for (itable=0,sum=0.0; itable<8; itable++,kyin++) {
+				if (kyin<0)
+					yini = yinl;
+				else if (kyin>=nxin)
+					yini = yinr;
+				else
+					yini = yin[kyin];
+				sum += yini*(*ptable++);
+			}
+			yout[ixout] = sum;
+		}
+	}
+}
+/* Copyright (c) Colorado School of Mines, 2005.*/
+/* All rights reserved.                       */
+
+/*********************** self documentation **********************/
+/*****************************************************************************
+INTSINC8 - Functions to interpolate uniformly-sampled data via 8-coeff. sinc
+		approximations:
+
+ints8r	Interpolation of a uniformly-sampled real function y(x) via a
+		table of 8-coefficient sinc approximations
+
+******************************************************************************
+Function Prototypes:
+void ints8r (int nxin, float dxin, float fxin, float yin[], 
+	float yinl, float yinr, int nxout, float xout[], float yout[]);
+
+******************************************************************************
+Input:
+nxin		number of x values at which y(x) is input
+dxin		x sampling interval for input y(x)
+fxin		x value of first sample input
+yin		array[nxin] of input y(x) values:  yin[0] = y(fxin), etc.
+yinl		value used to extrapolate yin values to left of yin[0]
+yinr		value used to extrapolate yin values to right of yin[nxin-1]
+nxout		number of x values a which y(x) is output
+xout		array[nxout] of x values at which y(x) is output
+
+Output:
+yout		array[nxout] of output y(x):  yout[0] = y(xout[0]), etc.
+
+******************************************************************************
+Notes:
+Because extrapolation of the input function y(x) is defined by the
+left and right values yinl and yinr, the xout values are not restricted
+to lie within the range of sample locations defined by nxin, dxin, and
+fxin.
+
+The maximum error for frequiencies less than 0.6 nyquist is less than
+one percent.
+
+******************************************************************************
+Author:  Dave Hale, Colorado School of Mines, 06/02/89
+*****************************************************************************/
+/**************** end self doc ********************************/
+
+
+/* these are used by ints8r */
+#define LTABLE 8
+#define NTABLE 513
+
+void ints8r (int nxin, float dxin, float fxin, float yin[], 
+	float yinl, float yinr, int nxout, float xout[], float yout[])
+/*****************************************************************************
+Interpolation of a uniformly-sampled real function y(x) via a
+table of 8-coefficient sinc approximations; maximum error for frequiencies
+less than 0.6 nyquist is less than one percent.
+******************************************************************************
+Input:
+nxin		number of x values at which y(x) is input
+dxin		x sampling interval for input y(x)
+fxin		x value of first sample input
+yin		array[nxin] of input y(x) values:  yin[0] = y(fxin), etc.
+yinl		value used to extrapolate yin values to left of yin[0]
+yinr		value used to extrapolate yin values to right of yin[nxin-1]
+nxout		number of x values a which y(x) is output
+xout		array[nxout] of x values at which y(x) is output
+
+Output:
+yout		array[nxout] of output y(x):  yout[0] = y(xout[0]), etc.
+******************************************************************************
+Notes:
+Because extrapolation of the input function y(x) is defined by the
+left and right values yinl and yinr, the xout values are not restricted
+to lie within the range of sample locations defined by nxin, dxin, and
+fxin.
+******************************************************************************
+Author:  Dave Hale, Colorado School of Mines, 06/02/89
+*****************************************************************************/
+
+{
+	static float table[NTABLE][LTABLE];
+	static int tabled=0;
+	int jtable;
+	float frac;
+
+	/* tabulate sinc interpolation coefficients if not already tabulated */
+	if (!tabled) {
+		for (jtable=1; jtable<NTABLE-1; jtable++) {
+			frac = (float)jtable/(float)(NTABLE-1);
+			mksinc(frac,LTABLE,&table[jtable][0]);
+		}
+		for (jtable=0; jtable<LTABLE; jtable++) {
+			table[0][jtable] = 0.0;
+			table[NTABLE-1][jtable] = 0.0;
+		}
+		table[0][LTABLE/2-1] = 1.0;
+		table[NTABLE-1][LTABLE/2] = 1.0;
+		tabled = 1;
+	}
+
+	/* interpolate using tabulated coefficients */
+	intt8r(NTABLE,table,nxin,dxin,fxin,yin,yinl,yinr,nxout,xout,yout);
+}
+
+/* Copyright (c) Colorado School of Mines, 2005.*/
+/* All rights reserved.                       */
+
+
+/*********************** self documentation **********************/
+/*****************************************************************************
+RFWTVAINT - Rasterize a Float array as Wiggle-Trace-Variable-Area, with
+	    8 point sinc INTerpolation.
+
+rfwtvaint	rasterize a float array as wiggle-trace-variable-area, and
+		apply sinc interploation for display purposes.
+
+******************************************************************************
+Function Prototype:
+void rfwtvaint (int n, float z[], float zmin, float zmax, float zbase,
+	int yzmin, int yzmax, int xfirst, int xlast,
+	int wiggle, int nbpr, unsigned char *bits, int endian);
+
+******************************************************************************
+Input:
+n		number of samples in array to rasterize
+z		array[n] to rasterize
+zmin		z values below zmin will be clipped
+zmax		z values above zmax will be clipped
+zbase		z values between zbase and zmax will be filled (see notes)
+yzmin		horizontal raster coordinate corresponding to zmin
+yzmax		horizontal raster coordinate corresponding to zmax
+xfirst		vertical raster coordinate of z[0] (see notes)
+xlast		vertical raster coordinate of z[n-1] (see notes)
+wiggle		=0 for no wiggle (VA only); =1 for wiggle (with VA)
+                wiggle 2<=wiggle<=5 for solid/grey coloring of VA option
+                shade of grey: wiggle=2 light grey, wiggle=5 black
+nbpr		number of bytes per row of bits
+bits		pointer to first (top,left) byte in image
+endian		byte order  =1 big endian  =0 little endian 
+
+Output:
+bits		pointer to first (top,left) byte in image
+
+******************************************************************************
+Notes:
+The raster coordinate of the (top,left) bit in the image is (0,0).
+In other words, x increases downward and y increases to the right.
+Raster scan lines run from left to right, and from top to bottom.
+Therefore, xfirst, xlast, yzmin, and yzmax should not be less than 0.
+Likewise, yzmin and yzmax should not be greater than nbpr*8-1, and 
+care should be taken to ensure that xfirst and xlast do not cause bits 
+to be set outside (off the bottom) of the image. 
+
+Variable area fill is performed on the right-hand (increasing y) side
+of the wiggle.  If yzmin is greater than yzmax, then z values between
+zmin will be plotted to the right of zmax, and z values between zbase
+and zmin are filled.  Swapping yzmin and yzmax is an easy way to 
+reverse the polarity of a wiggle.
+
+The variable "endian" must have a value of 1 or 0. If this is
+not a case an error is returned.
+
+The interpolation is by the 8 point sinc interpolation routine s8r.
+
+******************************************************************************
+Author:  Dave Hale, Colorado School of Mines, 07/01/89
+	Memorial University of Newfoundland: Tony Kocurko, Sept 1995.
+	 Added sinc interpolation.
+MODIFIED: Paul Michaels, Boise State University, 29 December 2000
+          added solid/grey color scheme for peaks/troughs  wiggle=2 option
+*****************************************************************************/
+/**************** end self doc ********************************/
+
+
+void rfwtvaint (
+	int n, float z[], float zmin, float zmax, float zbase,
+	int yzmin, int yzmax, int xfirst, int xlast,
+	int wiggle, int nbpr, unsigned char *bits, int endian)
+/*****************************************************************************
+Rasterize a float array as wiggle-trace-variable-area.
+******************************************************************************
+Input:
+n		number of samples in array to rasterize
+z		array[n] to rasterize
+zmin		z values below zmin will be clipped
+zmax		z values above zmax will be clipped
+zbase		z values between zbase and zmax will be filled (see notes)
+yzmin		horizontal raster coordinate corresponding to zmin
+yzmax		horizontal raster coordinate corresponding to zmax
+xfirst		vertical raster coordinate of z[0] (see notes)
+xlast		vertical raster coordinate of z[n-1] (see notes)
+wiggle		=0 for no wiggle (VA only); =1 for wiggle (with VA)
+                wiggle 2<=wiggle<=5 for solid/grey coloring of VA option
+                shade of grey: wiggle=2 light grey, wiggle=5 black
+nbpr		number of bytes per row of bits
+bits		pointer to first (top,left) byte in image
+
+Output:
+bits		pointer to first (top,left) byte in image
+******************************************************************************
+Notes:
+The raster coordinate of the (top,left) bit in the image is (0,0).
+In other words, x increases downward and y increases to the right.
+Raster scan lines run from left to right, and from top to bottom.
+Therefore, xfirst, xlast, yzmin, and yzmax should not be less than 0.
+Likewise, yzmin and yzmax should not be greater than nbpr*8-1, and 
+care should be taken to ensure that xfirst and xlast do not cause bits 
+to be set outside (off the bottom) of the image. 
+
+Variable area fill is performed on the right-hand (increasing y) side
+of the wiggle.  If yzmin is greater than yzmax, then z values between
+zmin will be plotted to the right of zmax, and z values between zbase
+and zmin are filled.  Swapping yzmin and yzmax is an easy way to 
+reverse the polarity of a wiggle.
+
+The variable "endian" must have a value of 1 or 0. If this is
+not a case an error is returned.
+
+******************************************************************************
+Author:  Dave Hale, Colorado School of Mines, 07/01/89
+Modified:  Craig Artley, Colorado School of Mines, 04/14/92
+           Fixed bug in computing yoffset.  Previously, when zmin==zmax
+           the rasterized trace was shifted to the left by one trace.
+MODIFIED: Paul Michaels, Boise State University, 29 December 2000
+          added solid/grey color scheme for peaks/troughs  wiggle=2 option
+*****************************************************************************/
+{
+	int i,y,
+		ymin,ymax,ybase;
+	int igrey,ideci;
+	float yscale,yoffset,zthis;
+	register int bit;
+	register unsigned char *byte;
+
+	static float *xout  , *yout;
+	static int    nx = 0;
+	float        *yin   ,  fxin , yinl, yinr, dxin, x0, deltax;
+	int           nxin  ,  nxout;
+
+	/* if solid/grey coloring desired      */
+	if (wiggle>=2)
+	{  igrey=abs(wiggle); wiggle=1; }
+	else
+	{  igrey=0; }
+
+	/* Compute the number of raster scan lines. */
+	nxout = ABS(xlast - xfirst + 1);
+
+	/* If the # of scan lines has increased from a previous call,
+	   allocate more*/
+	if ( nxout > nx ) {
+
+	  /* If a previous call allocated space for output values,
+	     free them. */
+	  if ( nx > 0 ) {
+	    free (xout);
+	    free (yout);
+	  }
+
+	  /* Allocate space for the scan line x values and interpolated
+	     z values. */
+
+		xout = (float *)calloc ((size_t)nxout, sizeof(float));
+		yout = (float *)calloc ((size_t)nxout, sizeof(float));
+	  nx   = nxout;
+	}
+
+	nxin   = n       ; /* There are n z-values.  */
+	dxin   = 1.0     ; /* We go from index 0 to index n - 1 in steps
+			      of 1.0  */
+	fxin   = 0.0     ; /* The first index is 0.  */
+	yin    = z       ; /* The input array is the z array.  */
+	yinl   = z[0]    ; /* Set the values to the left of the array
+			      to z[0]. */
+	yinr   = z[n - 1]; /* Set the values to the right of the array
+			      to z[n-1].*/
+
+	deltax = (float)(n - 1) / (float)(nxout - 1);
+	x0     =  0.0;
+	if ( xfirst > xlast ) { /* If the z array is to be output backwards, */
+		x0 = (float)(n - 1);  /* Then the first output index is n-1, */
+		deltax = -deltax;     /*   and we decrement rather than
+					   increment. */
+	}
+	for (i = 0; i < nxout; i++) /* Load the indices of the output values.*/
+		xout[i] = x0 + (float)i * deltax;
+
+	ints8r (nxin, dxin, fxin, yin, yinl, yinr, nxout, xout, yout);
+		
+
+	/* determine min and max y coordinates */
+	ymin = (yzmin<yzmax)?yzmin:yzmax;
+	ymax = (yzmax>yzmin)?yzmax:yzmin;
+
+	/* restrict min and max y coordinates */
+	ymin = (ymin>0)?ymin:0;
+	ymax = (ymax<nbpr*8-1)?ymax:nbpr*8-1;
+	
+	/* determine y scale factor and offset */
+	yscale = (zmax!=zmin)?(yzmax-yzmin)/(zmax-zmin):1.0;
+	yoffset = (zmax!=zmin)?yzmin-zmin*yscale:0.5*(yzmin+yzmax);
+	
+	/* determine base y coordinate */
+	ybase = yoffset+zbase*yscale;
+	ybase = (ybase>ymin)?ybase:ymin;
+	ybase = (ybase<ymax)?ybase:ymax;
+	
+	/* loop over scan lines */
+	for (i = 0; i < nxout; i++) {
+		zthis = yout[i];
+		y     = yoffset + zthis * yscale;
+
+		/* apply clip */
+		if (y < ymin) y = ymin;
+		if (y > ymax) y = ymax;
+			
+		/* determine the bit and byte */
+		/* original: bit = 7-y&7; */
+		bit = (7-y)&7;
+
+		/* Tony Kocurko: Had been "bits+x*nbpr+(y>>3)".*/
+		byte = bits+i*nbpr+(y>>3);
+
+		/* if wiggle or filling, then set the bit */
+		if (wiggle || y>ybase) {
+			if (endian==0)
+				*byte |= 1<<(-bit+7);
+			else if (endian==1)
+				*byte |= 1<<bit;
+			else
+				fprintf(stderr,"endian must equal either 0 or 1\n");
+		}
+
+		
+		/* while y greater than base, set more bits (SOLID FILL PEAKS) */
+		while (y>ybase) {
+			y-=1;
+			bit+=1;
+			if (bit>=8) {
+				byte--;
+				bit = 0;
+			}
+			if (endian==0)
+				*byte |= 1<<(-bit+7);
+			else if (endian==1)
+				*byte |= 1<<bit;
+			else
+				fprintf(stderr,"endian must equal either 0 or 1\n");
+		}  /*  endwhile  */
+
+		/* while y less than base, set more bits (GREY FILL TROUGHS) */
+	        if (igrey>0)
+	        {
+                ideci=6-igrey;
+                if (ideci<1) ideci=1;
+		
+			while (y<ybase) {
+				y+=ideci;
+				bit-=ideci;
+				if (bit<0) {
+					byte++;
+					bit = 7;
+				}
+				if (endian==0)
+					*byte |= 1<<(-bit+7);
+				else if (endian==1)
+					*byte |= 1<<bit;
+				else
+					fprintf(stderr,"endian must equal either 0 or 1\n");
+			}  /* endwhile */
+		}  /* endif igrey  */
+
+	} /* next scan line  */
+}  /*   end rfwtvaint   */
+
 /* return pointer to new image bitmap of rasterized wiggles */
 static XImage *newBitmap (Display *dpy, int width, int height,
 	int n1, float d1, float f1, int n2, float *x2, float *z,
@@ -186,6 +1265,15 @@ static XImage *newBitmap (Display *dpy, int width, int height,
 			b2l = bx2max;
 		}
 
+cout << "n1r="<<n1r<<endl
+	<< "clip1="<<clip1<<endl
+	<< "clip2="<<clip2<<endl
+	<< "b2f="<<b2f<<endl
+	<< "b2l="<<b2l<<endl
+	<< "b1fz="<<b1fz<<endl
+	<< "b1lz="<<b1lz<<endl
+	<< "wt="<<wt<<endl
+	<< "nbpr="<<nbpr<<endl;
 		/* rasterize one trace */
 		if (interp==0) { /* don't use interpolation */
 			rfwtva(n1r,&z[if1r],clip1,clip2,va?0:clip2,
@@ -222,80 +1310,742 @@ static XImage *newBitmap (Display *dpy, int width, int height,
 
 	return image;
 }	
+/* Copyright (c) Colorado School of Mines, 2005.*/
+/* All rights reserved.                       */
 
-void xMouseLoc(Display *dpy, Window win, XEvent event, int style, Bool show,
+/*********************** self documentation **********************/
+/*****************************************************************************
+RUBBERBOX -  Function to draw a rubberband box in X-windows plots
+
+xRubberBox	Track pointer with rubberband box
+
+******************************************************************************
+Function Prototype:
+void xRubberBox (Display *dpy, Window win, XEvent event,
+	int *x, int *y, int *width, int *height);
+
+******************************************************************************
+Input:
+dpy		display pointer
+win		window ID
+event		event of type ButtonPress
+
+Output:
+x		x of upper left hand corner of box in pixels
+y		y of upper left hand corner of box in pixels
+width		width of box in pixels
+height		height of box in pixels
+
+******************************************************************************
+Notes:
+xRubberBox assumes that event is a ButtonPress event for the 1st button;
+i.e., it tracks motion of the pointer while the 1st button is down, and
+it sets x, y, w, and h and returns after a ButtonRelease event for the
+1st button.
+
+Before calling xRubberBox, both ButtonRelease and Button1Motion events 
+must be enabled.
+
+This is the same rubberbox.c as in Xtcwp/lib, only difference is
+that xRubberBox here is XtcwpRubberBox there, and a shift has been
+added to make the rubberbox more visible.
+
+******************************************************************************
+Author:		Dave Hale, Colorado School of Mines, 01/27/90
+*****************************************************************************/
+/**************** end self doc ********************************/
+
+
+void 
+xRubberBox (Display *dpy, Window win, XEvent event,
+	int *x, int *y, int *width, int *height)
+/*****************************************************************************
+Track pointer with rubber box
+******************************************************************************
+Input:
+dpy		display pointer
+win		window ID
+event		event of type ButtonPress
+
+Output:
+x		x of upper left hand corner of box in pixels
+y		y of upper left hand corner of box in pixels
+width		width of box in pixels
+height		height of box in pixels
+******************************************************************************
+Notes:
+xRubberBox assumes that event is a ButtonPress event for the 1st button;
+i.e., it tracks motion of the pointer while the 1st button is down, and
+it sets x, y, w, and h and returns after a ButtonRelease event for the
+1st button.
+
+Before calling xRubberBox, both ButtonRelease and Button1Motion events 
+must be enabled.
+******************************************************************************
+Author:		Dave Hale, Colorado School of Mines, 01/27/90
+*****************************************************************************/
+{
+	GC gc;
+	XGCValues *values=NULL;
+	XEvent eventb;
+	XStandardColormap scmap;
+	int scr=DefaultScreen(dpy);
+	int xb,yb,w,h,x1,x2,y1,y2,xorig,yorig,xold,yold;
+	unsigned long background;
+
+	/* determine typical background color */
+	/* +1 added by John Stockwell 23 Jun 1993 */
+	/* to shift xwigb rubberbox from light green to red */
+	if (xCreateRGBDefaultMap(dpy,&scmap))
+		background = (xGetFirstPixel(dpy)+xGetLastPixel(dpy) + 1)/2;
+	else
+		background = WhitePixel(dpy,scr);
+
+
+	/* make graphics context */
+	gc = XCreateGC(dpy,win,0,values);
+  	XSetFunction(dpy,gc,GXxor);
+  	XSetForeground(dpy,gc,BlackPixel(dpy,scr)^background);
+
+	/* track pointer */
+	xorig = event.xbutton.x;
+	yorig = event.xbutton.y;
+	xold = xorig;
+	yold = yorig;
+	x1 = xorig;
+	y1 = yorig;
+	w = 0;
+	h = 0;
+	while(h|(~h)/*True*/) {
+		XNextEvent(dpy,&eventb);
+		if (eventb.type==ButtonRelease) {
+			xb = eventb.xbutton.x;
+			yb = eventb.xbutton.y;
+			break;
+		} else if (eventb.type==MotionNotify) {
+			xb = eventb.xmotion.x;
+			yb = eventb.xmotion.y;
+
+			/* if box is the same, continue */
+			if (xb==xold && yb==yold) 
+				continue;
+
+			/* erase old box */
+			x1 = (xold<xorig)?xold:xorig;
+			y1 = (yold<yorig)?yold:yorig;
+			x2 = (xold>xorig)?xold:xorig;
+			y2 = (yold>yorig)?yold:yorig;
+			w = x2-x1;
+			h = y2-y1;
+			XDrawRectangle(dpy,win,gc,x1,y1,w,h);
+
+			/* draw current box */
+			x1 = (xb<xorig)?xb:xorig;
+			y1 = (yb<yorig)?yb:yorig;
+			x2 = (xb>xorig)?xb:xorig;
+			y2 = (yb>yorig)?yb:yorig;
+			w = x2-x1;
+			h = y2-y1;
+			XDrawRectangle(dpy,win,gc,x1,y1,w,h);
+
+			/* remember current pointer position */
+			xold = xb;
+			yold = yb;
+		}
+	}
+
+	/* erase rubber box */
+	XDrawRectangle(dpy,win,gc,x1,y1,w,h);
+
+	/* free graphics context */
+	XFreeGC(dpy,gc);
+
+	/* set output parameters */
+	*x = x1;
+	*y = y1;
+	*width = w;
+	*height = h;
+}
+
+/* Copyright (c) Colorado School of Mines, 2005.*/
+/* All rights reserved.                       */
+
+/*********************** self documentation **********************/
+/*****************************************************************************
+SCAXIS - compute a readable scale for use in plotting axes
+
+scaxis		compute a readable scale for use in plotting axes
+
+******************************************************************************
+Function Prototype:
+void scaxis (float x1, float x2, int *nxnum, float *dxnum, float *fxnum);
+
+******************************************************************************
+Input:
+x1		first x value
+x2		second x value
+nxnum		desired number of numbered values
+
+Output:
+nxnum		number of numbered values
+dxnum		increment between numbered values (dxnum>0.0)
+fxnum		first numbered value
+
+******************************************************************************
+Notes:
+scaxis attempts to honor the user-specified nxnum.  However, nxnum
+will be modified if necessary for readability.  Also, fxnum and nxnum
+will be adjusted to compensate for roundoff error; in particular, 
+fxnum will not be less than xmin-eps, and fxnum+(nxnum-1)*dxnum 
+will not be greater than xmax+eps, where eps = 0.0001*(xmax-xmin).
+xmin is the minimum of x1 and x2.  xmax is the maximum of x1 and x2.
+
+******************************************************************************
+Author:  Dave Hale, Colorado School of Mines, 01/13/89
+*****************************************************************************/
+/**************** end self doc ********************************/
+
+
+
+void scaxis (float x1, float x2, int *nxnum, float *dxnum, float *fxnum)
+/*****************************************************************************
+compute a readable scale for use in plotting axes
+******************************************************************************
+Input:
+x1		first x value
+x2		second x value
+nxnum		desired number of numbered values
+
+Output:
+nxnum		number of numbered values
+dxnum		increment between numbered values (dxnum>0.0)
+fxnum		first numbered value
+******************************************************************************
+Notes:
+scaxis attempts to honor the user-specified nxnum.  However, nxnum
+will be modified if necessary for readability.  Also, fxnum and nxnum
+will be adjusted to compensate for roundoff error; in particular, 
+fxnum will not be less than xmin-eps, and fxnum+(nxnum-1)*dxnum 
+will not be greater than xmax+eps, where eps = 0.0001*(xmax-xmin).
+xmin is the minimum of x1 and x2.  xmax is the maximum of x1 and x2.
+******************************************************************************
+Author:  Dave Hale, Colorado School of Mines, 01/13/89
+*****************************************************************************/
+{
+	int n,i,iloga;
+	float d,f,rdint[4],eps,a,b,xmin,xmax;
+
+	/* set readable intervals */
+	rdint[0] = 1.0;  rdint[1] = 2.0;  rdint[2] = 5.0;  rdint[3] = 10.0;
+
+	/* handle x1==x2 as a special case */
+	if  (x1==x2) {
+		*nxnum = 1;
+		*dxnum = 1.0;
+		*fxnum = x1;
+		return;
+	}
+
+	/* determine minimum and maximum x */
+	xmin = (x1<x2)?x1:x2;
+	xmax = (x1>x2)?x1:x2;
+	
+	/* get desired number of numbered values */
+	n = *nxnum;
+	n = (2>n)?2:n;
+	
+	/* determine output parameters, adjusted for roundoff */
+	a = (xmax-xmin)/(float)(n-1);
+	iloga = (int)log10(a);
+	if (a<1.0) iloga = iloga - 1;
+	b = a/pow(10.0,(double)iloga);
+	for (i=0; i<3 && b>=sqrt(rdint[i]*rdint[i+1]); i++);
+	d = rdint[i]*pow(10.0,(float)iloga);
+	f = ((int)(xmin/d))*d-d;
+	eps = 0.0001*(xmax-xmin);
+	while(f<(xmin-eps))
+		 f = f+d;
+	n = 1+(int)((xmax+eps-f)/d); 
+        
+	/* set output parameters before returning */
+	*nxnum = n;
+	*dxnum = d;
+	*fxnum = f;
+}
+/* Copyright (c) Colorado School of Mines, 2005.*/
+/* All rights reserved.                       */
+
+/* AXESBOX: $Revision: 1.2 $ ; $Date: 2005/08/08 16:43:56 $	*/
+
+/*********************** self documentation **********************/
+/*****************************************************************************
+AXESBOX - Functions to draw axes in X-windows graphics
+
+xDrawAxesBox	draw a labeled axes box
+xSizeAxesBox	determine optimal origin and size for a labeled axes box
+
+*****************************************************************************
+Function Prototypes:
+void xDrawAxesBox (Display *dpy, Window win,
 	int x, int y, int width, int height,
-	float x1begb, float x1endb, float x2begb, float x2endb,
-	float p2beg, float p2end)
+	float x1beg, float x1end, float p1beg, float p1end,
+	float d1num, float f1num, int n1tic, int grid1, char *label1,
+	float x2beg, float x2end, float p2beg, float p2end,
+	float d2num, float f2num, int n2tic, int grid2, char *label2,
+	char *labelfont, char *title, char *titlefont, 
+	char *axescolor, char *titlecolor, char *gridcolor,
+	int style);
+void xSizeAxesBox (Display *dpy, Window win, 
+	char *labelfont, char *titlefont, int style,
+	int *x, int *y, int *width, int *height);
+
+*****************************************************************************
+xDrawAxesBox:
+Input:
+dpy		display pointer
+win		window
+x		x coordinate of upper left corner of box
+y		y coordinate of upper left corner of box
+width		width of box
+height		height of box
+x1beg		axis value at beginning of axis 1
+x1end		axis value at end of axis 1
+p1beg		pad value at beginning of axis 1
+p1end		pad value at end of axis 1
+d1num		numbered tic increment for axis 1 (0.0 for automatic)
+f1num		first numbered tic for axis 1
+n1tic		number of tics per numbered tic for axis 1
+grid1		grid code for axis 1:  NONE, DOT, DASH, or SOLID
+label1		label for axis 1
+x2beg		axis value at beginning of axis 2
+x2end		axis value at end of axis 2
+p2beg		pad value at beginning of axis 2
+p2end		pad value at end of axis 2
+d2num		numbered tic increment for axis 2 (0.0 for automatic)
+f2num		first numbered tic for axis 2
+n2tic		number of tics per numbered tic for axis 2
+grid2		grid code for axis 2:  NONE, DOT, DASH, or SOLID
+label2		label for axis 2
+labelfont	name of font to use for axes labels
+title		axes box title
+titlefont	name of font to use for title
+axescolor	name of color to use for axes
+titlecolor	name of color to use for title
+gridcolor	name of color to use for grid
+int style	NORMAL (axis 1 on bottom, axis 2 on left)
+		SEISMIC (axis 1 on left, axis 2 on top)
+
+******************************************************************************
+xSizeAxesBox:
+Input:
+dpy		display pointer
+win		window
+labelfont	name of font to use for axes labels
+titlefont	name of font to use for title
+int style	NORMAL (axis 1 on bottom, axis 2 on left)
+		SEISMIC (axis 1 on left, axis 2 on top)
+
+Output:
+x		x coordinate of upper left corner of box
+y		y coordinate of upper left corner of box
+width		width of box
+height		height of box
+******************************************************************************
 {
-	static XFontStruct *fs=NULL;
-	static XCharStruct overall;
-	static GC gc;
-	int dummy,xoffset=5,yoffset=5;
-	float x1,x2;
-	char string[256];
+	XFontStruct *fa,*ft;
+******************************************************************************
+Notes:
+xDrawAxesBox:
+will determine the numbered tic incremenet and first
+numbered tic automatically, if the specified increment is zero.
 
-	/* if first time, get font attributes and make gc */
-	if (fs==NULL) {
-		fs = XLoadQueryFont(dpy,"fixed");
-		gc = XCreateGC(dpy,win,0,NULL);
+Pad values must be specified in the same units as the corresponding
+axes values.  These pads are useful when the contents of the axes box
+requires more space than implied by the axes values.  For example,
+the first and last seismic wiggle traces plotted inside an axes box
+will typically extend beyond the axes values corresponding to the
+first and last traces.  However, all tics will lie within the limits
+specified in the axes values (x1beg, x1end, x2beg, x2end).
 
-		/* make sure foreground/background are black/white */
-		XSetForeground(dpy,gc,BlackPixel(dpy,DefaultScreen(dpy)));
-		XSetBackground(dpy,gc,WhitePixel(dpy,DefaultScreen(dpy)));
+xSizeAxesBox:
+is intended to be used prior to xDrawAxesBox.
 
-		XSetFont(dpy,gc,fs->fid);
-		overall.width = 1;
-		overall.ascent = 1;
-		overall.descent = 1;
+An "optimal" axes box is one that more or less fills the window, 
+with little wasted space around the edges of the window.
+
+******************************************************************************
+Author:		Dave Hale, Colorado School of Mines, 01/27/90
+*****************************************************************************/
+/**************** end self doc ********************************/
+
+
+void
+xDrawAxesBox (Display *dpy, Window win,
+	int x, int y, int width, int height,
+	float x1beg, float x1end, float p1beg, float p1end,
+	float d1num, float f1num, int n1tic, int grid1, char *label1,
+	float x2beg, float x2end, float p2beg, float p2end,
+	float d2num, float f2num, int n2tic, int grid2, char *label2,
+	char *labelfont, char *title, char *titlefont, 
+	char *axescolor, char *titlecolor, char *gridcolor,
+	int style)
+/*****************************************************************************
+draw a labeled axes box
+******************************************************************************
+Input:
+dpy		display pointer
+win		window
+x		x coordinate of upper left corner of box
+y		y coordinate of upper left corner of box
+width		width of box
+height		height of box
+x1beg		axis value at beginning of axis 1
+x1end		axis value at end of axis 1
+p1beg		pad value at beginning of axis 1
+p1end		pad value at end of axis 1
+d1num		numbered tic increment for axis 1 (0.0 for automatic)
+f1num		first numbered tic for axis 1
+n1tic		number of tics per numbered tic for axis 1
+grid1		grid code for axis 1:  NONE, DOT, DASH, or SOLID
+label1		label for axis 1
+x2beg		axis value at beginning of axis 2
+x2end		axis value at end of axis 2
+p2beg		pad value at beginning of axis 2
+p2end		pad value at end of axis 2
+d2num		numbered tic increment for axis 2 (0.0 for automatic)
+f2num		first numbered tic for axis 2
+n2tic		number of tics per numbered tic for axis 2
+grid2		grid code for axis 2:  NONE, DOT, DASH, or SOLID
+label2		label for axis 2
+labelfont	name of font to use for axes labels
+title		axes box title
+titlefont	name of font to use for title
+axescolor	name of color to use for axes
+titlecolor	name of color to use for title
+gridcolor	name of color to use for grid
+int style	NORMAL (axis 1 on bottom, axis 2 on left)
+		SEISMIC (axis 1 on left, axis 2 on top)
+******************************************************************************
+Notes:
+xDrawAxesBox will determine the numbered tic incremenet and first
+numbered tic automatically, if the specified increment is zero.
+
+Pad values must be specified in the same units as the corresponding
+axes values.  These pads are useful when the contents of the axes box
+requires more space than implied by the axes values.  For example,
+the first and last seismic wiggle traces plotted inside an axes box
+will typically extend beyond the axes values corresponding to the
+first and last traces.  However, all tics will lie within the limits
+specified in the axes values (x1beg, x1end, x2beg, x2end).
+******************************************************************************
+Author:		Dave Hale, Colorado School of Mines, 01/27/90
+*****************************************************************************/
+{
+	GC gca,gct,gcg;
+	XGCValues *values=NULL;
+	XColor scolor,ecolor;
+	XFontStruct *fa,*ft;
+	XWindowAttributes wa;
+	Colormap cmap;
+	int labelca,labelcd,labelch,labelcw,titleca,
+		ntic,xa,ya,tw,ticsize,ticb,numb,labelb,lstr,grided,grid,
+		n1num,n2num;
+	float dnum,fnum,dtic,amin,amax,base,scale,anum,atic,azero;
+	char str[256],dash[2],*label;
+
+	/* create graphics contexts */
+	gca = XCreateGC(dpy,win,0,values);
+	gct = XCreateGC(dpy,win,0,values);
+	gcg = XCreateGC(dpy,win,0,values);
+
+	/* get and set fonts and determine character dimensions */
+	fa = XLoadQueryFont(dpy,labelfont);
+	if (fa==NULL) fa = XLoadQueryFont(dpy,"fixed");
+	if (fa==NULL) {
+		fprintf(stderr,"Cannot load/query labelfont=%s\n",labelfont);
+		exit(-1);
+	}
+	XSetFont(dpy,gca,fa->fid);
+	labelca = fa->max_bounds.ascent;
+	labelcd = fa->max_bounds.descent;
+	labelch = fa->max_bounds.ascent+fa->max_bounds.descent;
+	labelcw = fa->max_bounds.lbearing+fa->max_bounds.rbearing;
+	ft = XLoadQueryFont(dpy,titlefont);
+	if (ft==NULL) ft = XLoadQueryFont(dpy,"fixed");
+	if (ft==NULL) {
+		fprintf(stderr,"Cannot load/query titlefont=%s\n",titlefont);
+		exit(-1);
+	}
+	XSetFont(dpy,gct,ft->fid);
+	titleca = ft->max_bounds.ascent;
+
+	/* determine window's current colormap */
+	XGetWindowAttributes(dpy,win,&wa);
+	cmap = wa.colormap;
+
+	/* get and set colors */
+	if (XAllocNamedColor(dpy,cmap,axescolor,&scolor,&ecolor))
+		XSetForeground(dpy,gca,ecolor.pixel);
+	else
+		XSetForeground(dpy,gca,1L);
+	if (XAllocNamedColor(dpy,cmap,titlecolor,&scolor,&ecolor))
+		XSetForeground(dpy,gct,ecolor.pixel);
+	else
+		XSetForeground(dpy,gct,1L);
+	if (XAllocNamedColor(dpy,cmap,gridcolor,&scolor,&ecolor))
+		XSetForeground(dpy,gcg,ecolor.pixel);
+	else
+		XSetForeground(dpy,gcg,1L);
+
+	/* determine tic size */
+	ticsize = labelcw;
+
+	/* determine numbered tic intervals */
+	if (d1num==0.0) {
+		n1num = (style==NORMAL ? width : height)/(8*labelcw);
+		scaxis(x1beg,x1end,&n1num,&d1num,&f1num);
+	}
+	if (d2num==0.0) {
+		n2num = (style==NORMAL ? height : width)/(8*labelcw);
+		scaxis(x2beg,x2end,&n2num,&d2num,&f2num);
 	}
 
-	/* erase previous string */
-	XClearArea(dpy,win,xoffset,yoffset,
-		overall.width,overall.ascent+overall.descent,False);
-
-	/* if not showing, then return */
-	if (!show) return;
-
-	/* convert mouse location to (x1,x2) coordinates */
+	/* draw horizontal axis */
 	if (style==NORMAL) {
-		x1 = x1begb+(x1endb-x1begb)*(event.xmotion.x-x)/width;
-		x2 = p2end+x2endb+(p2beg+x2begb-x2endb-p2end)*
-			(event.xmotion.y-y)/height;
+		amin = (x1beg<x1end)?x1beg:x1end;
+		amax = (x1beg>x1end)?x1beg:x1end;
+		dnum = d1num;  fnum = f1num;  ntic = n1tic;
+		scale = width/(x1end+p1end-x1beg-p1beg);
+		base = x-scale*(x1beg+p1beg);
+		ya = y+height;
+		ticb = ticsize;
+		numb = ticb+labelca;
+		labelb = numb+labelch;
+		grid = grid1;
+		label = label1;
 	} else {
-		x1 = x1begb+(x1endb-x1begb)*(event.xmotion.y-y)/height;
-		x2 = p2beg+x2begb+(p2end+x2endb-x2begb-p2beg)*
-			(event.xmotion.x-x)/width;
+		amin = (x2beg<x2end)?x2beg:x2end;
+		amax = (x2beg>x2end)?x2beg:x2end;
+		dnum = d2num;  fnum = f2num;  ntic = n2tic;
+		scale = width/(x2end+p2end-x2beg-p2beg);
+		base = x-scale*(x2beg+p2beg);
+		ya = y;
+		ticb = -ticsize;
+		numb = ticb-labelcd;
+		labelb = numb-labelch;
+		grid = grid2;
+		label = label2;
 	}
+	if (grid==SOLID)
+		grided = True;
+	else if (grid==DASH) {
+		grided = True;
+		XSetLineAttributes(dpy,gcg,1L,LineOnOffDash,CapButt,JoinMiter);
+		dash[0] = 8;  dash[1] = 4;
+		XSetDashes(dpy,gcg,0,dash,2);
+	} else if (grid==DOT) {
+		grided = True;
+		XSetLineAttributes(dpy,gcg,1L,LineOnOffDash,CapButt,JoinMiter);
+		dash[0] = 1;  dash[1] = 4;
+		XSetDashes(dpy,gcg,0,dash,2);
+	} else
+		grided = False;
+	azero = 0.0001*(amax-amin);
+	for (anum=fnum; anum<=amax; anum+=dnum) {
+		if (anum<amin) continue;
+		xa = base+scale*anum;
+		if (grided) XDrawLine(dpy,win,gcg,xa,y,xa,y+height);
+		XDrawLine(dpy,win,gca,xa,ya,xa,ya+ticb);
+		if (anum>-azero && anum<azero)
+			sprintf(str,"%1.5g",0.0);
+		else
+			sprintf(str,"%1.5g",anum);
+		lstr = (int) strlen(str);
+		tw = XTextWidth(fa,str,lstr);
+		XDrawString(dpy,win,gca,xa-tw/2,ya+numb,str,lstr);
+	}
+	dtic = dnum/ntic;
+	for (atic=fnum-ntic*dtic-dtic; atic<=amax; atic+=dtic) {
+		if (atic<amin) continue;
+		xa = base+scale*atic;
+		XDrawLine(dpy,win,gca,xa,ya,xa,ya+ticb/2);
+	}
+	lstr = (int) strlen(label);
+	tw = XTextWidth(fa,label,lstr);
+	XDrawString(dpy,win,gca,x+width-tw,ya+labelb,label,lstr);
 
-	/* draw string indicating mouse location */
-	sprintf(string,"(%0.6g,%0.6g)",x1,x2);
-	XTextExtents(fs,string,(int)strlen(string),&dummy,&dummy,&dummy,&overall);
-	XDrawString(dpy,win,gc,xoffset,yoffset+overall.ascent,
-		string,(int)strlen(string));
+	/* draw vertical axis */
+	if (style==NORMAL) {
+		amin = (x2beg<x2end)?x2beg:x2end;
+		amax = (x2beg>x2end)?x2beg:x2end;
+		dnum = d2num;  fnum = f2num;  ntic = n2tic;
+		scale = -height/(x2end+p2end-x2beg-p2beg);
+		base = y+height-scale*(x2beg+p2beg);
+		grid = grid2;
+		label = label2;
+	} else {
+		amin = (x1beg<x1end)?x1beg:x1end;
+		amax = (x1beg>x1end)?x1beg:x1end;
+		dnum = d1num;  fnum = f1num;  ntic = n1tic;
+		scale = height/(x1end+p1end-x1beg-p1beg);
+		base = y-scale*(x1beg+p1beg);
+		grid = grid1;
+		label = label1;
+	}
+	xa = x;
+	ticb = -ticsize;
+	numb = ticb-ticsize/4;
+	if (grid==SOLID)
+		grided = True;
+	else if (grid==DASH) {
+		grided = True;
+		XSetLineAttributes(dpy,gcg,1L,LineOnOffDash,CapButt,JoinMiter);
+		dash[0] = 8;  dash[1] = 4;
+		XSetDashes(dpy,gcg,0,dash,2);
+	} else if (grid==DOT) {
+		grided = True;
+		XSetLineAttributes(dpy,gcg,1L,LineOnOffDash,CapButt,JoinMiter);
+		dash[0] = 1;  dash[1] = 4;
+		XSetDashes(dpy,gcg,0,dash,2);
+	} else
+		grided = False;
+	azero = 0.0001*(amax-amin);
+	for (anum=fnum; anum<=amax; anum+=dnum) {
+		if (anum<amin) continue;
+		ya = base+scale*anum;
+		if (grided) XDrawLine(dpy,win,gcg,x,ya,x+width,ya);
+		XDrawLine(dpy,win,gca,xa,ya,xa+ticb,ya);
+		if (anum>-azero && anum<azero)
+			sprintf(str,"%1.5g",0.0);
+		else
+			sprintf(str,"%1.5g",anum);
+		lstr = (int) strlen(str);
+		tw = XTextWidth(fa,str,lstr);
+		XDrawString(dpy,win,gca,xa+numb-tw,ya+labelca/4,str,lstr);
+	}
+	dtic = dnum/ntic;
+	for (atic=fnum-ntic*dtic-dtic; atic<=amax; atic+=dtic) {
+		if (atic<amin) continue;
+		ya = base+scale*atic;
+		XDrawLine(dpy,win,gca,xa,ya,xa+ticb/2,ya);
+	}
+	lstr = (int) strlen(label);
+	if (style==NORMAL)
+		XDrawString(dpy,win,gca,
+			x+ticb-9*labelcw,
+			y+labelca/4-labelch,label,lstr);
+	else
+		XDrawString(dpy,win,gca,
+			x+ticb-9*labelcw,
+			y+height+labelca/4+labelch,label,lstr);
+	
+	/* draw title */
+	lstr = (int) strlen(title);
+	tw = XTextWidth(ft,title,lstr);
+	if (style==NORMAL)
+		XDrawString(dpy,win,gct,
+			x+width/2-tw/2,
+			y+labelca/4-labelch-labelch,title,lstr);
+	else
+		XDrawString(dpy,win,gct,
+			x+width/2-tw/2,
+			y+height+labelca/4+labelch+titleca,title,lstr);
+
+	/* draw axes box */
+	XDrawRectangle(dpy,win,gca,x,y,width,height);
+
+	/* free resources before returning */
+	XFreeGC(dpy,gca);
+	XFreeGC(dpy,gct);
+	XFreeGC(dpy,gcg);
+	XFreeFont(dpy,fa);
+	XFreeFont(dpy,ft);
 }
 
-void xMousePrint(XEvent event, int style, FILE *mpicksfp,
-		 int x, int y, int width, int height,
-		 float x1begb, float x1endb, float x2begb, float x2endb,
-		 float p2beg, float p2end)
+void
+xSizeAxesBox (Display *dpy, Window win, 
+	char *labelfont, char *titlefont, int style,
+	int *x, int *y, int *width, int *height)
+/*****************************************************************************
+determine optimal origin and size for a labeled axes box
+******************************************************************************
+Input:
+dpy		display pointer
+win		window
+labelfont	name of font to use for axes labels
+titlefont	name of font to use for title
+int style	NORMAL (axis 1 on bottom, axis 2 on left)
+		SEISMIC (axis 1 on left, axis 2 on top)
+
+Output:
+x		x coordinate of upper left corner of box
+y		y coordinate of upper left corner of box
+width		width of box
+height		height of box
+******************************************************************************
+Notes:
+xSizeAxesBox is intended to be used prior to xDrawAxesBox.
+
+An "optimal" axes box is one that more or less fills the window, 
+with little wasted space around the edges of the window.
+******************************************************************************
+Author:		Dave Hale, Colorado School of Mines, 01/27/90
+*****************************************************************************/
 {
-	float x1,x2;
+	XFontStruct *fa,*ft;
+	XWindowAttributes attr;
+	int labelch,labelcw,titlech,bl,bt,br,bb;
 
-	/* convert mouse location to (x1,x2) coordinates */
-	if (style==NORMAL) {
-		x1 = x1begb+(x1endb-x1begb)*(event.xmotion.x-x)/width;
-		x2 = p2end+x2endb+(p2beg+x2begb-x2endb-p2end)*
-			(event.xmotion.y-y)/height;
-	} else {
-		x1 = x1begb+(x1endb-x1begb)*(event.xmotion.y-y)/height;
-		x2 = p2beg+x2begb+(p2end+x2endb-x2begb-p2beg)*
-			(event.xmotion.x-x)/width;
+	/* get fonts and determine character dimensions */
+	fa = XLoadQueryFont(dpy,labelfont);
+	if (fa==NULL) fa = XLoadQueryFont(dpy,"fixed");
+	if (fa==NULL) {
+		fprintf(stderr,"Cannot load/query labelfont=%s\n",labelfont);
+		exit(-1);
 	}
+	labelch = fa->max_bounds.ascent+fa->max_bounds.descent;
+	labelcw = fa->max_bounds.lbearing+fa->max_bounds.rbearing;
+	ft = XLoadQueryFont(dpy,titlefont);
+	if (ft==NULL) ft = XLoadQueryFont(dpy,"fixed");
+	if (ft==NULL) {
+		fprintf(stderr,"Cannot load/query titlefont=%s\n",titlefont);
+		exit(-1);
+	}
+	titlech = ft->max_bounds.ascent+ft->max_bounds.descent;
 
-	/* write string indicating mouse location */
-	fprintf(mpicksfp, "%0.6g  %0.6g\n", x1, x2);
+	/* determine axes box origin and size */
+	XGetWindowAttributes(dpy,win,&attr);
+	bl = 10*labelcw;
+	br = attr.width-5*labelcw;
+	while (br<=bl) {
+		br += labelcw;
+		bl -= labelcw;
+	}
+	if (bl<0) bl = 0;
+	if (br>attr.width) br = attr.width;
+	if (style==NORMAL) {
+		bt = labelch+labelch/2+titlech;
+		bb = attr.height-3*labelch;
+	} else {
+		bt = 3*labelch;
+		bb = attr.height-labelch-labelch/2-titlech;
+	}
+	while (bb<=bt) {
+		bb += labelch;
+		bt -= labelch;
+	}
+	if (bt<0) bt = 0;
+	if (bb>attr.height) bb = attr.height;
+	
+	*x = bl;
+	*y = bt;
+	*width = br-bl;
+	*height = bb-bt;
+
+	XFreeFont(dpy,fa);
+	XFreeFont(dpy,ft);
 }
+
 //
 // Helper for SetParameters method below
 //
@@ -320,20 +2070,26 @@ void SeismicPlot::SetParameters(Metadata md)
 
 	try {
 		verbose=md.get_bool("verbose");
-		bval=md.get_bool("WingleTrace");
+		bval=md.get_bool("WiggleTrace");
 		if(bval)
 			wt=1;
 		else
 			wt=0;
 		bval=md.get_bool("VariableArea");
 		if(bval)
-			va=1;
+		{
+			va=md.get_int("SUVariableArea_grey_value");
+			if(va<0) va=0;
+			if(va>5) va=5;
+		}
 		else
 			va=0;
 		
+//DEBUG
+cout << "va set to "<<va<<endl;
 		clip_data=md.get_bool("clip_data");
 		if(clip_data)
-			clip=static_cast<float>(md.get_double("clip_level"));
+			perc=static_cast<float>(md.get_double("clip_percent"));
 		bval=md.get_bool("clip_wiggle_traces");
 		if(bval)
 			wigclip=1;
@@ -348,11 +2104,6 @@ void SeismicPlot::SetParameters(Metadata md)
 		wbox=md.get_int("wbox");
 		hbox=md.get_int("hbox");
 		s=md.get_string("style");
-		if(s=="seismic") 
-			style=SEISMIC;
-		else
-			style=NORMAL;
-			
 		d1num=static_cast<float>(md.get_double("d1num"));
 		d2num=static_cast<float>(md.get_double("d2num"));
 		f1num=static_cast<float>(md.get_double("f1num"));
@@ -371,7 +2122,7 @@ void SeismicPlot::SetParameters(Metadata md)
 		labelfont=strdup(s.c_str());
 		s=md.get_string("titlefont");
 		titlefont=strdup(s.c_str());
-		s=md.get_string("styles");
+		s=md.get_string("style");
 		if(s=="seismic" || s=="SEISMIC")
 			style=SEISMIC;
 		else
@@ -396,6 +2147,7 @@ void SeismicPlot::SetParameters(Metadata md)
 		time_scaling=md.get_string("time_scaling");
 		x1beg=static_cast<float>(md.get_double("x1beg"));
 		x1end=static_cast<float>(md.get_double("x1end"));
+		trace_axis_scaling=md.get_string("trace_axis_scaling");
 		x2beg=static_cast<float>(md.get_double("x2beg"));
 		x2end=static_cast<float>(md.get_double("x2end"));
 		bval=md.get_bool("interpolate");
@@ -440,6 +2192,11 @@ SeismicPlot::SeismicPlot(TimeSeriesEnsemble& tse, Metadata md)  : TimeSeriesEnse
 	this->SetParameters(md);
 	for(i=0;i<nmember;++i)
 		curvecolor.push_back(default_curve_color);
+//DEBUG
+cout << "In constructor:  first sample of each trace and size"<<endl;
+for(i=0;i<nmember;++i)
+	cout << member[i].s[0] << " "<< member[i].s.size()<<endl;
+
 	x2=new float[nmember];
 	if(use_variable_trace_spacing)
 	{
@@ -452,12 +2209,12 @@ SeismicPlot::SeismicPlot(TimeSeriesEnsemble& tse, Metadata md)  : TimeSeriesEnse
 		{
 			mde.log_error();
 			cerr << "Reverting to equal space tracing" << endl;
-			for(i=0;i<nmember;++i) x2[i]=static_cast<float>(i);
+			for(i=0;i<nmember;++i) x2[i]=static_cast<float>(i+1);
 		}
 	}
 	else
 	{
-		 for(i=0;i<nmember;++i) x2[i]=static_cast<float>(i);
+		 for(i=0;i<nmember;++i) x2[i]=static_cast<float>(i+1);
 	}
 	/* connect to X server */
 	if ((dpy=XOpenDisplay(NULL))==NULL)
@@ -476,7 +2233,7 @@ SeismicPlot::SeismicPlot(TimeSeriesEnsemble& tse, Metadata md)  : TimeSeriesEnse
 		endian=1;
 
 	/* create window */
-	win = xNewWindow(dpy,xbox,ybox,wbox*member.size(),
+	win = xNewWindow(dpy,xbox,ybox,wbox,
 		hbox,(int) black,(int) white,windowtitle);
 		
 	/* make GC for image */
@@ -663,7 +2420,7 @@ void SeismicPlot::draw() {
 	int nmembers=member.size();
 	if(nmembers<=0) throw SeisppError("Seisplot::draw not data to plot\n");
 	// First compute range of x1 and x2
-	double x1min,x1max,x2min,x2max;
+	float x1min,x1max,x2min,x2max;
 	float mve,mvefac;
 	int lock;
 	char *msg;
@@ -673,48 +2430,58 @@ void SeismicPlot::draw() {
 	x1max=member[0].endtime();
 	for(i=0;i<nmembers;++i)
 	{
-		x1min=min(member[i].t0,x1min);
-		x1max=max(member[i].endtime(),x1max);
+		x1min=MIN(member[i].t0,x1min);
+		x1max=MAX(member[i].endtime(),x1max);
 	}
-	x2min=member[0].s[0];
-	x2max=member[0].s[0];
-	// minor inefficiency here, but negligible 
-	for(j=0;j<nmembers;++j)
+
+	if(use_variable_trace_spacing)
 	{
-		for(i=0;i<member[j].ns;++i)
+		x2min=x2[0];
+		x2max=x2[0];
+		for(i=1;i<nmembers;++i)
 		{
-			x2min=min(member[j].s[i],x2min);
-			x2max=max(member[j].s[i],x2max);
+			x2min=min(x2min,x2[i]);
+			x2max=max(x2max,x2[i]);
 		}
 	}
-	
-	if(style==SEISMIC) 
-	    
-	    d2=(x2max-x2min)/wbox*nmembers;
 	else
-	    d2=(x2max-x2min)/hbox*nmembers;
-  
-  
+	{
+		// this is for equal spacing.  then we know
+		// data are ordered 1 to nmembers
+		x2min=x2[0];
+		x2max=x2[nmembers-1];
+	}
   
 	//
 	// Set x1beg and x1end for auto scaling.  Not else currently
 	// because in that case assume x1beg and x1end are set in construction
 	//
+	float x1begb,x1endb,x2begb,x2endb;
 	if(time_scaling=="auto")
 	{
+		x1begb=x1min;
+		x1endb=x1max;
 		x1beg=x1min;
 		x1end=x1max;
 	}
+	else
+	{
+		x1begb=x1beg;
+		x1endb=x1end;
+	}
+	if(trace_axis_scaling=="auto")
+	{
+		x2begb=x2min;
+		x2endb=x2max;
+		x2beg=x2min;
+		x2end=x2max;
+	}
+	else
+	{
+		x2begb=x2beg;
+		x2endb=x2end;
+	}
 	f1=x1beg;
-	//
-	// parent code set a bunch of parameters now stored with the
-	// SeismicPlot object.  Look at xwigb main for original 
-	//
-	/* initialize zoom box parameters */
-	float x1begb,x1endb,x2begb,x2endb;
-	x1begb = static_cast<float>(x1beg);	 
-	x1endb = static_cast<float>(x1end);
-	x2begb = static_cast<float>(x2beg);	 
 	x2endb = static_cast<float>(x2end);
 
 					
@@ -734,21 +2501,11 @@ void SeismicPlot::draw() {
 	// from seispp symbols to symbols used in original SU code
 	int n1,n2;
 	float d1=static_cast<float>(member[0].dt);
-	if(time_scaling=="auto")
-	{
-		n1=SEISPP::nint( (x1max-x1min)/d1 );
-		n2=member.size();
-	}
-	else
-	{
-		n1=SEISPP::nint((x1beg-x1end)/d1);
-		n2=member.size();
-	}
 	//
 	// Get the number of samples from x1beg and x1end.  
 	// With above logic this should work if time_scaling is auto or manual
 	//
-	n1=SEISPP::nint((x1beg-x1end)/d1);
+	n1=SEISPP::nint((x1endb-x1begb)/d1);
         n2=member.size();
 
 	// Sanity checks on n1
@@ -756,14 +2513,14 @@ void SeismicPlot::draw() {
 	{
 		char message[256];
 		sprintf(message,"SeismicPlot::RasterDraw:  Plot range error.\n%d samples in requested time range of %lf to %lf\n",
-				n1,x1beg,x1end);
+				n1,x1begb,x1endb);
 		throw SeisppError(string(message));
 	}
 	else if(n1>MAXPLOTSAMPLES)
 	{
 		char message[128];
 		sprintf(message,"SeismicPlot::RasterPlot: Plot range request too large\nTime range of %lf to %lf requires %n samples.  Sanity check overrides request.  Check input parameters\n",
-			x1beg,x1end,n1);
+			x1begb,x1endb,n1);
 		throw SeisppError(string(message));
 	}
 	// d2 and f2 are defined in this object by less obscure names
@@ -775,17 +2532,35 @@ void SeismicPlot::draw() {
 	//
 	float *z=new float[n1*n2];
 	// internal function used here
-	load_z_matrix(this->member,z,n1,n2,x1beg,d1);
-	// Original code had these as a pair of 2d arrays.  Seems here they are redundant
-	// so I'm going to make them simple float vectors and create them from z when
-	// needed
-	float *x1curve=new float[n1];
-	float *x2curve=new float[n1];
-	for(i=0;i<n1;++i) x1curve[i]=x1beg+d1*static_cast<float>(i);
+	int iz,nz=n1*n2;
+	load_z_matrix(this->member,z,n1,n2,x1begb,d1);
+	// handle clip stuff.
+	// Modified from xwigb to set clip levels
+	// Percentage determines percent of samples to be left unclipped.
+	// This is as in xwigb.  Difference here is we use STL vector
+	// and standard STL nth_element algorithm
+	// instead of SU's internal quick sort routine.
+	float clip;
+	vector<float> temp;
+	temp.reserve(nz);
+	if(!clip_data) perc=100.0;
+        for (iz=0; iz<nz; iz++)temp.push_back(fabs(z[iz]));
+	vector<float>::iterator iziter;
+        iz = (nz*perc/100.0);
+        if (iz<0) iz = 0;
+        if (iz>nz-1) iz = nz-1;
+	iziter=temp.begin()+iz;
+	nth_element(temp.begin(),iziter,temp.end());
+        clip = *iziter;
+
 	/* main event loop */
 	float p2beg,p2end;
 	XEvent event;
-	XImage *image=NULL;
+	if(image==NULL)
+		image=NULL;
+	else
+		XDestroyImage(image);
+		
 	// This seens to force an initialization on first pass of these variables
 	int winwidth=-1;  
 	int winheight=-1;
@@ -837,21 +2612,6 @@ void SeismicPlot::draw() {
 			XPutImage(dpy,win,gci,image,0,0,x,y,
 				image->width,image->height);
 
-			/* draw curve on top of image.  Original code had x2curve
-			independent of z.  Here I (glp) force x2curve to be 
-			copied from z.  curvecolor will be a useful way to flag
-			different data for different programs. */
-			for (i=0; i<n2; i++)
-			{
-				scopy(n1,z+i*n1,1,x2curve,1);
-				xDrawCurve(dpy,win,
-					   x,y,width,height,
-					   x1begb,x1endb,0.0,0.0,
-					   x2begb,x2endb,p2beg,p2end,
-					   x1curve,x2curve,n1,
-					   const_cast<char *>(curvecolor[i].c_str()),
-						style);
-			}
 
 			/* draw axes on top of image */
 			xDrawAxesBox(dpy,win,
@@ -1239,8 +2999,6 @@ void SeismicPlot::draw() {
 
 	} /* end of event loop */
 	delete [] z;
-	delete [] x1curve;
-	delete [] x2curve;
 }
 //
 // Under construction note.  This code can be derived from SU xpicker program.  It has

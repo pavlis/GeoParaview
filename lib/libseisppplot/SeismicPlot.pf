@@ -1,18 +1,19 @@
 verbose true
 WiggleTrace true
 VariableArea true
+SUVariableArea_grey_value 2
 clip_data true
-clip_wiggle_traces true
+clip_wiggle_traces false
 xcur 1.0
-clip_level 1.0
-clip_percentile 90
+clip_percent 90
 xbox 50
 ybox 50
-wbox 400
-hbox 700
-style 0
+wbox 900
+hbox 900
+style "normal"
 d1num 0.0
 d2num 0.0
+f1num 0.0
 f2num 0.0
 n2tic 1
 label1 time
@@ -32,6 +33,8 @@ trace_spacing 1.0
 first_trace_offset 0.0
 time_scaling auto
 interpolate false
+trace_axis_scaling auto
+# These are used only when time (x1) and trace (x2) scaling is not auto
 x1beg 0.0
 x1end 120.0
 x2beg 0.0
@@ -44,3 +47,9 @@ plot_file_name SeismicPlot.ps
 use_variable_trace_spacing false   # if true trace_axis_attribute is used to define trace axis position
 trace_axis_attribute assoc.delta
 
+n1tic 5
+blabel test
+blabel2 test2
+grid1 1
+grid2 1
+titlesize 18.0

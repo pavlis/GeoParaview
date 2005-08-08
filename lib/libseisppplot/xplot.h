@@ -21,13 +21,23 @@
 #define SOLID 3
 #define NORMAL 0
 #define SEISMIC 1
+/* These used to be in cwp.h */
+#ifndef ABS
+#define ABS(x) ((x) < 0 ? -(x) : (x))
+#endif
+#ifndef MAX
+#define MAX(x,y) ((x) > (y) ? (x) : (y))
+#endif
+#ifndef MIN
+#define MIN(x,y) ((x) < (y) ? (x) : (y))
+#endif
+#define NINT(x) ((int)((x)>0.0?(x)+0.5:(x)-0.5))
+
+
 
 /* 256 pixel values for truecolor model*/
 extern unsigned long truecolor_pixel[256];
 
-#ifdef  __cplusplus
-extern "C" {
-#endif
 
 /* FUNCTION PROTOTYPES */
 
@@ -35,27 +45,10 @@ extern "C" {
 Window xNewWindow (Display *dpy, int x, int y, int width, int height,
 	int border, int background, char *name);
 
-/* axes drawing */
-void xDrawAxesBox (Display *dpy, Window win,
-	int x, int y, int width, int height,
-	float x1beg, float x1end, float p1beg, float p1end,
-	float d1num, float f1num, int n1tic, int grid1, char *label1,
-	float x2beg, float x2end, float p2beg, float p2end,
-	float d2num, float f2num, int n2tic, int grid2, char *label2,
-	char *labelfont, char *title, char *titlefont, 
-	char *axescolor, char *titlecolor, char *gridcolor,
-	int style);
-void xSizeAxesBox (Display *dpy, Window win, 
-	char *labelfont, char *titlefont, int style,
-	int *x, int *y, int *width, int *height);
-
 /* images */
 XImage *xNewImage (Display *dpy, unsigned long pmin, unsigned long pmax,
 	int width, int height, float blank, unsigned char *bytes);
 
-/* rubberbanding box */
-void xRubberBox (Display *dpy, Window win, XEvent event,
-	int *x, int *y, int *width, int *height);
 
 /* colormaps */
 Status xCreateRGBDefaultMap (Display *dpy, XStandardColormap *scmap);
@@ -92,17 +85,8 @@ void xDrawCurve_double(Display *dpy, Window win,
 		float x2beg, float x2end, float p2beg, float p2end,
 		double *x1curve, double *x2curve, int ncurve,
 		char *curvecolor, int style);
-/*  These were originally in the cwp area of SU.  Moved for SeismicPlot 
-to this area to avoid requiring installing all of SU for use. */
-void rfwtva (int n, float z[], float zmin, float zmax, float zbase,
-        int yzmin, int yzmax, int xfirst, int xlast,
-        int wiggle, int nbpr, unsigned char *bits, int endian);
-void rfwtvaint (int n, float z[], float zmin, float zmax, float zbase,
-        int yzmin, int yzmax, int xfirst, int xlast,
-        int wiggle, int nbpr, unsigned char *bits, int endian);
+/* added in conversion.  axis routine */
+void scaxis (float x1, float x2, int *nxnum, float *dxnum, float *fxnum);
 
 
-#ifdef  __cplusplus
-}
-#endif
 #endif /* XPLOT_H */

@@ -1,7 +1,7 @@
 /* Copyright (c) Colorado School of Mines, 2005.*/
 /* All rights reserved.                       */
 
-/* COLORMAP: $Revision: 1.1 $ ; $Date: 2005/07/31 20:11:48 $	*/
+/* COLORMAP: $Revision: 1.1 $ ; $Date: 2005/08/08 16:43:58 $	*/
 
 /*********************** self documentation **********************/
 /*****************************************************************************
@@ -174,7 +174,11 @@ Author:  Dave Hale, Colorado School of Mines, 09/30/90
 *****************************************************************************/
 /**************** end self doc ********************************/
 
+#include <stdlib.h>
+#include <stdio.h>
+#include <string.h>
 #include "xplot.h"
+#define STREQ(s,t) (strcmp(s,t) == 0)
 #include "cwpcmaps.h"
 
 unsigned long truecolor_pixel[256];
@@ -434,7 +438,7 @@ Colormap xCreateRGBColormap (Display *dpy, Window win,
 	depth=(unsigned int)DefaultDepth(dpy,sr);
 
 	if( verbose == 1 ) {
-		warn("\n in colormap, depth=%d\n",depth);
+		fprintf(stderr,"\n in colormap, depth=%d\n",depth);
 	}
 
 	/* determine window's current colormap */
@@ -453,9 +457,9 @@ Colormap xCreateRGBColormap (Display *dpy, Window win,
 			str_cmap[0] = str_cmap[1] = str_cmap[2] = ' ';
 			c_nr = atoi (str_cmap);
 			if (c_nr < 0 || c_nr >= max_cmap)	{
-				warn ("\"cmap=rgb%i\" not installed !", c_nr);
+				fprintf(stderr,"\"cmap=rgb%i\" not installed !", c_nr);
 				c_nr = 0;
-				warn (" using : \"cmap=rgb%i\"", c_nr);
+				fprintf(stderr," using : \"cmap=rgb%i\"", c_nr);
 			}
 		}
 	}
@@ -468,7 +472,7 @@ Colormap xCreateRGBColormap (Display *dpy, Window win,
 		c_nr -= max_cmap;
 		
 	if (verbose == 1)
-		warn (" using : \"cmap=rgb%i\"", c_nr);
+		fprintf(stderr," using : \"cmap=rgb%i\"", c_nr);
 
 
 if(depth<=8){
@@ -657,9 +661,9 @@ Colormap xCreateHSVColormap (Display *dpy, Window win,
 			str_cmap[0] = str_cmap[1] = str_cmap[2] = ' ';
 			c_nr = atoi (str_cmap);
 			if (c_nr < 0 || c_nr >= max_cmap)	{
-				warn ("\"cmap=hsv%i\" not installed !", c_nr);
+				fprintf(stderr,"\"cmap=hsv%i\" not installed !", c_nr);
 				c_nr = 0;
-				warn (" using : \"cmap=hsv%i\"", c_nr);
+				fprintf(stderr," using : \"cmap=hsv%i\"", c_nr);
 			}
 		}
 	}
@@ -672,7 +676,7 @@ Colormap xCreateHSVColormap (Display *dpy, Window win,
 		c_nr -= max_cmap;
 		
 	if (verbose == 1)
-		warn (" using : \"cmap=hsv%i\"", c_nr);
+		fprintf(stderr," using : \"cmap=hsv%i\"", c_nr);
 
 
 if(depth<=8){

@@ -1,4 +1,6 @@
 #include <stdio.h>
+#define ABS(x) ((x) < 0 ? -(x) : (x))
+
 /* Copyright (c) Colorado School of Mines, 2005.*/
 /* All rights reserved.                       */
 

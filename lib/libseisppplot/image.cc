@@ -35,6 +35,8 @@ Revision: Brian Zook, Southwest Research Institute, 6/27/96 added blank option
 *****************************************************************************/
 /**************** end self doc ********************************/
 
+#include <stdlib.h>
+#include <stdio.h>
 #include "xplot.h"
 
 
@@ -90,7 +92,12 @@ Author:		Dave Hale, Colorado School of Mines, 06/08/90
 
 	/* allocate memory for image data */
 	widthpad = (1+(width-1)/(BitmapPad(dpy)/8))*BitmapPad(dpy)/8;
-	data = ealloc1(widthpad*height,byte_perpixel);
+	data = (unsigned char *)calloc(widthpad*height,byte_perpixel);
+	if(data==NULL)
+	{
+		fprintf(stderr,"Cannot alloc %d by %d bitmap\n",widthpad,height);
+		exit(-1);
+	}
 
 	xim=XCreateImage(	(Display *) dpy,
 				(Visual *) DefaultVisual(dpy,scr),

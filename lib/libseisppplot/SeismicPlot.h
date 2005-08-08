@@ -55,29 +55,30 @@ private:
   char *gridcolor;
   int style;
   int grid1,grid2;
-  double trace_spacing;  // d2 in SU code
+  bool use_variable_trace_spacing;
+  string trace_axis_attribute;  // used only when use_variable_trace_spacing true
+  double trace_spacing;  // d2 in SU code.  Used only when not variable
   double first_trace_offset;  // f2 in SU code
   int wt,va;
   int n1tic;
   int n2tic;
   // GLP addition.  
   string time_scaling;  // If "auto" use data range, otherwise use x1beg and x1end for time range
+  string trace_axis_scaling;  // If "auto" use data range, otherwise use x2beg and x2end for time range
   // These are only used when scaling is set as fixed
   float x1beg,x1end,x2beg,x2end;
   float d1num,f1num,d2num,f2num;
   int interp;
   bool clip_data;
+  float perc;
   int wigclip;
   float xcur;
-  float clip;
   // This was originally a char **
   vector<string>(curvecolor);
   string plotfile;
   bool verbose;
   string default_curve_color;
   int endian;  // Established by query, but conveniently stored.
-  bool use_variable_trace_spacing;
-  string trace_axis_attribute;
   float *x2;   
 };
 

@@ -1,7 +1,7 @@
 /* Copyright (c) Colorado School of Mines, 2005.*/
 /* All rights reserved.                       */
 
-/* GARNISH: $Revision: 1.1 $ ; $Date: 2005/07/31 20:11:50 $	*/
+/* GARNISH: $Revision: 1.2 $ ; $Date: 2005/08/08 16:43:59 $	*/
 
 #include <stdio.h>
 #include <X11/Xlib.h>
@@ -14,12 +14,7 @@
 /** This will draw shaded buttons of either "fixed" length or the length of **/
 /** the string to be written in them.  The choice is made through style     **/
 /*****************************************************************************/
-void
-DrawButton(window,style,state,x,y,textheight, textwidth, fixed, text, color)
-     Window			window;
-     int			style,state,x,y,textheight,textwidth,fixed;
-     char			text[];
-     XColor			color;
+void DrawButton(Window window,int style,int state,int x,int y,int textheight,int textwidth,int fixed,char* text,XColor color)
 {
   int 				w;
 
@@ -182,8 +177,7 @@ void DisplayRadioButtonSet(int x, int y, int number, int space, int size,
 /** coordinates given.  It returns 0 on failure, or 1-n depending  **/
 /** on which radio button the coordinates corrospond to.           **/
 /********************************************************************/
-int CheckRadioButtonSet(x,y,number,space,size,xpos,ypos)
-     int x,y,number,space,size,xpos,ypos;
+int CheckRadioButtonSet(int x,int y,int number,int space,int size,int xpos,int ypos)
 {
   int ret,diff,extra;
 
@@ -462,8 +456,7 @@ int SetTextSetLine(TextSet *set, int which)
   return 1;
 }
 
-int GetTextSetLine(set) 
-     TextSet *set;
+int GetTextSetLine(TextSet *set) 
 {
   if (!set) return -1;
   return set->currently_pointed;

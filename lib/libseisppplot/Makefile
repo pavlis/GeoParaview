@@ -1,26 +1,12 @@
-LIB=libseisppplot.a
-DLIB=$(LIB:.a=$(DSUFFIX)) 
-# For now only install xplot.h There are other include file here but think they are only used here.
-MAN3=
+BIN=testseisplot
+ldlibs=$(X11LIBS) -lseispp $(TRLIBS) -lm
 
-
-ldlibs=$(X11LIBS)
-include $(ANTELOPEMAKE)
-
-OBJS=SeismicPick.o \
-	SeismicPlot.o \
-	axesbox.o \
-	colormap.o \
-	drawcurve.o \
-	garnish.o \
-	image.o \
-	legendbox.o \
-	rfwtva.o \
-	rfwtvaint.o \
-	rubberbox.o \
-	window.o \
-	xContour.o
-$(LIB) : $(OBJS)
+include $(ANTELOPEMAKE)  	
+OBJS=testseisplot.o SeismicPick.o \
+        SeismicPlot.o \
+        colormap.o \
+        image.o \
+        window.o 
+$(BIN) : $(OBJS)
 	$(RM) $@
-	$(AR) $(ARFLAGS) $@ $(LORDER) $(OBJS) $(TSORT)
-	$(RANLIB) $@
+	$(CXX) $(CCFLAGS) -o $@ $(OBJS) $(LDFLAGS) $(LDLIBS)
