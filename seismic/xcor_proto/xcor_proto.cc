@@ -20,7 +20,7 @@ void usage()
 	cerr << "xcor_proto db [-s subset_expression]" << endl;
 	exit(-1);
 }
-void output_data(Three_Component_Ensemble *d, int component)
+void output_data(ThreeComponentEnsemble *d, int component)
 {
 	int i,j;
 	// assume all trace segments are the same size as the 
@@ -53,14 +53,14 @@ void output_data(Three_Component_Ensemble *d, int component)
 		cout << endl;
 	}
 }
-void rotate_ensemble(Three_Component_Ensemble *d,double vp, double vs,
+void rotate_ensemble(ThreeComponentEnsemble *d,double vp, double vs,
 			bool afst)
 {
 	int i;
 	string phase;
-	Slowness_vector uvec;
+	SlownessVector uvec;
 	double lat,lon,elev;
-	Spherical_Coordinate scor;
+	SphericalCoordinate scor;
 	double umag;
 	try {
 
@@ -77,7 +77,7 @@ void rotate_ensemble(Three_Component_Ensemble *d,double vp, double vs,
 			d->tcse[i].free_surface_transformation(uvec,vp,vs);
 		else
 		{
-			scor = pm_halfspace_model(vp,vs,uvec.ux,uvec.uy);
+			scor = PMHalfspaceModel(vp,vs,uvec.ux,uvec.uy);
 			d->tcse[i].rotate(scor);
 		}
 	}
@@ -90,7 +90,7 @@ int main(int argc, char **argv)
 	string pffile("xcor_proto");
 	Dbptr db;
 	Pf *pf;
-	Three_Component_Ensemble *d;
+	ThreeComponentEnsemble *d;
 	int i,j;
 	string testarg;
 	string sstring;
@@ -124,15 +124,15 @@ int main(int argc, char **argv)
 		if(pfread(const_cast<char *>(pffile.c_str()),&pf))
                       die(0,"Failure reading parameter file %s\n",pffile.c_str());
 		// For some bizarre reason the following does not work:
-		// Attribute_Map am();
+		// AttributeMap am();
 		// Need the strange pair below to get this to compile
-		Attribute_Map* amptr=new Attribute_Map();
-		Attribute_Map& am=*amptr;  // default uses css3.0 namespace
-		Metadata_list md_to_input=pfget_mdlist(pf,"input_metadata_list");
+		AttributeMap* amptr=new AttributeMap();
+		AttributeMap& am=*amptr;  // default uses css3.0 namespace
+		MetadataList md_to_input=pfget_mdlist(pf,"input_list");
 		Metadata md(pf);
 		double ts=md.get_double("window_start_time");
 		double te=md.get_double("window_end_time");
-		Time_Window tw(ts,te);
+		TimeWindow tw(ts,te);
 		double vs=md.get_double("vs0");
 		double vp=md.get_double("vp0");
 		bool rotate_data=md.get_bool("rotate_data");
@@ -145,7 +145,7 @@ int main(int argc, char **argv)
 		try {
 			TTmethod=md.get_string("TTmethod");
 			TTmodel=md.get_string("TTmodel");
-		} catch (Metadata_get_error mderr)
+		} catch (MetadataGetError mderr)
 		{
 			cerr << "TTmethod:TTmodel not defined.  using default\n"
 				<< endl;
@@ -154,7 +154,7 @@ int main(int argc, char **argv)
 		--component;
 		double target_samprate=md.get_double("target_samprate");
 		double dtout=1.0/target_samprate;
-		Resampling_Definitions rd(pf);
+		ResamplingDefinitions rd(pf);
 		string filter_spec=md.get_string("filter");
 		bool filter_data;
 		Time_Invariant_Filter filter;
@@ -167,7 +167,7 @@ int main(int argc, char **argv)
 		}
 		if(dbopen(const_cast<char *>(dbname.c_str()),"r",&db))
                       die(0,"dbopen failed on database %s",dbname.c_str());
-		Datascope_Handle dbhi0(db,pf,tag);
+		DatascopeHandle dbhi0(db,pf,tag);
 		// Needs attention eventually.  Problem in current
 		// Database handle implementation
 		// if(do_subset) dbhi.subset(sstring);
@@ -185,17 +185,17 @@ cerr << "View size = "<<dbhi0.number_tuples() << endl;
 		{
 			group_keys.push_back("evid");
 		}
-		Datascope_Handle dbhi(dbhi0);
+		DatascopeHandle dbhi(dbhi0);
 		dbhi.group(group_keys);
 		dbhi.rewind();
 		for(int irec=0;irec<dbhi.number_tuples();++dbhi,++irec)
 		{
 			int arid;
-			//Attribute_Map amtest(string("test"));
-			vector<Three_Component_Seismogram>::iterator smember;
-			Three_Component_Ensemble cutdata;
-			Time_Series *comp;
-			d=new Three_Component_Ensemble(dynamic_cast<Database_Handle&>
+			//AttributeMap amtest(string("test"));
+			vector<ThreeComponentSeismogram>::iterator smember;
+			ThreeComponentEnsemble cutdata;
+			TimeSeries *comp;
+			d=new ThreeComponentEnsemble(dynamic_cast<DatabaseHandle&>
 				(dbhi),md_to_input,md_to_input,am);
 				//(dbhi),md_to_input,md_to_input,amtest);
 				//(dbhi),mdl1,mdl2,amtest);
@@ -203,12 +203,12 @@ cerr << "View size = "<<dbhi0.number_tuples() << endl;
 			for(i=0;i<d->tcse.size();++i)
 			{
 				if(!(d->tcse[i].live)) continue;
-				Three_Component_Seismogram tcs(d->tcse[i]);
+				ThreeComponentSeismogram tcs(d->tcse[i]);
 				// Need to push these to the station metadata
 				if(!(TTmethod.empty() || TTmethod.empty()))
 				{
-					tcs.put_metadata("TTmethod",TTmethod);
-					tcs.put_metadata("TTmodel",TTmodel);
+					tcs.put("TTmethod",TTmethod);
+					tcs.put("TTmodel",TTmodel);
 				}
 				if(gather_type=="source")
 				{
@@ -222,8 +222,8 @@ cerr << "View size = "<<dbhi0.number_tuples() << endl;
 				int nsout;
 				for(j=0;j<3;++j)
 				{
-					comp=Extract_Component(d->tcse[i],j);
-					Time_Series tsdec=Resample_Time_Series(*comp,
+					comp=ExtractComponent(d->tcse[i],j);
+					TimeSeries tsdec=ResampleTimeSeries(*comp,
 						rd,dtout,false);
 
 					// Need a different sized matrix to hold output
@@ -252,12 +252,12 @@ cerr << "View size = "<<dbhi0.number_tuples() << endl;
 			
 			delete d;
 		}
-	} catch (seispp_error serr)
+	} catch (SeisppError serr)
 	{
 		serr.log_error();
 		elog_die(0,"Exit from seispp error\n");
 	}
-	catch (Metadata_error merr)
+	catch (MetadataError merr)
 	{
 		merr.log_error();
 	}

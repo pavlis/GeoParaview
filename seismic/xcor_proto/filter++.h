@@ -18,8 +18,8 @@ public:
 	Time_Invariant_Filter& operator=(const Time_Invariant_Filter&);
 	void apply(int ns, double *s,double dt);
 	void apply(int ns, float *s,double dt);
-	void apply(Time_Series& ts);
-	void apply(Three_Component_Seismogram& tce);
+	void apply(TimeSeries& ts);
+	void apply(ThreeComponentSeismogram& tce);
 	void apply(Dbptr tr);
 
 private:
@@ -29,9 +29,9 @@ private:
 	int npole1,npole2;
 };
 // helpers
-void Filter_Ensemble(Time_Series_Ensemble& ensemble,
+void Filter_Ensemble(TimeSeriesEnsemble& ensemble,
 		Time_Invariant_Filter& filter);
-void Filter_Ensemble(Three_Component_Ensemble& ensemble,
+void Filter_Ensemble(ThreeComponentEnsemble& ensemble,
 		Time_Invariant_Filter& filter);
 }  // End namespace SEISPP
 

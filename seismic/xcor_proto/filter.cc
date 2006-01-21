@@ -15,7 +15,7 @@ Time_Invariant_Filter::Time_Invariant_Filter(string fspec)
 		sscanf(fspec.c_str(),"%s%lf%d%lf%d",ftkey,
 			&f1,&npole1,&f2,&npole2);
 		if( npole1==0 && f1<=0.0 && npole2==0 && f2<=0.0)
-			throw seispp_error(string("Illegal filter definition = ")
+			throw SeisppError(string("Illegal filter definition = ")
 				+ fspec);
 		else if(npole1==0 || f1<=0.0)
 			type = lowpass;
@@ -74,7 +74,7 @@ double Time_Invariant_Filter::fmin()
 		return(f1);
 	case lowpass:
 	default:
-		throw seispp_error(
+		throw SeisppError(
 			string("fmin not defined for filter type")
 				+ this->filter_spec);
 	}
@@ -88,7 +88,7 @@ double Time_Invariant_Filter::fmax()
 		return(f2);
 	case highpass:
 	default:
-		throw seispp_error(
+		throw SeisppError(
 			string("fmax not defined for filter type")
 				+ this->filter_spec);
 	}
@@ -102,7 +102,7 @@ int Time_Invariant_Filter::fmin_poles()
 	case bandpass:
 		return(npole1);
 	default:
-		throw seispp_error(
+		throw SeisppError(
 			string("number poles for fmin corner not defined for filter type")
 				+ this->filter_spec);
 	}
@@ -116,7 +116,7 @@ int Time_Invariant_Filter::fmax_poles()
 	case bandpass:
 		return(npole2);
 	default:
-		throw seispp_error(
+		throw SeisppError(
 			string("number poles for fmax corner not defined for filter type")
 				+ this->filter_spec);
 	}
@@ -168,7 +168,7 @@ string Time_Invariant_Filter::type_description()
 void Time_Invariant_Filter::apply(int ns, float *s,double dt)
 {
 	if(trfilter_segs(1,&ns,&dt,&s,const_cast<char*>(filter_spec.c_str()))<0)
-			throw seispp_error(string("Error in trfilter_segs"));
+			throw SeisppError(string("Error in trfilter_segs"));
 }
 // same as above for array of doubles
 void Time_Invariant_Filter::apply(int ns, double *s,double dt)
@@ -177,21 +177,21 @@ void Time_Invariant_Filter::apply(int ns, double *s,double dt)
 	float *d=new float[ns];
 	for(i=0;i<ns;++i) d[i]=static_cast<float>(s[i]);
 	if(trfilter_segs(1,&ns,&dt,&d,const_cast<char*>(filter_spec.c_str()))<0)
-			throw seispp_error(string("Error in trfilter_segs"));
+			throw SeisppError(string("Error in trfilter_segs"));
 	for(i=0;i<ns;++i) s[i]=static_cast<double>(d[i]);
 	delete [] d;
 }
-void Time_Invariant_Filter::apply(Time_Series& ts)
+void Time_Invariant_Filter::apply(TimeSeries& ts)
 {
 	int i;
 	float *d=new float[ts.ns];
 	for(i=0;i<ts.ns;++i) d[i]=static_cast<float>(ts.s[i]);
 	if(trfilter_segs(1,&(ts.ns),&(ts.dt),&d,const_cast<char*>(filter_spec.c_str()))<0)
-			throw seispp_error(string("Error in trfilter_segs"));
+			throw SeisppError(string("Error in trfilter_segs"));
 	for(i=0;i<ts.ns;++i) ts.s[i]=static_cast<double>(d[i]);
 	delete [] d;
 }
-void Time_Invariant_Filter::apply(Three_Component_Seismogram& ts)
+void Time_Invariant_Filter::apply(ThreeComponentSeismogram& ts)
 {
 	int i,j;
 	float *d=new float[ts.ns];
@@ -199,7 +199,7 @@ void Time_Invariant_Filter::apply(Three_Component_Seismogram& ts)
 	{
 		for(i=0;i<ts.ns;++i) d[i]=static_cast<float>(ts.u(j,i));
 		if(trfilter_segs(1,&(ts.ns),&(ts.dt),&d,const_cast<char*>(filter_spec.c_str()))<0)
-			throw seispp_error(string("Error in trfilter_segs"));
+			throw SeisppError(string("Error in trfilter_segs"));
 		for(i=0;i<ts.ns;++i) ts.u(j,i)=static_cast<double>(d[i]);
 	}
 	delete [] d;
@@ -207,12 +207,12 @@ void Time_Invariant_Filter::apply(Three_Component_Seismogram& ts)
 void Time_Invariant_Filter::apply(Dbptr tr)
 {
 	if(trfilter(tr,const_cast<char*>(filter_spec.c_str()))<0)
-		throw seispp_error(string("Error in trfilter"));
+		throw SeisppError(string("Error in trfilter"));
 }
 
 // helpers for ensembles.  There is probably a way to do this with templates,
 // but it isn't that much code
-void Filter_Ensemble(Time_Series_Ensemble& ensemble,Time_Invariant_Filter& filter)
+void Filter_Ensemble(TimeSeriesEnsemble& ensemble,Time_Invariant_Filter& filter)
 {
 	try 
 	{
@@ -220,7 +220,7 @@ void Filter_Ensemble(Time_Series_Ensemble& ensemble,Time_Invariant_Filter& filte
 		filter.apply(ensemble.tse[i]);
 	} catch (...) {throw;};
 }
-void Filter_Ensemble(Three_Component_Ensemble& ensemble,Time_Invariant_Filter& filter)
+void Filter_Ensemble(ThreeComponentEnsemble& ensemble,Time_Invariant_Filter& filter)
 {
 	try 
 	{
