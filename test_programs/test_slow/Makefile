@@ -1,5 +1,5 @@
 BIN=test_slow
-ldlibs=-lseispp -ltrvltm -lpfstream -lbrttutil $(TRLIBS) $(DBLIBS) -lperf -lgclgrid
+ldlibs=-shared -lseispp -ltrvltm -lpfstream -lbrttutil $(TRLIBS) $(DBLIBS) -lperf -lgclgrid
 
 include $(ANTELOPEMAKE)  	
 OBJS=test_slow.o
