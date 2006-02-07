@@ -1,6 +1,6 @@
 LIB=libseisppplot.a
 DLIB=$(LIB:.a=$(DSUFFIX)) 
-INCLUDE=SeismicPlot.h
+INCLUDE=SeismicPlot.h cwpcmaps.h xplot.h
 
 cflags=-G
 ldflags=

@@ -1884,7 +1884,7 @@ Author:  Dave Hale, Colorado School of Mines, 01/13/89
 /* Copyright (c) Colorado School of Mines, 2005.*/
 /* All rights reserved.                       */
 
-/* AXESBOX: $Revision: 1.1 $ ; $Date: 2006/01/21 12:58:07 $	*/
+/* AXESBOX: $Revision: 1.2 $ ; $Date: 2006/02/07 14:37:37 $	*/
 
 /*********************** self documentation **********************/
 /*****************************************************************************
@@ -2756,6 +2756,7 @@ void load_z_matrix(vector<TimeSeries> data,
 					     }
 					}
 				}
+cerr << "DEBUG:  i, j, z[iz]: "<<i<<", "<<j<<", "<<z[iz]<<endl;
 			}
 		}
 	}
@@ -2772,12 +2773,8 @@ void SeismicPlot::draw()
 
 	x1min=member[0].t0;
 	x1max=member[0].endtime();
-cout << "In Draw function:  ensemble t0, dt, ns"<<endl;
 	for(i=0;i<nmember;++i)
 	{
-cout << member[i].t0 << ","
-	<< member[i].dt << ","
-	<< member[i].ns << endl;
 		x1min=MIN(member[i].t0,x1min);
 		x1max=MAX(member[i].endtime(),x1max);
 	}
@@ -2861,7 +2858,7 @@ cout << member[i].t0 << ","
 	}
 	else if(n1>MAXPLOTSAMPLES)
 	{
-		char message[128];
+		char message[512];
 		sprintf(message,"SeismicPlot::refresh(): Plot range request too large\nTime range of %lf to %lf requires %n samples.  Sanity check overrides request.  Check input parameters\n",
 			x1begb,x1endb,n1);
 		throw SeisppError(string(message));
