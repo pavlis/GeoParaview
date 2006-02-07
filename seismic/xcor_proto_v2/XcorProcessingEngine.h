@@ -38,6 +38,7 @@ public:
 		string waveform_db_name, string result_db_name);
 	~XcorProcessingEngine();  // necessary unless we can get rid of mcc raw pointer
         void change_analysis_setting(AnalysisSetting a) {analysis_setting=a; if(!analysis_setting.rw_set) analysis_setting.robust_tw=analysis_setting.beam_tw;}
+	AnalysisSetting get_analysis_setting() {return(analysis_setting);};
 
 	//Display results using SeismicPlot
 	// These will likely change what they do.  
@@ -46,10 +47,16 @@ public:
 	void display_beam();
 	void display_correlations();
 	PointPick pick_beam();
-	void do_picks();
+	void do_all_picks();
+	int pick_one_trace();
 	void edit_data();
 	void shift_arrivals(double tshift);
+	void pick_cutoff(); 
 	// End interface routines likely to change
+	//
+	// This function sorts results according to current sort 
+	// definition in AnalysisSetting
+	void sort_ensemble();
 	
 	//save the resulting beam to the output database
         void save_results(int evid, int orid);

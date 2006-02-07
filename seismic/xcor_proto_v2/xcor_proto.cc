@@ -29,11 +29,12 @@ void show_command_menu()
 		<<"  p - pick arrival on beam" <<endl
 		<<"  s - skip this event" << endl
 		<<"  e - edit mode (pick traces to delete)" <<endl
+		<<"  C - pick cutoff interactively"<<endl
 		<<"  d - done with this event" <<endl			
 		<<"  q - quit processing" <<endl;			
 }
 enum CommandChoice {ChangePick,Analyze,Filter,ShowCorrelations,ShowBeam,
-	PickBeam, SkipEvent, Edit, Done,Quit,
+	PickBeam, SkipEvent, Edit, Cutoff, Done,Quit,
 	Bad};
 CommandChoice get_command()
 {
@@ -58,6 +59,8 @@ CommandChoice get_command()
 		return SkipEvent;
 	else if(s=="e")
 		return Edit;
+	else if(s=="C")
+		return Cutoff;
 	else if(s=="d")
 		return Done;
 	else if(s=="q")
@@ -122,7 +125,7 @@ int main(int argc, char **argv)
 			<<"Displaying filtered data"<<endl;
 		++orid;
 		++evid;
-		xpe.do_picks();
+		xpe.do_all_picks();
 		CommandChoice choice;
 		PointPick phase_pick;
 		// This allows skipping pick on beam.  Defaults 0.  
@@ -139,7 +142,7 @@ int main(int argc, char **argv)
 			switch (choice)
 			{
 			case ChangePick:
-				xpe.do_picks();
+				xpe.do_all_picks();
 				break;
 			case Analyze:
 				cout << "Starting analysis processing; stand by"<<endl;
@@ -166,6 +169,10 @@ int main(int argc, char **argv)
 			case PickBeam:
 				phase_pick=xpe.pick_beam();
 				xpe.shift_arrivals(phase_pick.time);
+				break;
+			case Cutoff:
+				xpe.sort_ensemble();
+				xpe.pick_cutoff();
 				break;
 
 			case Done:

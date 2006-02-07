@@ -75,7 +75,7 @@ SUVariableArea_grey_value 1
 clip_data true
 clip_wiggle_traces false
 xcur 1.0
-clip_percent 90
+clip_percent 95
 xbox 50
 ybox 50
 wbox 1000
@@ -130,10 +130,10 @@ verbose true
 WiggleTrace true
 VariableArea true
 SUVariableArea_grey_value 1
-clip_data false
+clip_data true
 clip_wiggle_traces false
 xcur 1.0
-clip_percent 90
+clip_percent 98
 xbox 50
 ybox 50
 wbox 1000
@@ -241,18 +241,13 @@ titlesize 18.0
 }
 // 
 // This defines data written to wfprocess tables. Static
-// an requires a change only if schema were to change.
+// and require a change only if schema were to change.
 BeamMetadataList &Tbl{
-time real
-endtime real
-timetype string
+pwfid int
+wfprocess.timetype string
 dir string
-dfile string
-foff int
-datatype string
-samprate real
-nsamp int
-algorithm string
+wfprocess.dfile string
+wfprocess.algorithm string
 }
 save_to_arrival true
 beam_directory xcorbeams

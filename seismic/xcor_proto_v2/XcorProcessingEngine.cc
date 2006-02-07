@@ -192,6 +192,11 @@ MultichannelCorrelator *XcorProcessingEngine::XcorProcessingEngine :: analyze()
    // related to a fixed time base.  Aim is to produce a gather that
    // is aligned to zero lag that can inspected graphically.
    mcc->xcor=MoveoutTimeShift(mcc->xcor);
+   return(mcc);
+}
+
+void XcorProcessingEngine::sort_ensemble()
+{
    switch(analysis_setting.result_sort_order)
    {
    case COHERENCE:
@@ -217,7 +222,6 @@ MultichannelCorrelator *XcorProcessingEngine::XcorProcessingEngine :: analyze()
    default:
 	cerr << "Illegal sort order.  Original order preserved."<<endl;
    }
-   return(mcc);  // always return 0 for now
 }
 // The next three functions are somewhat unnecessary with
 // this implementation, but are useful as interface routines
@@ -377,10 +381,10 @@ void XcorProcessingEngine::save_results(int evid, int orid )
 			stack_weight=trace->get_double(stack_weight_keyword);
 			amplitude=trace->get_double(amplitude_static_keyword);
 			// Write nothing for events that don't satisfy
-			// any of the criteria on xcor, coherence, or weight
+			// all of the criteria on xcor, coherence, or weight
 			if( (xcorpeak>xcorpeak_cutoff)
-				|| (coh>coherence_cutoff)
-				|| (stack_weight>stack_weight_cutoff) )
+				&& (coh>coherence_cutoff)
+				&& (stack_weight>stack_weight_cutoff) )
 			{
 			    record=dbaddv(dbxcorarrival,0,"sta",sta.c_str(),
 					"chan",chan.c_str(),
@@ -538,7 +542,7 @@ void XcorProcessingEngine::shift_arrivals(double tshift)
 	}
 }
 	
-void XcorProcessingEngine::do_picks()
+void XcorProcessingEngine::do_all_picks()
 {
 	char ctest;
 	dataplot=new SeismicPlot(waveform_ensemble,data_display_md);
@@ -586,6 +590,67 @@ void XcorProcessingEngine::do_picks()
 	cout << endl;
 	analysis_setting.rw_set=true;
 	delete dataplot;
+}
+int XcorProcessingEngine::pick_one_trace()
+{
+	int result;
+	dataplot=new SeismicPlot(waveform_ensemble,data_display_md);
+	dataplot->draw();
+	cout << "Pick desired trace with MB2"<<endl;
+	result=dataplot->select_member();
+	delete dataplot;
+	return(result);
+}
+void XcorProcessingEngine::pick_cutoff()
+{
+	int cutoff_trace;
+
+	cout << "Select trace to use as cutoff with MB2"<<endl;
+	dataplot=new SeismicPlot(waveform_ensemble,data_display_md);
+        dataplot->draw();
+	cutoff_trace=dataplot->select_member();
+	// Intentionally not aim to catch Metadata errors in this switch block
+	// Assumption is we don't get here without being sure this
+	// will not cause an exception.
+	switch (analysis_setting.result_sort_order)
+	{
+	case COHERENCE:
+		coherence_cutoff=waveform_ensemble
+			.member[cutoff_trace].get_double(coherence_keyword);
+		cout << "Coherence cutoff set to " 
+			<< coherence_cutoff 
+			<< " using ensemble member "
+			<< cutoff_trace << endl;
+	        break;
+	case CORRELATION_PEAK:
+		xcorpeak_cutoff=waveform_ensemble
+			.member[cutoff_trace].get_double(peakxcor_keyword);
+		cout << "Peak correlation cutoff set to " 
+			<< xcorpeak_cutoff 
+			<< " using ensemble member "
+			<< cutoff_trace << endl;
+	        break;
+	case AMPLITUDE:
+		cerr << "Amplitude cannot used be used as cutoff attribute."<<endl
+			<<"Change sort ensemble sort order"<<endl;
+	        break;
+	case LAG:
+		cerr << "Time lag cannot used be used as cutoff attribute."<<endl
+			<<"Change sort ensemble sort order"<<endl;
+	        break;
+	case WEIGHT:
+	default:
+		stack_weight_cutoff=waveform_ensemble
+			.member[cutoff_trace].get_double(stack_weight_keyword);
+		cout << "Stack weight cutoff set to " 
+			<< stack_weight_cutoff
+			<< " using ensemble member "
+			<< cutoff_trace << endl;
+	        break;
+	}
+	delete dataplot;
+	
+	
 }
 void XcorProcessingEngine::edit_data()
 {
