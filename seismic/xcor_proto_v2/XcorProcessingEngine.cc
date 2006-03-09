@@ -84,6 +84,9 @@ XcorProcessingEngine::XcorProcessingEngine(Pf * global_pf,
 		xcorpeak_cutoff=global_md.get_double("correlation_peak_cutoff");
 		coherence_cutoff=global_md.get_double("coherence_cutoff");
 		stack_weight_cutoff=global_md.get_double("stack_weight_cutoff");
+		xcorpeak_cutoff_default=xcorpeak_cutoff;
+		coherence_cutoff_default=coherence_cutoff;
+		stack_weight_cutoff_default=stack_weight_cutoff;
 		time_lag_cutoff=global_md.get_double("time_lag_cutoff");
 		mcc = NULL;   // Need this unless we can convert to a shared_ptr;
 	} catch (MetadataGetError mderr)
@@ -149,20 +152,20 @@ template <class T, SortOrder SO> struct less_metadata_double
 		switch (SO)
 		{
 		case COHERENCE:
-			keyword=coherence_keyword;
+			keyword=SEISPP::coherence_keyword;
 			break;
 		case CORRELATION_PEAK:
-			keyword=peakxcor_keyword;
+			keyword=SEISPP::peakxcor_keyword;
 			break;
 		case AMPLITUDE:
-			keyword=amplitude_static_keyword;
+			keyword=SEISPP::amplitude_static_keyword;
 			break;
 		case LAG:
-			keyword=moveout_keyword;
+			keyword=SEISPP::moveout_keyword;
 			break;
 		case WEIGHT:
 		default:
-			keyword=stack_weight_keyword;
+			keyword=SEISPP::stack_weight_keyword;
 			break;
 		}
                 double valx=x.get_double(keyword);
@@ -180,9 +183,11 @@ MultichannelCorrelator *XcorProcessingEngine::XcorProcessingEngine :: analyze()
    UpdateGeometry(current_data_window);
    cout << "Analyzing..."<<endl;
    if(mcc!=NULL) delete mcc;
+   try {
    mcc=	new MultichannelCorrelator(waveform_ensemble,RobustStack,analysis_setting.beam_tw,
    	analysis_setting.robust_tw,time_lag_cutoff,RobustSNR,NULL,
    	analysis_setting.reference_trace); 
+   } catch (...) {throw;};
    //
    // We need to reset bad moveout in xcor so it can be plotted properly.
    // 
@@ -278,6 +283,10 @@ void XcorProcessingEngine::load_data(Hypocenter & h)
 	// of this data.
 	waveform_ensemble=*regular_gather;
 	FilterEnsemble(waveform_ensemble,analysis_setting.filter_param);
+	// We need to always reset these
+	xcorpeak_cutoff=xcorpeak_cutoff_default;
+	coherence_cutoff=coherence_cutoff_default;
+	stack_weight_cutoff=stack_weight_cutoff_default;
     }
     catch (...) {throw;}
 }
@@ -294,14 +303,17 @@ void XcorProcessingEngine::save_results(int evid, int orid )
 	int pwfid;
 	string pchan(analysis_setting.component_name);
 	string filter(analysis_setting.filter_param.type_description());
+	string filter_param;
 	try {
 		int record;
 		// First get and save the array beam
 		TimeSeries beam=mcc->ArrayBeam();
 		int fold=beam.get_int("fold");
+		filter_param=beam.get_string("filter_spec");
 		// Set dir and dfile
+		beam.put("wfprocess.dir",beam_directory);
 		beam.put("dir",beam_directory);
-		beam.put("dfile",beam_dfile);
+		beam.put("wfprocess.dfile",beam_dfile);
 		record=dbsave(beam,dbwfprocess,string("wfprocess"),
 				beam_mdl,am);
 		dbwfprocess.record=record;
@@ -313,7 +325,7 @@ void XcorProcessingEngine::save_results(int evid, int orid )
 			"pchan",pchan.c_str(),
 			"phase",analysis_setting.phase_for_analysis.c_str(),
 			"pwfid",pwfid,
-			"filter",filter.c_str(),
+			"filter",filter_param.c_str(),
 			"robustt0",analysis_setting.robust_tw.start,
 			"robusttwin",analysis_setting.robust_tw.length(),
 			"fold",fold,
@@ -386,11 +398,12 @@ void XcorProcessingEngine::save_results(int evid, int orid )
 				&& (coh>coherence_cutoff)
 				&& (stack_weight>stack_weight_cutoff) )
 			{
+			    filter_param=trace->get_string("filter_spec");
 			    record=dbaddv(dbxcorarrival,0,"sta",sta.c_str(),
 					"chan",chan.c_str(),
 					"phase",analysis_setting.phase_for_analysis.c_str(),
 					"pwfid",pwfid,
-					"filter",filter.c_str(),
+					"filter",filter_param.c_str(),
 					"algorithm",auth.c_str(),
 					"pchan",pchan.c_str(),
 					"time",atime,
@@ -476,6 +489,7 @@ void XcorProcessingEngine::display_data()
 	cout << "Click with MB2 in plot window to continue"<<endl;
 	int junk=dataplot->select_member();
 	delete dataplot;
+	dataplot=NULL;
 }
 void XcorProcessingEngine::display_correlations()
 {
@@ -484,6 +498,7 @@ void XcorProcessingEngine::display_correlations()
 	cout << "Click with MB2 in plot window to continue"<<endl;
 	int junk=xcorplot->select_member();
 	delete xcorplot;
+	dataplot=NULL;
 }
 void XcorProcessingEngine::display_beam()
 {
@@ -496,6 +511,7 @@ void XcorProcessingEngine::display_beam()
 	cout << "Click with MB2 in plot window to continue"<<endl;
 	int junk=beamplot->select_member();
 	delete beamplot;
+	beamplot=NULL;
 }
 // Get a relative time from the beam trace to use to a correct 
 // time reference for output arrival times
@@ -514,6 +530,7 @@ PointPick XcorProcessingEngine::pick_beam()
 	beamplot->draw();  
 	PointPick arrival_pick=beamplot->pick_point();
 	delete beamplot;
+	beamplot=NULL;
 	return(arrival_pick);
 }
 // this applies time shift set by pick_beam;
@@ -545,6 +562,7 @@ void XcorProcessingEngine::shift_arrivals(double tshift)
 void XcorProcessingEngine::do_all_picks()
 {
 	char ctest;
+	//if(dataplot!=NULL) delete dataplot;
 	dataplot=new SeismicPlot(waveform_ensemble,data_display_md);
 	dataplot->draw();
 	do {
@@ -590,6 +608,7 @@ void XcorProcessingEngine::do_all_picks()
 	cout << endl;
 	analysis_setting.rw_set=true;
 	delete dataplot;
+	dataplot=NULL;
 }
 int XcorProcessingEngine::pick_one_trace()
 {
@@ -599,6 +618,7 @@ int XcorProcessingEngine::pick_one_trace()
 	cout << "Pick desired trace with MB2"<<endl;
 	result=dataplot->select_member();
 	delete dataplot;
+	dataplot=NULL;
 	return(result);
 }
 void XcorProcessingEngine::pick_cutoff()
@@ -649,6 +669,7 @@ void XcorProcessingEngine::pick_cutoff()
 	        break;
 	}
 	delete dataplot;
+	dataplot=NULL;
 	
 	
 }

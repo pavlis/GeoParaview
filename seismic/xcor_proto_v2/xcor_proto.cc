@@ -21,20 +21,20 @@ void usage()
 void show_command_menu()
 {
 	cout << "Enter:"<<endl
-		<<"  c - change picks" <<endl
+		<<"  P - change picks" <<endl
 		<<"  a - run analysis" <<endl
-		<<"  f - run secondary filter" <<endl
+		<<"  f - run SP filter" <<endl
 		<<"  x - show cross-correlation functions" <<endl
 		<<"  b - show computed beam" <<endl
 		<<"  p - pick arrival on beam" <<endl
 		<<"  s - skip this event" << endl
-		<<"  e - edit mode (pick traces to delete)" <<endl
+		<<"  c - change cutoff criteria"<<endl
 		<<"  C - pick cutoff interactively"<<endl
 		<<"  d - done with this event" <<endl			
 		<<"  q - quit processing" <<endl;			
 }
 enum CommandChoice {ChangePick,Analyze,Filter,ShowCorrelations,ShowBeam,
-	PickBeam, SkipEvent, Edit, Cutoff, Done,Quit,
+	PickBeam, SkipEvent, SortCriteria, Cutoff, Done,Quit,
 	Bad};
 CommandChoice get_command()
 {
@@ -43,7 +43,7 @@ CommandChoice get_command()
 	string s(" ");
 	s[0]=sc;
 	s[1]='\0';
-	if(s=="c")
+	if(s=="P")
 		return ChangePick;
 	else if(s=="a")
 		return Analyze;
@@ -57,8 +57,8 @@ CommandChoice get_command()
 		return PickBeam;
 	else if(s=="s")
 		return SkipEvent;
-	else if(s=="e")
-		return Edit;
+	else if(s=="c")
+		return SortCriteria;
 	else if(s=="C")
 		return Cutoff;
 	else if(s=="d")
@@ -68,6 +68,30 @@ CommandChoice get_command()
 	else
 		return Bad;
 }
+SortOrder ask_for_sort_order()
+{
+	cout << "Enter one of:"<<endl
+		<<" c - coherence"<<endl
+		<<" x - peak cross correlation"<<endl
+		<<" w - stack weight"<<endl
+		<<"->";
+	string ans;
+	cin>>ans;
+	if(ans=="c")
+		return COHERENCE;
+	else if(ans=="x") 
+		return CORRELATION_PEAK;
+	else if(ans=="w")
+		return WEIGHT;
+	else
+	{
+		cerr << "Illegal response = "<<ans
+			<<" defaulting to coherence"<<endl;
+		return COHERENCE;
+	}
+}
+
+
 int main(int argc, char **argv)
 {
 	int i;
@@ -98,6 +122,7 @@ int main(int argc, char **argv)
 	try {
 	Metadata global_md(pf);
 	AnalysisSetting asetting(global_md);
+	AnalysisSetting asetting_default(asetting);
 	XcorProcessingEngine xpe(pf,asetting,waveform_db_name,result_db_name);
 	double lat,lon,depth,otime;
 	const string method("tttaup");
@@ -107,8 +132,9 @@ int main(int argc, char **argv)
 	FILE *fp=fopen(hypofile.c_str(),"r");
 	// for now we just count this.  Eventually it will be a 
 	// required input.
-	int orid=0,evid=0;
-	while(fscanf(fp,"%lf%lf%lf%s%s%s",&lat,&lon,&depth,
+	int orid,evid;
+	while(fscanf(fp,"%d%d%lf%lf%lf%s%s%s",&evid,&orid,
+			&lat,&lon,&depth,
 			yrmonday,day,hrminsec)!=EOF)
 	{
 		string datestring=string(yrmonday)+" "+string(hrminsec);
@@ -123,9 +149,8 @@ int main(int argc, char **argv)
 		cout << "Data loaded"
 			<<endl
 			<<"Displaying filtered data"<<endl;
-		++orid;
-		++evid;
-		xpe.do_all_picks();
+		asetting.set_ref_trace(xpe.pick_one_trace());
+		xpe.change_analysis_setting(asetting);
 		CommandChoice choice;
 		PointPick phase_pick;
 		// This allows skipping pick on beam.  Defaults 0.  
@@ -149,8 +174,7 @@ int main(int argc, char **argv)
 				mcc=xpe.analyze();
 				break;
 			case Filter:
-				cin.getline(line,80);
-				filt=string(line);
+				filt=string("BW 0.5 5 2 5");
 				try {
 					xpe.filter_data(TimeInvariantFilter(filt));
 				} catch (SeisppError serr)
@@ -170,12 +194,18 @@ int main(int argc, char **argv)
 				phase_pick=xpe.pick_beam();
 				xpe.shift_arrivals(phase_pick.time);
 				break;
+			case SortCriteria:
+				asetting.result_sort_order=ask_for_sort_order();
+				xpe.change_analysis_setting(asetting);
+				break;
+				
 			case Cutoff:
 				xpe.sort_ensemble();
 				xpe.pick_cutoff();
 				break;
 
 			case Done:
+			case Quit:
 				try {
 					xpe.save_results(evid,orid);
 				} catch (SeisppError serr)
@@ -184,19 +214,17 @@ int main(int argc, char **argv)
 					serr.log_error();
 					cerr << "Try again or exit"<<endl;
 				}
+				if(choice==Quit) exit(0);
 				break;
-			case Edit:
-				xpe.edit_data();
 			case SkipEvent:
 				choice=Done;
 				break;
-			case Quit:
-				exit(0);
 			default:
 				cout << "Illegal/unknown command"<<endl;
 			}
 		}
 		while (choice != Done);
+		xpe.change_analysis_setting(asetting_default);
 	}
 	}
 	catch (SeisppError serr)

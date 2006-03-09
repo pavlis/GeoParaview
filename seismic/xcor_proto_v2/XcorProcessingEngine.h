@@ -143,6 +143,9 @@ private:
 	TimeWindow current_data_window;
 	TimeWindow raw_data_twin,regular_gather_twin;
 	string netname;
+	double xcorpeak_cutoff_default;
+	double coherence_cutoff_default;
+	double stack_weight_cutoff_default;
 	double xcorpeak_cutoff,coherence_cutoff,stack_weight_cutoff;
 	double time_lag_cutoff;
 };

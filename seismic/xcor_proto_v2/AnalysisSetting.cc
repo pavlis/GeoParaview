@@ -101,10 +101,12 @@ AnalysisSetting::AnalysisSetting(Metadata md)
 		else if(sortname=="stack_weight")
 			result_sort_order=WEIGHT;
 		else
+		{
 			cerr << "unknown keyword for analysis_sort_order parameter="
 				<< sortname <<endl
 				<< "Defaulted to stack_weight"<<endl;
 			result_sort_order=WEIGHT;
+		}
 	        	                      
 	} catch (MetadataGetError mderr)
 	{
