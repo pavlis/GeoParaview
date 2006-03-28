@@ -675,5 +675,33 @@ void XcorProcessingEngine::pick_cutoff()
 }
 void XcorProcessingEngine::edit_data()
 {
-	cout << "edit_data not yet implemented" << endl;
+	cout << "Click on traces to delete with MB2"<<endl
+		<< "Double click final trace you want to delete"<<endl;
+	dataplot=new SeismicPlot(waveform_ensemble,data_display_md);
+        dataplot->draw();
+	int kill_trace,last_kill=-1;
+	while( (kill_trace=dataplot->select_member()) != last_kill)
+	{
+			last_kill=kill_trace;
+			waveform_ensemble.member[kill_trace].live=false;
+			waveform_ensemble.member[kill_trace].s.clear();
+			waveform_ensemble.member[kill_trace].ns=0;
+	}
+	delete dataplot;
+	dataplot=NULL;
+	// This seems necessary for cleanup
+	vector<TimeSeries>::iterator ens_iter;
+	// Must traverse the container in reverse order as 
+	// erase leaves iterators after the deletion point undefined
+	for(ens_iter=waveform_ensemble.member.end();
+		ens_iter!=waveform_ensemble.member.begin();--ens_iter)
+	{
+		if((*ens_iter).live)continue; 
+		waveform_ensemble.member.erase(ens_iter);
+	}
 }
+void XcorProcessingEngine::restore_original_ensemble()
+{
+	waveform_ensemble=*regular_gather;
+}
+

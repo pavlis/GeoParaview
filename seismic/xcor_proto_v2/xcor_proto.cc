@@ -21,34 +21,39 @@ void usage()
 void show_command_menu()
 {
 	cout << "Enter:"<<endl
-		<<"  P - change picks" <<endl
 		<<"  a - run analysis" <<endl
-		<<"  f - run SP filter" <<endl
-		<<"  x - show cross-correlation functions" <<endl
 		<<"  b - show computed beam" <<endl
-		<<"  p - pick arrival on beam" <<endl
-		<<"  s - skip this event" << endl
 		<<"  c - change cutoff criteria"<<endl
 		<<"  C - pick cutoff interactively"<<endl
 		<<"  d - done with this event" <<endl			
-		<<"  q - quit processing" <<endl;			
+		<<"  e - mark traces to delete"<<endl
+		<<"  F - run custom filter"<<endl
+		<<"  f - run SP filter" <<endl
+		<<"  P - change picks" <<endl
+		<<"  p - pick arrival on beam" <<endl
+		<<"  r - restore original ensemble" <<endl
+		<<"  s - skip this event" << endl
+		<<"  x - show cross-correlation functions" <<endl
+		<<"  Q - quit without saving" <<endl
+		<<"  q - quit processing saving current event" <<endl;			
 }
-enum CommandChoice {ChangePick,Analyze,Filter,ShowCorrelations,ShowBeam,
+enum CommandChoice {ChangePick,Analyze,Edit,Filter,ShowCorrelations,ShowBeam,
 	PickBeam, SkipEvent, SortCriteria, Cutoff, Done,Quit,
+	CustomFilter,QuitNoSave,RestoreOriginal,
 	Bad};
 CommandChoice get_command()
 {
-	char sc;
-	cin >> sc;
-	string s(" ");
-	s[0]=sc;
-	s[1]='\0';
+	char sc[128];
+	cin.getline(sc,128);
+	string s(sc);
 	if(s=="P")
 		return ChangePick;
 	else if(s=="a")
 		return Analyze;
 	else if(s=="f")
 		return Filter;
+	else if(s=="e")
+		return Edit;
 	else if(s=="x")
 		return ShowCorrelations;
 	else if(s=="b")
@@ -65,6 +70,12 @@ CommandChoice get_command()
 		return Done;
 	else if(s=="q")
 		return Quit;
+	else if(s=="F")
+		return CustomFilter;
+	else if(s=="Q")
+		return QuitNoSave;
+	else if(s=="r")
+		return RestoreOriginal;
 	else
 		return Bad;
 }
@@ -158,6 +169,7 @@ int main(int argc, char **argv)
 		// here to emphasize the need for the capability in the 
 		// final interface.  glp:  1/13/2006
 		double tshift=0.0;
+		bool beam_picked=false;
 		do {
 			string filt;
 			char line[80];
@@ -172,9 +184,23 @@ int main(int argc, char **argv)
 			case Analyze:
 				cout << "Starting analysis processing; stand by"<<endl;
 				mcc=xpe.analyze();
+				beam_picked=false;
 				break;
+			case Edit:
+				xpe.edit_data();
+				break;
+
+			case CustomFilter:
 			case Filter:
-				filt=string("BW 0.5 5 2 5");
+				if(choice==Filter)
+					filt=string("BW 0.5 5 2 5");
+				else
+				{
+					cout << "Enter custom filter string (Antelope convention):";
+					char buffer[128];
+					cin.getline(buffer,128);
+					filt=string(buffer);
+				}
 				try {
 					xpe.filter_data(TimeInvariantFilter(filt));
 				} catch (SeisppError serr)
@@ -193,6 +219,7 @@ int main(int argc, char **argv)
 			case PickBeam:
 				phase_pick=xpe.pick_beam();
 				xpe.shift_arrivals(phase_pick.time);
+				beam_picked=true;
 				break;
 			case SortCriteria:
 				asetting.result_sort_order=ask_for_sort_order();
@@ -203,9 +230,17 @@ int main(int argc, char **argv)
 				xpe.sort_ensemble();
 				xpe.pick_cutoff();
 				break;
-
+			case RestoreOriginal:
+				xpe.restore_original_ensemble();
+				break;
 			case Done:
 			case Quit:
+				if(!beam_picked)
+				{
+					phase_pick=xpe.pick_beam();
+					xpe.shift_arrivals(phase_pick.time);
+				}
+
 				try {
 					xpe.save_results(evid,orid);
 				} catch (SeisppError serr)
@@ -216,6 +251,8 @@ int main(int argc, char **argv)
 				}
 				if(choice==Quit) exit(0);
 				break;
+			case QuitNoSave:
+				exit(0);
 			case SkipEvent:
 				choice=Done;
 				break;

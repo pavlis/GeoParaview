@@ -82,6 +82,8 @@ public:
 	TimeSeriesEnsemble get_waveforms();
 	TimeSeriesEnsemble get_raw_data();
 	MultichannelCorrelator *get_correlation_results();
+	// Restores ensemble to raw form
+	void restore_original_ensemble();
 
 private:
 
