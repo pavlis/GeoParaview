@@ -243,7 +243,7 @@ int main(int argc, char **argv)
 				if( (ptrsta==stations.end()) || (ptrchan==channels.end()) )
 				{
 					sta=string(head.name);
-					chan="SHZ";
+					chan="EHZ";
 				}
 				else
 				{
