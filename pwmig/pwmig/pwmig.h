@@ -1,3 +1,10 @@
+#include <vector>
+#include "gclgrid.h"
+#include "VelocityModel_1d.h"
+#include "dmatrix.h"
+#include "slowness.h"
+#include "Hypocenter.h"
+#include "ensemble.h"
 class Ray_Transformation_Operator
 {
 public:
@@ -14,9 +21,9 @@ private:
 	vector<dmatrix> U;
 };
 // function prototypes 
-Slowness_vector get_stack_slowness(Three_Component_Ensemble& ensemble);
-Hypocenter get_event_hypocenter(Three_Component_Ensemble& ensemble);
+SlownessVector get_stack_slowness(ThreeComponentEnsemble& ensemble);
+Hypocenter get_event_hypocenter(ThreeComponentEnsemble& ensemble);
 GCLgrid3d *Build_GCLraygrid(bool fixed_u,
-	GCLgrid& parent,Slowness_vector u,Hypocenter h,
-	Velocity_Model_1d& vmod,double zmax, double tmax, double dt);
+	GCLgrid& parent,SlownessVector u,Hypocenter h,
+	VelocityModel_1d& vmod,double zmax, double tmax, double dt);
 dmatrix *ray_path_tangent(dmatrix&);

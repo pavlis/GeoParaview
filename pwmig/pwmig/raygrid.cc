@@ -121,8 +121,8 @@ Author:  Gary Pavlis
 
 GCLgrid3d *Build_GCLraygrid(bool fixed_u_mode,
 		GCLgrid& parent,
-		Slowness_vector u, Hypocenter h,
-		Velocity_Model_1d& vmod,
+		SlownessVector u, Hypocenter h,
+		VelocityModel_1d& vmod,
 		double zmax, double tmax, double dt)
 {
 	int i,j;
@@ -174,7 +174,7 @@ GCLgrid3d *Build_GCLraygrid(bool fixed_u_mode,
 			    }
 			    else
 			    {
-				Slowness_vector uij=h.pslow(parent.lat(i,j),
+				SlownessVector uij=h.pslow(parent.lat(i,j),
 					parent.lon(i,j),0.0);
 				umag=uij.mag();
 				theta=uij.baz();
