@@ -2,10 +2,14 @@
 #include <cstdio>
 #include <vector>
 #include <sstream>
+#include <algorithm>
 #include "perf.h"
 #include "coords.h"
-#include "seispp.h"
 #include "pwstack.h"
+#include "seispp.h"
+//DEBUG
+//#include "MatlabProcessor.h"
+
 
 void dzero(int n, double *d, int inc)
 {
@@ -69,16 +73,16 @@ Arguments
 		ensemble to each stack output
 	mdlout - list of metadata to be saved to output database 
 		(fixed for a given schema)
-	am - Attribute_Map object defining mapping of internal to
+	am - AttributeMap object defining mapping of internal to
 		external namespace (invariant between calls)
 	dir and dfile - define file name where output written (dir/dfile)
-	dbh - Database_Handle object for output
+	dbh - DatabaseHandle object for output
 
 Normal return is 0.  Returns nonzero if stack was null.
 (This is not an exception as it will happen outside the boundaries 
 of an array and this case needs to be handled cleanly.
 
-Throws a Metadata_error exception object if there are problems
+Throws a MetadataError exception object if there are problems
 parsing required metadata from any trace.  Current caller will
 abort the program on this condition, but evolution might want
 to produce a handler.
@@ -86,18 +90,18 @@ Change Jan 15,2004
 Used to pass lat0, lon0 by arg list, now passed through the
 ensemble metadata.
 */
-int pwstack_ensemble(Three_Component_Ensemble& indata,
-	Rectangular_Slowness_Grid& ugrid,
-	Top_Mute& mute,
-	Top_Mute& stackmute,
+int pwstack_ensemble(ThreeComponentEnsemble& indata,
+	RectangularSlownessGrid& ugrid,
+	TopMute& mute,
+	TopMute& stackmute,
 	double tstart,
 	double tend,
 	Depth_Dependent_Aperture& aperture,
-	Metadata_list& mdlcopy,
-	Metadata_list& mdlout,
-	Attribute_Map& am,
+	MetadataList& mdlcopy,
+	MetadataList& mdlout,
+	AttributeMap& am,
 	string dir,
-	Database_Handle& dbh) 
+	DatabaseHandle& dbh) 
 {
 	// lat0 and lon0 are location of target pseudostation grid point
 	// elev0 is elevation of datum to use for geometric statics
@@ -109,17 +113,20 @@ int pwstack_ensemble(Three_Component_Ensemble& indata,
 	int ix1, ix2;
 	int evid;
 	string dfile;
+	const double WEIGHT_MINIMUM=1.0e-4;
 	try {
 		lat0=indata.get_double("lat0");
 		lon0=indata.get_double("lon0");
 		elev0=indata.get_double("elev0");
 		ux0=indata.get_double("ux0");
 		uy0=indata.get_double("uy0");
+//DEBUG
+//cerr << "(ux0,uy0)=("<<ux0<<","<<uy0<<"("<<endl;
 		ix1=indata.get_int("ix1");
 		ix2=indata.get_int("ix2");
 		evid=indata.get_int("evid");
 		gridname=indata.get_string("gridname");
-	} catch (Metadata_get_error& mderr)
+	} catch (MetadataGetError& mderr)
 	{
 		// The above are all set by main so this is the 
 		// correct error message.  Could perhaps be dropped
@@ -133,39 +140,41 @@ int pwstack_ensemble(Three_Component_Ensemble& indata,
 	//
 	string sta=virtual_station_name(ix1,ix2);
 	int i,j,k;
-	vector<Three_Component_Seismogram>::iterator iv,ov;
-	int nsta = indata.tcse.size();
+	vector<ThreeComponentSeismogram>::iterator iv,ov;
+	int nsta = indata.member.size();
 	// This computes the output gather size.  It assumes all data have
 	// a common sample rate and we can just grab the first one in the
 	// list.  It also quietly assumes a relative time base 
 	// so all times are computed relative to the start of
 	// each trace.  Caller should guarantee this.
 	//
-	double dt=indata.tcse[0].dt;
-	int nsin = indata.tcse[0].ns;
+	double dt=indata.member[0].dt;
+	int nsin = indata.member[0].ns;
 
 
-	Three_Component_Seismogram *stackout;
+	ThreeComponentSeismogram *stackout;
+//DEBUG
+// MatlabProcessor mp(stdout);
 
 	int istart = SEISPP::nint(tstart/dt);
 	int iend = SEISPP::nint(tend/dt);
 	int nsout = iend-istart+1;
 	int ismute = SEISPP::nint(mute.t1/dt);
 	int ismute_this, ie_this;
-	Datascope_Handle& dshandle=dynamic_cast<Datascope_Handle&>(dbh);
-	Datascope_Handle dbstack(dshandle);
+	DatascopeHandle& dshandle=dynamic_cast<DatascopeHandle&>(dbh);
+	DatascopeHandle dbstack(dshandle);
 	dbstack.lookup("pwstack");
-	Datascope_Handle dbevl(dshandle);
+	DatascopeHandle dbevl(dshandle);
 	dbevl.lookup("evlink");
-	Datascope_Handle dbwf(dshandle);
+	DatascopeHandle dbwf(dshandle);
 	dbwf.lookup("wfprocess");
 
-	if(istart>=indata.tcse[0].ns)
+	if(istart>=indata.member[0].ns)
 		elog_die(0,(char *)"Irreconcilable window request:  Requested stack time window = %lf to %lf\nThis is outside range of input data\n",
 			tstart,tend);
 
 	/* Apply front end mutes to all traces */
-	apply_top_mute(indata,mute);
+	ApplyTopMute(indata,mute);
 
 	/* We need dnorth, deast vectors to compute moveout sensibly
 	for this program.  Since we use them repeatedly we will
@@ -174,7 +183,7 @@ int pwstack_ensemble(Three_Component_Ensemble& indata,
 	vector <double> deast;
 	vector <double> elev;
 	dnorth.resize(nsta);   deast.resize(nsta);  elev.resize(nsta);
-	for(i=0,iv=indata.tcse.begin();iv!=indata.tcse.end();++iv,++i)
+	for(i=0,iv=indata.member.begin();iv!=indata.member.end();++iv,++i)
 	{
 		double lat,lon;
 		int ierr;
@@ -186,7 +195,17 @@ int pwstack_ensemble(Three_Component_Ensemble& indata,
 			lon = rad(lon);
 			geographic_to_dne(lat0, lon0, lat, lon, &(dnorth[i]),&(deast[i]));
 			elev[i]=(*iv).get_double("site.elev");
-		} catch (Metadata_error& merr)
+//DEBUG
+/*  This found no problems.  Working correctly and using radians consistently.
+January 6, 2007
+cerr << lat << " "
+	<< lat0 << " "
+	<< dnorth[i] << " "
+	<< lon << " "
+	<< lon0 << " "
+	<< deast[i] << endl;
+*/
+		} catch (MetadataError& merr)
 		{
 			throw merr;
 		}
@@ -194,7 +213,7 @@ int pwstack_ensemble(Three_Component_Ensemble& indata,
 	//
 	// We want to make sure that all stations are in standard coordinates
 	//
-	for(iv=indata.tcse.begin();iv!=indata.tcse.end();++iv)
+	for(iv=indata.member.begin();iv!=indata.member.end();++iv)
 	{
 		(*iv).rotate_to_standard();
 	}
@@ -208,16 +227,34 @@ int pwstack_ensemble(Three_Component_Ensemble& indata,
 	dmatrix weights(nsta,nsout);
 	int stack_count=0;  //maximum number of traces not zeroed
 	vector <double> work(nsta);
+	vector <bool> use_this_sta(nsta);
+	for(i=0;i<nsta;++i) use_this_sta[i]=false;
 	for(i=0;i<nsout;++i)
 	{
 		int nused;
 		
+		// Assume compute_pseudostation sets weights to zero outside
+		// cutoff and not just skip them.  Otherwise we need an 
+		// intializer here.
 		nused=compute_pseudostation_weights(nsta, &(dnorth[0]),&(deast[0]),
 		    aperture.get_aperture(tstart+dt*(double)i),
 		    aperture.get_cutoff(tstart+dt*(double)i),&(work[0]));
-		for(j=0;j<nsta;++j) weights(j,i)=work[j];
-		stack_count=max(nused,stack_count);
+		for(j=0;j<nsta;++j) 
+		{
+			if(work[j]>WEIGHT_MINIMUM)
+			{
+				weights(j,i)=work[j];
+				if(!use_this_sta[j])use_this_sta[j]=true;
+			}
+			else
+				weights(j,i)=0.0;
+		}
+		//stack_count=max(nused,stack_count);
 	}
+//cerr<< "stack_count from nused="<<stack_count<<endl;
+	for(i=0,stack_count=0;i<nsta;++i)
+		if(use_this_sta[i])++stack_count;
+//cerr<< "stack count from new boolean vector="<<stack_count<<endl;
 	///
 	// ERROR RETURN THAT NEEDS TO BE HANDLED GRACEFULLY
 	// I don't throw an exception because this should not be viewed as
@@ -236,15 +273,19 @@ int pwstack_ensemble(Three_Component_Ensemble& indata,
 		avg_elev += weights(i,0)*elev[i];
 		sum_wgt += weights(i,0);
 	}
+	if(sum_wgt<WEIGHT_MINIMUM) sum_wgt=WEIGHT_MINIMUM;
+//DEBUG
+//cerr << "sum_wgt="<<sum_wgt<<endl;
 	avg_elev /= sum_wgt;
 
 	//
 	// Loop over slowness grid range storing results in new output ensemble
 	//
 
-	for(int iu=0;iu<ugrid.nux;++iu)
+	int iu,ju,gridid;
+	for(iu=0,gridid=1;iu<ugrid.nux;++iu)
 	{
-	    for(int ju=0;ju<ugrid.nuy;++ju)
+	    for(ju=0;ju<ugrid.nuy;++ju,++gridid)
 	    {
 		double ux,uy,dux,duy;
 		int iend_this;
@@ -267,119 +308,196 @@ int pwstack_ensemble(Three_Component_Ensemble& indata,
 		// moveout computed here and used below assumes the
 		// data are aligned on the P arrival
 		compute_pwmoveout(nsta,&(deast[0]),&(dnorth[0]),dux,duy,&(moveout[0]));
-		for(i=0,iv=indata.tcse.begin(),ismute_this=0,iend_this=0,ismin=nsout;
-			iv!=indata.tcse.end();++iv,++i)
+		for(i=0,iv=indata.member.begin(),ismute_this=0,iend_this=0,ismin=nsout;
+			iv!=indata.member.end();++iv,++i)
 		{
-			int is0,ie0, is, ns_to_copy; 
+			int is0,ietest, is, ns_to_copy; 
 			int j0;
 			double lag;
+			nsin=iv->ns;
+			//
+			// Completely drop data for stations not marked with tiny or zero weight
+			//
+			if(use_this_sta[i]) 
+			{
+			
 			lag = tstart - (iv->t0) + moveout[i];
-			is0=SEISPP::nint(lag);
+//DEBUG
+/*
+cerr << "lag="<<lag<<" time 0 lag="<<tstart - (iv->t0)<< "moveout="<<moveout[i]<<endl
+	<< "i="<<i<<", dnorth="<<dnorth[i]<<", deast="<<deast[i]<<endl;
+*/
+			is0=SEISPP::nint(lag/dt);
 			if(is0>=0)
 			{
+			// This block for postive moveout = negative shift
 				j0=0;
 				is=is0;
-				ismin = min(is,ismin);
-				ie0=is0+nsout-1;
-				if(ie0<=nsin)
+				ismin=min(is,ismin);
+				ietest=is0+nsout-1;
+				if(ietest<=nsin)
 				{
 					ns_to_copy=nsout;
 					iend_this=nsout;
 				}
 				else
 				{
-					ns_to_copy=nsin-is;
+					ns_to_copy=nsin-is0;
 					iend_this=max(ns_to_copy,iend_this);
 				}
 			}
 			else
 			{
-				j0=-is0;
+			// This block for negative moveout=positive shift
+				j0=-is0; // j0 always positive here
 				is=0;
 				ismin=0;
-				ie0=nsout+is0-1;  // a subtraction by is0 since is0 is negative
-				ns_to_copy=nsout+is0;
+				ns_to_copy=nsout-j0;
 				if(ns_to_copy>nsin) 
 				{
-					ns_to_copy=nsin+is0;
+					ns_to_copy=nsin-j0;
 					iend_this=max(nsin,iend_this);
+				}
+				else if(ns_to_copy<=0)
+				{
+					ns_to_copy=0;
 				}
 				else
 				{
 					iend_this=nsout;
 				}
 			}
+//DEBUG
+//cerr << "is="<<is<<" j0="<<j0<<"ns_to_copy="<<ns_to_copy<<" nsout="<<nsout<<endl;
 
-			for(j=0;j<3;++j)
+			if(ns_to_copy>0)
 			{
+			    for(j=0;j<3;++j)
+			    {
 				dzero(nsout,&(twork[0]),1);
-				// ugly expression below depends on data being
-				// stored in FORTRAN order in the dmatrix object
-				dcopy(ns_to_copy,(*iv).u.get_address(j,is),3,
-					&(twork[j0]),1);
+				// This is a slow way to copy these 
+				// data to twork, but it is safe.
+				// An earlier version had a problem
+				// with stray indices.
+				int kk,jj;
+				for(k=0,kk=is,jj=j0;
+				  (k<ns_to_copy)&&(kk<nsin)&&(jj<nsout);
+					++k,++jj,++kk) twork[jj]=iv->u(j,kk);
+
 				vscal(nsout,weights.get_address(i,0),nsta,&(twork[0]),1);
 				vscal(nsout,weights.get_address(i,0),nsta,&(twork[0]),1);
 				vadd(nsout,&(twork[0]),1,stack.get_address(j,0),3);
 				// Need to accumulate the sum of weights to normalize
 				if(j==0) vadd(nsout,weights.get_address(i,0),nsta,&(stack_weight[0]),1);
+			    }
+			}
 			}
 		}
+//DEBUG
+/*
+if(ix1>15 && ix2>15)
+{
+mp.load(weights,string("w"));
+mp.process(string("imagesc(w)"));
+}
+*/
 		// normalize the stack.
 		// not so trivial because of machine zero issue
 		// Use a hard limit based on ismax and iend_this and then 
 		// assume mutes kill possible transients in mute zone
-		for(j=0;j<3;++j)
-			for(i=ismin;i<iend_this;++i)
+//DEBUG
+//cerr << "ismin="<<ismin<<" iend_this="<<iend_this<<endl;
+		for(i=ismin;i<iend_this;++i)
+		{
+			if(stack_weight[i]>WEIGHT_MINIMUM)
 			{
-				if(stack_weight[i]>0)
-					stack(j,i)/=stack_weight[i];
+				for(j=0;j<3;++j) stack(j,i)/=stack_weight[i];
 			}
+		 	else
+			{
+				for(j=0;j<3;++j) stack(j,i)=0.0;
+			}
+/*
+if(fabs(stack(2,i))>100000.0)
+{
+cerr << "Starting matlab:  "<<endl;
+MatlabProcessor mp(stdout);
+mp.load(&(stack_weight[0]),stack_weight.size(),string("sw"));
+mp.load(stack,string("d"));
+mp.process(string("plot(sw);"));
+mp.process(string("figure;  plot(d(1,:));"));
+mp.run_interactive();
+}
+*/
+
+		}
+//DEBUG
+/*
+double swt_max=0;
+for(i=ismin;i<iend_this;++i) swt_max=max(1.0/stack_weight[i],swt_max);
+if(swt_max>100.0)
+{
+cerr << "Starting matlab:  swt_max="<<swt_max<<endl;
+cerr << "ismin="<<ismin<<" iend_this="<<iend_this<<endl;
+MatlabProcessor mp(stdout);
+mp.load(&(stack_weight[0]),stack_weight.size(),string("sw"));
+mp.load(stack,string("d"));
+mp.process(string("plot(sw);"));
+mp.process(string("figure;  plot(d(1,:));"));
+mp.run_interactive();
+}
+*/
 		// Create the output stack as a 3c trace object and copy
 		// metadata from the input into the output object.
-		stackout = new Three_Component_Seismogram(nsout);
+		stackout = new ThreeComponentSeismogram(nsout);
 		stackout->dt=dt;
 		stackout->t0=tstart;
 		stackout->live=true;
 		stackout->u=stack;
 		copy_selected_metadata(dynamic_cast<Metadata&>(indata),
 			dynamic_cast<Metadata&>(*stackout),mdlcopy);
-		stackout->put_metadata("ux",ux);
-		stackout->put_metadata("uy",uy);
-		stackout->put_metadata("dux",dux);
-		stackout->put_metadata("duy",duy);
+		stackout->put("ux",ux);
+		stackout->put("uy",uy);
+		stackout->put("gridid",gridid);
+		stackout->put("dux",dux);
+		stackout->put("duy",duy);
 		// These could be copied with the copy_selected_metadata 
 		// call above, but it is better to do this explicitly 
 		// as these are completely internal parameters
 		//
-		stackout->put_metadata("lat0",lat0);
-		stackout->put_metadata("lon0",lon0);
-		stackout->put_metadata("elev0",elev0);
-		stackout->put_metadata("ux0",ux0);
-		stackout->put_metadata("uy0",uy0);
+		stackout->put("lat0",lat0);
+		stackout->put("lon0",lon0);
+		stackout->put("elev0",elev0);
+		stackout->put("ux0",ux0);
+		stackout->put("uy0",uy0);
 		// may want to output a static here, but it is probably better to 
 		// just keep a good estimate of elevation and deal with this in the
 		// migration algorithm. 
-		stackout->put_metadata("elev",avg_elev);
+		stackout->put("elev",avg_elev);
 		// These are needed in out waveform output file and 
 		// with this method they need to be pushed to the Metadata
 		// area of the stackout object.
-		stackout->put_metadata("wfprocess.time",stackout->t0);
-		stackout->put_metadata("wfprocess.endtime",stackout->endtime());
-		stackout->put_metadata("wfprocess.timetype","r"); // always relative
-		stackout->put_metadata("wfprocess.dir",dir);
+		stackout->put("wfprocess.time",stackout->t0);
+		stackout->put("wfprocess.endtime",stackout->endtime());
+		stackout->put("wfprocess.timetype","r"); // always relative
+		stackout->put("wfprocess.dir",dir);
 		dfile=MakeDfileName(evid, ix1, ix2);
-		stackout->put_metadata("wfprocess.dfile",dfile);
-		stackout->put_metadata("wfprocess.datatype","3c");
-		stackout->put_metadata("samprate",1.0/dt);
-		stackout->put_metadata("nsamp",nsout);
-		stackout->put_metadata("wfprocess.algorithm","pwstack");
-
-		apply_top_mute(*stackout,stackmute);
-
+		stackout->put("wfprocess.dfile",dfile);
+		stackout->put("wfprocess.datatype","3c");
+		stackout->put("samprate",1.0/dt);
+		stackout->put("nsamp",nsout);
+		stackout->put("wfprocess.algorithm","pwstack");
+		ApplyTopMute(*stackout,stackmute);
 
 		try{
 			int pwfid;
 			int rec;
+//DEBUG
+/*
+double somax=0.0;
+for(j=0;j<3;++j) for(i=0;i<stackout->ns;++i) somax=max(somax,fabs(stackout->u(j,i)));
+cerr << "stackout maximum value = "<<somax<<endl;
+*/
 			rec=dbsave(*stackout,dshandle.db,table_name,mdlout,am);
 			delete stackout;
 			// negative rec means nothings saved.  
@@ -394,8 +512,13 @@ int pwstack_ensemble(Three_Component_Ensemble& indata,
 				dbstack.put("gridname",gridname);
 				dbstack.put("ix1",ix1);
 				dbstack.put("ix2",ix2);
-				dbstack.put("ux",ux);
-				dbstack.put("uy",uy);
+				// Database receives dux,duy, not the grid
+				// ux,uy.  i.e. ux,uy in the db is the actual
+				// plane wave slowness vector used for stack
+				// watch out for this internal symbolic confusion
+				dbstack.put("ux",dux);
+				dbstack.put("uy",duy);
+				dbstack.put("gridid",gridid);
 				dbstack.put("ux0",ux0);
 				dbstack.put("uy0",uy0);
 				dbstack.put("pwfid",pwfid);
@@ -416,7 +539,7 @@ int pwstack_ensemble(Three_Component_Ensemble& indata,
 			}
 
 		}
-		catch(seispp_error& err)
+		catch(SeisppError& err)
 		{
 			err.log_error();
 			cerr << "Write failure abort:  cannot continue"<<endl;

@@ -2,7 +2,6 @@
 #include "stock.h"
 #include "arrays.h"
 #include "pf.h"
-#include "seispp.h"
 #include "pwstack.h"
 using namespace std;
 //

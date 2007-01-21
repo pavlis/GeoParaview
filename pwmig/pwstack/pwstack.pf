@@ -32,6 +32,10 @@ station_metadata &Tbl{
 ensemble_metadata &Tbl{
 dir string
 evid int
+origin.lat
+origin.lon
+origin.time
+origin.depth
 }
 stack_metadata &Tbl{
 pwfid int
@@ -42,14 +46,14 @@ wfprocess.timetype string
 wfprocess.algorithm string
 }
 Data_Top_Mute &Arr{
-Time_Reference_Type relative
-Zero_End_Time 1.0
-End_Time 5.0
+time_reference_type relative
+zero_end_time 1.0
+end_time 5.0
 }
 Stack_Top_Mute &Arr{
-Time_Reference_Type relative
-Zero_End_Time 1.0
-End_Time 5.0
+time_reference_type relative
+zero_end_time 1.0
+end_time 5.0
 }
 Slowness_Grid_Definition &Arr{
 Slowness_Grid_Name test

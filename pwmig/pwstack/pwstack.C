@@ -5,7 +5,11 @@
 #include "pf.h"
 #include "glputil.h"
 #include "gclgrid.h"
+#include "Hypocenter.h"
+#include "seispp.h"
 #include "pwstack.h"
+//DEBUG
+//#include "MatlabProcessor.h"
 
 using namespace std;
 using namespace SEISPP;
@@ -14,7 +18,7 @@ bool Verbose;
 
 void usage()
 {
-        cbanner((char *)"$Revision: 1.19 $ $Date: 2005/03/16 13:30:59 $",
+        cbanner((char *)"$Revision: 1.20 $ $Date: 2007/01/21 12:13:36 $",
 		(char *)"dbin dbout [-v -V -pf pfname]",
                 (char *)"Gary Pavlis",
                 (char *)"Indiana University",
@@ -35,8 +39,7 @@ int main(int argc, char **argv)
 	char *dir;
 
 	// This is the input data ensemble
-	Three_Component_Ensemble *din;
-	Three_Component_Ensemble ensemble;
+	ThreeComponentEnsemble *din;
 	// Tbl tag used in pf to define depth-dependent apeture.
 	// frozen here as this constant but passed as a ariable to the 
 	// appropriate constructor below
@@ -49,7 +52,7 @@ int main(int argc, char **argv)
         //elog_init (argc, argv);
 
         /* usual cracking of command line */
-        if(argc < 2) usage();
+        if(argc < 3) usage();
         dbname_in = argv[1];
         dbname_out = argv[2];
 
@@ -76,7 +79,7 @@ int main(int argc, char **argv)
 	try{
 
 	    // This builds the grid of plane wave components
-	    Rectangular_Slowness_Grid ugrid(pf,"Slowness_Grid_Definition");
+	    RectangularSlownessGrid ugrid(pf,"Slowness_Grid_Definition");
 	    // control parameters on stack process
 	    double ts,te;
 	    ts = pfget_double(pf,(char *)"stack_time_start");
@@ -86,7 +89,7 @@ int main(int argc, char **argv)
 	    double tsfull, tefull;  // normally longer than ts and te to allow 
 	    tsfull = pfget_double(pf,"data_time_window_start");
 	    tefull = pfget_double(pf,"data_time_window_end");
-	    Time_Window data_window(tsfull,tefull);
+	    TimeWindow data_window(tsfull,tefull);
 	    dir = pfget_string(pf,"waveform_directory");
 	    if(dir==NULL)
 		    dir=strdup("./pwstack");
@@ -97,22 +100,22 @@ int main(int argc, char **argv)
 	   // metadata space of data object.  ensemble_mdl are 
 	   // globals copied to the metadata area for the entire ensemble
 	    //
-    	    Metadata_list station_mdl=pfget_mdlist(pf,"station_metadata");
-    	    Metadata_list ensemble_mdl=pfget_mdlist(pf,"ensemble_metadata");
-    	    Metadata_list stack_mdl=pfget_mdlist(pf,"stack_metadata");
-	    Attribute_Map OutputAM("pwmig1.1");
-	    Attribute_Map InputAM("css3.0");
+    	    MetadataList station_mdl=pfget_mdlist(pf,"station_metadata");
+    	    MetadataList ensemble_mdl=pfget_mdlist(pf,"ensemble_metadata");
+    	    MetadataList stack_mdl=pfget_mdlist(pf,"stack_metadata");
+	    AttributeMap OutputAM("pwmig1.1");
+	    AttributeMap InputAM("css3.0");
     	    Depth_Dependent_Aperture aperture(pf,aperture_tag);
-	    Top_Mute mute(pf,string("Data_Top_Mute"));
-	    Top_Mute stackmute(pf,string("Stack_Top_Mute"));
+	    TopMute mute(pf,string("Data_Top_Mute"));
+	    TopMute stackmute(pf,string("Stack_Top_Mute"));
 	    /* This database open must create a doubly grouped view to
 	    // correctly define a three component ensemble grouping 
 	    // normally this will be done by a hidden dbprocess list
 	    // stored in the master pf directory
 	    */
 	    string dbnmi(dbname_in);  // this temporary seems necessary for g++
-	    Datascope_Handle dbh(dbnmi,false);
-	    dbh=Datascope_Handle(dbh.db,pf,string("dbprocess_commands"));
+	    DatascopeHandle dbh(dbnmi,false);
+	    dbh=DatascopeHandle(dbh.db,pf,string("dbprocess_commands"));
 	    list<string> group_keys;
 	    group_keys.push_back("evid");
 	    dbh.group(group_keys);
@@ -120,7 +123,7 @@ int main(int argc, char **argv)
 	    // This is the output database which probably should always
 	    // be different than the input database.
 	    string dbnmo(dbname_out);
-	    Datascope_Handle dbho(dbnmo,false);
+	    DatascopeHandle dbho(dbnmo,false);
 
 	    // We need to load the primary GCLgrid that defines the 
 	    // location of pseudostation points.  It is assumed we
@@ -136,28 +139,55 @@ int main(int argc, char **argv)
 	    GCLgrid stagrid(dbh.db,grdnm);
 
 	    int rec;
+//DEBUG
+/*
+MatlabProcessor mp(stdout);
+*/
 	    for(rec=0,dbh.rewind();rec<dbh.number_tuples();++rec,++dbh)
 	    {
 		int iret;
 		int evid;
+		double olat,olon,odepth,otime;
 		// ensemble is read once for entire grid in this 
 		// version of the program.  This assumes newer 
 		// methods like that under development by Fan 
 		// will prove better than pseudostation method
 		//
 		
-		din = new Three_Component_Ensemble(
-		    dynamic_cast<Database_Handle&>(dbh),
+		din = new ThreeComponentEnsemble(
+		    dynamic_cast<DatabaseHandle&>(dbh),
 		    station_mdl, ensemble_mdl,InputAM);
-		ensemble=Arrival_Time_Reference(*din,"arrival.time",data_window);
-		// this should probably be in a try block, but we need to
-		// extract it here or we extract it many times later.
-		evid=ensemble.get_int("evid");
+//DEBUG
+/*
+string chans[3]={"x1","x2","x3"};
+mp.load(*din,chans);
+mp.process(string("wigb(x3)"));
+mp.run_interactive();
+*/
+		auto_ptr<ThreeComponentEnsemble> 
+			ensemble=ArrivalTimeReference(*din,"arrival.time",
+				data_window);
 		// Release this potentially large memory area
 		delete din;
-		double lat0,lon0,elev0,ux0,uy0;
-		for(i=0;i<stagrid.n1;++i) for(j=0;j<stagrid.n2;++j)
-		{
+//DEBUG
+/*
+mp.load(*ensemble,chans);
+mp.process(string("wigb(x3)"));
+mp.run_interactive();
+*/
+		// this should probably be in a try block, but we need to
+		// extract it here or we extract it many times later.
+		evid=ensemble->get_int("evid");
+		olat=ensemble->get_double("origin.lat");
+		olon=ensemble->get_double("origin.lon");
+		odepth=ensemble->get_double("origin.depth");
+		otime=ensemble->get_double("origin.time");
+		// Database has these in degrees, but we need them in radians here.
+		olat=rad(olat);  olon=rad(olon);
+		double lat0,lon0,elev0;
+		for(i=0;i<stagrid.n1;++i) 
+		    for(j=0;j<stagrid.n2;++j)
+		    {
 			lat0=stagrid.lat(i,j);
 			lon0=stagrid.lon(i,j);
 			elev0=stagrid.depth(i,j);
@@ -165,25 +195,26 @@ int main(int argc, char **argv)
 		// ux0 and uy0 are the incident wavefield's 
 		// slowness vector.  Stacks are made relative to this
 		// and the data are aligned using P wave arrival times
-		try {
+		    try {
 		    //
 		    // this is a backdoor method to pass this information
 		    // to the main processing program called just below.
 		    // perhaps bad form, but it is logical as these
 		    // are metadata related to these data by any measure.
-		    ensemble.put_metadata("ix1",i);
-		    ensemble.put_metadata("ix2",j);
-		    ensemble.put_metadata("lat0",lat0);
-		    ensemble.put_metadata("lon0",lon0);
-		    ensemble.put_metadata("elev0",elev0);
-		    ensemble.put_metadata("gridname",stagridname);
-// Set manually for now
-//
-ensemble.put_metadata("ux0",0.05);
-ensemble.put_metadata("uy0",0.02);
+		    ensemble->put("ix1",i);
+		    ensemble->put("ix2",j);
+		    ensemble->put("lat0",lat0);
+		    ensemble->put("lon0",lon0);
+		    ensemble->put("elev0",elev0);
+		    ensemble->put("gridname",stagridname);
+		    Hypocenter hypo(olat,olon,odepth,otime,
+			string("tttaup"),string("iasp91"));
+		    SlownessVector slow=hypo.pslow(lat0,lon0,elev0);
+		    ensemble->put("ux0",slow.ux);
+		    ensemble->put("uy0",slow.uy);
 
 cerr << "Working on grid i,j = " << i << "," << j << endl;
-		    iret=pwstack_ensemble(ensemble,
+		    iret=pwstack_ensemble(*ensemble,
 			ugrid,
 			mute,
 			stackmute,
@@ -200,20 +231,24 @@ cerr << "Working on grid i,j = " << i << "," << j << endl;
 			<< " has no data in pseudoarray aperture"<<endl
 			<< "Pseudostation grid point indices (i,j)="
 			<< "("<<i<<","<<j<<")"<<endl;
-		} catch (Metadata_error& mderr1)
+		} catch (MetadataError& mderr1)
 		{
 			mderr1.log_error();
 			cerr << "Ensemble " << rec << " data skipped" << endl;
 			cerr << "Pseudostation grid point indices (i,j)="
                         << "("<<i<<","<<j<<")"<<endl;
 		}
+		catch (SeisppError serr)
+		{
+			serr.log_error();
+		}
 	    }
 	    }
-	} catch (seispp_error& err)
+	} catch (SeisppError& err)
 	{
 		err.log_error();
 	}
-	catch (Metadata_error& mderr)
+	catch (MetadataError& mderr)
 	{
 		mderr.log_error();
 	}

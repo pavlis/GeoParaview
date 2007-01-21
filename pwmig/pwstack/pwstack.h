@@ -1,4 +1,6 @@
-#include "seispp.h"
+#include "SeisppError.h"
+#include "ensemble.h"
+#include "mute.h"
 using namespace SEISPP;
 
 class Depth_Dependent_Aperture
@@ -35,16 +37,16 @@ int compute_pseudostation_weights(int nsta, double *dnorth, double *deast,
                 double aperture, double cutoff, double *w);
 void compute_pwmoveout(int nsta,double *deast, double *dnorth,
                 double ux, double uy, double *moveout);
-int pwstack_ensemble(Three_Component_Ensemble& indata,
-	Rectangular_Slowness_Grid& ugrid,
-	Top_Mute& mute,
-	Top_Mute& stackmute,
+int pwstack_ensemble(ThreeComponentEnsemble& indata,
+	RectangularSlownessGrid& ugrid,
+	TopMute& mute,
+	TopMute& stackmute,
 	double tstart,
 	double tend,
 	Depth_Dependent_Aperture& aperture,
-	Metadata_list& mdlcopy,
-	Metadata_list& mdlout,
-	Attribute_Map& am,
+	MetadataList& mdlcopy,
+	MetadataList& mdlout,
+	AttributeMap& am,
 	string dir,
-	Database_Handle& dbh);
+	DatabaseHandle& dbh);
 string virtual_station_name(int ix1, int ix2);

@@ -2,6 +2,10 @@
 #include "coords.h"
 #include "stock.h"
 #include "pf.h"
+//DEBUG  remove this include if not debugging
+#include <iostream>
+using namespace std;
+
 #define RADIUS_EARTH 6378.164
 /* For plane wave moveout computations a local cartesian coordinate
 system is used wrt to a particular origin.  This approximation is
@@ -90,7 +94,8 @@ void compute_pwmoveout(int nsta,double *deast, double *dnorth,
 		double ux, double uy, double *moveout)
 {
 	int i;
-
 	for(i=0;i<nsta;++i)
+	{
 		moveout[i] = ux*deast[i] + uy*dnorth[i];
+	}
 }
