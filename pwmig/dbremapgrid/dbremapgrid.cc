@@ -1,8 +1,12 @@
+#include "dbpp.h"
+#include "Metadata.h"
 #include "gclgrid.h"
+using namespace std;
+using namespace SEISPP;
 
 void usage()
 {
-	cerr << "dbremapgrid db [-g gridname -f fieldname -p pattern -og outgrid -of outfield -vector -2D]" << endl;
+	cerr << "dbremapgrid db [-g gridname -f fieldname -p pattern -og outgrid -vector -2D]" << endl;
 	exit(-1);
 }
 int main(int argc, char **argv)
@@ -12,37 +16,34 @@ int main(int argc, char **argv)
 	if(argc<2) usage();
 
 	Pf *pf;
-	char *pffile="dbremapgrid";
-	if(pfread(pffile,&pf)
+	string pffile("dbremapgrid");
+	if(pfread(const_cast<char *>(pffile.c_str()),&pf))
 	{
 		cerr << "pfread failed on file dbremapgrid.pf"<<endl;
 		exit(-1);
 	}
 	string gridname,fieldname,pattern;
-	string outgrd,outfld;
 	bool vectormode;
 	bool twodmode;
+	bool use2dpat;
 	// These variables are not alterable from command line arguments
-	string griddir,fielddir,newgridname,fdfileout;
+	string griddir,newgridname;
 	try {
 		Metadata control(pf);
 		gridname=control.get_string("input_gridname");
 		fieldname=control.get_string("input_fieldname");
 		pattern=control.get_string("pattern_grid");
-		outgrd=control.get_string("output_gridname");
-		outfld=control.get_string("output_fieldname");
+		use2dpat=control.get_bool("use_2d_grid_as_pattern");
 		vectormode=control.get_bool("vectormode");
 		twodmode=control.get_bool("2Dmode");
 		griddir=control.get_string("grid_directory");
-		fielddir=control.get_string("field_directory");
 		newgridname=control.get_string("new_grid_name");
-		fdfileout=control.get_string("output_field_dfile");
-	} catch (Metadata_error mderr)
+	} catch (MetadataError mderr)
 	{
 		mderr.log_error();
 		exit(-1);
 	}
-	string dbname(argc[1]);
+	string dbname(argv[1]);
 	string argstr;
 	// Arg list can override pf contents in this logic
 	for(i=2;i<argc;++i)
@@ -70,50 +71,48 @@ int main(int argc, char **argv)
 		else if(argstr=="-og")
 		{
 			++i;
-			outgrd=string(argv[i]);
-		}
-		else if(argstr=="-of")
-		{
-			++i;
-			outfld=string(argv[i]);
+			newgridname=string(argv[i]);
 		}
 		else
 			cerr << "Unknown argument = "<<argstr<<endl;
 			usage();
 	}
-	Dbptr db;
-	if(dbopen((const_cast<char *>(dbname.c_str()),"r+",&db)
-			== dbINVALID)  
-	{
-		cerr << "Open failure on database "<<dbname<<endl;
-		usage();
-	}
-	/* The following block could be done more elegantly with a template
-	// In all cases the new grid is saved, but only the field variables
-	// are not changed.  As a result we only need a new entry in the field
-	// table to connect these values to the alternate grid geometry.
-	*/
-	Dbptr dbgrd;
-	// Don't need to trap an error here as if this lookup fails 
-	// the contructors below will also fail.
-	dbgrd=dblookup(db,0,(char *)"gclfield",0,0);
 	try {
+	    DatascopeHandle dbh(dbname,false);
+	    dbh.lookup(string("gclgdisk"));
+	    DatascopeHandle dbhg(dbh);
+	    dbhg.lookup(string("gclfield"));
+	    Dbptr db=dbh.db;
+	    Dbptr dbgrd=dbhg.db;
+	    string sstring;
+	    BasicGCLgrid *bpat;
+	    if(use2dpat) 
+	    {
+		GCLgrid *pat=new GCLgrid(db,pattern);
+		bpat=dynamic_cast<BasicGCLgrid*>(pat);
+	    }
+	    else
+	    {	
+		GCLgrid3d *pat=new GCLgrid3d(db,pattern);
+		bpat=dynamic_cast<BasicGCLgrid*>(pat);
+	    }
 	    if(twodmode)
 	    {
-		GCLgrid pat(db,pattern);
 		if(vectormode)
 		{
 			GCLvectorfield g(db,gridname,fieldname);
-			GCLgrid newg=remap_grid(dynamic_cast<GCLgrid&>(g),
-					dynamic_cast<BasicGCLgrid&>(pat));
-			newg.name=newgridname;
+			remap_grid(dynamic_cast<GCLgrid&>(g),*bpat);
+			g.name=newgridname;
 			string sstring;
 			char nvs[20];
 			sprintf(nvs,"%d",g.nv);
-			sstring = "gridname =~ /"+gridname+"/ && fieldname =~ /"
-					+ fieldname "/ && nv=="
-					+ string(nvs) + "/"; 
-			Dbptr dbss=dbsubset(dbgrd,sstring.c_str(),0);
+			sstring = string("gridname =~ /")
+					+gridname
+					+string("/ && fieldname =~ /")
+					+ fieldname 
+					+ string("/ && nv==")
+					+ string(nvs); 
+			Dbptr dbss=dbsubset(dbgrd,const_cast<char *>(sstring.c_str()),0);
 			int nrec;
 			dbquery(dbss,dbRECORD_COUNT,&nrec);
                 	if(nrec <= 0)
@@ -127,19 +126,21 @@ int main(int argc, char **argv)
 			dbget(dbss,0);
 			dbgrd.record=dbSCRATCH;
 			dbputv(dbgrd,0,"gridname",newgridname.c_str(),0);
-			dbput(dbgrd,0);
-			newg.dbsave(db,griddir);
+			dbadd(dbgrd,0);
+			dynamic_cast<GCLgrid&>(g).dbsave(db,griddir);
 
 		}
 		else
 		{
 			GCLscalarfield g(db,gridname,fieldname);
-			GCLgrid newg=remap_grid(dynamic_cast<GCLgrid&>(g),
-					dynamic_cast<BasicGCLgrid&>(pat));
-			newg.name=newgridname;
-			sstring = "gridname =~ /"+gridname+"/ && fieldname =~ /"
-					+ fieldname "/";
-			Dbptr dbss=dbsubset(dbgrd,sstring.c_str(),0);
+			remap_grid(dynamic_cast<GCLgrid&>(g),*bpat);
+			g.name=newgridname;
+			sstring = string("gridname =~ /")
+					+gridname
+					+string("/ && fieldname =~ /")
+					+ fieldname 
+					+ string("/");
+			Dbptr dbss=dbsubset(dbgrd,const_cast<char *>(sstring.c_str()),0);
 			int nrec;
 			dbquery(dbss,dbRECORD_COUNT,&nrec);
                 	if(nrec <= 0)
@@ -153,24 +154,27 @@ int main(int argc, char **argv)
 			dbget(dbss,0);
 			dbgrd.record=dbSCRATCH;
 			dbputv(dbgrd,0,"gridname",newgridname.c_str(),0);
-			dbput(dbgrd,0);
-			newg.dbsave(db,griddir);
+			dbadd(dbgrd,0);
+			dynamic_cast<GCLgrid&>(g).dbsave(db,griddir);
 		}
 				
 	    }
 	    else
 	    {
-		GCLgrid3d pat(db,pattern);
 		if(vectormode)
 		{
 			GCLvectorfield3d g(db,gridname,fieldname);
-			GCLgrid newg=remap_grid(dynamic_cast<GCLgrid&>(g),
-					dynamic_cast<BasicGCLgrid&>(pat));
-			newg.name=newgridname;
-			sstring = "gridname =~ /"+gridname+"/ && fieldname =~ /"
-					+ fieldname "/ && nv=="
-					+ string(nvs) + "/"; 
-			Dbptr dbss=dbsubset(dbgrd,sstring.c_str(),0);
+			remap_grid(dynamic_cast<GCLgrid3d&>(g),*bpat);
+			g.name=newgridname;
+			char nvs[20];
+			sprintf(nvs,"%d",g.nv);
+			sstring = string("gridname =~ /")
+				+ gridname
+				+string("/ && fieldname =~ /")
+				+ fieldname
+				+ string("/ && nv==")
+				+ string(nvs); 
+			Dbptr dbss=dbsubset(dbgrd,const_cast<char *>(sstring.c_str()),0);
 			int nrec;
 			dbquery(dbss,dbRECORD_COUNT,&nrec);
                 	if(nrec <= 0)
@@ -184,18 +188,20 @@ int main(int argc, char **argv)
 			dbget(dbss,0);
 			dbgrd.record=dbSCRATCH;
 			dbputv(dbgrd,0,"gridname",newgridname.c_str(),0);
-			dbput(dbgrd,0);
-			newg.dbsave(db,griddir);
+			dbadd(dbgrd,0);
+			dynamic_cast<GCLgrid3d&>(g).dbsave(db,griddir);
 		}
 		else
 		{
 			GCLscalarfield3d g(db,gridname,fieldname);
-			GCLgrid newg=remap_grid(dynamic_cast<GCLgrid&>(g),
-					dynamic_cast<BasicGCLgrid&>(pat));
-			newg.name=newgridname;
-			sstring = "gridname =~ /"+gridname+"/ && fieldname =~ /"
-					+ fieldname "/";
-			Dbptr dbss=dbsubset(dbgrd,sstring.c_str(),0);
+			remap_grid(dynamic_cast<GCLgrid3d&>(g),*bpat);
+			g.name=newgridname;
+			sstring = string("gridname =~ /")
+				+ gridname
+				+ string("/ && fieldname =~ /")
+				+ fieldname 
+				+ string("/");
+			Dbptr dbss=dbsubset(dbgrd,const_cast<char *>(sstring.c_str()),0);
 			int nrec;
 			dbquery(dbss,dbRECORD_COUNT,&nrec);
                 	if(nrec <= 0)
@@ -209,10 +215,15 @@ int main(int argc, char **argv)
 			dbget(dbss,0);
 			dbgrd.record=dbSCRATCH;
 			dbputv(dbgrd,0,"gridname",newgridname.c_str(),0);
-			dbput(dbgrd,0);
-			newg.dbsave(db,griddir);
+			dbadd(dbgrd,0);
+			dynamic_cast<GCLgrid3d&>(g).dbsave(db,griddir);
 		}
 	    }
+	}
+	catch (int ierr)
+	{
+		cerr << "GCLgrid library function threw error code="
+			<< ierr << endl;
 	}
 	catch (...)
 	{

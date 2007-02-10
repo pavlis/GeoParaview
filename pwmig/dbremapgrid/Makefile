@@ -7,11 +7,11 @@ LD=CC
 
 #cflags=-g -DSUNPERF
 cflags=-g 
-ldlibs= -L/opt/SUNWspro/lib $(DBLIBS) -lgclgrid -lperf
+ldlibs= -lseispp -lgclgrid -ltrvltm $(DBLIBS) -lperf -lm
 
 include $(ANTELOPEMAKE)
 DIRS=
 
 OBJS=dbremapgrid.o
 $(BIN) : $(OBJS)
-	$(CC) $(CFLAGS) -o $@ $(OBJS) $(LDFLAGS) $(LDLIBS)
+	$(CXX) $(CFLAGS) -o $@ $(OBJS) $(LDFLAGS) $(LDLIBS)
