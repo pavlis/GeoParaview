@@ -1,3 +1,7 @@
+#include "SeisppKeywords"
+#include "TimeSeries.h"
+#include "ThreeComponentSeismogram.h"
+#include "ensemble.h"
 #include "Metadata.h"
 #include "dbpp.h"
 #include "MatlabProcessor.h"
@@ -95,82 +99,80 @@ template <class T>
 ThreeComponentEnsemble *BuildRegularGather(ThreeComponentEnsemble& raw,
 	DatascopeMatchHandle& dbh, 
 	ResamplingDefinitions& rdef,
-	double target_dt)
+	double target_dt,
+	TimeWindow processing_window)
 {
-	list<int>  records;  // return of find function for match handle
+	const string arrival_keyword("arrival.time");
 	const samprate_tolerance(0.01);  // fractional sample rate tolerance
-	vector<ThreeComponentSeismogram>::iterator d;
 	nmembers=raw.member.size();
-	TimeSeries *x1,*x2,*x3;
+	auto_ptr<TimeSeries> x1,x2,x3;
 	ThreeComponentEnsemble *result;
 	result = new ThreeComponentEnsemble(raw);
 	// An inefficiency here, but this allow us to discard dead
 	// traces and problem data from ensemble as we assemble the
 	// new one.
 	result->member.clear();
-	// Use an iterator as it simplifies the symbols.  could
-	// use operator[], but this is faster and actually cleaner here.
-	for(d=raw->member.start();d!=raw->member.end();++d)
+	result->member.reserve(raw.member.size());
+	// Load arrivals from database.  List returned is index into raw of
+	// data with valid arrivals loaded
+	list<int> data_with_arrivals=LoadArrivalTimes<ThreeComponentSeismogram>
+					(raw.member,dbh,arrival_keyword);
+	list<int>::iterator index;
+	for(index=data_with_arrivals.start();index!=data_with_arrivals.end();++index)
 	{
-		double atime;  //  arrival time.  
-		if(d->live)
+		ThreeComponentSeismogram d=raw.member[*index];
+		if(d.live)
 		{
-			// First see if there is an arrival for this
-			// station.  If not, skip it. 
-			try { 
-				list<int> records
-					=dbh.find(dynamic_cast<Metadata&>(*d));
-				// if no arrival skip data for this station
-				if(records.size()<=0) continue;
-				if(records.size()>1)
-				{
-					string sta=d->get_string("sta");
-					cerr << "Warning:  found"
-						<< records.size()
-						<< " arrivals for station "
-						<< sta <<endl
-						<< "Using first found "
-						<< "in database view"<<endl;
-				}
-				Dbptr db=dbh.db;
-				// tricky usage here.  begin() returns
-				// an iterator so the * operator gets the
-				// value = record number of the match
-				db.record=*(records.begin());
-				if(dbgetv(db,0,"arrival.time",&atime,0)
-					== dbINVALID) 
-				{
-					string sta=d->get_string("sta");
-					cerr << "Warning:  dbgetv failed"
-						<< " in attempt to obtain"
-						<< " arrival time for station"
-						<< sta << endl
-						<< "Data from this station"
-						<< " will be dropped"<<endl;
-				}
-				d->put(
-			} 
-			catch (SeisppError serr) 
-			{
-				serr.log_error();
-				string sta=d->get_string("sta");
-				cerr << "Data for for station "
-					<< sta << " dropped"<<endl;
-			} 
-				
+			d.rotate_to_standard();	
 			// partial clone used to hold result
-			ThreeComponentSeismogram new(*d);  
-			x1=ExtractComponent(*d,0);
-			x2=ExtractComponent(*d,1);
-			x3=ExtractComponent(*d,2);
+			ThreeComponentSeismogram d3c(d);  
+			x1=auto_ptr<TimeSeries>(ExtractComponent(d,0));
+			x2=auto_ptr<TimeSeries>(ExtractComponent(d,1));
+			x3=auto_ptr<TimeSeries>(ExtractComponent(d,2));
+			// resample if necessary.  Using auto_ptr to avoid temporary pointer
+			// and as good practice to avoid memory leaks
 			if( (abs( (d->dt)-target_dt)/target_dt) > samprate_tolerance)
 			{
-				x1=ResampleTimeSeries(x1,rdef,target_dt,false);
-				x2=ResampleTimeSeries(x2,rdef,target_dt,false);
-				x3=ResampleTimeSeries(x3,rdef,target_dt,false);
+				x1=auto_ptr<TimeSeries>(ResampleTimeSeries(x1,
+								rdef,target_dt,false));
+				x2=auto_ptr<TimeSeries>(ResampleTimeSeries(x2,
+								rdef,target_dt,false));
+				x3=auto_ptr<TimeSeries>(ResampleTimeSeries(x3,
+								rdef,target_dt,false));
 			}
-			
-
+			// This procedure returns an auto_ptr.  An inconsistency in
+			// SEISPP due to evolutionary development
+			x1=ArrivalTimeReference(*x1,arrival_keyword,processing_window);
+			x2=ArrivalTimeReference(*x2,arrival_keyword,processing_window);
+			x3=ArrivalTimeReference(*x3,arrival_keyword,processing_window);
+			int ns=x1.size();
+			d3c.u=dmatrix(3,ns);
+			// Using blas here for speed
+			dcopy(ns,&(x1.s[0]),1,d3c.u.get_address(0,0),3);
+			dcopy(ns,&(x2.s[0]),1,d3c.u.get_address(1,0),3);
+			dcopy(ns,&(x3.s[0]),1,d3c.u.get_address(2,0),3);
+			result->push_back(d3c);
+		}
+	}
+	return(result);
+}
+void PostEvid(ThreeComponentEnsemble& d,int evid)
+{
+	vector<ThreeComponentSeismogram>::iterator dptr;
+	for(dptr=d.member.begin();dptr!=d.member.end();++dptr)
+		dptr->put("evid",evid);
+}
+		DatascopeHandle dbcatalog=StandardCatalogView(dbh);
+DatascopeHandle StandardCatalogView(DatascopeHandle& dbh)
+{
+	DatascopeHandle result(dbh);
+	dbh.lookup("event");
+	dbh.natural_join("origin");
+	string ss_to_prefor("orid==prefor");
+	dbh.subset(ss_to_prefor);
+	dbh.natural_join("assoc");
+	dbh.natural_join("arrival");
+	return(dbh);
 }
 void usage()
 {
@@ -209,7 +211,7 @@ int main(int argc, char **argv)
 		{
                         ++i;
                         if(i>=argc) usage();
-			subsetbeam=true;
+			subsetbeam=true;Resampl
 			beam_subset_expression=string(argv[i]);
 		}
                 else
@@ -239,9 +241,20 @@ int main(int argc, char **argv)
 		double tpad=control.get_double("data_time_pad");
 		StationchannelMap stachanmap(pf);
 		string schema=control.get_string("AttributeMap_schema");
+		double target_dt=control.get_double("target_sample_interval");
+		ResamplingDefinitions rdef(pf);
 		// First get all the database components assembled.
 		// There are three here:  input data, output data, and beam data
 		DatascopeHandle dbh(dbin,false);
+		/* Build a match handle for arrivals using the standard catalog
+		view of the join of event->origin->assoc->arrival */
+		AttributeMap am(schema);  
+		DatascopeHandle dbcatalog=StandardCatalogView(dbh);
+		list<string> matchkeys;
+		matchkeys.push_back(string("sta"));
+		matchkeys.push_back(string("evid"));
+		DatascopeMatchHandle dbhm(dbcatalog,string(""),matchkeys,am);
+		/*Now construct a handle to get beam traces */
 		DatascopeHandle dbhbeam(dbh);
 		if(dbbeam!=dbin)
 			dbhbeam=DatascopeHandle(dbbeam,true);
@@ -262,8 +275,9 @@ int main(int argc, char **argv)
 			}
 		}
 		dbhbv.rewind();  // Not essential, but good practice to initialize
-		AttributeMap am(schema);  // needed for ensemble constructor
-		// Launch matlab and sets up the communication channels
+		// End section on prep for beam data
+		//
+		// Now launch matlab and sets up the communication channels
 		MatlabProcessor mp(stdout);
 		// 3C ensemble are loaded into Matlab as three matrices with these names
 		string chans[3]={"x1","x2","x3"};
@@ -272,6 +286,9 @@ int main(int argc, char **argv)
 		ThreeComponentEnsemble *rawdata=NULL, *regular_gather=NULL,
 				*decondata=NULL;
 		SeismicArray *stations=NULL;
+		/* Assorted variables needed in the loop below */
+		double lat,lon,depth,time;
+		int evid;
 		int record;
 		for(record=0;record<dbhbv.number_tuples();++record,++dbh)
 		{
@@ -284,6 +301,7 @@ int main(int argc, char **argv)
 			lon=beam.get_double(string("lon"));
 			depth=beam.get_double(string("depth"));
 			otime=beam.get_double(string("origin.time"));
+			evid=beam.get_int(string("evid"));
 			Hypocenter hypo(lat,lon,depth,otime);
 			// On the first record we need to load the station
 			// geometry object
@@ -308,7 +326,10 @@ int main(int argc, char **argv)
 			rawdata=array_get_data(*stations,hypo,
 				phase,twin,tpad,dynamic_cast<DatabaseHandle&>(dbh),
 				stachanmap,mdens,mdtrace,am);
-			regular_gather=BuildRegularGather(rawdata, + other args);
+			PostEvid(rawdata,evid);
+
+			regular_gather=BuildRegularGather(rawdata, dbhm,rdef,target_dt,
+					processing_twin);
 			delete rawdata;
 			// regular gather is now assumed to contain data with
 			// a common start time.  irregular start time is allowed
@@ -318,9 +339,11 @@ int main(int argc, char **argv)
 			dmatrix x1d=mp.retrieve(string("x1d"));
 			dmatrix x2d=mp.retrieve(string("x2d"));
 			dmatrix x3d=mp.retrieve(string("x3d"));
-			decondata=AssembleDeconGather(regular_gather,x1d,x2d,x3d);
+			// commented out routines below are not written.
+			// Will debug above first
+			//decondata=AssembleDeconGather(regular_gather,x1d,x2d,x3d);
 			delete regular_gather;
-			SaveResult(dbho,decondata,mdlo);
+			//SaveResult(dbho,decondata,mdlo);
 			delete decondata;
 		}
 	}
