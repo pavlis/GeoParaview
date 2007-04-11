@@ -1,30 +1,28 @@
-# This is the name of the grid 3d velocities are defined upon
-velocity_model_grid_name test
-# These are tags for models defined on the velocity_model_grid_name
-P_velocity_model3d_name bolivar1_P
-S_velocity_model3d_name bolivar1_S
-# these are 1d reference models assumed congruent with 3d models
-P_velocity_model1d_name prem
-S_velocity_model1d_name prem
-# This is name of the 2d grid used by pwstack
-Parent_GCLgrid_Name pseudosta
-# This is the output grid used to accumulate the 3d image from the data
-stack_grid_name image
-# Directory for storing output 3d field files
-output_field_directory migrated_data
-# base data file name (evid appended for full name)
-output_filename_base test2
-#  turn depth variable transformation on and off
-use_depth_variable_transformation false
-maximum_depth 700.0
-maximum_time_lag 75.0
-fixed_u_mode false
-slowness_grid_deltau 0.05
-ray_trace_depth_increment 2.0
-
-Station_mdlist &Tbl{
+Ensemble_mdlist	&Tbl{
+origin.lat real
+origin.lon real
+origin.depth real
+origin.time real
+pwstack.ux real
+pwstack.uy real
+pwstack.ux0 real
+pwstack.uy0 real
+gridid int
+evid int
+}
+velocity_model_grid fdsimdec=5_5_2
+P_velocity_model1d_name	prem
+P_velocity_model3d_name	Pvelocity
+Parent_GCLgrid_Name	subduct
+S_velocity_model1d_name	prem
+S_velocity_model3d_name	Svelocity
+Station_mdlist	&Tbl{
 nsamp int
 samprate real
+ux real
+uy real
+ux0 real
+uy0 real
 ix1 int 
 ix2 int
 pwstack.sta string
@@ -37,29 +35,30 @@ time real
 endtime real 
 timetype string
 }
-Ensemble_mdlist &Tbl{
-origin.lat real
-origin.lon real
-origin.depth real
-origin.time real
-pwstack.ux real
-pwstack.uy real
-pwstack.ux0 real
-pwstack.uy0 real
-ux real
-uy real
-ux0 real
-uy0 real
-evid int
-}
-dbprocess_commands &Tbl{
+#special subset condition here to look only at very limited angles
+dbprocess_commands	&Tbl{
 dbopen wfprocess
 dbjoin evlink
 dbjoin event
 dbjoin origin
 dbsubset orid==prefor
 dbjoin pwstack
-dbsort evid gridid ix1 ix2
+dbsort evid gridid ux uy
 dbgroup evid gridid
 }
-border_padding 5
+
+stack_grid_name	mig2
+border_padding	15
+output_field_directory	migrated_data
+output_filename_base	stest
+use_depth_variable_transformation	false
+maximum_depth	600.0
+maximum_time_lag	100.0
+fixed_u_mode	false
+slowness_grid_deltau	0.01
+ray_trace_depth_increment	1.0
+data_sample_interval 0.2
+# new Jan 25,2007 for weighting function fundamental problem
+recompute_weight_functions false
+weighting_function_smoother_length 10
+pf_revision_time	1098359696
