@@ -15,15 +15,21 @@
 #include "interpolator1d.h"
 //DEBUG
 //#include "vtk_output.h"
+#ifdef MATLABDEBUG
 #include "MatlabProcessor.h"
+#endif
 using namespace std;
 using namespace SEISPP;
 using namespace INTERPOLATOR1D;
 #include "pwmig.h"
 
+//DEBUG  Uncomment if not using matlab for debu
+#ifdef MATLABDEBUG
+MatlabProcessor mp(stdout);
+#endif
 void usage()
 {
-        cbanner((char *)"$Revision: 1.16 $ $Date: 2007/01/21 12:11:24 $",
+        cbanner((char *)"$Revision: 1.17 $ $Date: 2007/04/11 19:36:28 $",
                 (char *)"db  [-V -pf pfname]",
                 (char *)"Gary Pavlis",
                 (char *)"Indiana University",
@@ -174,17 +180,18 @@ dmatrix compute_gradS(GCLgrid3d& raygrid,int ix1, int ix2, VelocityModel_1d& Vs1
 	dmatrix gradS(3,raygrid.n3);
 	double vs;
 	double nrm;
-	// We start at the surface and work down so vectors point downwardish
+	// We start at the surface and work down 
+	// gradS vectors should point upward
 	// The raygrid lines are oriented from the bottom up so sign is 
 	// as below
 	for(k=0,kk=raygrid.n3-1;k<raygrid.n3-1;++k,--kk)
 	{
-		gradS(0,k)=raygrid.x1[ix1][ix2][kk-1]
-				- raygrid.x1[ix1][ix2][kk];
-		gradS(1,k)=raygrid.x2[ix1][ix2][kk-1]
-				- raygrid.x1[ix1][ix2][kk];
-		gradS(2,k)=raygrid.x3[ix1][ix2][kk-1]
-				- raygrid.x1[ix1][ix2][kk];
+		gradS(0,k)=raygrid.x1[ix1][ix2][kk]
+				- raygrid.x1[ix1][ix2][kk-1];
+		gradS(1,k)=raygrid.x2[ix1][ix2][kk]
+				- raygrid.x2[ix1][ix2][kk-1];
+		gradS(2,k)=raygrid.x3[ix1][ix2][kk]
+				- raygrid.x3[ix1][ix2][kk-1];
 		// use the velocity from the upper point
 		vs=Vs1d.getv(raygrid.depth(ix1,ix2,kk));
 		// gradient is unit vector multiplied by slowness
@@ -240,14 +247,13 @@ vector<double> compute_unit_normal_P(GCLgrid3d& raygrid,double x1, double x2, do
 			raygrid.get_index(index);
 			// Standard fix for forward diff.  Back off one if at the top edge
 			if(index[2]>=raygrid.n3-1)--index[2];  
-				--index[2];
-			dx=raygrid.x1[index[0]+1][index[1]+1][index[2]+1];
+			dx=raygrid.x1[index[0]][index[1]][index[2]+1];
 			dx-=raygrid.x1[index[0]][index[1]][index[2]];
 			nu.push_back(dx);
-			dx=raygrid.x2[index[0]+1][index[1]+1][index[2]+1];
+			dx=raygrid.x2[index[0]][index[1]][index[2]+1];
 			dx-=raygrid.x2[index[0]][index[1]][index[2]];
 			nu.push_back(dx);
-			dx=raygrid.x3[index[0]+1][index[1]+1][index[2]+1];
+			dx=raygrid.x3[index[0]][index[1]][index[2]+1];
 			dx-=raygrid.x3[index[0]][index[1]][index[2]];
 			nu.push_back(dx);
 			nrmx=dnrm2(3,&(nu[0]),1);
@@ -345,7 +351,7 @@ GCLscalarfield3d *ComputeIncidentWaveRaygrid(GCLgrid& pstagrid,
 	} catch (...) {throw;}
 }
 
-// used in compute_lag function below as an error signal
+// used in function below to flag an error
 // has file scope so pwmig main can do a consistent check
 const double TTERROR=-9999999999.0;
 //@{
@@ -355,12 +361,11 @@ const double TTERROR=-9999999999.0;
 // @param ix2 coordinate 2 index position of scattering point where the lag is to be computed
 // @param ix3 coordinate 3 index position of scattering point where the lag is to be computed
 // @param TP scalarfield holding P wave travel times from source.  Assumed congruent with raygrid
-// @param Ts propagation time from scatter to receiver I(assumed already computed earlier - input)
 // @param h location of source
 //
 //@}
-double compute_lag(GCLgrid3d& raygrid, int ix1, int ix2, int ix3,
-		GCLscalarfield3d& TP,double Ts,Hypocenter& h)
+double compute_scatter_point_Ptime(GCLgrid3d& raygrid, int ix1, int ix2, int ix3,
+		GCLscalarfield3d& TP,Hypocenter& h)
 {
 	//This algorithm ASSUMES raygrid and TP are congruent. I avoids the overhead
 	// of constant testing because it will be called a lot.
@@ -379,7 +384,6 @@ double compute_lag(GCLgrid3d& raygrid, int ix1, int ix2, int ix3,
 		case 0:
 		case 2:
 			Tpx=TP.interpolate(x1,x2,x3);
-			TP.reset_index();
 			break;
 		default:
 		// This condition is difficult to recover from.  The image point
@@ -389,9 +393,17 @@ double compute_lag(GCLgrid3d& raygrid, int ix1, int ix2, int ix3,
 		// REturn a large negative number instead to signal this error.
 		// The factor of 2 allows a direct test below against TTERROR and
 		// is failsafe against small negative lags that could potentially arise.
+			TP.reset_index();
 			return(2.0*TTERROR);
 	}
-	// Now get P travel time to receiver
+	return(Tpx);
+}
+double compute_receiver_Ptime(GCLgrid3d& raygrid, int ix1, int ix2,
+		GCLscalarfield3d& TP,Hypocenter& h)
+{
+	double Tpr;  // result
+	int err;
+	double x1,x2,x3;
 	int nsurface=raygrid.n3 - 1;
 	x1=raygrid.x1[ix1][ix2][nsurface];
 	x2=raygrid.x2[ix1][ix2][nsurface];
@@ -400,6 +412,8 @@ double compute_lag(GCLgrid3d& raygrid, int ix1, int ix2, int ix3,
 	switch (err)
 	{
 		case 0:
+		// lookup almost always returns 2 in this case because receiver
+		// is on top surface of grid.
 		case 2:
 			Tpr=TP.interpolate(x1,x2,x3);
 			break;
@@ -407,10 +421,10 @@ double compute_lag(GCLgrid3d& raygrid, int ix1, int ix2, int ix3,
 		// Here we can recover from a lookup failure by reverting to the
 		// 1d calculator
 			TP.reset_index();
-			Tpx=h.ptime(raygrid.lat(ix1,ix2,nsurface),
+			Tpr=h.ptime(raygrid.lat(ix1,ix2,nsurface),
 					raygrid.lon(ix1,ix2,nsurface),0.0);
 	}
-	return(Tpx+Ts-Tpr);
+	return(Tpr);
 }
 	
 /* This function computes the domega term for the inverse Radon transform inversion
@@ -436,12 +450,15 @@ Returns a vector of domega terms on the grid defined by the input ray path.
 Arguments:
 
 	u0 - input slowness vector (note passed as SlownessVector object)
+		u0 is base slowness for S raygrid passed as g (below)
 	dux, duy - base slowness grid increments.
 	vmod - 1d velocity model used for ray tracing 
 	zmax, dz - ray trace parameters.  trace to depth zmax with depth increment dz
-	g - gclgrid for geometry
+	g - gclgrid for S ray geometry
 	ix1, ix2  - index position of receiver point in gclgrid g.
 	gradP - parallel matrix to path of P time gradient vectors.
+	zP - vector of depths parallel to gradP 
+	(Note algorithm assumes gradP,zP are ordered from surface down)
 
 Returns an np length STL vector object.
 
@@ -454,9 +471,9 @@ vector<double> compute_domega_for_path(SlownessVector& u0,double dux, double duy
 	VelocityModel_1d& vmod, 
 		double zmax,
 			double dz,
-				double domega_max,
-					GCLgrid3d& g,int ix1, int ix2,
-						dmatrix& gradP)
+				GCLgrid3d& g,int ix1, int ix2,
+					dmatrix& gradP,
+						vector<double>& zP)
 {
 	SlownessVector udx1, udx2, udy1, udy2;
 	dmatrix *pathdx1, *pathdx2, *pathdy1, *pathdy2;
@@ -481,6 +498,20 @@ vector<double> compute_domega_for_path(SlownessVector& u0,double dux, double duy
 	RayPathSphere raydx2(vmod,udx2.mag(),zmax,1.0e99,dz,"z");
 	RayPathSphere raydy1(vmod,udy1.mag(),zmax,1.0e99,dz,"z");
 	RayPathSphere raydy2(vmod,udy2.mag(),zmax,1.0e99,dz,"z");
+/*
+mp.load(raydx1.r,string("rdx1"));
+mp.load(raydx2.r,string("rdx2"));
+mp.load(raydy1.r,string("rdy1"));
+mp.load(raydy2.r,string("rdy2"));
+mp.load(raydx1.delta,string("deltax1"));
+mp.load(raydx2.delta,string("deltax2"));
+mp.load(raydy1.delta,string("deltay1"));
+mp.load(raydy2.delta,string("deltay2"));
+mp.load(raydx1.t,string("tdx1"));
+mp.load(raydx2.t,string("tdx2"));
+mp.load(raydy1.t,string("tdy1"));
+mp.load(raydy2.t,string("tdy2"));
+*/
 	//
 	// project these into the GCLgrid coordinate system
 	//
@@ -493,6 +524,13 @@ vector<double> compute_domega_for_path(SlownessVector& u0,double dux, double duy
 				g.n3-1);
 		pathdy2 = GCLgrid_Ray_project_down(g,raydy2, udy2.azimuth(),ix1,ix2,
 				g.n3-1);
+/*
+mp.load(*pathdx1,string("pdx1"));
+mp.load(*pathdx2,string("pdx2"));
+mp.load(*pathdy1,string("pdy1"));
+mp.load(*pathdy2,string("pdy2"));
+mp.process(string("plotrays(pdx1,pdx2,pdy1,pdy2)"));
+*/
 	}  catch (GCLgrid_error err)
 	{
 		err.log_error();
@@ -509,6 +547,7 @@ vector<double> compute_domega_for_path(SlownessVector& u0,double dux, double duy
 	gradSdx2=ray_path_tangent(*pathdx2);
 	gradSdy1=ray_path_tangent(*pathdy1);
 	gradSdy2=ray_path_tangent(*pathdy2);
+	delete pathdx1;  delete pathdx2;  delete pathdy1;  delete pathdy2;
 	//
 	// Check all these matrices have the same size and truncate the 
 	// output if necessary writing a diagnostic in that situation.
@@ -534,47 +573,70 @@ vector<double> compute_domega_for_path(SlownessVector& u0,double dux, double duy
 		dscal(3,slow,gradSdy1->get_address(0,i),1);
 		dscal(3,slow,gradSdy2->get_address(0,i),1);
 	}
-
+/*
+mp.load(gradP,string("gp"));
+mp.load(*gradSdx1,string("gsdx1"));
+mp.load(*gradSdx2,string("gsdx2"));
+mp.load(*gradSdy1,string("gsdy1"));
+mp.load(*gradSdy2,string("gsdy2"));
+mp.process(string("figure; unitvectorplot(gsdx1);"));
+mp.process(string("figure; unitvectorplot(gsdx2);"));
+mp.process(string("figure; unitvectorplot(gsdy1);"));
+mp.process(string("figure; unitvectorplot(gsdy2);"));
+*/
 	//
-	// Now we have interpolate the gradP vectors onto this uniform depth grid.  
-	// to do that we use the GCLgrid's geometry function to build a vector of 
-	// depths
+	// Now we interpolate the gradS vector arrays onto the gradP set
+	// of depths. This produces a domega congruent with gradS and gradP
+	// in the sense that the domega values will correspond to the same
+	// node depths as those computed for gradS and gradP.  These can
+	// be copied on return into the outputs, without any more interpolation
+	//  albeit in the reverse order.
 	//
 	int npath_P;
+	double z0=raydx1.depth(0);  // assume all four rays have same z0
 	npath_P = gradP.columns();
-	double *z = new double[npath_P];
-	dmatrix gradP_regular(3,npath);
-	Geographic_point gclp;
+	if(npath_P!=zP.size())
+		throw SeisppError(string("compute_domega_for_path:  ")
+		  + string("vector grid point depths and gradP matrix do not match"));
+	dmatrix temp(3,npath_P); // Holds interpolated gradS values before replacement
+	linear_vector_regular_to_irregular(z0,dz,*gradSdx1,&(zP[0]),temp);
+	dmatrix nudx1(gradP+temp);  // creates vector gradP + gradS
+	delete gradSdx1;  // Dont' need this any longer
+	// Same for dx2, dy1, and dy2
+	linear_vector_regular_to_irregular(z0,dz,*gradSdx2,&(zP[0]),temp);
+	dmatrix nudx2(gradP+temp);  
+	delete gradSdx2;  
+	linear_vector_regular_to_irregular(z0,dz,*gradSdy1,&(zP[0]),temp);
+	dmatrix nudy1(gradP+temp);  
+	delete gradSdy1;  
+	linear_vector_regular_to_irregular(z0,dz,*gradSdy2,&(zP[0]),temp);
+	dmatrix nudy2(gradP+temp);  
+	delete gradSdy2; 
+	// normalize using antelope function d3norm to make these unit vectors
 	for(i=0;i<npath_P;++i)
-	{
-		gclp = g.ctog(gradP(0,i), gradP(1,i),gradP(2,i));
-		z[i] = r0_ellipse(gclp.lat) - gclp.r;
-	}
-	delete [] z;   // finished with this so we better get rid of it
-	//
-	// Now we can compute sum of gradP and gradS to form unit vectors
-	// the nu matrices are created using a copy constructor with
-	// an embedded expression.  A bit obscure, but alternative 
-	// requires creation of temporary followed by an assignment.
-	//
-	dmatrix nudx1(gradP_regular + *gradSdx1);
-	dmatrix nudx2(gradP_regular + *gradSdx2);
-	dmatrix nudy1(gradP_regular + *gradSdy1);
-	dmatrix nudy2(gradP_regular + *gradSdy2);
-	// normalize using antelope function d3norm
-	for(i=0;i<npath;++i)
 	{
 		dr3norm(nudx1.get_address(0,i));
 		dr3norm(nudx2.get_address(0,i));
 		dr3norm(nudy1.get_address(0,i));
 		dr3norm(nudy2.get_address(0,i));
 	}
+/*
+mp.load(nudx1,string("nudx1"));
+mp.load(nudx2,string("nudx2"));
+mp.load(nudy1,string("nudy1"));
+mp.load(nudy2,string("nudy2"));
+mp.process(string("figure; unitvectorplot(nudx1);"));
+mp.process(string("figure; unitvectorplot(nudx2);"));
+mp.process(string("figure; unitvectorplot(nudy1);"));
+mp.process(string("figure; unitvectorplot(nudy2);"));
+mp.run_interactive();
+*/
 	//
 	// Now get domega using cross products between pairs of unit vectors and 
 	// small angle approximation (sin theta approx theta when theta is small)
 	//
 	vector<double>domega;
-	for(i=0;i<npath;++i)
+	for(i=0;i<npath_P;++i)
 	{
 		double cross[3];
 		double dtheta_x, dtheta_y,domega_i;
@@ -585,17 +647,9 @@ vector<double> compute_domega_for_path(SlownessVector& u0,double dux, double duy
 		// abs shouldn't be necessary really, but better
 		// safe than sorry given 0 cost
 		domega_i=fabs(dtheta_x*dtheta_y);
-		if(domega_i<domega_max)
-			domega.push_back(domega_i);
-		else
-			domega.push_back(domega_max);
+		domega.push_back(domega_i);
 	}
-
-	// cleanup of work vectors
-	delete pathdx1;  delete pathdx2;  delete pathdy1;  delete pathdy2;
-	delete gradSdx1;  delete gradSdx2;  delete gradSdy1;  delete gradSdy2;
-
-	return(domega);  // pointer to domega defined above 
+	return(domega);  
 }
 /* Much simpler routine to compute weight of this each member of a ray path
  * in generalized radon transform formula.  gradTp and gradTs are gradients
@@ -622,6 +676,44 @@ vector<double> compute_weight_for_path(dmatrix& gradTp,dmatrix& gradTs)
 		weight[j]=nrmsum*nrmsum*nrmsum/eightpisq;
 	}
 	return(weight);
+}
+/* Computing a running average of a specific length for a 
+series of numbers stored in x.  npts is the number of points
+in the smoother.  npts/2 on the left and right are padded as the 
+constants for the first and last npts that can be averaged.
+i.e. there is not endpoint tapering.  Return vector is x
+smoothed as requested. 
+*/
+vector<double> running_average(vector<double>& x, int ns)
+{
+	int nx=x.size();
+	int i,ii,j;
+	double avg;
+	vector<double> result(nx);
+
+	if(nx<=ns)
+	{
+		for(i=0,avg=0.0;i<nx;++i)
+			avg+=x[i];
+		avg=avg/static_cast<double>(nx);
+		for(i=0;i<nx;++i) result[i]=avg;
+	}
+	else
+	{
+		int npo2=(ns+1)/2;
+		double avglen=static_cast<double>(ns);
+		for(i=npo2-1;i<nx-(ns-npo2);++i)
+		{
+			for(j=i,ii=0,avg=0.0;ii<ns;++ii,++j)
+				avg+=x[j-npo2+1];
+			avg/=avglen;
+			result[i]=avg;
+		}
+		// pad front and back
+		for(i=npo2-2;i>=0;--i) result[i]=result[i+1];
+		for(i=nx-(ns-npo2);i<nx;++i) result[i]=result[i-1];
+	}
+	return(result);
 }
 // builds dfile names for migratione output
 string MakeDfileName(string base, int evid)
@@ -662,6 +754,41 @@ SlownessVector slowness_average(ThreeComponentEnsemble *d)
 	result.ux=ux/static_cast<double>(n);
 	result.uy=uy/static_cast<double>(n);
 	return(result);
+}
+/* Small helper retrieves hypocenter for current event.
+This was made a procedure to isolate the oddities required
+to manipulate the group pointer.  Done using datascope API
+as there is no current way to do this in my generalized C++
+database api.   I don't know enough about alternatives to
+know how to generalize this.
+*/
+Hypocenter GetHypoFromDB(DatascopeHandle& dbh)
+{
+	int ierr;
+	int is,ie;  // used for start and end record in a bundle
+	Hypocenter hypo;
+	Dbptr dbb;  // Bundle result
+	const string base_emess("GetHypoFromDB:  ");
+	// Get bundle pointer for lower level grouping 
+	ierr=dbgetv(dbh.db,0,"bundle",&dbb,0);
+	if(ierr==dbINVALID)
+		throw SeisppError(base_emess
+		  + string("dbgetv failed getting bundle pointer"));
+	dbget_range(dbb,&is,&ie);
+	// Assume one record is as good as another for next step
+	dbb.record=is;
+	ierr=dbgetv(dbb,0,"origin.lat",&(hypo.lat),
+			"origin.lon",&(hypo.lon),
+			"origin.depth",&(hypo.z),
+			"origin.time",&(hypo.time),
+			0);
+	if(ierr==dbINVALID)
+		throw SeisppError(base_emess
+		  + string("dbgetv failed getting hypo parameters"));
+	// db stores these in degrees, but we use radians internally
+	hypo.lat=rad(hypo.lat);
+	hypo.lon=rad(hypo.lon);
+	return(hypo);
 }
 //DEBUG
 // funtion using matlab engine to play a movie of a 3d scalar field
@@ -712,7 +839,6 @@ int main(int argc, char **argv)
 	Pf *pf;
 	const string schema("pwmig1.1");
 	int border_pad;
-	double domega_max; // upper limit on domega -- needed at shallow depths
 
         ios::sync_with_stdio();
         elog_init(argc,argv);
@@ -743,7 +869,6 @@ int main(int argc, char **argv)
 		string Pmodel1d_name=control.get_string("P_velocity_model1d_name");
 		string Smodel1d_name=control.get_string("S_velocity_model1d_name");
 		border_pad = control.get_int("border_padding");
-		domega_max=control.get_double("domega_max");
 		string parent_grid_name=control.get_string("Parent_GCLgrid_Name");
 		string stack_grid_name=control.get_string("stack_grid_name");
 		string fielddir=control.get_string("output_field_directory");
@@ -761,8 +886,22 @@ int main(int argc, char **argv)
 		double zmax=control.get_double("maximum_depth");
 		double tmax=control.get_double("maximum_time_lag");
 		double dux=control.get_double("slowness_grid_deltau");
+		double dt=control.get_double("data_sample_interval");
 		double duy=dux;
 		double dz=control.get_double("ray_trace_depth_increment");
+		//
+		// added Jan 2007 after recognition dweight and domega
+		// were nearly invariant for a given slowness and 
+		// were prone to creating artifacts at velocity discontinuities
+		//
+		bool rcomp_wt;
+		rcomp_wt=control.get_bool("recompute_weight_functions");
+		int nwtsmooth=control.get_int("weighting_function_smoother_length");
+		bool smooth_wt;
+		if(nwtsmooth<=0)
+			smooth_wt=false;
+		else
+			smooth_wt=true;
 		// Create a database handle for reading data objects
 		dbopen(const_cast<char *>(dbname.c_str()),"r+",&db);
 		if(db.record == dbINVALID)
@@ -782,7 +921,7 @@ int main(int argc, char **argv)
 		VelocityFieldToSlowness(Us3d);
 //DEBUG
 //MatlabProcessor mp(string("zemlya"));
-MatlabProcessor mp(stdout);
+//MatlabProcessor mp(stdout);
 /*
 cout << "Display P velocity model horizontal slices"<<endl;
 HorizontalSlicer(mp,Up3d);
@@ -840,14 +979,39 @@ HorizontalSlicer(mp,Us3d);
 		// load correct metadata into the ensmble and each member
 		MetadataList mdlin=pfget_mdlist(pf,"Station_mdlist");
 		MetadataList mdens=pfget_mdlist(pf,"Ensemble_mdlist");
-		DatascopeHandle dbh(db,pf,"dbprocess_commands");
+		// Outer loop over events.  This algorithm assumes
+		// dbh is doubly grouped by evid:gridid and then by evid
+		DatascopeHandle dbhens(db,pf,"dbprocess_commands");
+		list<string> groupkey;
+		groupkey.push_back(string("evid"));
+		DatascopeHandle dbh(dbhens);
+		dbh.group(groupkey);
 		dbh.rewind();
 		for(int record=0;record<dbh.number_tuples();++dbh,++record)
 		{
-			double dt; // useful shorthard
+			// First get the hypo for the current event
+			// Made a procedure to insulate form database api dependence
+			evid=dbh.get_int("evid");
+			// Get the range for this group and set the db pointer
+			// to first record.  This uses Datascope API directory
+			// and hence is a portability issue for future use
+			DBBundle dbb=dbh.get_range();
+			dbhens.db.record=dbb.start_record;
+			Hypocenter hypo=GetHypoFromDB(dbhens);
+			// We build the P wave travel time field once for each
+			// event as it is constant for all.  The border_pad parameter
+			// is needed because plane waves come from outside the range
+			// of the incident rays.  
+			auto_ptr<GCLscalarfield3d> TPptr(ComputeIncidentWaveRaygrid(parent,
+					border_pad,Up3d,Vp1d,hypo,zmax,tmax,dt));
+			// Now loop over plane wave components
+			for(dbhens.db.record=dbb.start_record;
+				dbhens.db.record<dbb.end_record;++dbhens.db.record)
+			{
 			// first read in the next ensemble
 			pwdata = new ThreeComponentEnsemble(dynamic_cast<DatabaseHandle&>
-					(dbh),mdlin,mdens,am);
+					(dbhens),mdlin,mdens,am);
+#ifdef MATLABDEBUG
 /*
 string chans[3]={"x1","x2","x3"};
 for(i=0;i<pwdata->member.size();++i)
@@ -867,26 +1031,42 @@ mp.load(*pwdata,chans);
 mp.process(string("figure;wigb(x1);figure;wigb(x2);figure;wigb(x3);"));
 mp.run_interactive();
 */
-			Hypocenter hypo;
+#endif
 cout << "DEBUG:  processing ensemble "<<record<<endl;
-cout << "DEBUG: ensemble size="<<pwdata->member.size();
+cout << "DEBUG: ensemble size="<<pwdata->member.size()<<endl;
+int gridid=pwdata->get_int("gridid");
+cout << "DEBUG:  this data is gridid="<<gridid<<endl;
+
+			// A useful warning
+			if(dt!=pwdata->member[0].dt)
+			{
+				cerr << "pwmig(WARNING):  evid="
+					<< evid
+					<< "sample rate mismatch. "<<endl
+					<< "expected dt="<<dt
+					<< "found dt="<<pwdata->member[0].dt
+					<<endl
+					<< "Data dt overrides dt from pf"<<endl;
+				dt=pwdata->member[0].dt;
+			}
 			Ray_Transformation_Operator *troptr;
-			evid=pwdata->get_int("evid");
-			hypo.lat=rad(pwdata->get_double("origin.lat"));
-			hypo.lon=rad(pwdata->get_double("origin.lon"));
-			hypo.z=pwdata->get_double("origin.depth");
-			hypo.time=pwdata->get_double("origin.time");
 			// The data are assumed grouped in the ensemble by a common
 			// Values do vary and we compute an average
 			SlownessVector ustack=slowness_average(pwdata);
-cout << "DEBUG: ux,uy="<<ustack.uy<<","<<ustack.uy<<endl;
+cout << "DEBUG: ux,uy="<<ustack.ux<<","<<ustack.uy<<endl;
+/*
+if(fabs(ustack.uy)>=0.007)
+{
+	cerr << "Skipping this component for debug"<<endl;
+	continue;
+}
+*/
 			string gridname;
 			GCLgrid3d *grdptr;
 			//
 			// This builds a 3d grid using ustack slowness rays with
 			// 2d grid parent as the surface grid array
 			// use first member of ensemble to get dt
-			dt=pwdata->member[0].dt;
 			grdptr =  Build_GCLraygrid(true,parent,ustack,hypo,
 				Vs1d,zmax,tmax,dt);
 			GCLgrid3d& raygrid=*grdptr;  // convenient shorthand because we keep changing this
@@ -901,21 +1081,31 @@ cout << "n3="<<raygrid.n3<<endl;
 			GCLscalarfield3d dweight(raygrid);
 			GCLscalarfield3d domega(raygrid);
 			GCLvectorfield3d pwdgrid(raygrid,3);
-			auto_ptr<GCLscalarfield3d> TPptr(ComputeIncidentWaveRaygrid(parent,
-					border_pad,Up3d,Vp1d,hypo,zmax,tmax,dt));
 
 			// loop through the ensemble associating each trace with a 
 			// point in the raygrid and interpolating to get time to depth.
 
+			// 
+			// this boolean is needed as part of optional setting 
+			// recomputing weighting functions for each ray path.
+			// When these weighting functions are computed only
+			// once for each plane wave component (rcomp_wf false)
+			// this seems the only safe and maintainable way to 
+			// make sure these functions are always initialized.
+			// They are way down in the code with too many 
+			// potential errors that could cause a break condition
+			// 
+			bool weight_functions_set=false;
+			// Warning:  n3 must not change in the loop below
+			int n3=raygrid.n3;
+			vector<double> domega_ij(n3),dweight_ij(n3);
 			for(is=0;is<pwdata->member.size();++is)
 			{
 				// convenient shorthand variables.  ns is data length
 				// while n3 is the ray path onto which data are mapped
 				int ns=pwdata->member[is].ns;
-				int n3=raygrid.n3;
 				double zmaxray,tmaxray;
-				vector<double> Stime(n3), SPtime(n3), 
-					domega_ij(n3),dweight_ij(n3);
+				vector<double> Stime(n3), SPtime(n3);
 				double t0;
 
 				dt=pwdata->member[is].dt;
@@ -952,13 +1142,22 @@ cout << "n3="<<raygrid.n3<<endl;
 				// it provides seems useful to me
 				gradTs = compute_gradS(raygrid,i,j,Vs1d);
 //DEBUG
+#ifdef MATLABDEBUG
+/*
 mp.load(gradTs,string("gradts"));
 mp.load(&(Stime[0]),Stime.size(),string("stime"));
 cout << "Loaded gradts and stime"<<endl;
 cout << "plotting gradts"<<endl;
 mp.process(string("plot3c(gradts);"));
+mp.process(string("pause(1)"));
+mp.load(*pathptr,string("spath"));
+cout << "plotting S wave path components for (i,j)="<<i<<","<<j;
+mp.process(string("plot3c(spath);"));
+*/
+#endif
 				dmatrix gradTp(3,n3);
 				dmatrix nup(3,n3);
+				vector<double> zP(n3);
 
 				// Now loop over each point on this ray computing the 
 				// p wave path and using it to compute the P time and
@@ -968,21 +1167,27 @@ mp.process(string("plot3c(gradts);"));
 				// caused by raygrid having upward oriented curves while
 				// the S ray path (pathptr) is oriented downward.  
 				bool tcompute_problem=false;
+				// Only need to compute P time to surface once for 
+				// each ray so we compute it before the loop below
+				double Tpr=compute_receiver_Ptime(raygrid,i,j,*TPptr,hypo);
 				for(k=0,kk=raygrid.n3-1;k<raygrid.n3;++k,--kk)
 				{
-					double tlag;
+					double tlag,Tpx;
 					vector<double>nu;
 					double vp;
 
 					nu = compute_unit_normal_P(*TPptr,raygrid.x1[i][j][k],
 						raygrid.x2[i][j][k], raygrid.x3[i][j][k]);
 					for(l=0;l<3;++l) nup(l,k)=nu[l];
-					vp=Vp1d.getv(raygrid.depth(i,j,k));
-					for(l=0;l<3;++l) gradTp(l,k)=nu[l]/vp;
+					// zP and gradTp are computed in reverse order
+					zP[kk]=raygrid.depth(i,j,k);
+					vp=Vp1d.getv(zP[kk]);
+					for(l=0;l<3;++l) gradTp(l,kk)=nu[l]/vp;
 //DEBUG
 
-					// Computer time lag between incident P and scattered S
-					tlag = compute_lag(raygrid,i,j,k,*TPptr,Stime[kk],hypo);
+					// Compute time lag between incident P and scattered S
+					Tpx=compute_scatter_point_Ptime(raygrid,i,j,k,*TPptr,hypo);
+					tlag=Tpx+Stime[kk]-Tpr;
 					if(tlag>=0)
 						SPtime[kk]=tlag;
 					else
@@ -991,6 +1196,7 @@ mp.process(string("plot3c(gradts);"));
 							SPtime[kk]=0.0;
 						else
 						{
+cout << "tcompute_problem flag raised: tlag="<<tlag<<" at kk="<<kk<<endl;
 							tcompute_problem=true;
 							break;
 						}
@@ -1000,6 +1206,8 @@ mp.process(string("plot3c(gradts);"));
 /*
 cout << "SP lag times\n";
 for(l=0;l<n3;++l) cout << SPtime[l] << endl;
+mp.load(&(SPtime[0]),SPtime.size(),string("sptime"));
+mp.process(string("plot(sptime);"));
 cout << "plotting gradTp"<<endl;
 mp.load(gradTp,string("gradTp"));
 mp.process(string("plot3c(gradtp);pause(1)"));
@@ -1013,33 +1221,41 @@ mp.process(string("plot3c(gradtp);pause(1)"));
 						<< j << ") Ray project dropped" << endl
 						<< "Failure in computing lag.  "
 						<< "Probably need to increase border_pad"<<endl;
-					break;
+					continue;
 
 				}
 				// We now interpolate the data with tlag values to map
 				// the data from time to an absolute location in space
+				// Note carefully SPtime and work sense is inverted from
+				// the raygrid.  i.e. they are oriented for a ray from the surface
+				// to the bottom.  Below we have to reverse this
 				dmatrix work(3,SPtime.size());
 				linear_vector_regular_to_irregular(t0,dt,pwdata->member[is].u,
 					&(SPtime[0]),work);
+#ifdef MATLABDEBUG
 //DEBUG
 /*
-cout << "Input data has this many samples->"<<pwdata->member[is].ns<<endl;
+cout << "Input data number of samples="<<pwdata->member[is].ns<<endl;
 cout << "DAta before interpolation" << endl;
 for(int ifoo=0;ifoo<pwdata->member[is].ns;++ifoo)
 	cout << pwdata->member[is].time(ifoo) << " "
 		<< pwdata->member[is].u(0,ifoo) << " "
 		<< pwdata->member[is].u(1,ifoo) << " "
 		<< pwdata->member[is].u(2,ifoo) << endl;
-mp.load(&(SPtime[0]),SPtime.size(),string("sptime"));
-mp.load(work,string("work"));
-cerr << "Loaded sptime and interpolated data (work matrix)"<endl;
-mp.run_interactive();
 */
+mp.load(pwdata->member[is],string("de"));
+mp.load(&(SPtime[0]),SPtime.size(),string("sptime"));
+mp.load(work,string("di"));
+cerr << "Loaded sptime and interpolated data (work matrix)"<<endl;
+mp.process(string("plot6c(de,sptime,di);pause(1.0);"));
+#endif
 
 				// Compute the transformation vector for each 
 				// ray point in space.  This comes in two flavors.
 				// A fast, inexact version and a exact slow version
 				//
+//DEBUG NOTE:  check that this is correctly oriented.  i.e. order of the work array
+// is inverted compared to raygrid 
 				if(use_depth_variable_transformation)
 				{
 					// the slow, exact method
@@ -1057,18 +1273,17 @@ mp.run_interactive();
 						*pathptr,ustack.azimuth());
 				}
 //DEBUG
-/*
-mp.load(work,string("work"));
-cerr << "work matrix loaded.  Before ray transformation"<endl;
-mp.process(string("plot3c(work);"));
-*/
+//mp.load(work,string("work"));
+//cerr << "work matrix loaded.  Before ray transformation"<endl;
+//mp.process(string("plot3c(work);"));
 				Ray_Transformation_Operator& trans_operator=*troptr;
 				work=trans_operator.apply(work);
 /*
 mp.load(work,string("work2"));
 cerr << "work matrix loaded as work2.  After ray transformaton"<endl;
-mp.process(string("figure; plot3c(work);"));
-mp.run_interactive();
+//mp.process(string("figure; plot3c(work);"));
+//mp.run_interactive();
+mp.process(string("plot3c6(work,work2)"));
 */
 				// done with these now
 				delete pathptr;
@@ -1077,36 +1292,60 @@ mp.run_interactive();
 				// This computes domega for a ray path in constant dz mode
 				// We would have to interpolate anyway to mesh with 
 				// time data choose the faster, coarser dz method here
-				domega_ij=compute_domega_for_path(ustack,dux,duy,
-					Vs1d, zmaxray,dz,domega_max,
-					raygrid, i, j, gradTp);
-				dweight_ij=compute_weight_for_path(gradTp,gradTs);
+				//
+				if(rcomp_wt || !weight_functions_set)
+				{
+				  domega_ij=compute_domega_for_path(ustack,dux,duy,
+					Vs1d, zmaxray,dz,
+					raygrid, i, j, gradTp,zP);
+				  dweight_ij=compute_weight_for_path(gradTp,gradTs);
 // DEBUG SECTION
 /*
 cout << "Plotting dweight and domega for (i,j)="<<i<<","<<j<<endl;
 mp.load(&(domega_ij[0]),domega_ij.size(),string("domega"));
 mp.load(&(dweight_ij[0]),dweight_ij.size(),string("dweight"));
-mp.process(string("plotow"));
+mp.process(string("plotow;figure;"));
 */
+				  if(smooth_wt)
+				  {
+					domega_ij=running_average(domega_ij,nwtsmooth);
+					dweight_ij=running_average(dweight_ij,nwtsmooth);
+				  }
+/*
+mp.load(&(domega_ij[0]),domega_ij.size(),string("domega"));
+mp.load(&(dweight_ij[0]),dweight_ij.size(),string("dweight"));
+mp.process(string("plotow;title 'after smoother';"));
+*/
+				  weight_functions_set=true;
+				}
+					
 				//
 				// copy transformed data to vector field
 				// copy weights and domega at same time
 				//
 
-				for(k=0;k<n3;++k)
+				for(k=0,kk=raygrid.n3-1;k<raygrid.n3;++k,--kk)
 				{
 					for(l=0;l<3;++l)
 					{
 						// DEBUG
-						pwdgrid.val[i][j][k][l]=work(l,k);
-						/*
-						pwdgrid.val[i][j][k][l]=work(l,k)
-							*dweight_ij[k]*domega_ij[k];
-						*/
+						//pwdgrid.val[i][j][k][l]=work(l,kk);
+						pwdgrid.val[i][j][k][l]=work(l,kk)
+							*dweight_ij[kk]*domega_ij[kk];
 					}
-					dweight.val[i][j][k]=dweight_ij[k];
-					domega.val[i][j][k]=domega_ij[k];
+					dweight.val[i][j][k]=dweight_ij[kk];
+					domega.val[i][j][k]=domega_ij[kk];
 				}
+#ifdef MATLABDEBUG
+//DEBUG
+/*
+dmatrix dproj(3,n3);
+for(k=0;k<n3;++k)
+	for(l=0;l<3;++l) dproj(l,k)=pwdgrid.val[i][j][k][l];
+mp.load(dproj,string("d"));
+mp.process(string("plot3c(d);pause(0.1);"));
+*/
+#endif
 			}
 			delete pwdata;
 /*
@@ -1133,11 +1372,17 @@ delete sfptr;
 			migrated_image += pwdgrid;
 			weights += dweight;
 			omega += domega;
+//DEBUG  save partial sums
+/*
+                dfile=MakeDfileName(dfilebase+string("_psum"),gridid+1000);
+                migrated_image.dbsave(db,"",fielddir,dfile,dfile);
+*/
+
 
 			delete grdptr;
 //if(debugexit) exit(1);
 
-		}
+		} // Bottom of plane wave component loop
 /*
 mp.run_interactive();
 GCLscalarfield3d *sfptr;
@@ -1182,6 +1427,7 @@ SliceX1(mp,omega);
 		migrated_image.zero();
 		weights.zero();
 		omega.zero();
+		} // bottom of event loop
 	}
 	catch (GCLgrid_error gcle)
 	{

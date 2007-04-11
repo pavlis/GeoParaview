@@ -12,8 +12,8 @@ using namespace SEISPP;
 /* computes the set of local
 verticals along the ray path in the GCLgrid cartesian system.  Because local
 vertical is a geographic concept the parent GCLGrid, g, needs to be passed
-to get geo coordinates.    The g grid is assumed to be coherent with 
-teh coordinatges of path.
+to get geo coordinates.    The g grid is assumed to be consistent with 
+the coordinates of path.
 */
 dmatrix *compute_local_verticals(GCLgrid& g, dmatrix& path)
 {
@@ -69,16 +69,21 @@ dmatrix Ray_Transformation_Operator::apply(dmatrix& in)
 	}
 	dmatrix out(nrow,ncol);
 
-	// my dmatrix class doesn't know about matrix vector multiply
-	// so I hand code this using an admittedly opaque approach
-	// using pointers.  Algorithm works because dmatrix elements
-	// are stored in packed storage ala fortran
+	// 
+	// This probably could be replaced with matrix vector
+	// multiples, but I took this approach under the (perhaps
+	// invalid) assumption this would be faster since it 
+	// uses pointer arithmetic avoiding all the operator()
+	// calls that would otherwise be needed.
+	//
 	for(i=0;i<ncol;++i)
 	{
 		double work[3];
 		work[0]=in(0,i);
 		work[1]=in(1,i);
 		work[2]=in(2,i);
+// DEBG:  zeroing vertical for test
+work[2]=0.0;
 		p=U[i].get_address(0,0);
 		out(0,i)=p[0]*work[0]+p[1]*work[1]+p[2]*work[2];
 		out(1,i)=p[3]*work[0]+p[4]*work[1]+p[5]*work[2];
