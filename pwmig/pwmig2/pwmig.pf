@@ -1,0 +1,84 @@
+Ensemble_mdlist	&Tbl{
+origin.lat real
+origin.lon real
+origin.depth real
+origin.time real
+pwstack.ux real
+pwstack.uy real
+pwstack.ux0 real
+pwstack.uy0 real
+gridid int
+evid int
+}
+velocity_model_grid fdsimdec=5_5_2
+P_velocity_model1d_name	prem
+P_velocity_model3d_name	Pvelocity
+Parent_GCLgrid_Name	subduct
+S_velocity_model1d_name	prem
+S_velocity_model3d_name	Svelocity
+Station_mdlist	&Tbl{
+nsamp int
+samprate real
+ux real
+uy real
+ux0 real
+uy0 real
+ix1 int 
+ix2 int
+pwstack.sta string
+pwstack.elev real
+datatype string
+dfile string
+dir string
+foff int
+time real
+endtime real 
+timetype string
+pwfid int
+}
+# User should never change this
+Coherence_trace_mdlist &Tbl{
+pwfid int
+nsamp int
+samprate real
+time real
+endtime real
+timetype string
+}
+#special subset condition here to look only at very limited angles
+dbprocess_commands	&Tbl{
+dbopen wfprocess
+dbjoin evlink
+dbjoin event
+dbjoin origin
+dbsubset orid==prefor
+dbjoin pwstack
+dbsort evid gridid ux uy
+dbgroup evid gridid
+}
+
+stack_grid_name	mig2
+border_padding	15
+output_field_directory	migrated_data
+output_filename_base	stest
+use_depth_variable_transformation	false
+maximum_depth	600.0
+maximum_time_lag	100.0
+fixed_u_mode	false
+slowness_grid_deltau	0.01
+ray_trace_depth_increment	1.0
+data_sample_interval 0.2
+# new Jan 25,2007 for weighting function fundamental problem
+recompute_weight_functions false
+weighting_function_smoother_length 10
+# New for coherence option
+use_grt_weights false
+use_coherence_weights true
+# Set to 3C to use coherence calculated for components in
+# cardinal directions.  
+coherence_weight_mode scalar
+# coherence weights are raised to this power.  Higher powers
+# make the weighting more aggresive with the dark side of approach
+# the linf norm
+coherence_weight_power 1.0
+pf_revision_time	1098359696
