@@ -1,4 +1,4 @@
-#include <strstream>
+#include <sstream>
 #include "stock.h"
 #include "arrays.h"
 #include "pf.h"
@@ -36,7 +36,7 @@ DepthDependentAperture::DepthDependentAperture(Pf *pf,string tag)
 	{
 		char *tline;
 		tline = (char *)gettbl(tlist,i);
-		istrstream instr(tline);
+		stringstream instr(tline);
 		instr >> t[i];
 		instr >> aperture[i];
 		instr >> cutoff[i];

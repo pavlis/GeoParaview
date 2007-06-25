@@ -46,7 +46,7 @@ class Coharray
 public:
 	double t0;
 	double dt;
-	double ns;
+	int ns;
 	double winlen;  // width of averaging window in time units
 	dmatrix compcoh;
 	vector<double> coh;
