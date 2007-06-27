@@ -135,12 +135,20 @@ Ray_Transformation_Operator::Ray_Transformation_Operator(GCLgrid& g,
 	x_vertical[0] = (path(0,0) - x0_c.x1)/DR;
 	x_vertical[1] = (path(1,0) - x0_c.x2)/DR;
 	x_vertical[2] = (path(2,0) - x0_c.x3)/DR;
-	
-	// Get the L direction from the first pair of points in path
-	x[0]= path(0,0) - path(0,1);
-	x[1]= path(1,0) - path(1,1);
-	x[2]= path(2,0) - path(2,1);
-	double nrmx = dnrm2(3,x,1);
+	// Get the L direction.  Loop is used to make sure the
+	// distance is not tiny which could lead to an NaN in
+	// the normalized vector.  Size assumes we are using km
+	// as the distance scale.  
+	const double dxmin(2.0);
+	double nrmx;
+	for(i=0;i<path.columns();++i)
+	{
+		x[0]= path(0,0) - path(0,i);
+		x[1]= path(1,0) - path(1,i);
+		x[2]= path(2,0) - path(2,i);
+		nrmx=dnrm2(3,x,1);
+		if(nrmx>dxmin) break;
+	}
 	dscal(3,1.0/nrmx,x,1);  // normalize to unit vector
 	// need to check for a vertical vector and revert to identity 
 	// to avoid roundoff problems
