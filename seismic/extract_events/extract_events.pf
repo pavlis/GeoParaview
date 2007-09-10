@@ -41,8 +41,9 @@ save_as_3c_objects false
 # travel time method and model for ttcalc
 method tttaup
 model iasp91
+preserve_original_chan true
 # Output channel names for wfdisc.  Ignored if save_as_3c_object
-# is set true. 
+# is set true or if preserve_original_chan is set true. 
 X1_channel_name E
 X2_channel_name N
 X3_channel_name Z
@@ -54,12 +55,22 @@ apply_free_surface_transformation false
 # units of km/s
 vp0 6.0
 vs0 3.5
-output_waveform_directory_base testwf/events
+output_waveform_directory_base testwf/sta
+# Determines directory structure (gathermode) of output 
+# trace data.  MUST be either "station_gathers" or
+# "event_gathers".  (defaults to station_gathers with lost of 
+# complaints if anything else).  An event_gather has output
+# trace files organized in event directories (orid as directory
+# name) while station_gather has sta as the directory name.
+gather_mode station_gathers
 filter DEMEAN
 # output data format.  Ignored when save_as_3c_objects is true
 # most useful to get miniseed data.  Header based formats like
 # sac are guaranteed to be incomplete
 datatype sd
+# resample_defintions is ignored if this boolean is false.
+# In that case no resampling is done.
+resample_data true
 # resampling recipe
 resample_definitions    &Arr{
     100 &Arr{

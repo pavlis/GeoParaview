@@ -149,6 +149,11 @@ ThreeComponentEnsemble *BuildRegularGather(ThreeComponentEnsemble& raw,
 			data_with_arrivals.push_back(i);
 	}
 	ThreeComponentSeismogram d;
+	bool do_resampling;
+	if(rdef.decset.size()>0)
+		do_resampling=true;
+	else
+		do_resampling=false;
 	for(index=data_with_arrivals.begin();index!=data_with_arrivals.end();++index)
 	{
 		d=raw.member[*index];
@@ -163,7 +168,8 @@ ThreeComponentEnsemble *BuildRegularGather(ThreeComponentEnsemble& raw,
 			x3=auto_ptr<TimeSeries>(ExtractComponent(d,2));
 			// resample if necessary.  Using auto_ptr to avoid temporary pointer
 			// and as good practice to avoid memory leaks
-			if( (abs( (d.dt)-target_dt)/target_dt) > samprate_tolerance)
+			if( ( (abs( (d.dt)-target_dt)/target_dt) > samprate_tolerance) 
+				&& do_resampling)
 			{
 				*x1=ResampleTimeSeries(*x1,rdef,target_dt,false);
 				*x2=ResampleTimeSeries(*x2,rdef,target_dt,false);
@@ -258,14 +264,29 @@ void ApplyFST(ThreeComponentEnsemble& e,Hypocenter& hypo,
 }
 /* These two routines build dir and dfile names respectively.  Currently
 the structure is frozen.  Ultimately needs a more general approach 
-ala antelope's trace library. */
-string BuildDirName(ThreeComponentEnsemble *g,string base)
+ala antelope's trace library. 
+
+The BuildDirName is a mess after going through some changes and should
+be redone.  Should really be split into two functions I suppose.   It
+acts very different depending on the mode variable.  When mode is "event_gather"
+it reads evid from the ensembles global metadata.  When mode is station_gather
+it reads sta from member[imember] of the current ensemble.  */
+string BuildDirName(ThreeComponentEnsemble *g,string base,string mode,int imember)
 {
 	/* for now we always uses evid as a dir name */
 	string result;
 	char buf[12];
 	stringstream ss(buf);
-	ss << g->get_int("evid");
+	if(mode=="event_gathers")
+		ss << g->get_int("evid");
+	else if(mode=="station_gathers")
+		ss << g->member[imember].get_string("sta");
+	else
+	{
+		cerr << "unknown gather type requested ="<<mode<<endl
+			<< "Using default of common station gathers"<<endl;
+		ss << g->member[imember].get_string("sta");
+	}
 	result=base + "/" + ss.str();
 	return(result);
 }
@@ -321,9 +342,11 @@ void SaveResults(DatascopeHandle& dbh,
 		AttributeMap& amo,
 			string chans[3],
 				string datatype,
-					string dir)
+					string basedir,
+						string gathermode,
+						      bool use_original_chan)
 {
-	int i,ns;
+	int i,imember,ns;
 	/* These are used only when miniseed is the output format */
 	int *idptr=0;
 	int nints=0;
@@ -333,7 +356,8 @@ void SaveResults(DatascopeHandle& dbh,
 	// this to be available.
 	int evid=gather->get_int("evid");
 	vector<ThreeComponentSeismogram>::iterator d;
-	for(d=gather->member.begin();d!=gather->member.end();++d)
+	string original_chan,chan_to_use;
+	for(imember=0,d=gather->member.begin();d!=gather->member.end();++d,++imember)
 	{
 	    if((d->live) && !(d->has_gap()))
 	    {
@@ -354,14 +378,27 @@ void SaveResults(DatascopeHandle& dbh,
 			{
 				TimeSeries *x;
 				x=ExtractComponent(*d,k);
+				/* this ONLY works with SEED chan codes and E,N,Z for 
+				chans array */
+				if(use_original_chan)
+				{
+					string chantmp=d->get_string("chan");
+					/* This takes the first 2 characters of chan*/
+					string p1(chantmp,0,2);
+					/* Assumes chans[k] is one on char like "E" */
+					chan_to_use=p1+chans[k];
+				}
+				else
+					chan_to_use=chans[k];
 		
 				ns=d->ns;
-				string dfile=BuildDfileName(gather,*d,chans[k]);
+				string dir=BuildDirName(gather,basedir,gathermode,imember);
+				string dfile=BuildDfileName(gather,*d,chan_to_use);
 				/* NOTE the following two routines need an error
 				return trap */
 				dbh.db.record=dbaddv(dbh.db,0,
 					"sta",sta.c_str(),
-					"chan",chans[k].c_str(),
+					"chan",chan_to_use.c_str(),
 					"time",time,
 					"endtime",endtime,
 					"jdate",yearday(time),
@@ -377,7 +414,7 @@ void SaveResults(DatascopeHandle& dbh,
 					string mes("dbaddv error on wfdisc.  ");
 					mes=mes+string("Data not saved for this entry in the db.\n");
 					mes=mes+string("You may need to edit output wfdisc.");
-					SaveWarning(sta,chans[k],evid,time,mes);
+					SaveWarning(sta,chan_to_use,evid,time,mes);
 				}
 				else if(datatype=="sd")
 				{
@@ -390,7 +427,7 @@ void SaveResults(DatascopeHandle& dbh,
 					call the routine to split the chan field */
 					char fchan[16],loc[16];
 					seed_loc(const_cast<char *>(sta.c_str()),
-						const_cast<char *>(chans[k].c_str()),
+						const_cast<char *>(chan_to_use.c_str()),
 						fchan,loc);
 					/* Default MSD_LEVEL and MSD_RECORD_SIZE define as option in 
 					the example.  These are items set in the example program. */
@@ -417,12 +454,12 @@ void SaveResults(DatascopeHandle& dbh,
 					if(problem & TR_TRUNCATED)
 					{
 						string mes("tr2ext truncated data");
-						SaveWarning(sta,chans[k],evid,time,mes);
+						SaveWarning(sta,chan_to_use,evid,time,mes);
 					}
 					if(problem & TR_CLIPPED)
 					{
 						string mes("tr2ext detected clipped data");
-						SaveWarning(sta,chans[k],evid,time,mes);
+						SaveWarning(sta,chan_to_use,evid,time,mes);
 					}
 					// save_record is defaulted with 0 as arg 2
 					retcode=cmsd(msd,0,idptr,ns);
@@ -440,7 +477,7 @@ void SaveResults(DatascopeHandle& dbh,
 					if(trputwf(dbh.db,trd))
 					{
 					  string mes("trputwf failed");
-					  SaveWarning(sta,chans[k],evid,time,mes);
+					  SaveWarning(sta,chan_to_use,evid,time,mes);
 					}
 					delete [] trd;
 				}
@@ -583,9 +620,18 @@ int main(int argc, char **argv)
 		similar to antelope approach allowing variable directory
 		naming.*/
 		string basedir=control.get_string("output_waveform_directory_base");
+		/* Should be either "station_gather" or "event_gather".  controls
+		output directory structure */
+		string gathermode=control.get_string("gather_mode");
 		string filter_param=control.get_string("filter");
 		TimeInvariantFilter filt(filter_param);
-		ResamplingDefinitions rdef(pf);
+		bool resample_data=control.get_bool("resample_data");
+		ResamplingDefinitions *rdef;
+		if(resample_data)
+			rdef = new ResamplingDefinitions(pf);
+		else
+			rdef = new ResamplingDefinitions();
+		bool preserve_original_chan=control.get_bool("preserve_original_chan");
 		// First get all the database components assembled.
 		// There are three here:  input data, output data, and beam data
 		DatascopeHandle dbh(dbin,true);
@@ -684,7 +730,10 @@ int main(int argc, char **argv)
 			}
 			FilterEnsemble(*rawdata,filt);
 
-			regular_gather=BuildRegularGather(*rawdata, dbhm,rdef,target_dt,
+			/* To keep BuildRegularGather simple we pass a null ResamplingDefinition
+			operator if we do not wish to resample the data. This is set 
+			above, so be aware in maintenance */
+			regular_gather=BuildRegularGather(*rawdata, dbhm,*rdef,target_dt,
 					processing_twin,use_arrival);
 			delete rawdata;
 			if(apply_fst)
@@ -698,12 +747,13 @@ int main(int argc, char **argv)
 			regular_gather->put("jday",jday);
 			free(year);
 			free(jday);
-			dir=BuildDirName(regular_gather,basedir);
 			if(save_as_3c)
 			{
 				for(i=0;i<regular_gather->member.size();++i)
 				{
 					int rec;
+					dir=BuildDirName(regular_gather,basedir,
+							gathermode,i);
 					regular_gather->member[i].put("wfprocess.dir",dir);
 					// set chan field for dfile 
 					regular_gather->put("chan",(char *)"3C");
@@ -726,7 +776,10 @@ int main(int argc, char **argv)
 			else
 			{
 				SaveResults(dbho,regular_gather,
-					am,outchans,datatype,dir);
+					am,outchans,datatype,
+					basedir,
+					gathermode,
+					preserve_original_chan);
 			}
 			
 			delete regular_gather;
