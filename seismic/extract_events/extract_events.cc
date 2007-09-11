@@ -344,7 +344,8 @@ void SaveResults(DatascopeHandle& dbh,
 				string datatype,
 					string basedir,
 						string gathermode,
-						      bool use_original_chan)
+			bool use_original_chan,
+				string net)
 {
 	int i,imember,ns;
 	/* These are used only when miniseed is the output format */
@@ -365,9 +366,6 @@ void SaveResults(DatascopeHandle& dbh,
 			// These must be in the trace metadata or data 
 			// will be dropped
 			string sta=d->get_string("sta");
-			string net("XX");
-			if(datatype=="sd")
-				net=d->get_string("net");
 			double time=d->t0;
 			double endtime=d->endtime();
 			// Must assume calib is equal for all components
@@ -616,6 +614,7 @@ int main(int argc, char **argv)
 		vp0=control.get_double("vp0");
 		vs0=control.get_double("vs0");
 		string datatype=control.get_string("datatype");
+		string net_code=control.get_string("net_code");
 		/* For now this is a fixed location.  Eventually needs to be
 		similar to antelope approach allowing variable directory
 		naming.*/
@@ -779,7 +778,8 @@ int main(int argc, char **argv)
 					am,outchans,datatype,
 					basedir,
 					gathermode,
-					preserve_original_chan);
+					preserve_original_chan,
+					net_code);
 			}
 			
 			delete regular_gather;

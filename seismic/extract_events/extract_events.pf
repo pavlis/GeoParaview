@@ -1,5 +1,4 @@
 station_mdlist &Tbl{
-net string
 sta string
 nsamp int
 samprate real
@@ -68,6 +67,13 @@ filter DEMEAN
 # most useful to get miniseed data.  Header based formats like
 # sac are guaranteed to be incomplete
 datatype sd
+# This sets the net code for ALL data when datatype is sd (miniseed)
+# Otherwise it is ignored.  Note this is not a proper solution to this
+# general problem.  The expectation, however, is this will not be
+# important for most users of this program so setting a fake
+# single net code for the entire output is acceptable.  Use
+# fix_miniseed if this causes problems.
+net_code ZZ
 # resample_defintions is ignored if this boolean is false.
 # In that case no resampling is done.
 resample_data true
