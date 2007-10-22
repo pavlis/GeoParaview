@@ -518,6 +518,8 @@ void usage()
 bool SEISPP::SEISPP_verbose=false;
 int main(int argc, char **argv)
 {
+	/* establish byte order */
+	bool intel_order=IntelByteOrder();
 	// This is a C++ thing.  Not required on all platforms, but
 	// recommended by all the books.  
 	ios::sync_with_stdio();
@@ -663,12 +665,20 @@ int main(int argc, char **argv)
 					<< endl;
 			}
 		}
+		/* These are actually only used in 3c mode, but we still have
+		to initialize them here */
+		DatascopeHandle dbhelink(dbho);
+		DatascopeHandle dbhsclink(dbho);
 		list<string> matchkeys;
 		matchkeys.push_back(string("sta"));
 		matchkeys.push_back(string("evid"));
 		DatascopeMatchHandle dbhm(dbcatalog,string(""),matchkeys,am);
 		if(save_as_3c)
+		{
 			dbho.lookup(string("wfprocess"));
+			dbhelink.lookup(string("evlink"));
+			dbhsclink.lookup(string("sclink"));
+		}
 		else
 			dbho.lookup(string("wfdisc"));
 		// These are pointers to dynamic objects used in the loop
@@ -751,16 +761,21 @@ int main(int argc, char **argv)
 				for(i=0;i<regular_gather->member.size();++i)
 				{
 					int rec;
+					string chan("3C");
+					string sta=regular_gather->member[i].get_string("sta");
 					dir=BuildDirName(regular_gather,basedir,
 							gathermode,i);
 					regular_gather->member[i].put("wfprocess.dir",dir);
 					// set chan field for dfile 
-					regular_gather->put("chan",(char *)"3C");
+					regular_gather->put("chan",(char *)"3c");
 					dfile=BuildDfileName(regular_gather,
 						regular_gather->member[i],
 						string("3C"));
 					regular_gather->member[i].put("wfprocess.dfile",dfile);
-					regular_gather->member[i].put("wfprocess.datatype","3c");
+					if(intel_order)
+						regular_gather->member[i].put("wfprocess.datatype","c3");
+					else
+						regular_gather->member[i].put("wfprocess.datatype","3c");
 					regular_gather->member[i].put("wfprocess.timetype","a");
 					/* A more elegant solution is needed for the following
 					It is necesary because we've used short names for certain
@@ -770,6 +785,15 @@ int main(int argc, char **argv)
 						dbho.db,
 						string("wfprocess"),
 						mdlo, amo);
+					dbho.set_record(rec);
+					int pwfid=dbho.get_int("pwfid");
+					dbhelink.append();
+					dbhelink.put(string("pwfid"),pwfid);
+					dbhelink.put(string("evid"),evid);
+					dbhsclink.append();
+					dbhsclink.put(string("pwfid"),pwfid);
+					dbhsclink.put(string("sta"),sta);
+					dbhsclink.put(string("chan"),chan);
 				}
 			}
 			else
