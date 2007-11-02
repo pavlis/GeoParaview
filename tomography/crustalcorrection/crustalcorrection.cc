@@ -37,6 +37,8 @@ dz interval.
 double ComputeDelayTime(VelocityModel_1d vmodel, double slow, 
 		double elev,double datum, double dz)
 {
+	const string turningerror("ComputeDelayTimes:  ray became evanescent.");
+	const string turnerr2(" Ray parameter passed is too large");
 	vector <double> dtau;
 	double z=-elev;
 	double u;
@@ -51,7 +53,9 @@ double ComputeDelayTime(VelocityModel_1d vmodel, double slow,
 		v=vmodel.getv(z);
 		vbar=(v+vlast)/2.0;
 		u=1/vbar;
-		dt=sqrt(u*u-slow*slow);
+		if(u<slow) 
+			throw SeisppError(turningerror+turnerr2);
+		dt=dz*sqrt(u*u-slow*slow);
 		dtau.push_back(dt);
 		vlast=v;
 		z+=dz;
@@ -61,7 +65,10 @@ double ComputeDelayTime(VelocityModel_1d vmodel, double slow,
 	{
 		z=datum;
 		vbar=(v+vlast)/2.0;
-		dt=sqrt(u*u-slow*slow);
+		u=1/vbar;
+		if(u<slow) 
+			throw SeisppError(turningerror+turnerr2);
+		dt=dz*sqrt(u*u-slow*slow);
 		dtau.push_back(dt);
 	}
 	/*integrate by simple sum*/
