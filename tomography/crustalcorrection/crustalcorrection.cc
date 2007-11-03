@@ -4,6 +4,7 @@
 #include "stock.h"
 #include "tt.h"
 #include "coords.h"
+#include "seispp.h"
 #include "dbpp.h"
 #include "Hypocenter.h"
 
@@ -98,7 +99,7 @@ void usage()
 	cerr << "crustalcorrection db [-f -v -pf pffile]"<<endl;
 	exit(-1);
 }
-bool SEISPP_verbose(false);
+extern bool SEISPP::SEISPP_verbose(false);
 int main(int argc, char **argv)
 {
 	int i;
