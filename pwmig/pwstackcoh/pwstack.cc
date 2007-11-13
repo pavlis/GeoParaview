@@ -16,7 +16,7 @@ bool Verbose;
 
 void usage()
 {
-    cbanner((char *)"$Revision: 1.3 $ $Date: 2007/11/13 18:47:18 $",
+    cbanner((char *)"$Revision: 1.4 $ $Date: 2007/11/13 18:51:42 $",
         (char *)"dbin dbout [-v -V -pf pfname]",
         (char *)"Gary Pavlis",
         (char *)"Indiana University",
@@ -29,7 +29,7 @@ void usage()
 MatlabProcessor mp(stdout);
 #endif
 
-extern bool SEISPP::SEISPP_verbose(false);
+bool SEISPP::SEISPP_verbose(false);
 int main(int argc, char **argv)
 {
     char *dbname_in, *dbname_out;
