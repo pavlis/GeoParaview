@@ -585,12 +585,9 @@ DatabaseHandle& dbh)
             {
                 /* We need to fetch these attributes so they can be saved
                 to the database */
-                ix1=soutptr->get_int("ix1");
-                ix2=soutptr->get_int("ix2");
                 gridid=soutptr->get_int("gridid");
                 ux=soutptr->get_double("ux");
                 uy=soutptr->get_double("uy");
-                sta=soutptr->get_string("sta");
                 dbwf.db.record=rec;
                 dbgetv(dbwf.db,0,"pwfid",&pwfid,0);
                 // now fill in the special table for this program
