@@ -60,6 +60,9 @@ public:
 		compcoh=dmatrix(3,ns);
 		compcoh.zero();
 	};
+	/* Standard copy constructor.*/
+	Coharray(const Coharray& parent);
+	Coharray& operator=(const Coharray& other);
 };
 void geographic_to_dne(double lat0, double lon0, double lat, double lon, 
 		double *dnorth, double *deast);
