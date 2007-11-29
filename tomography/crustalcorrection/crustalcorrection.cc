@@ -1,9 +1,11 @@
 #include <map>
+#include <sstream>
 #include "StationVariableVelocityModel.h"
 #include <string.h>
 #include "stock.h"
 #include "tt.h"
 #include "coords.h"
+#include "elog.h"
 #include "seispp.h"
 #include "dbpp.h"
 #include "Hypocenter.h"
@@ -26,6 +28,7 @@ DatascopeHandle BuildCatalogView(DatascopeHandle& dbh)
 	dbh.natural_join("site");
 	list<string> group_keys;
 	group_keys.push_back("evid");
+	dbh.group(group_keys);
 	return(dbh);
 }
 /* Primary seismology routine in this program.  It computes the delay time,
@@ -36,7 +39,7 @@ Note the integration always uses a velocity of the average at top and bottum of 
 dz interval.  
 */
 double ComputeDelayTime(VelocityModel_1d vmodel, double slow, 
-		double elev,double datum, double dz)
+		double elev,double dz, double datum)
 {
 	const string turningerror("ComputeDelayTimes:  ray became evanescent.");
 	const string turnerr2(" Ray parameter passed is too large");
@@ -49,7 +52,7 @@ double ComputeDelayTime(VelocityModel_1d vmodel, double slow,
 	double v,vbar,dt;
 	dtau.push_back(0.0);
 	z+=dz;
-	while(z<=datum)
+	while(z<datum)
 	{
 		v=vmodel.getv(z);
 		vbar=(v+vlast)/2.0;
@@ -62,14 +65,15 @@ double ComputeDelayTime(VelocityModel_1d vmodel, double slow,
 		z+=dz;
 	}
 	/* handle the last point */
-	if(z>datum)
+	if(z>=datum)
 	{
+		double ddz=datum-(z-dz);
 		z=datum;
 		vbar=(v+vlast)/2.0;
 		u=1/vbar;
 		if(u<slow) 
 			throw SeisppError(turningerror+turnerr2);
-		dt=dz*sqrt(u*u-slow*slow);
+		dt=ddz*sqrt(u*u-slow*slow);
 		dtau.push_back(dt);
 	}
 	/*integrate by simple sum*/
@@ -87,7 +91,7 @@ list<string> pfget_vdef(Pf *pf)
 	t=pfget_tbl(pf,"vmodel_map");
 	int i;
 	char *line;
-	for(i-0;i<maxtbl(t);++i)
+	for(i=0;i<maxtbl(t);++i)
 	{
 		line=(char *)gettbl(t,i);
 		vlist.push_back(string(line));
@@ -99,15 +103,15 @@ void usage()
 	cerr << "crustalcorrection db [-f -v -pf pffile]"<<endl;
 	exit(-1);
 }
-extern bool SEISPP::SEISPP_verbose(false);
+bool SEISPP::SEISPP_verbose(false);
 int main(int argc, char **argv)
 {
 	int i;
-	if(argc<3) usage();
+	if(argc<2) usage();
 	string db(argv[1]);
 	string pfname("crustalcorrection");
 	bool unix_filter_mode(false);
-	for(i=3;i<argc;++i)
+	for(i=2;i<argc;++i)
 	{
 		string sarg(argv[i]);
 		if(sarg=="-pf")
@@ -153,13 +157,20 @@ int main(int argc, char **argv)
 			exit(-2);
 		}
 		list<string> phaselist;
+		map<string,string> phasemodmap;
 		for(i=0;i<maxtbl(t);++i)
 		{
 			char *ph;
+			string thisphase,thismodtype;
 			ph=(char *)gettbl(t,i);
-			phaselist.push_back(string(ph));
+			stringstream ss(ph);
+			ss>>thisphase;
+			ss>>thismodtype;
+			phasemodmap[thisphase]=thismodtype;
 		}
-		string property=modtype+"velocity";
+		/* We test this many times so best to avoid repeated
+		calls to this method */
+		map<string,string>::iterator pmmend=phasemodmap.end();
 		/* We need to not apply this program to arrivals less than 
 		some reasonable cutoff to avoid sqrt of negative numbers
 		from turning rays.  Easier to do this than add such a check
@@ -174,7 +185,8 @@ int main(int argc, char **argv)
 		DatascopeHandle dbhin(db,false);
 		DatascopeHandle dbhmod(dbhin);
 		dbhmod.lookup("mod1d");
-		VelocityModel_1d reference_model(dbhmod.db,reference_model_name,property);
+		VelocityModel_1d reference_model(dbhmod.db,reference_model_name,
+			modtype);
 		/* Load a list of velocity models assigned to each station */
 		list<string> vdef=pfget_vdef(pf);
 		StationVariableVelocityModel cmodels(dbhmod,vdef,default_vname,modtype);
@@ -184,13 +196,27 @@ int main(int argc, char **argv)
 		{
 			double delta,depth,slowness,elev;
 			string sta;
-			while(cin.good())
+			while(!cin.eof())
 			{
 				cin >> phase;
 				cin >> sta;
 				cin >> elev;
 				cin >> delta;
 				cin >> depth;
+				if(delta<deltamin)
+				{
+					cerr << "Delta="<<delta
+						<< " is less than minimum allowed="
+						<< deltamin<<endl;
+					continue;
+				}
+				if(phasemodmap.find(phase)==pmmend)
+				{
+					cerr << "phase "
+						<< phase
+						<< " is not on allowed phase list."
+						<< "Fix parameter file to change allowed phase list"<<endl;
+				}
 				slowness=phase_slowness(const_cast<char *>(phase.c_str()),
 									delta,depth);
 				VelocityModel_1d vmod=cmodels.getmod(sta);
@@ -205,24 +231,27 @@ int main(int argc, char **argv)
 			We then work through the group event by event.*/
 			DatascopeHandle dbhcat=BuildCatalogView(dbhin);
 			dbhcat.rewind();
-			for(i=0;i<dbhcat.number_tuples();++i)
+			for(i=0;i<dbhcat.number_tuples();++i,++dbhcat)
 			{
 				DBBundle bundle=dbhcat.get_range();
 				Dbptr dbp=bundle.parent;
 				double lat,lon,depth,atime,time;
 				double elev,slowness;
+				double delta;
 				double slowmag,predtime;
 				double resid;
+				int evid;
 				char assocphase[10],csta[8];
 				dbp.record=bundle.start_record;
 				dbgetv(dbp,0,"origin.lat",&lat,
 					"origin.lon",&lon,
 					"origin.depth",&depth,
-					"origin.time",&time,0);
+					"origin.time",&time,
+					"evid",&evid,0);
 				Hypocenter hypo(rad(lat),rad(lon),depth,time,method,model);
 				Dbptr dbassoc; // need this to fetch the assoc row
 				for(dbp.record=bundle.start_record;
-					dbp.record<=bundle.end_record;++dbp.record)
+					dbp.record<bundle.end_record;++dbp.record)
 				{
 					/* Using the straight datascope interface here instead
 					of the seispp version for efficiency and because we are
@@ -234,31 +263,71 @@ int main(int argc, char **argv)
 						"site.elev",&elev,
 						"assoc.phase",assocphase,
 						"assoc.sta",csta,
+						"assoc.delta",&delta,
 						"arrival.time",&atime,
 						0);
-					if(iret=dbINVALID)
+					phase=string(assocphase);
+					if(iret==dbINVALID)
 					{
 						cerr << "dbgetv error at row "
 							<< dbp.record
 							<< " of working db view"
 							<< endl;
-						exit(-2);
+						elog_die(1,"Error from antelope");
 					}
-					if(phase==assocphase)
+					if(phasemodmap.find(assocphase)==pmmend)
 					{
-						SlownessVector slowness=hypo.phaseslow(rad(lat),
-							rad(lon), elev, phase);
-						slowmag=slowness.mag();
-						predtime=hypo.phasetime(rad(lat),
-							rad(lon), elev, phase);
-						string sta(csta);
-						VelocityModel_1d vmod=cmodels.getmod(sta);
-						// Note elev to reference is always set to 0 here 
-						tauref=ComputeDelayTime(reference_model,slowness.mag(),0.0,dz,datum);
-						tau=ComputeDelayTime(vmod,slowness.mag(),elev,dz,datum);
-						resid=atime-predtime-(tau-tauref);
-						string vmodel=model+":"+sta;
-						dbputv(dbassoc,0,"timeres",resid,"vmodel",vmodel.c_str(),0);
+					   if(SEISPP_verbose)
+					   {
+						cerr << "skipping data for phase="
+							<< phase<<endl
+							<<"Not in allowed phase list.  Check parameter file."<< endl;
+					   }
+					}
+					else
+					{
+						if( (delta<deltamin)
+							&& SEISPP_verbose)
+						{
+							cerr << "sta="
+								<< csta
+								<<" phase="
+								<< assocphase
+								<<" evid="
+								<< evid<<endl
+							<< "delta<deltamin residual calculation skipped"
+							<<endl;
+
+						}
+						else
+						{
+							SlownessVector slowness=hypo.phaseslow(rad(lat),
+								rad(lon), elev, phase);
+							slowmag=slowness.mag();
+							predtime=hypo.phasetime(rad(lat),
+								rad(lon), elev, phase);
+							string sta(csta);
+							VelocityModel_1d vmod=cmodels.getmod(sta);
+							// Note elev to reference is always set to 0 here 
+							tauref=ComputeDelayTime(reference_model,slowness.mag(),0.0,dz,datum);
+							tau=ComputeDelayTime(vmod,slowness.mag(),elev,dz,datum);
+							resid=atime-hypo.time
+								-predtime-(tau-tauref);
+							string vmodel=model+":"+sta;
+							dbputv(dbassoc,0,"timeres",resid,"vmodel",vmodel.c_str(),0);
+							if(SEISPP_verbose)
+							{
+								cout <<  "sta="
+                                                                << csta
+                                                                <<" phase="
+                                                                << assocphase
+                                                                <<" evid="
+                                                                << evid
+								<< " dt="
+								<< tau-tauref
+								<<endl;
+							}
+						}
 					}
 				}
 			}

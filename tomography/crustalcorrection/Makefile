@@ -1,6 +1,6 @@
 BIN=crustalcorrection
-PF=crustalcorrection.o
-MAN1=crustalcorrection.o
+PF=crustalcorrection.pf
+MAN1=crustalcorrection.1
 ldlibs=$(DBLIBS) -lseispp
 
 include $(ANTELOPEMAKE)  	

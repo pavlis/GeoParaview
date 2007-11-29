@@ -1,6 +1,6 @@
 #include <stdio.h>
 #include "seispp.h"
-#include "StationVAriableVelocityModel.h"
+#include "StationVariableVelocityModel.h"
 namespace SEISPP {
 using namespace std;
 using namespace SEISPP;
@@ -11,16 +11,7 @@ StationVariableVelocityModel::StationVariableVelocityModel(DatabaseHandle& dbhra
 	default_vmodel_name=default_vname;
 	list<string>::iterator inputline;
 	char sta[30],modelname[40];
-	string property;
 	DatascopeHandle dbh=dynamic_cast<DatascopeHandle&>(dbhraw);
-	if(type=="P")
-		property=string("Pvelocity");
-	else if(type=="S")
-		property=string("Svelocity");
-	else
-		throw SeisppError(string("StationVariableVelocityModel database")
-		 + string(" constructor.  Illegal model type ")
-		+ type + string(" requested") );
 	/* This creates a new entry for the default model */
 	string defline("default ");
 	defline=defline+default_vname;
@@ -30,7 +21,7 @@ StationVariableVelocityModel::StationVariableVelocityModel(DatabaseHandle& dbhra
 		sscanf(inputline->c_str(),"%s%s",sta,modelname);
 		try {
 			models[string(sta)] = VelocityModel_1d(dbh.db,
-				string(modelname),property);
+				string(modelname),type);
 		} catch (VelocityModel_1d_Dberror vdbe)
 		{
 			throw SeisppError(string("StationVariableVelocityModel database constructor:  ")	
