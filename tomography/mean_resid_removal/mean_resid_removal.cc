@@ -61,7 +61,7 @@ int main(int argc, char **argv)
 			residuals.clear();
 			double timeres;
 			for(dbp.record=bundle.start_record;
-				dbp.record<=bundle.end_record;++dbp.record)
+				dbp.record<bundle.end_record;++dbp.record)
 			{
 				int iret;
 				iret=dbgetv(dbp,0,"assoc",&dbassoc,
@@ -81,7 +81,7 @@ int main(int argc, char **argv)
 			int ntimes=residuals.size();
 			for(j=0,tmean=0.0;j<ntimes;++j)
 			{
-				tmean+=residuals[i];
+				tmean+=residuals[j];
 			}
 			tmean /= static_cast<double>(ntimes);
 			cout << evid <<"  "
