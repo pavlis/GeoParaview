@@ -104,7 +104,6 @@ ensemble metadata.
 */
 int pwstack_ensemble(ThreeComponentEnsemble& indata,
 RectangularSlownessGrid& ugrid,
-TopMute& mute,
 TopMute& stackmute,
 double tstart,
 double tend,
@@ -171,8 +170,7 @@ DatabaseHandle& dbh)
     int istart = SEISPP::nint(tstart/dt);
     int iend = SEISPP::nint(tend/dt);
     int nsout = iend-istart+1;
-    int ismute = SEISPP::nint(mute.t1/dt);
-    int ismute_this, ie_this;
+    int ie_this;
     DatascopeHandle& dshandle=dynamic_cast<DatascopeHandle&>(dbh);
     DatascopeHandle dbstack(dshandle);
     dbstack.lookup("pwstack");
@@ -187,8 +185,6 @@ DatabaseHandle& dbh)
         elog_die(0,(char *)"Irreconcilable window request:  Requested stack time window = %lf to %lf\nThis is outside range of input data\n",
             tstart,tend);
 
-    /* Apply front end mutes to all traces */
-    ApplyTopMute(indata,mute);
 
     /* We need dnorth, deast vectors to compute moveout sensibly
     for this program.  Since we use them repeatedly we will
@@ -345,7 +341,7 @@ DatabaseHandle& dbh)
             // data are aligned on the P arrival
             compute_pwmoveout(nsta,&(deast[0]),&(dnorth[0]),dux,duy,&(moveout[0]));
             int icol;
-            for(i=0,icol=0,iv=indata.member.begin(),ismute_this=0,iend_this=0,ismin=nsout;
+            for(i=0,icol=0,iv=indata.member.begin(),iend_this=0,ismin=nsout;
                 iv!=indata.member.end();++iv,++i)
             {
                 int is0,ietest, is, ns_to_copy;
@@ -585,9 +581,12 @@ DatabaseHandle& dbh)
             {
                 /* We need to fetch these attributes so they can be saved
                 to the database */
+                ix1=soutptr->get_int("ix1");
+                ix2=soutptr->get_int("ix2");
                 gridid=soutptr->get_int("gridid");
                 ux=soutptr->get_double("ux");
                 uy=soutptr->get_double("uy");
+                sta=soutptr->get_string("sta");
                 dbwf.db.record=rec;
                 dbgetv(dbwf.db,0,"pwfid",&pwfid,0);
                 // now fill in the special table for this program

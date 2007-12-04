@@ -16,7 +16,7 @@ bool Verbose;
 
 void usage()
 {
-    cbanner((char *)"$Revision: 1.4 $ $Date: 2007/11/13 18:51:42 $",
+    cbanner((char *)"$Revision: 1.5 $ $Date: 2007/12/04 15:40:32 $",
         (char *)"dbin dbout [-v -V -pf pfname]",
         (char *)"Gary Pavlis",
         (char *)"Indiana University",
@@ -187,6 +187,7 @@ int main(int argc, char **argv)
             mp.process(string("wigb(x3)"));
             mp.run_interactive();
             */
+	    ApplyTopMute(*ensemble,mute);
             // this should probably be in a try block, but we need to
             // extract it here or we extract it many times later.
             evid=ensemble->get_int("evid");
@@ -229,7 +230,6 @@ int main(int argc, char **argv)
                     cerr << "Working on grid i,j = " << i << "," << j << endl;
                     iret=pwstack_ensemble(*ensemble,
                         ugrid,
-                        mute,
                         stackmute,
                         ts,
                         te,

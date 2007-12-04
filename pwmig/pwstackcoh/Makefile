@@ -4,8 +4,7 @@ DATADIR=schemas
 DATA=pwmig1.2
 
 #MAN1=pwstack.1
-cxxflags=-g
-DBG=-g
+cflags=-g
 # Use the following for Solaris
 ldflags=-lseispp -lgclgrid -ltrvltm -lpfstream -lbrttutil $(TRLIBS) $(DBLIBS) -lperf -lgclgrid -lseispp
 # Following is required to work with g++ 3.2.3

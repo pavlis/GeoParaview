@@ -74,7 +74,6 @@ void compute_pwmoveout(int nsta,double *deast, double *dnorth,
                 double ux, double uy, double *moveout);
 int pwstack_ensemble(ThreeComponentEnsemble& indata,
 	RectangularSlownessGrid& ugrid,
-	TopMute& mute,
 	TopMute& stackmute,
 	double tstart,
 	double tend,
