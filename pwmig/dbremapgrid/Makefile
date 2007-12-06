@@ -7,7 +7,7 @@ LD=CC
 
 #cflags=-g -DSUNPERF
 cflags=-g 
-ldlibs= -lseispp -lgclgrid -ltrvltm $(DBLIBS) -lperf -lm
+ldlibs= -lseispp -lgclgrid -ltrvltm $(DBLIBS) -lperf -lm -lgclgrid
 
 include $(ANTELOPEMAKE)
 DIRS=
