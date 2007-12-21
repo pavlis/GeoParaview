@@ -112,10 +112,9 @@ DepthDependentAperture& aperture,
 double dtcoh,
 double cohwinlen,
 MetadataList& mdlcopy,
-MetadataList& mdlout,
-AttributeMap& am,
-string dir,
-DatabaseHandle& dbh)
+PwmigFileHandle dfh,
+PwmigFileHandle coh3cfh,
+PwmigFileHandle cohfh)
 {
     // lat0 and lon0 are location of target pseudostation grid point
     // elev0 is elevation of datum to use for geometric statics
@@ -173,15 +172,6 @@ DatabaseHandle& dbh)
     int nsout = iend-istart+1;
     int ismute = SEISPP::nint(mute.t1/dt);
     int ismute_this, ie_this;
-    DatascopeHandle& dshandle=dynamic_cast<DatascopeHandle&>(dbh);
-    DatascopeHandle dbstack(dshandle);
-    dbstack.lookup("pwstack");
-    DatascopeHandle dbevl(dshandle);
-    dbevl.lookup("evlink");
-    DatascopeHandle dbwf(dshandle);
-    dbwf.lookup("wfprocess");
-    DatascopeHandle dbcoh(dshandle);
-    dbcoh.lookup("attrlink");
 
     if(istart>=indata.member[0].ns)
         elog_die(0,(char *)"Irreconcilable window request:  Requested stack time window = %lf to %lf\nThis is outside range of input data\n",
@@ -513,36 +503,12 @@ DatabaseHandle& dbh)
             stackout->put("gridid",gridid);
             stackout->put("dux",dux);
             stackout->put("duy",duy);
-            // These could be copied with the copy_selected_metadata
-            // call above, but it is better to do this explicitly
-            // as these are completely internal parameters
-            //
-            /* Depricated in db output so I'll remove these three
-            stackout->put("lat0",lat0);
-            stackout->put("lon0",lon0);
-            stackout->put("elev0",elev0);
-            */
             stackout->put("ux0",ux0);
             stackout->put("uy0",uy0);
             // may want to output a static here, but it is probably better to
             // just keep a good estimate of elevation and deal with this in the
             // migration algorithm.
             stackout->put("elev",avg_elev);
-            // These are needed in out waveform output file and
-            // with this method they need to be pushed to the Metadata
-            // area of the stackout object.
-            stackout->put("wfprocess.time",stackout->t0);
-            stackout->put("time",stackout->t0);
-            stackout->put("wfprocess.endtime",stackout->endtime());
-                                                  // always relative
-            stackout->put("wfprocess.timetype","r");
-            stackout->put("wfprocess.dir",dir);
-            dfile=MakeDfileName(evid, ix1, ix2);
-            stackout->put("wfprocess.dfile",dfile);
-            stackout->put("wfprocess.datatype","3c");
-            stackout->put("samprate",1.0/dt);
-            stackout->put("nsamp",nsout);
-            stackout->put("wfprocess.algorithm","pwstack");
             ApplyTopMute(*stackout,stackmute);
 #ifdef MATLABDEBUG
             double smax=0.0;
@@ -565,7 +531,6 @@ DatabaseHandle& dbh)
             coharraylist.push_back(coh);
         }
     }
-    string table_name("wfprocess");
     list<ThreeComponentSeismogram>::iterator soutptr;
     list<Coharray>::iterator cohptr;
     /* Loop over the results of above.  Note we assume here that
@@ -575,67 +540,8 @@ DatabaseHandle& dbh)
     {
         try
         {
-            int pwfid;
-            int rec;
-            rec=dbsave(*soutptr,dshandle.db,table_name,mdlout,am);
-            // negative rec means nothings saved.
-            // skip silently because this happens when
-            // marked dead
-            if(rec>=0)
-            {
-                /* We need to fetch these attributes so they can be saved
-                to the database */
-                ix1=soutptr->get_int("ix1");
-                ix2=soutptr->get_int("ix2");
-                gridid=soutptr->get_int("gridid");
-                ux=soutptr->get_double("ux");
-                uy=soutptr->get_double("uy");
-                sta=soutptr->get_string("sta");
-                dbwf.db.record=rec;
-                dbgetv(dbwf.db,0,"pwfid",&pwfid,0);
-                // now fill in the special table for this program
-                dbstack.append();
-                dbstack.put("gridname",gridname);
-                dbstack.put("ix1",ix1);
-                dbstack.put("ix2",ix2);
-                // Database receives dux,duy, not the grid
-                // ux,uy.  i.e. ux,uy in the db is the actual
-                // plane wave slowness vector used for stack
-                // watch out for this internal symbolic confusion
-                dbstack.put("ux",dux);
-                dbstack.put("uy",duy);
-                dbstack.put("gridid",gridid);
-                dbstack.put("ux0",ux0);
-                dbstack.put("uy0",uy0);
-                dbstack.put("pwfid",pwfid);
-                dbstack.put("sta",sta);
-                // Perhaps should put this out as a static, but we
-                // save the elevation instead and compute it in
-                // the migration algorithm where a velocity available.
-                // Here we'd have to get that information to this point
-                dbstack.put("elev",avg_elev);
-                //
-                // Now for event link table -- awful database table, but
-                // see now way around it if we are to retain a css back
-                // compatibility
-                //
-                try
-                {
-                    dbevl.append();
-                    dbevl.put("evid",evid);
-                    dbevl.put("pwfid",pwfid);
-                    save_coh(dbwf,dbcoh,*cohptr,*soutptr,
-                        pwfid,mdlout,am);
-                } catch (...)
-                {
-                    cerr << "Problems saving coherence data"
-                        << " for parent trace pwfid="
-                        << pwfid<<endl
-                        << "Coherence feature will not"
-                        << " be available for pwmig"
-                        <<endl;
-                }
-            }
+	    dfh.save(*soutptr);
+	    save_coh(*cohptr,*soutptr,coh3cfh,cohfh);
         }
         catch(SeisppError& err)
         {

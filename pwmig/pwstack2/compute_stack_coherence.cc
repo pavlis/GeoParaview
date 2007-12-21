@@ -184,26 +184,16 @@ Coharray& Coharray::operator=(const Coharray& parent)
 linked by attribute link table.
 
 Arguments -
-    dbhwf handle to waveform table.  Currently this is always
-        cast to wfprocess no matter what it is given.
-    dbhcoh - Handle pointing at attribute link table
-        This MUST be already pointing to this table or this
-        routine will fail.
     coh - result of coherence calculator used in this program.
     stack - stack from which coh was derived.  It is assumed
-this was already saved to the database without
-problems.
-pwfid - waveform id from database save of stack.
-mdl - trace metadata save list
-am - attribute map for output data schema.
+    pfhcoh3c - special file handle for pwmig to hold 3c data
+    pfhcoh - special file handle for pwmig for scalar coh data
 */
-void save_coh(DatascopeHandle& dbhwf,
-DatascopeHandle& dbhcoh,
-Coharray& coh,
-ThreeComponentSeismogram& stack,
-int pwfid,
-MetadataList& mdl,
-AttributeMap& am)
+
+void save_coh(Coharray& coh,
+  ThreeComponentSeismogram& stack,
+    PwmigFileHandle& pfhcoh3c,
+      PwmigFileHandle& pfhcoh)
 {
     try
     {
@@ -220,29 +210,8 @@ AttributeMap& am)
         cohtrace->dt=coh.dt;
         cohtrace->s=coh.coh;
         coh3ctrace.u=coh.compcoh;
-        int rec;
-        // Somewhat restrictive but acceptable for startup
-        string table_name("wfprocess");
-        rec=dbsave(coh3ctrace,dbhwf.db,table_name,mdl,am);
-        if(rec<0) throw SeisppDberror(
-                string("Error saving 3C coherence trace to wfprocess table"),
-                dbhwf.db,SEISPP::complain);
-        dbhwf.db.record=rec;
-        int pwfidcoh;
-        dbgetv(dbhwf.db,0,"pwfid",&pwfidcoh,0);
-        dbhcoh.append();
-        dbhcoh.put("pwfid",pwfid);
-        dbhcoh.put("attwfid",pwfidcoh);
-        // almost the same for scalar trace
-        rec=dbsave(*cohtrace,dbhwf.db,table_name,mdl,am);
-        if(rec<0) throw SeisppDberror(
-                string("Error saving coherence trace to wfprocess table"),
-                dbhwf.db,SEISPP::complain);
-        dbhwf.db.record=rec;
-        dbgetv(dbhwf.db,0,"pwfid",&pwfidcoh,0);
-        dbhcoh.append();
-        dbhcoh.put("pwfid",pwfid);
-        dbhcoh.put("attwfid",pwfidcoh);
+	pfhcoh3c.save(coh3ctrace);
+	pfhcoh.save(*cohtrace);;
     }
     catch (...)
     {

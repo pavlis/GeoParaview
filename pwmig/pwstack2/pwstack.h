@@ -1,6 +1,7 @@
 #include "SeisppError.h"
 #include "ensemble.h"
 #include "mute.h"
+#include "PwmigFileHandle.h"
 #ifdef MATLABDEBUG
 #include "MatlabProcessor.h"
 #endif
@@ -82,17 +83,15 @@ int pwstack_ensemble(ThreeComponentEnsemble& indata,
 	double dtcoh,
 	double cohtwin,
 	MetadataList& mdlcopy,
-	MetadataList& mdlout,
-	AttributeMap& am,
-	string dir,
-	DatabaseHandle& dbh);
+	PwmigFileHandle dfh,
+	PwmigFileHandle coh3cfh,
+	PwmigFileHandle cohfh);
 string virtual_station_name(int ix1, int ix2);
 Coharray compute_stack_coherence(vector<dmatrix> d,
 	dmatrix& wgt,ThreeComponentSeismogram& stack,
 	double dtcoh,double cohavgwin,TopMute& mute);
-void save_coh(DatascopeHandle& dbhwf, DatascopeHandle& dbhcoh,
-	Coharray& coh, ThreeComponentSeismogram& stack,
-	int pwfid, MetadataList& mdl, AttributeMap& am);
+void save_coh(Coharray& coh, ThreeComponentSeismogram& stack,
+	PwmigFileHandle& pfhcoh3c, PwmigFileHandle& pfhcoh);
 //DEBUG
 #ifdef MATLABDEBUG
 extern MatlabProcessor mp;

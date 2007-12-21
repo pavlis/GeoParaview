@@ -7,6 +7,7 @@
 #include "gclgrid.h"
 #include "Hypocenter.h"
 #include "seispp.h"
+#include "PwmigFileHandle.h"
 #include "pwstack.h"
 
 using namespace std;
@@ -16,7 +17,7 @@ bool Verbose;
 
 void usage()
 {
-    cbanner((char *)"$Revision: 1.1 $ $Date: 2007/12/19 13:42:27 $",
+    cbanner((char *)"$Revision: 1.2 $ $Date: 2007/12/21 02:33:39 $",
         (char *)"dbin dbout [-v -V -pf pfname]",
         (char *)"Gary Pavlis",
         (char *)"Indiana University",
@@ -67,7 +68,7 @@ int main(int argc, char **argv)
         else if(!strcmp(argv[i],"-v"))
         {
             Verbose=true;
-            SEISPP_verbose=true;
+            SEISPP::SEISPP_verbose=true;
         }
         else if(!strcmp(argv[i],"-pf"))
         {
@@ -103,6 +104,7 @@ int main(int argc, char **argv)
             dir=strdup("./pwstack");
         if(makedir(dir))
             elog_die(0,"Cannot create directory %s\n",dir);
+	char *dfilebase=pfget_string(pf,"output_data_file_base_name");
         //
         // station_mdl defines database attributes copied to
         // metadata space of data object.  ensemble_mdl are
@@ -110,8 +112,6 @@ int main(int argc, char **argv)
         //
         MetadataList station_mdl=pfget_mdlist(pf,"station_metadata");
         MetadataList ensemble_mdl=pfget_mdlist(pf,"ensemble_metadata");
-        MetadataList stack_mdl=pfget_mdlist(pf,"stack_metadata");
-        AttributeMap OutputAM("pwmig1.1");
         AttributeMap InputAM("css3.0");
         DepthDependentAperture aperture(pf,aperture_tag);
         TopMute mute(pf,string("Data_Top_Mute"));
@@ -194,6 +194,16 @@ int main(int argc, char **argv)
             olon=ensemble->get_double("origin.lon");
             odepth=ensemble->get_double("origin.depth");
             otime=ensemble->get_double("origin.time");
+	    char *dfbuf=new char[256];
+	    ostringstream ss(dfbuf);
+	    ss << dir << "/" << dfilebase << "_" << evid;
+	    string dfile=ss.str()+"_pwdata";
+	    string coh3cf=ss.str()+"_coh3c";
+	    string cohf=ss.str()+"_coh";
+	    PwmigFileHandle dfh(dfile,true,false);
+	    PwmigFileHandle coh3cfh(coh3cf,true,false);
+	    PwmigFileHandle cohfh(cohf,true,true);
+	    delete [] dfbuf;
             // Database has these in degrees, but we need them in radians here.
             olat=rad(olat);  olon=rad(olon);
             double lat0,lon0,elev0;
@@ -237,10 +247,9 @@ int main(int argc, char **argv)
                         dtcoh,
                         cohwinlen,
                         ensemble_mdl,
-                        stack_mdl,
-                        OutputAM,
-                        dir,
-                        dbho);
+                        dfh,
+			coh3cfh,
+			cohfh);
                     if((iret<0) && (Verbose))
                         cout << "Ensemble number "<< rec
                             << " has no data in pseudoarray aperture"<<endl
