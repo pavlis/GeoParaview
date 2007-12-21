@@ -498,6 +498,8 @@ PwmigFileHandle cohfh)
             stackout->u=stack;
             copy_selected_metadata(dynamic_cast<Metadata&>(indata),
                 dynamic_cast<Metadata&>(*stackout),mdlcopy);
+            stackout->put("ix1",ix1);
+            stackout->put("ix2",ix2);
             stackout->put("ux",ux);
             stackout->put("uy",uy);
             stackout->put("gridid",gridid);

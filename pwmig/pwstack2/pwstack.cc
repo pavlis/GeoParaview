@@ -17,7 +17,7 @@ bool Verbose;
 
 void usage()
 {
-    cbanner((char *)"$Revision: 1.2 $ $Date: 2007/12/21 02:33:39 $",
+    cbanner((char *)"$Revision: 1.3 $ $Date: 2007/12/21 11:35:45 $",
         (char *)"dbin dbout [-v -V -pf pfname]",
         (char *)"Gary Pavlis",
         (char *)"Indiana University",
@@ -196,13 +196,13 @@ int main(int argc, char **argv)
             otime=ensemble->get_double("origin.time");
 	    char *dfbuf=new char[256];
 	    ostringstream ss(dfbuf);
-	    ss << dir << "/" << dfilebase << "_" << evid;
+	    ss << dir << "/" << string(dfilebase) << "_" << evid;
 	    string dfile=ss.str()+"_pwdata";
 	    string coh3cf=ss.str()+"_coh3c";
 	    string cohf=ss.str()+"_coh";
-	    PwmigFileHandle dfh(dfile,true,false);
-	    PwmigFileHandle coh3cfh(coh3cf,true,false);
-	    PwmigFileHandle cohfh(cohf,true,true);
+	    PwmigFileHandle dfh(dfile,false,false);
+	    PwmigFileHandle coh3cfh(coh3cf,false,false);
+	    PwmigFileHandle cohfh(cohf,false,true);
 	    delete [] dfbuf;
             // Database has these in degrees, but we need them in radians here.
             olat=rad(olat);  olon=rad(olon);
