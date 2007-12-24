@@ -1,0 +1,88 @@
+Data_Top_Mute	&Arr{
+    end_time	5.0
+    time_reference_type	relative
+    zero_end_time	2.0
+}
+Slowness_Grid_Definition	&Arr{
+    Slowness_Grid_Name	test
+    dux	0.01
+    duy	0.01
+    nux	21
+    nuy	21
+    uxlow	-0.1
+    uylow	-0.1
+}
+Stack_Top_Mute	&Arr{
+    end_time	4.0
+    time_reference_type	relative
+    zero_end_time	2.0
+}
+data_time_window_end	50.0
+data_time_window_start	-25.0
+dbprocess_commands	&Tbl{
+    dbopen arrival
+    dbleftjoin wfdisc
+    dbjoin assoc
+    dbjoin origin
+    dbjoin event
+    dbjoin sitechan
+    dbjoin site
+    dbsort evid sta chan
+    dbgroup evid sta
+}
+depth_dependent_aperture	&Tbl{
+    0.0 10.0  20.0
+    5.0 10.0 30.0
+    10.0 30.0 90.0
+   50.0 60.0 180.0
+}
+ensemble_metadata	&Tbl{
+dir string
+evid int
+origin.lat real
+origin.lon real
+origin.time real
+origin.depth real
+
+}
+pf_revision_time	1107002513
+pseudostation_grid_name	subduct
+stack_metadata	&Tbl{
+    pwfid int
+    wfprocess.dir string
+    wfprocess.dfile string
+    wfprocess.datatype string
+    wfprocess.timetype string
+    wfprocess.algorithm string
+}
+stack_time_end	50.0
+stack_time_start	0.0
+station_metadata	&Tbl{
+    sta string
+    chan string
+    time real
+    endtime real
+    nsamp int
+    samprate real
+    wfdisc.dfile string
+    wfdisc.dir string
+    arrival.time real
+    arrival.iphase string
+    assoc.phase string
+    wfdisc.jdate int
+    wfdisc.calib real
+    site.lat real
+    site.lon real
+    site.elev real
+    site.refsta string
+    site.dnorth real
+    site.deast real
+    sitechan.hang real
+    sitechan.vang real
+    hang real
+    vang real
+}
+waveform_directory	./pwstack
+coherence_sample_interval 5.0
+coherence_average_length 10.0
+output_data_file_base_name test

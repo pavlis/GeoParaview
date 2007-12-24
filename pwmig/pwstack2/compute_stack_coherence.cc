@@ -201,7 +201,12 @@ void save_coh(Coharray& coh,
         // coherence data and then save the results using dbsave for ThreeComponentSeismogram
         // and TimeSeries data
         ThreeComponentSeismogram coh3ctrace(stack);
-        auto_ptr<TimeSeries>cohtrace(ExtractComponent(stack,0));
+	/* We have to put these into the trace objects as the
+	ExtractComponent procedure requires them */
+	coh3ctrace.put("samprate",1.0/coh.dt);
+	coh3ctrace.put("time",coh.t0);
+	coh3ctrace.put("nsamp",coh.ns);
+        auto_ptr<TimeSeries>cohtrace(ExtractComponent(coh3ctrace,0));
         coh3ctrace.ns=coh.ns;
         cohtrace->ns=coh.ns;
         coh3ctrace.t0=coh.t0;

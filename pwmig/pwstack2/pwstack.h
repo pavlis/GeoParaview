@@ -83,9 +83,9 @@ int pwstack_ensemble(ThreeComponentEnsemble& indata,
 	double dtcoh,
 	double cohtwin,
 	MetadataList& mdlcopy,
-	PwmigFileHandle dfh,
-	PwmigFileHandle coh3cfh,
-	PwmigFileHandle cohfh);
+	PwmigFileHandle& dfh,
+	PwmigFileHandle& coh3cfh,
+	PwmigFileHandle& cohfh);
 string virtual_station_name(int ix1, int ix2);
 Coharray compute_stack_coherence(vector<dmatrix> d,
 	dmatrix& wgt,ThreeComponentSeismogram& stack,

@@ -112,9 +112,9 @@ DepthDependentAperture& aperture,
 double dtcoh,
 double cohwinlen,
 MetadataList& mdlcopy,
-PwmigFileHandle dfh,
-PwmigFileHandle coh3cfh,
-PwmigFileHandle cohfh)
+PwmigFileHandle& dfh,
+PwmigFileHandle& coh3cfh,
+PwmigFileHandle& cohfh)
 {
     // lat0 and lon0 are location of target pseudostation grid point
     // elev0 is elevation of datum to use for geometric statics

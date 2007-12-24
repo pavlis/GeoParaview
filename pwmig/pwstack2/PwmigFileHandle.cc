@@ -125,16 +125,17 @@ void PwmigFileHandle::save(TimeSeries& ts)
 	{
 		throw mderr;
 	}
+	/* Load the current file position as foff for read method */
+	hdr.foff=ftell(datafp);
+	if(hdr.foff<0)
+		throw SeisppError(string("PwmigFileHandle::save:  ")
+		 + string("ftell error querying output data file") );
 	/* Assume a seek to end is not necessary and all saves will be appends */
 	size_t test;
 	double *sptr=static_cast<double *>(&(ts.s[0]));
 	test=fwrite(sptr,sizeof(double),ts.ns,datafp);
 	if(test!=static_cast<size_t>(ts.ns))
 		throw SeisppError(string("PwmigFileHandle::save:  fwrite error"));
-	hdr.foff=ftell(datafp);
-	if(hdr.foff<0)
-		throw SeisppError(string("PwmigFileHandle::save:  ")
-		 + string("ftell error querying output data file") );
 	recs.push_back(hdr);
 }
 void PwmigFileHandle::save(ThreeComponentSeismogram& tcs)
@@ -146,6 +147,12 @@ void PwmigFileHandle::save(ThreeComponentSeismogram& tcs)
 	{
 		throw mderr;
 	}
+	/* Load the current file position as foff for read method */
+	hdr.foff=ftell(datafp);
+	if(hdr.foff<0)
+		throw SeisppError(string("PwmigFileHandle::save:  ")
+		 + string("ftell error querying output data file") );
+	recs.push_back(hdr);
 	/* similar to above, but here we use the fact that in this implementation
 	the data in a 3c seismogram is a contiguous block 3xnsamp long */
 	size_t test;
@@ -154,11 +161,6 @@ void PwmigFileHandle::save(ThreeComponentSeismogram& tcs)
 	if(test!=static_cast<size_t>(3*tcs.ns))
 		throw SeisppError(string("PwmigFileHandle::save:  ")
 			+ string("fwrite error"));
-	hdr.foff=ftell(datafp);
-	if(hdr.foff<0)
-		throw SeisppError(string("PwmigFileHandle::save:  ")
-		 + string("ftell error querying output data file") );
-	recs.push_back(hdr);
 }
 /* This is the reciprocal of PwmigFileRecord_load above */
 template <class T> void PwmigFileRecord_load_Metadata(PwmigFileRecord& hdr, T& d) 
@@ -195,6 +197,7 @@ ThreeComponentSeismogram *load_3c_seis(PwmigFileRecord& hdr, FILE *fp)
 	test=fread(seis->u.get_address(0,0),sizeof(double),3*hdr.nsamp,fp);
 	if(test!=static_cast<size_t>(3*hdr.nsamp) )
 		throw SeisppError(string("load_3c_seis: fread error"));
+	return seis;
 }
 TimeSeries *load_seis(PwmigFileRecord& hdr, FILE *fp)
 {
@@ -207,6 +210,7 @@ TimeSeries *load_seis(PwmigFileRecord& hdr, FILE *fp)
 	test=fread(ptr,sizeof(double),hdr.nsamp,fp);
 	if(test!=static_cast<size_t>(hdr.nsamp) )
 		throw SeisppError(string("load_seis: fread error"));
+	return seis;
 }
 ThreeComponentEnsemble *PwmigFileHandle::load_next_3ce()
 {
@@ -222,6 +226,7 @@ ThreeComponentEnsemble *PwmigFileHandle::load_next_3ce()
 	double ux,uy;
 	current_gridid=current_record->gridid;
 	ThreeComponentSeismogram *tcs;
+	count=0;
 	do {
 		// load the ensemble metadata on the first pass
 		if(count==0)
@@ -247,6 +252,7 @@ ThreeComponentEnsemble *PwmigFileHandle::load_next_3ce()
 		ens->member.push_back(*tcs);
 		delete tcs;
 		++current_record;
+		++count;
 	} while( (current_record->gridid == current_gridid)
 		&& (current_record!=recs.end()) );
 	return(ens);
@@ -265,6 +271,7 @@ TimeSeriesEnsemble *PwmigFileHandle::load_next_tse()
 	double ux,uy;
 	current_gridid=current_record->gridid;
 	TimeSeries *ts;
+	count=0;
 	do {
 		// load the ensemble metadata on the first pass
 		if(count==0)
@@ -290,6 +297,7 @@ TimeSeriesEnsemble *PwmigFileHandle::load_next_tse()
 		ens->member.push_back(*ts);
 		delete ts;
 		++current_record;
+		++count;
 	} while( (current_record->gridid == current_gridid)
 		&& (current_record!=recs.end()) );
 	return(ens);

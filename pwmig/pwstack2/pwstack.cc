@@ -17,7 +17,7 @@ bool Verbose;
 
 void usage()
 {
-    cbanner((char *)"$Revision: 1.3 $ $Date: 2007/12/21 11:35:45 $",
+    cbanner((char *)"$Revision: 1.4 $ $Date: 2007/12/24 12:09:59 $",
         (char *)"dbin dbout [-v -V -pf pfname]",
         (char *)"Gary Pavlis",
         (char *)"Indiana University",
@@ -30,7 +30,7 @@ void usage()
 MatlabProcessor mp(stdout);
 #endif
 
-extern bool SEISPP::SEISPP_verbose(false);
+bool SEISPP::SEISPP_verbose(false);
 int main(int argc, char **argv)
 {
     char *dbname_in, *dbname_out;
@@ -207,8 +207,13 @@ int main(int argc, char **argv)
             // Database has these in degrees, but we need them in radians here.
             olat=rad(olat);  olon=rad(olon);
             double lat0,lon0,elev0;
+/*
             for(i=0;i<stagrid.n1;++i)
                 for(j=0;j<stagrid.n2;++j)
+****  temporary for running benchmark with vampir.  2x2 grid only run */
+            for(i=5;i<7;++i)
+                for(j=5;j<7;++j)
+
             {
                 lat0=stagrid.lat(i,j);
                 lon0=stagrid.lon(i,j);
