@@ -17,8 +17,8 @@ bool Verbose;
 
 void usage()
 {
-    cbanner((char *)"$Revision: 1.4 $ $Date: 2007/12/24 12:09:59 $",
-        (char *)"dbin dbout [-v -V -pf pfname]",
+    cbanner((char *)"$Revision: 1.5 $ $Date: 2007/12/24 18:26:36 $",
+        (char *)"dbin [-v -V -pf pfname]",
         (char *)"Gary Pavlis",
         (char *)"Indiana University",
         (char *)"pavlis@indiana.edu") ;
@@ -57,11 +57,10 @@ int main(int argc, char **argv)
     //elog_init (argc, argv);
 
     /* usual cracking of command line */
-    if(argc < 3) usage();
+    if(argc < 2) usage();
     dbname_in = argv[1];
-    dbname_out = argv[2];
 
-    for(i=3;i<argc;++i)
+    for(i=2;i<argc;++i)
     {
         if(!strcmp(argv[i],"-V"))
             usage();
@@ -132,10 +131,6 @@ int main(int argc, char **argv)
         group_keys.push_back("evid");
         dbh.group(group_keys);
         dbh.rewind();
-        // This is the output database which probably should always
-        // be different than the input database.
-        string dbnmo(dbname_out);
-        DatascopeHandle dbho(dbnmo,false);
 
         // We need to load the primary GCLgrid that defines the
         // location of pseudostation points.  It is assumed we
@@ -207,12 +202,12 @@ int main(int argc, char **argv)
             // Database has these in degrees, but we need them in radians here.
             olat=rad(olat);  olon=rad(olon);
             double lat0,lon0,elev0;
-/*
             for(i=0;i<stagrid.n1;++i)
                 for(j=0;j<stagrid.n2;++j)
-****  temporary for running benchmark with vampir.  2x2 grid only run */
+/****  temporary for running benchmark with vampir.  2x2 grid only run 
             for(i=5;i<7;++i)
                 for(j=5;j<7;++j)
+*/
 
             {
                 lat0=stagrid.lat(i,j);
