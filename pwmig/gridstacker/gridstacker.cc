@@ -7,7 +7,7 @@
 #include "perf.h"
 #include "GridScratchFileHandle.h"
 void VectorField3DWeightedStack(GCLvectorfield3d& result,GridScratchHandle& handle,
-		list<MemberGrid> mgl)
+		list<MemberGrid> mgYl)
 {
 	const string base_error("VectorField3DWeightedStack(Error):  ");
 	list<MemberGrid>::iterator mptr;
@@ -118,6 +118,59 @@ double LoadLargestWeightMember(GCLvectorfield3d& f,
 	}
 	return(maxwgt);
 }
+/* Computes coherence grid smoothed by decimation variables.  That is,
+coherence at each point in the output grid is produced from field values
+within + and - of decimatio range.  At edges range is reduced by 
+boundaries up to 1/2 of the full box size. 
+
+Arguments:
+	f - stack
+	gsfh - scratch file holding migrated grids to be stacked.
+	coh - output coherence grid
+	dec1, dec2, and dec3 are decimation variables for x1,x2, and x3 
+		coordinates (coh is assumed decimated by these amounts from
+		f.  No checking is done.)
+*/
+void ComputeGridCoherence(GCLvectorfield3d& f, 
+	GridScatchFileHandle& gsfh,
+		list<MemberGrid> mgl,
+			GCLscalarfield3d& coh,
+				int dec1, 
+					int dec2,
+						int dec3)
+{
+	/* These may not be necessary, but cost for maintenance advantage is
+	small */
+	gsfh.rewind();
+	coh.zero();
+	/* indices for f */
+	int i,j,k,l;
+	/* ranges for computing each box (computed for each output grid point*/
+	int imin,imax,jmin,jmax,kmin,kmax;
+	/* indices or coh */
+	int ic,jc,kc;
+	int nsize=f.n1*f.n2*f.n3*f.nv;
+	auto_ptr<double> buffer(new double[nsize]);
+	/* This loop is similar to stacking loop, but we do not check dimension
+	here assuming we can't get here if such an error is present.  Beware if
+	you ever extract this function for another program.*/
+	int nread;  /* Ignored return */
+	double weight,sumwt;
+	for(mptr=mgl.begin();mptr!=mptr.end();++mptr)
+	{
+		nread=handle.load_next(buffer);
+		totalweight=(mptr->baseweight)*(mptr->reswt);
+		daxpy(nsize,totalweight,buffer,1,result.val[0][0][0],1);
+		sumwt+=totalweight;
+	for(ic=0,i=0;ic<coh.n1;++ic)
+	{
+		if(i<dec1)
+			imin=0;
+		else
+			imin=i-dec1;
+	
+}
+	
 void usage()
 {
 	cerr << "gridstacker db [-i infile -pf pffile -norobust] "<<endl;
