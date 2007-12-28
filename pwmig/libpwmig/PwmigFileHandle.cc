@@ -134,11 +134,10 @@ void PwmigFileHandle::save(TimeSeries& ts)
 		throw mderr;
 	}
 	/* Load the current file position as foff for read method */
-	//hdr.foff=ftello(datafp);
 	hdr.foff=lseek(datafd,0,SEEK_END);
 	if(hdr.foff<0)
 		throw SeisppError(string("PwmigFileHandle::save:  ")
-		 + string("ftell error querying output data file") );
+		 + string("lseek error querying output data file") );
 	/* Assume a seek to end is not necessary and all saves will be appends */
 	ssize_t test;
 	void *sptr=static_cast<void *>(&(ts.s[0]));
@@ -160,7 +159,7 @@ void PwmigFileHandle::save(ThreeComponentSeismogram& tcs)
 	hdr.foff=lseek(datafd,0,SEEK_END);
 	if(hdr.foff<0)
 		throw SeisppError(string("PwmigFileHandle::save:  ")
-		 + string("ftell error querying output data file") );
+		 + string("lseek error querying output data file") );
 	recs.push_back(hdr);
 	/* similar to above, but here we use the fact that in this implementation
 	the data in a 3c seismogram is a contiguous block 3xnsamp long */

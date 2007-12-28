@@ -5,10 +5,15 @@
 #include "TimeSeries.h"
 #include "ThreeComponentSeismogram.h"
 #include "ensemble.h"
-const string dfile_ext("dat");
-const string hdr_ext("hdr");
 using namespace std;
 using namespace SEISPP;
+
+const string dfile_ext("dat");
+const string hdr_ext("hdr");
+/*Constants used to create file names for pwstack/pwmig from a root name */
+const string DataFileExtension("_pwdata");
+const string Coh3CExtension("_coh3c");
+const string CohExtension("_coh");
 
 /* The binary file defined by this set of code writes this as a reel
 header (top of file).  It contains global for the whole data set. */
