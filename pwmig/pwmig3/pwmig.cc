@@ -31,8 +31,8 @@ MatlabProcessor mp(stdout);
 #endif
 void usage()
 {
-        cbanner((char *)"$Revision: 1.1 $ $Date: 2007/12/27 12:12:32 $",
-                (char *)"db  listfile [-V -pf pfname]",
+        cbanner((char *)"$Revision: 1.2 $ $Date: 2007/12/28 12:07:50 $",
+                (char *)"db  listfile [-V -v -pf pfname]",
                 (char *)"Gary Pavlis",
                 (char *)"Indiana University",
                 (char *)"pavlis@indiana.edu") ;
@@ -870,6 +870,8 @@ SlownessVector slowness_average(ThreeComponentEnsemble *d)
 }
 
 
+bool SEISPP::SEISPP_verbose(false);
+
 int main(int argc, char **argv)
 {
         Dbptr db,dbv;
@@ -921,6 +923,10 @@ int main(int argc, char **argv)
         {
                 if(!strcmp(argv[i],"-V"))
                         usage();
+		else if(!strcmp(argv[i],"-v"))
+        	{
+            		SEISPP::SEISPP_verbose=true;
+		}
                 else if(!strcmp(argv[i],"-pf"))
                 {
                         ++i;
