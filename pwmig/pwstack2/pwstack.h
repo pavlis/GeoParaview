@@ -5,6 +5,7 @@
 #ifdef MATLABDEBUG
 #include "MatlabProcessor.h"
 #endif
+#define _FILE_OFFSET_BITS 64
 using namespace std;
 using namespace SEISPP;
 #ifdef MATLABDEBUG

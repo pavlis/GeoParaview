@@ -17,7 +17,7 @@ bool Verbose;
 
 void usage()
 {
-    cbanner((char *)"$Revision: 1.5 $ $Date: 2007/12/24 18:26:36 $",
+    cbanner((char *)"$Revision: 1.6 $ $Date: 2007/12/28 12:10:06 $",
         (char *)"dbin [-v -V -pf pfname]",
         (char *)"Gary Pavlis",
         (char *)"Indiana University",
@@ -192,9 +192,9 @@ int main(int argc, char **argv)
 	    char *dfbuf=new char[256];
 	    ostringstream ss(dfbuf);
 	    ss << dir << "/" << string(dfilebase) << "_" << evid;
-	    string dfile=ss.str()+"_pwdata";
-	    string coh3cf=ss.str()+"_coh3c";
-	    string cohf=ss.str()+"_coh";
+	    string dfile=ss.str()+DataFileExtension;
+	    string coh3cf=ss.str()+Coh3CExtension;
+	    string cohf=ss.str()+CohExtension;
 	    PwmigFileHandle dfh(dfile,false,false);
 	    PwmigFileHandle coh3cfh(coh3cf,false,false);
 	    PwmigFileHandle cohfh(cohf,false,true);
