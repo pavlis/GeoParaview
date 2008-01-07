@@ -17,7 +17,7 @@ bool Verbose;
 
 void usage()
 {
-    cbanner((char *)"$Revision: 1.6 $ $Date: 2007/12/28 12:10:06 $",
+    cbanner((char *)"$Revision: 1.7 $ $Date: 2008/01/07 20:58:45 $",
         (char *)"dbin [-v -V -pf pfname]",
         (char *)"Gary Pavlis",
         (char *)"Indiana University",
@@ -26,6 +26,16 @@ void usage()
 }
 
 
+void load_file_globals(PwmigFileHandle& fh,int evid, double olat, double olon, 
+	double odepth, double otime, string gridname)
+{
+	fh.filehdr.evid=evid;
+	fh.filehdr.slat=olat;
+	fh.filehdr.slon=olon;
+	fh.filehdr.sdepth=odepth;
+	fh.filehdr.stime=otime;
+	strncpy(fh.filehdr.gridname,gridname.c_str(),16);
+}
 #ifdef MATLABDEBUG
 MatlabProcessor mp(stdout);
 #endif
@@ -187,6 +197,8 @@ int main(int argc, char **argv)
             evid=ensemble->get_int("evid");
             olat=ensemble->get_double("origin.lat");
             olon=ensemble->get_double("origin.lon");
+            // Database has these in degrees, but we need them in radians here.
+            olat=rad(olat);  olon=rad(olon);
             odepth=ensemble->get_double("origin.depth");
             otime=ensemble->get_double("origin.time");
 	    char *dfbuf=new char[256];
@@ -196,11 +208,12 @@ int main(int argc, char **argv)
 	    string coh3cf=ss.str()+Coh3CExtension;
 	    string cohf=ss.str()+CohExtension;
 	    PwmigFileHandle dfh(dfile,false,false);
+	    load_file_globals(dfh,evid,olat,olon,odepth,otime,stagridname);
 	    PwmigFileHandle coh3cfh(coh3cf,false,false);
+	    load_file_globals(coh3cfh,evid,olat,olon,odepth,otime,stagridname);
 	    PwmigFileHandle cohfh(cohf,false,true);
+	    load_file_globals(cohfh,evid,olat,olon,odepth,otime,stagridname);
 	    delete [] dfbuf;
-            // Database has these in degrees, but we need them in radians here.
-            olat=rad(olat);  olon=rad(olon);
             double lat0,lon0,elev0;
             for(i=0;i<stagrid.n1;++i)
                 for(j=0;j<stagrid.n2;++j)

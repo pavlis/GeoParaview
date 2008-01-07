@@ -12,6 +12,7 @@ ldflags=-lpwmig -lseispp -lgclgrid -ltrvltm -lpfstream -lbrttutil $(TRLIBS) $(DB
 
 
 include $(ANTELOPEMAKE) 
+
 OBJS=pwstack.o \
 	apsubs.o \
 	aperture.o \
