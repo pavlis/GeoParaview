@@ -1,0 +1,13 @@
+LIB=libpwmig.a
+INCLUDE=PwmigFileHandle.h
+#MAN3=		# man pages for library routines
+include $(ANTELOPEMAKE)
+CXXFLAGS+=-D_FILE_OFFSET_BITS=64
+CXXFLAGS+=-D_LARGEFILE_SOURCE
+CXXFLAGS+=-D_LARGEFILE64_SOURCE
+
+OBJS=PwmigFileHandle.o
+$(LIB) : $(OBJS)
+	$(RM) $@
+	$(CXXAR) $(CXXARFLAGS) $@ $(OBJS)  
+	$(RANLIB) $@
