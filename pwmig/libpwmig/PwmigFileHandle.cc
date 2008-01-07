@@ -1,6 +1,7 @@
 #include <unistd.h>
 #include <sys/stat.h>
 #include <fcntl.h>
+#include <errno.h>
 #include <algorithm>
 #include "PwmigFileHandle.h"
 /* This appears necessary on quarray to allow large file support */
@@ -65,15 +66,16 @@ PwmigFileHandle::PwmigFileHandle(string fname, bool rmode, bool smode)
 	}
 	else
 	{
+		mode_t fumask=0775;
 		/* In output mode all we do is open the file in write mode */
 		datafd=open(dfile.c_str(),
-			O_WRONLY | O_CREAT | O_TRUNC | O_LARGEFILE);
+			O_WRONLY | O_CREAT | O_TRUNC | O_LARGEFILE,fumask);
 		if(datafd<0)
 			throw SeisppError(base_error
 			 + string("Cannot open output data file=")
 			 + dfile);
 		hdrfd=open(hfile.c_str(),
-			O_WRONLY | O_CREAT | O_TRUNC | O_LARGEFILE);
+			O_WRONLY | O_CREAT | O_TRUNC | O_LARGEFILE,fumask);
 		if(hdrfd<0)
 		{
 			close(datafd);
@@ -124,6 +126,34 @@ template <class T> void PwmigFileRecord_load(T& ts,
 		throw mderr;
 	}
 }
+/* complicated error function needed for errors from lseek */
+string buildlseek_message(off_t foff)
+{
+	char buf[256];
+	ostringstream ss(buf);
+	ss<<"PwmigFileHandle::save method:  lseek error"<<endl
+		<<"lseek returned off_t="<<foff <<endl;
+	switch (errno)
+	{
+	case EBADF:
+		ss <<"errno = EBADF - not an open file descriptor";
+		break;
+	case ESPIPE:
+		ss <<"errno=ESPIPE - filedes is a pipe, socket of FIFO";
+		break;
+	case EINVAL:
+		ss<<"errno=EINVAL - whence arguement invalid";
+		break;
+	case EOVERFLOW:
+		ss << "errno=EOVERFLOW - file offset exceeds word length"
+		  << endl<<"Probably a large file error";
+		break;
+	default:
+		ss << "Unknown value for errno - "
+			<< "program bug has probably overwritten data segment";
+	}
+	return(ss.str());
+}
 void PwmigFileHandle::save(TimeSeries& ts)
 {
 	PwmigFileRecord hdr;
@@ -134,10 +164,12 @@ void PwmigFileHandle::save(TimeSeries& ts)
 		throw mderr;
 	}
 	/* Load the current file position as foff for read method */
-	hdr.foff=lseek(datafd,0,SEEK_END);
+	hdr.foff=lseek(datafd,0,SEEK_CUR);
 	if(hdr.foff<0)
-		throw SeisppError(string("PwmigFileHandle::save:  ")
-		 + string("lseek error querying output data file") );
+	{
+		string errmess=buildlseek_message(hdr.foff);
+		throw SeisppError(errmess);
+	}
 	/* Assume a seek to end is not necessary and all saves will be appends */
 	ssize_t test;
 	void *sptr=static_cast<void *>(&(ts.s[0]));
@@ -156,10 +188,12 @@ void PwmigFileHandle::save(ThreeComponentSeismogram& tcs)
 		throw mderr;
 	}
 	/* Load the current file position as foff for read method */
-	hdr.foff=lseek(datafd,0,SEEK_END);
+	hdr.foff=lseek(datafd,0,SEEK_CUR);
 	if(hdr.foff<0)
-		throw SeisppError(string("PwmigFileHandle::save:  ")
-		 + string("lseek error querying output data file") );
+	{
+		string errmess=buildlseek_message(hdr.foff);
+		throw SeisppError(errmess);
+	}
 	recs.push_back(hdr);
 	/* similar to above, but here we use the fact that in this implementation
 	the data in a 3c seismogram is a contiguous block 3xnsamp long */
@@ -201,7 +235,7 @@ ThreeComponentSeismogram *load_3c_seis(PwmigFileRecord& hdr, int fd)
 {
 	ThreeComponentSeismogram *seis=new ThreeComponentSeismogram(hdr.nsamp);
 	PwmigFileRecord_load_Metadata<ThreeComponentSeismogram>(hdr,*seis);
-	lseek(fd,hdr.foff,0);
+	lseek(fd,hdr.foff,SEEK_SET);
 	ssize_t test;
 	test=read(fd,static_cast<void *>(seis->u.get_address(0,0)),
 			(3*hdr.nsamp)*sizeof(double));
@@ -213,7 +247,7 @@ TimeSeries *load_seis(PwmigFileRecord& hdr, int fd)
 {
 	TimeSeries *seis=new TimeSeries(hdr.nsamp);
 	PwmigFileRecord_load_Metadata<TimeSeries>(hdr,*seis);
-	lseek(fd,hdr.foff,0);
+	lseek(fd,hdr.foff,SEEK_SET);
 	ssize_t test;
 	double *ptr;
 	ptr=&(seis->s[0]);
