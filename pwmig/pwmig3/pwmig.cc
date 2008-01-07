@@ -31,7 +31,7 @@ MatlabProcessor mp(stdout);
 #endif
 void usage()
 {
-        cbanner((char *)"$Revision: 1.2 $ $Date: 2007/12/28 12:07:50 $",
+        cbanner((char *)"$Revision: 1.3 $ $Date: 2008/01/07 20:54:45 $",
                 (char *)"db  listfile [-V -v -pf pfname]",
                 (char *)"Gary Pavlis",
                 (char *)"Indiana University",
@@ -919,7 +919,7 @@ int main(int argc, char **argv)
 	}
 	string dfile;  // used repeatedly below for data file names
 
-        for(i=2;i<argc;++i)
+        for(i=3;i<argc;++i)
         {
                 if(!strcmp(argv[i],"-V"))
                         usage();
@@ -999,10 +999,8 @@ int main(int argc, char **argv)
 		GCLscalarfield3d Up3d(db,velocity_grid_name,Pmodel3d_name);
 		GCLscalarfield3d Us3d(db,velocity_grid_name,Smodel3d_name);
 		// CHANGE ME:  hack fix for test model.  Units wrong
-		/*
 		Up3d *= 0.001;
 		Us3d *= 0.001;
-		*/
 		// 
 		// For this program we need to convert velocities to slowness.
 		// This function called on P and S models does this in a procedural
@@ -1209,6 +1207,12 @@ mp.run_interactive();
 */
 #endif
 			int gridid=pwdata->member[0].get_int("gridid");
+//DEBUG
+if(gridid!=221) 
+{
+delete pwdata;
+continue;
+}
 cout << "DEBUG:  processing ensemble with gridid="<<gridid<<endl;
 cout << "DEBUG: ensemble size="<<pwdata->member.size()<<endl;
 
