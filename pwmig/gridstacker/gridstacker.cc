@@ -1,13 +1,14 @@
 #include <stdio.h>
 #include <string>
 #include <list>
-#include <istream>
+#include <fstream>
 #include "GCLgrid.h"
 #include "dbpp.h"
 #include "perf.h"
+#include "seispp.h"
 #include "GridScratchFileHandle.h"
 #include "GridStackPenaltyFunction.h"
-void VectorField3DWeightedStack(GCLvectorfield3d& result,GridScratchHandle& handle,
+void VectorField3DWeightedStack(GCLvectorfield3d& result,GridScratchFileHandle& handle,
 		list<MemberGrid>& mgl)
 {
 	const string base_error("VectorField3DWeightedStack(Error):  ");
@@ -15,22 +16,29 @@ void VectorField3DWeightedStack(GCLvectorfield3d& result,GridScratchHandle& hand
 	handle.rewind();
 	result.zero();
 	int nsize=result.n1*result.n2*result.n3*result.nv;
-	auto_ptr<double> buffer(new double[nsize]);
+	double *buffer=new double[nsize];
 	double totalweight,sumwt;
 	int nread;
-	for(sumwt=0.0,mptr=mgl.begin();mptr!=mptr.end();++mptr)
+	for(sumwt=0.0,mptr=mgl.begin();mptr!=mgl.end();++mptr)
 	{
 		if(handle.at_eof())
+		{
+			delete [] buffer;
 			throw SeisppError(base_error
 			  + string("EOF encountered prematurely on scratch file"));
+		}
 		nread=handle.load_next(buffer);
 		if(nread!=nsize)
+		{
+			delete [] buffer;
 			throw SeisppError(base_error
 				+ string("short read from scratch file"));
+		}
 		totalweight=(mptr->baseweight)*(mptr->reswt);
 		daxpy(nsize,totalweight,buffer,1,result.val[0][0][0],1);
 		sumwt+=totalweight;
 	}
+	delete [] buffer;
 	if(!handle.at_eof())
 		throw SeisppError(base_error
 		  + string("Scratch file mismatch.")
@@ -51,7 +59,7 @@ axis.
 
 \return pointer to decimated grid object 
 */
-GCLgrid3d *decimate(GCLgrid3d& g,int dec1, int dec2, int dec3);
+GCLgrid3d *decimate(GCLgrid3d& g,int dec1, int dec2, int dec3)
 {
 	int n1,n2,n3;
 	n1=(g.n1)/dec1;
@@ -91,7 +99,7 @@ if this proves too slow.
 \return size of largest weight of member chosen
 */
 double LoadLargestWeightMember(GCLvectorfield3d& f,
-	GridScatchFileHandle& gsfh,
+	GridScratchFileHandle& gsfh,
 		list<MemberGrid>& mgl)
 {
 	int nval=(f.n1)*(f.n2)*(f.n3)*(f.nv);
@@ -124,7 +132,7 @@ double LoadLargestWeightMember(GCLvectorfield3d& f,
 /* Computes coherence grid smoothed by decimation variables.  That is,
 coherence at each point in the output grid is produced from field values
 within + and - of decimatio range.  At edges the boxes are still 
-dec1 X dec2 X dec3, but the averaging boxe are not allowed to pass beyond
+dec1 X dec2 X dec3, but the averaging boxes are not allowed to pass beyond
 the boundaries of the grid.  The points on the outer edge of the result
 are thus somewhat distorted, but for normal uses this should not be a
 large issue.   Note that boxes with no data will have a value of zero 
@@ -144,7 +152,7 @@ Arguments:
 		compute coherence. 
 */
 void ComputeGridCoherence(GCLvectorfield3d& f, 
-	GridScatchFileHandle& gsfh,
+	GridScratchFileHandle& gsfh,
 		list<MemberGrid>& mgl,
 			GCLscalarfield3d& coh,
 				int dec1, 
@@ -194,13 +202,12 @@ void ComputeGridCoherence(GCLvectorfield3d& f,
 	    sumsqr[i][j][k]=0.0;
 	    sumsqd[i][j][k]=0.0;
 	  }
-	 
-	for(mptr=mgl.begin();mptr!=mptr.end();++mptr)
+	list<MemberGrid>::iterator mptr; 
+	for(mptr=mgl.begin();mptr!=mgl.end();++mptr)
 	{
 		/*Tricky use of a pointer here to get address of start of buffer */
-		nread=handle.load_next(buffer[0][0][0]);
-		totalweight=(mptr->baseweight)*(mptr->reswt);
-		daxpy(nsize,totalweight,buffer,1,result.val[0][0][0],1);
+		nread=gsfh.load_next(buffer[0][0][0]);
+		double totalweight=(mptr->baseweight)*(mptr->reswt);
 		sumwt+=totalweight;
 		if(mode3c)
 		{
@@ -337,25 +344,31 @@ void ComputeGridCoherence(GCLvectorfield3d& f,
 	free_3dgrid_contiguous(sumsqr,f.n1,f.n2);
 	free_3dgrid_contiguous(sumsqd,f.n1,f.n2);
 }
-void compute_reswt(GCLvectorfield3d& stack,GridScratchHandle& handle,
-                list<MemberGrid>& mgl,GridPenaltyFunction& penalty_function)
+void compute_reswt(GCLvectorfield3d& stack,GridScratchFileHandle& handle,
+                list<MemberGrid>& mgl,GridStackPenaltyFunction& penalty_function)
 {
 	const string base_error("compute_reswt function:  ");
 	list<MemberGrid>::iterator mptr;
 	handle.rewind();
-	int nsize=result.n1*result.n2*result.n3*result.nv;
-	auto_ptr<double> buffer(new double[nsize]);
+	int nsize=stack.n1*stack.n2*stack.n3*stack.nv;
+	double *buffer=new double[nsize];
 	int nread;
-	for(mptr=mgl.begin();mptr!=mptr.end();++mptr)
+	for(mptr=mgl.begin();mptr!=mgl.end();++mptr)
 	{
 		if(handle.at_eof())
+		{
+			delete [] buffer;
 			throw SeisppError(base_error
 			  + string("EOF encountered prematurely on scratch file"));
+		}
 		nread=handle.load_next(buffer);
 		if(nread!=nsize)
+		{
+			delete [] buffer;
 			throw SeisppError(base_error
 				+ string("short read from scratch file"));
-		mptr->reswt=penalty_function(nsize,stack.val[0][0][0],buffer);
+		}
+		mptr->reswt=penalty_function.weight(nsize,stack.val[0][0][0],buffer);
 	}
 }
 	
@@ -365,12 +378,17 @@ void usage()
 	exit(-1);
 }
 
+bool reswt_change_test(list<MemberGrid>& mgltest, list<MemberGrid>& mgl0)
+{
+}
+
 int main(int argc, char **argv)
 {
-	istream in=cin;
+	//istream in=cin;
+	ifstream in;
 	string pffile("gridstacker");
 	if(argc<2) usage();
-	string dbname(argc[1]);
+	string dbname(argv[1]);
 	bool robust(true);
 
 	int i;
@@ -417,6 +435,7 @@ int main(int argc, char **argv)
 		string mastergridname=control.get_string("mastergridname");
 		string masterfieldname=control.get_string("masterfieldname");
 		string baseofn=control.get_string("base_output_field_name");
+		string outdir=control.get_string("output_data_directory");
 		int dec1,dec2,dec3;
 		dec1=control.get_int("coherence_x1_decimation_factor");
 		dec2=control.get_int("coherence_x3_decimation_factor");
@@ -437,7 +456,7 @@ int main(int argc, char **argv)
 		/* End section extracting control parameters */
 
 		GCLvectorfield3d mastergrid(dbh.db,mastergridname,masterfieldname);
-		GridScatchFileHandle gsfh(mastergrid,mgl,dbh.db);
+		GridScratchFileHandle gsfh(mastergrid,mgl,dbh.db);
 		gsfh.rewind();
 		/* First compute and save a straight stack.  This works because
 		mgl.reswt values are all set to 1.0 above. */
@@ -445,7 +464,7 @@ int main(int argc, char **argv)
 		result.zero();
 		VectorField3DWeightedStack(result,gsfh,mgl);
 		string avgfname=baseofn + "_avg";
-		result.dbsave(dbh.db,mastergridname,avgfname);
+		result.dbsave(dbh.db,string(""),outdir,mastergridname,avgfname);
 		gsfh.rewind();
 		/* Now compute and save a coherence attribute grid for straight stack.
 		Grid is formed by decimation of master grid controlled by dec1,dec2,
@@ -455,24 +474,25 @@ int main(int argc, char **argv)
 		GCLscalarfield3d coh(*cohgrd);
 		coh.zero(); 
 		delete cohgrd;  // no longer needed.  coh clones its geometry
-		ComputeGridCoherence(result,gsfh,coh,dec1,dec2,dec3,coherence_component);
+		ComputeGridCoherence(result,gsfh,mgl,coh,dec1,dec2,dec3,coherence_component);
 		// Assume this will throw an error if the grid name is already defined.
 		// Probably should test first to make sure it does not exist already
 		// as this will likely be a common error.  Ignored for now
 		string sscohf=cohbasefname+"_avg";
-		coh.dbsave(dbh.db,cohgname,sscohf);
+		coh.dbsave(dbh.db,string(""),outdir,cohgname,sscohf);
 		// Stop if robust is turned off
 		if(!robust) exit(0);
 		/* this replaces straight stack with largest weight member as initial
 		estimate for robust stacking method */
-		if(uselargest) LoadLargestWeightMember(result,gsfh);
+		if(uselargest) LoadLargestWeightMember(result,gsfh,mgl);
 		int robust_loop_count=0;
+		const int MAXIT(20);
 		
 		list<MemberGrid> mgl_previous;
 		mgl_previous=mgl;
 		bool keep_looping;
 		do {
-			gsf.rewind();
+			gsfh.rewind();
 			compute_reswt(result,gsfh,mgl,penalty_function);
 			gsfh.rewind();
 			VectorField3DWeightedStack(result,gsfh,mgl);
@@ -481,11 +501,11 @@ int main(int argc, char **argv)
 			++robust_loop_count;
 		} while ( (robust_loop_count<MAXIT) && keep_looping);
 		string robustfname=baseofn+"_ravg";
-		result.dbsave(dbh.db,mastergridame,robustfname);
+		result.dbsave(dbh.db,string(""),outdir,mastergridname,robustfname);
 		gsfh.rewind();
-		ComputeGridCoherence(result,gsfh,coh,dec1,dec2,dec3,coherence_component);
+		ComputeGridCoherence(result,gsfh,mgl,coh,dec1,dec2,dec3,coherence_component);
 		string robustcohf=cohbasefname+"_ravg";
-		coh.dbsave(dbh.db.cohgname,robustcohf);
+		coh.dbsave(dbh.db,string(""),outdir,cohgname,robustcohf);
 
 	} catch (int ierr)
 	{

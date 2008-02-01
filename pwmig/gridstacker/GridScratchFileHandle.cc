@@ -2,8 +2,10 @@
 #include <list>
 #include "seispp.h"
 #include "GridScratchFileHandle.h"
+using namespace std;
+using namespace SEISPP;
 
-MemberGrid::MemberGrid(const MemberGrid& parent);
+MemberGrid::MemberGrid(const MemberGrid& parent)
 {
 	gridname=parent.gridname;
 	fieldname=parent.fieldname;
@@ -11,7 +13,7 @@ MemberGrid::MemberGrid(const MemberGrid& parent);
 	reswt=parent.reswt;
 }
 
-MemberGrid& MemberGrid::operator= (const MemberGrid& parent);
+MemberGrid& MemberGrid::operator= (const MemberGrid& parent)
 {
 	if(this!=&parent)
 	{
@@ -34,7 +36,7 @@ bool compare_equal(GCLvectorfield3d& g1, GCLvectorfield3d& g2)
 }
 
 GridScratchFileHandle::GridScratchFileHandle(GCLvectorfield3d& mastergrid,
-		list<MemberGrid> mg, Dbptr db)
+		list<MemberGrid> mgl, Dbptr db)
 {
 	const string base_error("GridScratchFileHandle constructor:  ");
 	fp=tmpfile();
@@ -48,7 +50,7 @@ GridScratchFileHandle::GridScratchFileHandle(GCLvectorfield3d& mastergrid,
 	current_member=0;
 	nmembers=0;  // Could use size on list, but better to count grids loaded
 	list<MemberGrid>::iterator mptr;
-	for(mptr=mgl.begin();mptr!=mptr.end();++mptr)
+	for(mptr=mgl.begin();mptr!=mgl.end();++mptr)
 	{
 	    try{
 		GCLvectorfield3d current(db,mptr->gridname,mptr->fieldname,nv);
@@ -88,21 +90,22 @@ GridScratchFileHandle::GridScratchFileHandle(GCLvectorfield3d& mastergrid,
 			<< mptr->fieldname
 			<<endl
 			<<"These data will be dropped from the stack"
-			<<endl
+			<<endl;
 	    }    
 	}
-		
 }
-GridScatchFileHandle::~GridScratchFileHandle();
+		
+GridScratchFileHandle::~GridScratchFileHandle()
 {
 	if(fp!=NULL) fclose(fp);
 }
 
 void GridScratchFileHandle::rewind()
 {
-	rewind(fp);
+	std::rewind(fp);
 	current_member=0;
 }
+/*
 // The format of this is unquestionably wrong.  NO references to consult
 void GridScratchFileHandle::operator ++()
 {
@@ -114,6 +117,7 @@ void GridScratchFileHandle::operator ++()
 	++current_member;
 
 }
+*/
 int GridScratchFileHandle::load_next(double *buffer)
 {
 	int nread=fread(buffer,sizeof(double),nval,fp);
@@ -121,9 +125,9 @@ int GridScratchFileHandle::load_next(double *buffer)
 		string("GridScratchFileHandle::load_next:  fread error"));
 	++current_member;
 }
-bool at_eof()
+bool GridScratchFileHandle::at_eof()
 {
-	if(current_member==nmember)
+	if(current_member==nmembers)
 		return true;
 	else
 		return false;

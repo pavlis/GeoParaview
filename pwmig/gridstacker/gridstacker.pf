@@ -1,0 +1,14 @@
+PenaltyFunction coherence_power_function
+# Used only when PenaltyFunction is coherence_power_function or dbxcor_loss_function
+cohpow 2.0
+mastergridname bolivar
+masterfieldname migdata
+base_output_field_name test
+output_data_directory stacks
+coherence_x1_decimation_factor 4
+coherence_x2_decimation_factor 4
+coherence_x3_decimation_factor 10
+coherence_component 0
+coherence_grid_name cohgrid
+coherence_field_base_name cohfield
+use_largest_weight_as_initial true

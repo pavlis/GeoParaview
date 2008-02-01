@@ -15,7 +15,7 @@ public:
 	string fieldname;
 	double baseweight;
 	double reswt;
-	Membergrid(string g, string f, double b, double r)
+	MemberGrid(string g, string f, double b, double r)
 	{
 		gridname=g;
 		fieldname=f;

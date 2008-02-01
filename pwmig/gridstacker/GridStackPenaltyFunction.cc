@@ -1,3 +1,4 @@
+#include "perf.h"
 #include "Metadata.h"
 #include "GridStackPenaltyFunction.h"
 GridStackPenaltyFunction::GridStackPenaltyFunction(Metadata& md)
@@ -8,16 +9,16 @@ GridStackPenaltyFunction::GridStackPenaltyFunction(Metadata& md)
 	{
 		gpt=COH;
 		cohpow=1.0;
-\	}
-	elseif(pfuncname=="coherence_power_function")
+	}
+	else if(pfuncname=="coherence_power_function")
 	{
 		gpt=COHPOW;
-		cohpow=control.get_double("power_factor");
+		cohpow=md.get_double("power_factor");
 	}
-	elsei(pfuncname=="dbxcor_loss_function")
+	else if(pfuncname=="dbxcor_loss_function")
 	{
 		gpt=DBXCOR;
-		cohpow=control.get_double("power_factor");
+		cohpow=md.get_double("power_factor");
 	}
 	else
 	{
@@ -36,7 +37,7 @@ GridStackPenaltyFunction::GridStackPenaltyFunction(Metadata& md)
 }
 double GridStackPenaltyFunction::weight(int nd, double *d, double *d0)
 {
-	double sumsqr,,sumsqd,r;
+	double sumsqr,sumsqd,r;
 	int i;
 	double coh,wt;
 
@@ -58,7 +59,7 @@ double GridStackPenaltyFunction::weight(int nd, double *d, double *d0)
 	case COH:
 		wt=coh;
 		break;
-	case DXCOR:
+	case DBXCOR:
 		wt=ddot(nd,d0,1,d,1);
 		wt=wt/sqrt(sumsqd*sumsqr);
 		wt=pow(wt,cohpow);
