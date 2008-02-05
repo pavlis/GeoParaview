@@ -16,6 +16,9 @@
 #include "msd.h"
 using namespace std;
 using namespace SEISPP;
+/* Used here to fetch calib from Metadata.  Assumes pf is properly
+configured to set calib tied to this name */
+const string calib_keyword("calib"); 
 /*! \brief Generic algorithm to load arrival times from a database.
 
 In passive array processing a very common need is to extract time windows
@@ -369,7 +372,7 @@ void SaveResults(DatascopeHandle& dbh,
 			double time=d->t0;
 			double endtime=d->endtime();
 			// Must assume calib is equal for all components
-			double calib=d->get_double(gain_keyword);
+			double calib=d->get_double(calib_keyword);
 			double samprate=1.0/(d->dt);
 			int k;
 			for(k=0;k<3;++k)
@@ -731,6 +734,11 @@ int main(int argc, char **argv)
 			rawdata=array_get_data(*stations,hypo,
 				phase,datatwin,tpad,dynamic_cast<DatabaseHandle&>(dbh),
 				stachanmap,mdens,mdtrace,am);
+			if(rawdata->member.size()<=0) 
+			{
+				delete rawdata;
+				continue;
+			}
 			PostEvid(rawdata,evid);
 			if(!use_arrival)
 			{
