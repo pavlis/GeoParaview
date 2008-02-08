@@ -373,6 +373,16 @@ void SaveResults(DatascopeHandle& dbh,
 			double endtime=d->endtime();
 			// Must assume calib is equal for all components
 			double calib=d->get_double(calib_keyword);
+			/* avoid 0 calibs which will create havoc */
+			if(calib<=0.0)
+			{
+				cerr << "WARNING:  calib="<<calib
+				 << " for station "
+				 << sta <<endl
+				 << "Setting calib to 1.0. "
+				 << "You may want to run dbfix_calib"<<endl;
+				calib=1.0;
+			}
 			double samprate=1.0/(d->dt);
 			int k;
 			for(k=0;k<3;++k)
@@ -444,7 +454,6 @@ void SaveResults(DatascopeHandle& dbh,
 						MSD_TIME,time,
 						MSD_SAMPRATE,samprate,
 						0 );
-					free(fchan);  free(loc);
 					int problem,retcode;
 					int *itrd=new int[ns];
 					for(i=0;i<ns;++i)
@@ -492,7 +501,8 @@ void SaveResults(DatascopeHandle& dbh,
 	    }
 	}
 	if(idptr!=NULL) free(idptr);
-	free(wftype);
+	// wftype is a pointer to a static struct so we must not free i
+	//free(wftype);
 }
 /* Ugly approach to a problem that needs a general solution.  seispp
 uses some convenient short names that need mapping into full names that
