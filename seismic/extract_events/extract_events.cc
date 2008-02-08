@@ -274,44 +274,41 @@ be redone.  Should really be split into two functions I suppose.   It
 acts very different depending on the mode variable.  When mode is "event_gather"
 it reads evid from the ensembles global metadata.  When mode is station_gather
 it reads sta from member[imember] of the current ensemble.  */
-string BuildDirName(ThreeComponentEnsemble *g,string base,string mode,int imember)
+char *BuildDirName(ThreeComponentEnsemble *g,string base,string mode,int imember)
 {
-	/* for now we always uses evid as a dir name */
-	string result;
-	char buf[12];
-	stringstream ss(buf);
+	char buf[128];
 	if(mode=="event_gathers")
-		ss << g->get_int("evid");
-	else if(mode=="station_gathers")
-		ss << g->member[imember].get_string("sta");
-	else
 	{
-		cerr << "unknown gather type requested ="<<mode<<endl
-			<< "Using default of common station gathers"<<endl;
-		ss << g->member[imember].get_string("sta");
+		int evid=g->get_int("evid");
+		sprintf(buf,"%s/%d",base.c_str(),evid);
 	}
-	result=base + "/" + ss.str();
-	return(result);
+	else 
+	{
+		if(mode!="station_gathers")
+			cerr << "unknown gather type requested ="<<mode<<endl
+			  << "Using default of common station gathers"<<endl;
+
+		string sta=g->member[imember].get_string("sta");
+		sprintf(buf,"%s/%s",base.c_str(),sta.c_str());
+	}
+	return(strdup(buf));
 }
-string BuildDfileName(ThreeComponentEnsemble *g,ThreeComponentSeismogram& member, string chan)
+char * BuildDfileName(ThreeComponentEnsemble *g,ThreeComponentSeismogram& member, string chan)
 {
-	string result;
-	char buf[32];
-	stringstream ss(buf);
+	char obuf[128];
 	// This assumes we can grab these from the ensemble metadata.
 	// they are set in main in this program.  Beware if copied
 	// Intentionally do not trap errors as we can assume these
 	// are set here.
-	string year=g->get_string("year");
-	string jday=g->get_string("jday");
+	int year=g->get_int("year");
+	int jday=g->get_int("jday");
 	int evid=g->get_int("evid");
 	string sta=member.get_string("sta");
-	ss << sta<<"_" 
-		<<year << "_"
-		<<jday<<"_"
-		<<evid<<"."
-		<<chan;
-	return(ss.str());
+	sprintf(obuf,"%s_%d_%d_%d.%s",
+		sta.c_str(),
+		year,jday,evid,
+		chan.c_str());
+	return(strdup(obuf));
 }
 string getfullpath(string dir)
 {
@@ -361,6 +358,7 @@ void SaveResults(DatascopeHandle& dbh,
 	int evid=gather->get_int("evid");
 	vector<ThreeComponentSeismogram>::iterator d;
 	string original_chan,chan_to_use;
+	char *dir,*dfile;
 	for(imember=0,d=gather->member.begin();d!=gather->member.end();++d,++imember)
 	{
 	    if((d->live) && !(d->has_gap()))
@@ -403,8 +401,8 @@ void SaveResults(DatascopeHandle& dbh,
 					chan_to_use=chans[k];
 		
 				ns=d->ns;
-				string dir=BuildDirName(gather,basedir,gathermode,imember);
-				string dfile=BuildDfileName(gather,*d,chan_to_use);
+				dir=BuildDirName(gather,basedir,gathermode,imember);
+				dfile=BuildDfileName(gather,*d,chan_to_use);
 				/* NOTE the following two routines need an error
 				return trap */
 				dbh.db.record=dbaddv(dbh.db,0,
@@ -416,8 +414,8 @@ void SaveResults(DatascopeHandle& dbh,
 					"nsamp",ns,
 					"samprate",samprate,
 					"calib",calib,
-					"dir",dir.c_str(),
-					"dfile",dfile.c_str(),
+					"dir",dir,
+					"dfile",dfile,
 					"datatype",datatype.c_str(),
 					0);
 				if(dbh.db.record<0)
@@ -491,6 +489,8 @@ void SaveResults(DatascopeHandle& dbh,
 					}
 					delete [] trd;
 				}
+				free(dfile);
+				free(dir);
 				delete x;
 			}
 		} catch (SeisppError serr) {
