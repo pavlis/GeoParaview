@@ -19,6 +19,23 @@ using namespace SEISPP;
 /* Used here to fetch calib from Metadata.  Assumes pf is properly
 configured to set calib tied to this name */
 const string calib_keyword("calib"); 
+/* DEBUG routine to monitor memory use.  Remove these includes
+if not enabled. */
+/*
+#include <sys/time.h>
+#include <sys/resource.h>
+#include <unistd.h>
+
+void log_memory_use()
+{
+	struct rusage ruse;
+	getrusage(RUSAGE_SELF,&ruse);
+	cerr << "MEMORY DEBUG:  ru_ixrss="<<ruse.ru_ixrss
+		<< " ru_idrss="<<ruse.ru_idrss
+		<< " ru_isrss="<<ruse.ru_isrss<<endl;
+	
+}
+*/
 /*! \brief Generic algorithm to load arrival times from a database.
 
 In passive array processing a very common need is to extract time windows
@@ -338,6 +355,7 @@ void SaveWarning(string sta, string chan, int evid, double t0, string mes)
 routine to allow variable datatype.*/
 
 void SaveResults(DatascopeHandle& dbh,
+    bool save_files_only,
 	ThreeComponentEnsemble *gather,
 		AttributeMap& amo,
 			string chans[3],
@@ -361,9 +379,18 @@ void SaveResults(DatascopeHandle& dbh,
 	char *dir,*dfile;
 	for(imember=0,d=gather->member.begin();d!=gather->member.end();++d,++imember)
 	{
-	    if((d->live) && !(d->has_gap()))
+	    // This window is used to avoid one sample gaps at start end end*/
+	    TimeWindow testwin(d->t0+d->dt,d->endtime()-d->dt);
+	    if(d->live) 
 	    {
-		try {
+		    if(d->is_gap(testwin))
+		    {
+			cout  << "Data gap in sta="<<d->get_string("sta")
+				<< " Data for this station discarded." <<endl;
+		    }
+		    else 
+		    {
+		    try {
 			// These must be in the trace metadata or data 
 			// will be dropped
 			string sta=d->get_string("sta");
@@ -403,9 +430,9 @@ void SaveResults(DatascopeHandle& dbh,
 				ns=d->ns;
 				dir=BuildDirName(gather,basedir,gathermode,imember);
 				dfile=BuildDfileName(gather,*d,chan_to_use);
-				/* NOTE the following two routines need an error
-				return trap */
-				dbh.db.record=dbaddv(dbh.db,0,
+				if(!save_files_only)
+				{
+				    dbh.db.record=dbaddv(dbh.db,0,
 					"sta",sta.c_str(),
 					"chan",chan_to_use.c_str(),
 					"time",time,
@@ -418,14 +445,16 @@ void SaveResults(DatascopeHandle& dbh,
 					"dfile",dfile,
 					"datatype",datatype.c_str(),
 					0);
-				if(dbh.db.record<0)
-				{
+				    if(dbh.db.record<0)
+				    {
 					string mes("dbaddv error on wfdisc.  ");
 					mes=mes+string("Data not saved for this entry in the db.\n");
 					mes=mes+string("You may need to edit output wfdisc.");
 					SaveWarning(sta,chan_to_use,evid,time,mes);
+					continue;
+				    }
 				}
-				else if(datatype=="sd")
+				if(datatype=="sd")
 				{
 					/* this code is based on 4.9 example/c/tr/db2miniseed.c */
 					Msd *msd;
@@ -493,12 +522,13 @@ void SaveResults(DatascopeHandle& dbh,
 				free(dir);
 				delete x;
 			}
-		} catch (SeisppError serr) {
+		    } catch (SeisppError serr) {
 			string sta=d->get_string("sta");
 			cerr << "Error saving station "<<sta<<endl;
 			serr.log_error();
+		    }
 		}
-	    }
+		}
 	}
 	if(idptr!=NULL) free(idptr);
 	// wftype is a pointer to a static struct so we must not free i
@@ -630,6 +660,14 @@ int main(int argc, char **argv)
 		vs0=control.get_double("vs0");
 		string datatype=control.get_string("datatype");
 		string net_code=control.get_string("net_code");
+		bool save_files_only=control.get_bool("save_files_only");
+		if(save_files_only &&(datatype!="sd") )
+		{
+			cerr << "Illegal parameter options.  You selected datatype="<<datatype
+				<< "and set the parameter save_files_only to true" <<endl
+				<< "save_files_only option only allowed with datatype==sd"<<endl;
+			exit(-1);
+		}
 		/* For now this is a fixed location.  Eventually needs to be
 		similar to antelope approach allowing variable directory
 		naming.*/
@@ -816,7 +854,8 @@ int main(int argc, char **argv)
 			}
 			else
 			{
-				SaveResults(dbho,regular_gather,
+				SaveResults(dbho,
+					save_files_only,regular_gather,
 					am,outchans,datatype,
 					basedir,
 					gathermode,
@@ -825,6 +864,8 @@ int main(int argc, char **argv)
 			}
 			
 			delete regular_gather;
+//DEBUG
+//log_memory_use();
 		}
 	}
 	catch (SeisppError serr)

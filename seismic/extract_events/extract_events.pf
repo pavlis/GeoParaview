@@ -149,6 +149,11 @@ StationChannelMap       &Arr{
         LHZ 2 5
     }
 }
-
+#
+# If set true the result does not produce database lines.
+# Mainly useful to avoid db errors from overlapping waveforms when
+# saving to wfdisc.  
+#
+save_files_only false
 
 pf_revision_time 1192965733
