@@ -529,6 +529,10 @@ void SaveResults(DatascopeHandle& dbh,
 		    }
 		}
 		}
+		else
+		{
+			cout << "Station "<<d->get_string("sta")<< "was marked dead and deleted."<<endl;
+		}
 	}
 	if(idptr!=NULL) free(idptr);
 	// wftype is a pointer to a static struct so we must not free i
