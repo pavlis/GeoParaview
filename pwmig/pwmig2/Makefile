@@ -4,7 +4,7 @@ PF=pwmig.pf
 
 #MAN1=pwmig.1
 #cflags=-O
-ldflags=-lseispp -ltrvltm -lgclgrid $(TRLIBS) $(DBLIBS) -lperf -lm
+ldlibs=-lseispp -ltrvltm -lgclgrid $(TRLIBS) $(DBLIBS) -lperf -lm
 
 include $(ANTELOPEMAKE) 
 OBJS= mdutils.o \

@@ -83,7 +83,7 @@ dmatrix Ray_Transformation_Operator::apply(dmatrix& in)
 		work[1]=in(1,i);
 		work[2]=in(2,i);
 // DEBG:  zeroing vertical for test
-work[2]=0.0;
+//work[2]=0.0;
 		p=U[i].get_address(0,0);
 		out(0,i)=p[0]*work[0]+p[1]*work[1]+p[2]*work[2];
 		out(1,i)=p[3]*work[0]+p[4]*work[1]+p[5]*work[2];

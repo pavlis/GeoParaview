@@ -29,7 +29,7 @@ MatlabProcessor mp(stdout);
 #endif
 void usage()
 {
-        cbanner((char *)"$Revision: 1.1 $ $Date: 2007/06/20 23:11:53 $",
+        cbanner((char *)"$Revision: 1.2 $ $Date: 2008/02/14 18:18:41 $",
                 (char *)"db  [-V -pf pfname]",
                 (char *)"Gary Pavlis",
                 (char *)"Indiana University",
@@ -1051,6 +1051,7 @@ void SliceX1(MatlabProcessor& p,GCLscalarfield3d& grid)
 	}
 }
 */
+bool SEISPP::SEISPP_verbose(false);
 
 
 int main(int argc, char **argv)
@@ -1150,8 +1151,10 @@ int main(int argc, char **argv)
 		GCLscalarfield3d Up3d(db,velocity_grid_name,Pmodel3d_name);
 		GCLscalarfield3d Us3d(db,velocity_grid_name,Smodel3d_name);
 		// CHANGE ME:  hack fix for test model.  Units wrong
+/*
 		Up3d *= 0.001;
 		Us3d *= 0.001;
+*/
 		// 
 		// For this program we need to convert velocities to slowness.
 		// This function called on P and S models does this in a procedural
@@ -1565,12 +1568,12 @@ for(int ifoo=0;ifoo<pwdata->member[is].ns;++ifoo)
 		<< pwdata->member[is].u(0,ifoo) << " "
 		<< pwdata->member[is].u(1,ifoo) << " "
 		<< pwdata->member[is].u(2,ifoo) << endl;
+*/
 mp.load(pwdata->member[is],string("de"));
 mp.load(&(SPtime[0]),SPtime.size(),string("sptime"));
 mp.load(work,string("di"));
 cerr << "Loaded sptime and interpolated data (work matrix)"<<endl;
-mp.process(string("plot6c(de,sptime,di);pause(1.0);"));
-*/
+mp.process(string("figure(1);plot6c(de,sptime,di);pause(1.0);"));
 #endif
 				// New feature of coherence weighting.  We have
 				// the option of either scalar or 3c weighting.
@@ -1674,13 +1677,13 @@ mp.process(string("plot3c6(work,work2)"));
 					dweight_ij=compute_weight_for_path(gradTp,gradTs);
 				  else
 					for(k=0;k<n3;++k)dweight_ij[k]=1.0;
+#ifdef MATLABDEBUG
 // DEBUG SECTION
-/*
 cout << "Plotting dweight and domega for (i,j)="<<i<<","<<j<<endl;
 mp.load(&(domega_ij[0]),domega_ij.size(),string("domega"));
 mp.load(&(dweight_ij[0]),dweight_ij.size(),string("dweight"));
-mp.process(string("plotow;figure;"));
-*/
+mp.process(string("figure(2);plotow;"));
+#endif
 				  if(smooth_wt)
 				  {
 					domega_ij=running_average(domega_ij,nwtsmooth);
@@ -1688,11 +1691,11 @@ mp.process(string("plotow;figure;"));
 					if(use_grt_weights)
 					  dweight_ij=running_average(dweight_ij,nwtsmooth);
 				  }
-/*
+#ifdef MATLABDEBUG
 mp.load(&(domega_ij[0]),domega_ij.size(),string("domega"));
 mp.load(&(dweight_ij[0]),dweight_ij.size(),string("dweight"));
-mp.process(string("plotow;title 'after smoother';"));
-*/
+mp.process(string("figure(3);plotow;title 'after smoother';"));
+#endif
 				  weight_functions_set=true;
 				}
 					
@@ -1715,13 +1718,11 @@ mp.process(string("plotow;title 'after smoother';"));
 				}
 #ifdef MATLABDEBUG
 //DEBUG
-/*
 dmatrix dproj(3,n3);
 for(k=0;k<n3;++k)
 	for(l=0;l<3;++l) dproj(l,k)=pwdgrid.val[i][j][k][l];
 mp.load(dproj,string("d"));
-mp.process(string("plot3c(d);pause(0.1);"));
-*/
+mp.process(string("figure(4),plot3c(d);pause(0.1);"));
 #endif
 			}
 			delete pwdata;
@@ -1838,6 +1839,7 @@ delete sfptr;
 		// be the same as the output data file name, dfile
 		// dfile is generated as base+tag+evid
 		//
+
 
 		dfile=MakeDfileName(dfilebase+string("_data"),evid);
 		migrated_image.dbsave(db,"",fielddir,dfile,dfile);
