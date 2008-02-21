@@ -8,5 +8,3 @@ gridsum : gridsum.o
 	$(CXX) $(CXXFLAGS) -o gridsum gridsum.o $(LDFLAGS) $(LDLIBS)
 dumpgridcoords : dumpgridcoords.o
 	$(CXX) $(CXXFLAGS) -o dumpgridcoords  dumpgridcoords.o  $(LDFLAGS) $(LDLIBS)
-extract_section : extract_section.o
-	$(CXX) $(CXXFLAGS) -o extract_section  extract_section.o  $(LDFLAGS) $(LDLIBS)
