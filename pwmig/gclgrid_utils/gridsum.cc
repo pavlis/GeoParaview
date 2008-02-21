@@ -44,6 +44,7 @@ string splitfieldname(string s)
 	result.assign(s,end_gridstring+1,s.length());
 	return(result);
 }	
+bool SEISPP::SEISPP_verbose(true);
 int main(int argc, char **argv)
 {
 	int i;
@@ -131,8 +132,8 @@ cout << "Field c =" << gridc << " " <<fieldc <<endl;
 	    {
 		if(vectormode)
 		{
-			GCLvectorfield3d ga(db,grida,grida);
-			GCLvectorfield3d gb(db,gridb,gridb);
+			GCLvectorfield3d ga(db,grida,fielda);
+			GCLvectorfield3d gb(db,gridb,fieldb);
 			if(signswitch) gb*=-1.0;
 			ga+=gb;
 			ga.name=gridc;
@@ -140,7 +141,7 @@ cout << "Field c =" << gridc << " " <<fieldc <<endl;
 		}
 		else
 		{
-			GCLscalarfield3d ga(db,grida,grida);
+			GCLscalarfield3d ga(db,grida,fielda);
 			GCLscalarfield3d *gb;
 			if(b1d)
 			{
@@ -150,7 +151,7 @@ cout << "Field c =" << gridc << " " <<fieldc <<endl;
 			}
 			else
 			{
-				gb=new GCLscalarfield3d(db,gridb,gridb);
+				gb=new GCLscalarfield3d(db,gridb,fieldb);
 			}
 			if(signswitch) (*gb) *= -1.0;
 			ga+=(*gb);
