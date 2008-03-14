@@ -1,0 +1,28 @@
+trace_mdl &Tbl{
+    sta string
+    chan string
+    time real
+    endtime real
+    nsamp int
+    samprate real
+    source_lat real
+    source_lon real
+    evid int
+    source_depth real
+    source_time real
+    sta_lat real
+    sta_lon real
+    dir string
+    dfile string
+}
+output_mdl &Tbl{
+    time real
+    endtime real
+    nsamp int
+    samprate real
+    pwfid int
+    dir string
+    dfile string
+    timetype string 
+    wfprocess.algorithm string
+}
