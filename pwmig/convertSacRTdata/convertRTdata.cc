@@ -26,7 +26,7 @@ int main(int argc, char **argv)
 	cout << "convertRTdata:  read from db="<<dbin<<" writing results to db="<<dbout<<endl;
 	string pffile("convertRTdata");
 	int i;
-	for(i=0;i<argc;++i)
+	for(i=3;i<argc;++i)
 	{
 		string argstr(argv[i]);
 		if(argstr=="-pf") 
@@ -63,7 +63,7 @@ int main(int argc, char **argv)
 		DatascopeHandle dbhosc(dbho);
 		dbhosc.lookup("sclink");
 		DatascopeHandle dbhoev(dbho);
-		dbhosc.lookup("evlink");
+		dbhoev.lookup("evlink");
 		dbhi.rewind();
 		int j,k;
 		double slat,slon,sdepth,stime;
@@ -73,15 +73,12 @@ int main(int argc, char **argv)
 		double a,b;
 		int evid,pwfid;
 		string sta;
+		/* frozen for now */
+		string outdir("wf3c");
+		string dfilebase("RFdata");
 		for(i=0;i<dbhi.number_tuples();++i,++dbhi)
 		{
 			TimeSeries d(dynamic_cast<DatabaseHandle&>(dbhi),mdl,am);
-			/* this uses the Metadata from d to create a template or 3c data.*/
-			ThreeComponentSeismogram d3c(dynamic_cast<Metadata&>(d),false);
-			/* Zero components 1 and 3 and put data from d into component 2*/
-			for(k=0;k<d.ns;++k)
-				for(j=0;j<3;++j) d3c.u(j,k)=0.0;
-			for(k=0;k<d.ns;++k) d3c.u(1,k)=d.s[k];
 			/* We need to compute an equivalent transformation matrix for
 			these data from the hypocenter information.  We'll let this exit
 			with an exception if origin information is not present. */
@@ -112,16 +109,34 @@ int main(int argc, char **argv)
 			azimuth.  Hence, this is the correction tranformation matrix */
 			a=cos(-az);
 			b=sin(-az);
-			d3c.tmatrix[0][0]=a;
-			d3c.tmatrix[1][0]=-b;
-			d3c.tmatrix[2][0]=0.0;
-			d3c.tmatrix[0][1]=b;
-			d3c.tmatrix[1][1]=a;
-			d3c.tmatrix[2][1]=0.0;
-			d3c.tmatrix[0][2]=0.0;
-			d3c.tmatrix[1][2]=0.0;
-			d3c.tmatrix[2][2]=1.0;
+			/* by loading these in the metadata for d they will be cloned
+			and used to construct the transformation matrix for d3c. */
+			d.put("U11",a);
+			d.put("U21",-b);
+			d.put("U31",0.0);
+			d.put("U12",b);
+			d.put("U22",a);
+			d.put("U32",0.0);
+			d.put("U13",0.0);
+			d.put("U23",0.0);
+			d.put("U33",1.0);
+			/* this uses the Metadata from d to create a template or 3c data.*/
+			ThreeComponentSeismogram d3c(dynamic_cast<Metadata&>(d),false);
+			/* Zero components 1 and 3 and put data from d into component 2*/
+			for(k=0;k<d.ns;++k)
+				for(j=0;j<3;++j) d3c.u(j,k)=0.0;
+			for(k=0;k<d.ns;++k) d3c.u(1,k)=d.s[k];
 			d3c.rotate_to_standard();
+			/* We need to post these things or we're screwed */
+			d3c.put("dir",outdir);
+			char buf[128];
+			stringstream ss(buf);
+			ss<<dfilebase<<i;
+			d3c.put("dfile",ss.str());
+			d3c.put("wfprocess.algorithm","convertRF");
+			d3c.put("timetype","a");
+			// always mark data live
+			d3c.live=true;
 			int rec=dbsave(d3c,dbho.db,outtable,mdlout,am);
 			if(rec<0)
 			{
