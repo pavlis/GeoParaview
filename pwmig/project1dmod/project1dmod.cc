@@ -9,11 +9,11 @@ using namespace SEISPP;
 void usage()
 {
 	cerr << "project1dmod db gridname vmodname "
-	<< "[-field fieldname -mt modtype -p rayparameter]"<<endl
+	<< "[-field fieldname -mt modtype -p rayparameter -V]"<<endl
 	<< "Default fieldname=vmodname, modtype=P, rayparameter=0(s/km)"<<endl;
 	exit(-1);
 }
-bool SEISPP::SEISPP_verbose(true);
+bool SEISPP::SEISPP_verbose(false);
 int main(int argc, char **argv)
 {
 	if(argc<4) usage();
@@ -41,6 +41,10 @@ int main(int argc, char **argv)
 		{
 			++i;
 			rayp=atof(argv[i]);
+		}
+		else if(argstr=="-V")
+		{
+			SEISPP_verbose=true;
 		}
 		else
 		{
@@ -90,6 +94,11 @@ int main(int argc, char **argv)
 			vi.push_back(vel);
 		}
 		initialize_1Dscalar(mod,vi,zi);
+		if(SEISPP_verbose)
+		{
+			cout << "Model written to db"<<endl;
+			cout << mod;
+		}
 		/* for now this is a frozen directory name */
 		string fielddir("vmodels");
 		string gclgdir("");  /* null as save is not needed*/
