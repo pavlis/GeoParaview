@@ -1,7 +1,7 @@
 BIN=project1dmod
 
 cxxflags=-g 
-ldflags=-lseispp -ltrvltm -lgclgrid -lseispp $(TRLIBS) $(DBLIBS) -lperf -lm
+ldlibs=-lseispp -ltrvltm -lgclgrid -lseispp $(TRLIBS) $(DBLIBS) -lperf -lm
 
 include $(ANTELOPEMAKE)
 
