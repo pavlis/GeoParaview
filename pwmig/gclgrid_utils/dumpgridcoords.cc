@@ -9,6 +9,7 @@ void usage()
 		<< " outputs lon,lat pairs to stdout"<<endl;
 	exit(-1);
 }
+bool SEISPP::SEISPP_verbose(true);
 int main(int argc, char **argv)
 {
 	if(argc < 3) usage();

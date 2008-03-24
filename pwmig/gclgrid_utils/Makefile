@@ -8,3 +8,5 @@ gridsum : gridsum.o
 	$(CXX) $(CXXFLAGS) -o gridsum gridsum.o $(LDFLAGS) $(LDLIBS)
 dumpgridcoords : dumpgridcoords.o
 	$(CXX) $(CXXFLAGS) -o dumpgridcoords  dumpgridcoords.o  $(LDFLAGS) $(LDLIBS)
+gridscale : gridscale.o
+	$(CXX) $(CXXFLAGS) -o gridscale gridscale.o $(LDFLAGS) $(LDLIBS)

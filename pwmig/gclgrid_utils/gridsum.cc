@@ -153,8 +153,15 @@ cout << "Field c =" << gridc << " " <<fieldc <<endl;
 			{
 				gb=new GCLscalarfield3d(db,gridb,fieldb);
 			}
+GCLscalarfield3d gasave(ga);
 			if(signswitch) (*gb) *= -1.0;
 			ga+=(*gb);
+for(int ii=0;ii<ga.n1;++ii) for(int jj=0;jj<ga.n2;++jj) for(int kk=0;kk<ga.n3;++kk)
+{
+cout << gasave.val[ii][jj][kk] <<" + "
+  << gb->val[ii][jj][kk] <<" = "
+  << ga.val[ii][jj][kk] <<endl;
+}
 			ga.name=gridc;
 			ga.dbsave(dbgrd,string(""),outdir,fieldc,dfileout);
 		}
