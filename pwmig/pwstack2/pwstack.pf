@@ -1,7 +1,7 @@
 Data_Top_Mute	&Arr{
-    end_time	5.0
+    end_time	3.0
     time_reference_type	relative
-    zero_end_time	2.0
+    zero_end_time	1.0
 }
 Slowness_Grid_Definition	&Arr{
     Slowness_Grid_Name	test
@@ -13,21 +13,20 @@ Slowness_Grid_Definition	&Arr{
     uylow	-0.1
 }
 Stack_Top_Mute	&Arr{
-    end_time	4.0
+    end_time	3.0
     time_reference_type	relative
-    zero_end_time	2.0
+    zero_end_time	1.0
 }
-data_time_window_end	50.0
+data_time_window_end	70.0
 data_time_window_start	-25.0
 dbprocess_commands	&Tbl{
-    dbopen arrival
-    dbleftjoin wfdisc
-    dbjoin assoc
-    dbjoin origin
-    dbjoin event
-    dbjoin sitechan
-    dbjoin site
-    dbsort evid sta chan
+	dbopen event
+	dbjoin origin
+	dbjoin assoc
+	dbjoin arrival
+	dbjoin wfprocess :arrival.time#wfprocess.time::wfprocess.endtime
+	dbjoin site sta
+    dbsort evid sta 
     dbgroup evid sta
 }
 depth_dependent_aperture	&Tbl{
@@ -46,7 +45,7 @@ origin.depth real
 
 }
 pf_revision_time	1107002513
-pseudostation_grid_name	subduct
+pseudostation_grid_name	bolivarPrf
 stack_metadata	&Tbl{
     pwfid int
     wfprocess.dir string
@@ -59,30 +58,27 @@ stack_time_end	50.0
 stack_time_start	0.0
 station_metadata	&Tbl{
     sta string
-    chan string
     time real
     endtime real
     nsamp int
     samprate real
-    wfdisc.dfile string
-    wfdisc.dir string
+    dfile string
+    dir string
+    foff int
     arrival.time real
     arrival.iphase string
     assoc.phase string
-    wfdisc.jdate int
-    wfdisc.calib real
     site.lat real
     site.lon real
     site.elev real
     site.refsta string
     site.dnorth real
     site.deast real
-    sitechan.hang real
-    sitechan.vang real
-    hang real
-    vang real
+    timetype string
+    datatype string
 }
 waveform_directory	./pwstack
 coherence_sample_interval 5.0
 coherence_average_length 10.0
 output_data_file_base_name test
+database_view_mode use_wfprocess

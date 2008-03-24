@@ -1,7 +1,7 @@
 BIN=pwstack
 PF=pwstack.pf
-#DATADIR=schemas
-#DATA=pwmig1.2
+DATADIR=schemas/css3.0.ext
+DATA=gclgdisk gclfield
 
 #MAN1=pwstack.1
 cflags=-g

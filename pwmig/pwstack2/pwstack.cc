@@ -17,7 +17,7 @@ bool Verbose;
 
 void usage()
 {
-    cbanner((char *)"$Revision: 1.7 $ $Date: 2008/01/07 20:58:45 $",
+    cbanner((char *)"$Revision: 1.8 $ $Date: 2008/03/24 12:21:39 $",
         (char *)"dbin [-v -V -pf pfname]",
         (char *)"Gary Pavlis",
         (char *)"Indiana University",
@@ -136,11 +136,60 @@ int main(int argc, char **argv)
         */
         string dbnmi(dbname_in);                  // this temporary seems necessary for g++
         DatascopeHandle dbh(dbnmi,false);
-        dbh=DatascopeHandle(dbh.db,pf,string("dbprocess_commands"));
+	string dbviewmode(pfget_string(pf,"database_view_mode"));
+	if(dbviewmode=="dbprocess")
+        	dbh=DatascopeHandle(dbh.db,pf,string("dbprocess_commands"));
+	else if(dbviewmode=="use_wfdisc")
+	{
+		dbh.lookup("arrival");
+		list<string> j1,j2;
+		j1.push_back("wfdisc.time::wfdisc.endtime");
+		j2.push_back("arrival.time");
+		dbh.leftjoin("wfdisc",j1,j2);
+		dbh.natural_join("assoc");
+		dbh.natural_join("origin");
+		dbh.natural_join("event");
+		dbh.subset("orid==prefor");
+		dbh.natural_join("sitechan");
+		dbh.natural_join("site");
+		list<string> sortkeys;
+		sortkeys.push_back("evid");
+		sortkeys.push_back("sta");
+		sortkeys.push_back("chan");
+		dbh.sort(sortkeys);
+	}
+	else if(dbviewmode=="use_wfprocess")
+	{
+		dbh.lookup("event");
+		dbh.natural_join("origin");
+		dbh.subset("orid==prefor");
+		dbh.natural_join("assoc");
+		dbh.natural_join("arrival");
+		list<string> j1,j2;
+		j1.push_back("arrival.time");
+		j2.push_back("wfprocess.time::wfprocess.endtime");
+		dbh.join("wfprocess",j1,j2);
+		dbh.natural_join("sclink");
+		dbh.subset("sclink.sta == arrival.sta");
+		dbh.natural_join("site");
+		list<string> sortkeys;
+		sortkeys.push_back("evid");
+		sortkeys.push_back("sta");
+		dbh.sort(sortkeys);
+	}
+	else
+	{
+		cerr << "Illegal option for parameter database_view_mode="<<dbviewmode;
+		exit(-1);
+	}
+	cout << "Processing begins on database " 
+		<<  dbname_in << endl
+		<<"Working database has "<<dbh.number_tuples() <<" rows."<<endl;
         list<string> group_keys;
         group_keys.push_back("evid");
         dbh.group(group_keys);
         dbh.rewind();
+	cout << "This run will process data from "<<dbh.number_tuples()<<" events."<<endl;
 
         // We need to load the primary GCLgrid that defines the
         // location of pseudostation points.  It is assumed we
@@ -204,9 +253,10 @@ int main(int argc, char **argv)
 	    char *dfbuf=new char[256];
 	    ostringstream ss(dfbuf);
 	    ss << dir << "/" << string(dfilebase) << "_" << evid;
-	    string dfile=ss.str()+DataFileExtension;
-	    string coh3cf=ss.str()+Coh3CExtension;
-	    string cohf=ss.str()+CohExtension;
+	    string dfilebase=ss.str();
+	    string dfile=dfilebase+DataFileExtension;
+	    string coh3cf=dfilebase+Coh3CExtension;
+	    string cohf=dfilebase+CohExtension;
 	    PwmigFileHandle dfh(dfile,false,false);
 	    load_file_globals(dfh,evid,olat,olon,odepth,otime,stagridname);
 	    PwmigFileHandle coh3cfh(coh3cf,false,false);
@@ -215,13 +265,9 @@ int main(int argc, char **argv)
 	    load_file_globals(cohfh,evid,olat,olon,odepth,otime,stagridname);
 	    delete [] dfbuf;
             double lat0,lon0,elev0;
+	    cout << "Beginning process for event id = "<<evid<<endl;
             for(i=0;i<stagrid.n1;++i)
                 for(j=0;j<stagrid.n2;++j)
-/****  temporary for running benchmark with vampir.  2x2 grid only run 
-            for(i=5;i<7;++i)
-                for(j=5;j<7;++j)
-*/
-
             {
                 lat0=stagrid.lat(i,j);
                 lon0=stagrid.lon(i,j);
@@ -249,7 +295,8 @@ int main(int argc, char **argv)
                     ensemble->put("ux0",slow.ux);
                     ensemble->put("uy0",slow.uy);
 
-                    cerr << "Working on grid i,j = " << i << "," << j << endl;
+                    if(SEISPP_verbose) cout << "Working on grid i,j = " 
+					<< i << "," << j << endl;
                     iret=pwstack_ensemble(*ensemble,
                         ugrid,
                         mute,

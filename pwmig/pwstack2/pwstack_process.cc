@@ -288,10 +288,48 @@ PwmigFileHandle& cohfh)
     vector<dmatrix> gather;
     dmatrix gathwgt(nsout,stack_count);
     gathwgt.zero();
-    // There may be some way to do this on the line above
-    // but I could not figure out a permutation the compiler
-    // would accept.  The idea is to have 3 matrices; one for
-    // each component.
+    /* Here we compute a vector of sum of weights at each time step 
+    and copy only nonzero weight vectors to gathwgt vector.  We do
+    this here because this vector and matrix  are common to all slowness vectors
+    results we compute here. */
+    int icol; // defined here and used in a similar context inside slowness grid loop.
+    for(i=0,icol=0;i<nsta;++i)
+    {
+	if(use_this_sta[i])
+	{
+            vadd(nsout,weights.get_address(i,0),nsta,&(stack_weight[0]),1);
+            dcopy(nsout,weights.get_address(i,0),nsta,
+                            gathwgt.get_address(0,icol),1);
+	    ++icol;
+	}
+    }
+   /* Find the first sample with a sum of wts above the threshold */
+    int stack_start;
+    for(i=0;i<nsout;++i) 
+    {
+	if(stack_weight[i]>WEIGHT_MINIMUM)
+        {
+		stack_start=i;
+		break;
+	}
+    }
+    /* no reason to continue if all the weights are tiny as that means
+    all coverage is at the fringe of the aperture.  Normally best to drop
+    such points */
+    if(stack_start>=nsout) return(-1);
+    /* Apply the top mute to the start the data to taper discontinuties
+    that can happen otherwise when the aperture gets wider with time. */
+    TopMute smuteused(stackmute);
+    if(stack_start>=0)
+    {
+	double tshift=dt*static_cast<double>(stack_start);
+	smuteused.t0e+=tshift;;
+	smuteused.t1+=tshift;
+    }
+
+    /* Create the working gather build as 3 matrices, one for each channel,
+    with stack_count columns per member.   More logical than a 3d array 
+    in this case in the authors view. */
     for(i=0;i<3;++i)
     {
         gather.push_back(dmatrix(nsout,stack_count));
@@ -319,7 +357,6 @@ PwmigFileHandle& cohfh)
 
             stack.zero();
             for(i=0;i<3;++i)gather[i].zero();
-            gathwgt.zero();
 
             dzero(nsout,&(stack_weight[0]),1);
 
@@ -334,7 +371,6 @@ PwmigFileHandle& cohfh)
             // moveout computed here and used below assumes the
             // data are aligned on the P arrival
             compute_pwmoveout(nsta,&(deast[0]),&(dnorth[0]),dux,duy,&(moveout[0]));
-            int icol;
             for(i=0,icol=0,iv=indata.member.begin(),ismute_this=0,iend_this=0,ismin=nsout;
                 iv!=indata.member.end();++iv,++i)
             {
@@ -426,10 +462,6 @@ PwmigFileHandle& cohfh)
                             cout << "plotting component "<<j<<endl;
 #endif
                         }
-                        // Need to accumulate the sum of weights to normalize
-                        vadd(nsout,weights.get_address(i,0),nsta,&(stack_weight[0]),1);
-                        dcopy(nsout,weights.get_address(i,0),nsta,
-                            gathwgt.get_address(0,icol),1);
                         ++icol;
                     }
                 }
@@ -443,12 +475,13 @@ PwmigFileHandle& cohfh)
             }
             */
             // normalize the stack.
-            // not so trivial because of machine zero issue
-            // Use a hard limit based on ismax and iend_this and then
-            // assume mutes kill possible transients in mute zone
+            // not trivial for a variety of reasons
+	    // This uses a threshold to avoid divide by zero but 
+	    // no other complexity.
             //DEBUG
             //cerr << "ismin="<<ismin<<" iend_this="<<iend_this<<endl;
-            for(i=ismin;i<iend_this;++i)
+            //for(i=ismin;i<iend_this;++i)
+	    for(i=0;i<nsout;++i)
             {
                 if(stack_weight[i]>WEIGHT_MINIMUM)
                 {
@@ -458,19 +491,6 @@ PwmigFileHandle& cohfh)
                 {
                     for(j=0;j<3;++j) stack(j,i)=0.0;
                 }
-                /*
-                if(fabs(stack(2,i))>100000.0)
-                {
-                cerr << "Starting matlab:  "<<endl;
-                MatlabProcessor mp(stdout);
-                mp.load(&(stack_weight[0]),stack_weight.size(),string("sw"));
-                mp.load(stack,string("d"));
-                mp.process(string("plot(sw);"));
-                mp.process(string("figure;  plot(d(1,:));"));
-                mp.run_interactive();
-                }
-                */
-
             }
             //DEBUG
             /*
@@ -511,7 +531,7 @@ PwmigFileHandle& cohfh)
             // just keep a good estimate of elevation and deal with this in the
             // migration algorithm.
             stackout->put("elev",avg_elev);
-            ApplyTopMute(*stackout,stackmute);
+            ApplyTopMute(*stackout,smuteused);
 #ifdef MATLABDEBUG
             double smax=0.0;
             int is,js;
@@ -527,7 +547,7 @@ PwmigFileHandle& cohfh)
 #endif
             // new March 2007: compute stack coherence
             Coharray coh=compute_stack_coherence(gather,gathwgt,*stackout,
-                dtcoh,cohwinlen,stackmute);
+                dtcoh,cohwinlen,smuteused);
             stacklist.push_back(*stackout);
             delete stackout;
             coharraylist.push_back(coh);
