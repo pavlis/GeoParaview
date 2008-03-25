@@ -5,7 +5,10 @@
 #ifdef MATLABDEBUG
 #include "MatlabProcessor.h"
 #endif
+/*  Avoided now with a define in Makefile, but leave here 
+for reference. 
 #define _FILE_OFFSET_BITS 64
+*/
 using namespace std;
 using namespace SEISPP;
 #ifdef MATLABDEBUG
