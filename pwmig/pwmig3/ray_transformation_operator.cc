@@ -60,11 +60,14 @@ dmatrix Ray_Transformation_Operator::apply(dmatrix& in)
 	// This could be trapped as an exception but since this
 	// is expected to only be used in this program this is
 	// simpler
-	if( (nrow!=3) || (ncol!=npoints) )
+	//Old form:  if( (nrow!=3) || (ncol!=npoints) )
+	if( (nrow!=3) || (ncol>npoints))
 	{
 		cerr << "Coding error:  Ray_Transformation_Operator has "
 			<< npoints << "elements but matrix passed is "
-			<< nrow << "X" << ncol << endl;
+			<< nrow << "X" << ncol << endl
+			<< "Data matrix samples (columns) must be smaller "
+			<< "than number of operator elements"<<endl;
 		exit(-1);
 	}
 	dmatrix out(nrow,ncol);

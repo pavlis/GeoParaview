@@ -3,7 +3,8 @@ DIRS=
 PF=pwmig.pf
 
 #MAN1=pwmig.1
-MATLAB=/opt/matlab6p1/extern
+#MATLAB=/opt/matlab6p1/extern
+MATLAB=/N/soft/linux-rhel4-x86_64/Matlab-R2007a/extern
 RPATH="-Wl,--rpath-link,$TMW_ROOT/extern/lib/$Arch,--rpath-link,$TMW_ROOT/bin/$Arch"
 cflags=-g -I$(MATLAB)/include -DMATLABDEBUG
 ldflags=-lseispp -ltrvltm -lgclgrid $(TRLIBS) $(DBLIBS) -lperf -lm

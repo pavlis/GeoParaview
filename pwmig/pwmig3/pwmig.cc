@@ -31,7 +31,7 @@ MatlabProcessor mp(stdout);
 #endif
 void usage()
 {
-        cbanner((char *)"$Revision: 1.4 $ $Date: 2008/03/25 23:47:48 $",
+        cbanner((char *)"$Revision: 1.5 $ $Date: 2008/03/25 23:58:54 $",
                 (char *)"db  listfile [-V -v -pf pfname]",
                 (char *)"Gary Pavlis",
                 (char *)"Indiana University",
@@ -492,6 +492,27 @@ double compute_scatter_point_Ptime(GCLgrid3d& raygrid, int ix1, int ix2, int ix3
 	x2=raygrid.x2[ix1][ix2][ix3];
 	x3=raygrid.x3[ix1][ix2][ix3];
 	err=TP.lookup(x1,x2,x3);
+//DEBUG
+/*
+int gindex[3];
+TP.get_index(gindex);
+cout <<"raygrid indices="
+	<<ix1<<", "
+	<<ix2<<", "
+	<<ix3<<"  TP lookup result="
+	<<gindex[0]<<", "
+	<<gindex[1]<<", "
+	<<gindex[2]<<endl;
+double dist;
+dist=x1-TP.x1[gindex[0]][gindex[1]][gindex[2]];
+cout << "Vector between grid points="
+	<< dist <<",";
+dist=x2-TP.x2[gindex[0]][gindex[1]][gindex[2]];
+cout << dist << ", ";
+dist=x3-TP.x3[gindex[0]][gindex[1]][gindex[2]];
+cout << dist << endl;
+*/
+
 	switch (err)
 	{
 		case 0:
@@ -887,6 +908,14 @@ int main(int argc, char **argv)
 	Pf *pf;
 	const string schema("pwmig1.1");
 	int border_pad;
+	/* This constant controls when premature cutoff of the travel
+	time lag estimates is considered an error.  That is, time are computed
+	by working up a ray path from the ray grid.  The points on that path 
+	are fixed at n3 of the raygrid.  Model inconsistencies can cause a
+	mismatch of the integration along that path compared to other ray
+	segments.  When number of points is less than N3_FRACTION_ERROR*n3 
+	a seismogram will be dropped from projection with an error posted. */
+	const double N3_FRACTION_ERROR(0.9);
 
         ios::sync_with_stdio();
         elog_init(argc,argv);
@@ -939,7 +968,8 @@ int main(int argc, char **argv)
         if(pfread(const_cast<char *>(pfin.c_str()),&pf)) die(1,(char *)"pfread error\n");
 	try {
 		Metadata control(pf);
-		string velocity_grid_name=control.get_string("velocity_model_grid");
+		string Pvelocity_grid_name=control.get_string("Pvelocity_model_grid");
+		string Svelocity_grid_name=control.get_string("Svelocity_model_grid");
 		string Pmodel3d_name=control.get_string("P_velocity_model3d_name");
 		string Smodel3d_name=control.get_string("S_velocity_model3d_name");
 		string Pmodel1d_name=control.get_string("P_velocity_model1d_name");
@@ -996,11 +1026,17 @@ int main(int argc, char **argv)
 			exit(-1);
 		}
 		// These constructors load a velocity model into a GCLgrid
-		GCLscalarfield3d Up3d(db,velocity_grid_name,Pmodel3d_name);
-		GCLscalarfield3d Us3d(db,velocity_grid_name,Smodel3d_name);
+		GCLscalarfield3d Up3d(db,Pvelocity_grid_name,Pmodel3d_name);
+cout << "P velocity model"<<endl;
+cout << Up3d;
+		GCLscalarfield3d Us3d(db,Svelocity_grid_name,Smodel3d_name);
+cout << "S velocity model"<<endl;
+cout << Us3d;
 		// CHANGE ME:  hack fix for test model.  Units wrong
+		/*
 		Up3d *= 0.001;
 		Us3d *= 0.001;
+		*/
 		// 
 		// For this program we need to convert velocities to slowness.
 		// This function called on P and S models does this in a procedural
@@ -1207,11 +1243,6 @@ mp.run_interactive();
 */
 #endif
 			int gridid=pwdata->member[0].get_int("gridid");
-if(gridid!=5)
-{
-	delete pwdata;
-	continue;
-}
 cout << "DEBUG:  processing ensemble with gridid="<<gridid<<endl;
 cout << "DEBUG: ensemble size="<<pwdata->member.size()<<endl;
 
@@ -1250,13 +1281,17 @@ if(fabs(ustack.uy)>=0.007)
 			GCLgrid3d& raygrid=*grdptr;  // convenient shorthand because we keep changing this
 			int n30;  // convenient since top surface is at n3-1
 			n30 = raygrid.n3 - 1;
-cout << "n3="<<raygrid.n3<<endl;
+			int SPtime_SIZE_MIN=static_cast<int>(N3_FRACTION_ERROR*static_cast<double>(n30));
+//DEBUG
+cout << "n3="<<raygrid.n3<<endl
+	<< "SPtime_SIZE_MIN="<<SPtime_SIZE_MIN<<endl;
 			// create work spaces for accumation of this component
 			// This is a large memory model.  I'll use it until it proves
 			// intractable
 			// Below assumes the val arrays in these fields
 			// have been initialized to zero.
 			GCLvectorfield3d pwdgrid(raygrid,5);
+
 
 			// loop through the ensemble associating each trace with a 
 			// point in the raygrid and interpolating to get time to depth.
@@ -1346,9 +1381,12 @@ mp.process(string("plot3c(spath);"));
 				// Only need to compute P time to surface once for 
 				// each ray so we compute it before the loop below
 				double Tpr=compute_receiver_Ptime(raygrid,i,j,*TPptr,hypo);
+				double tlag,Tpx;
+				/* It is a good idea to initialize these before each raty path */
+				TPptr->reset_index();
+				SPtime.clear();
 				for(k=0,kk=raygrid.n3-1;k<raygrid.n3;++k,--kk)
 				{
-					double tlag,Tpx;
 					vector<double>nu;
 					double vp;
 
@@ -1362,25 +1400,51 @@ mp.process(string("plot3c(spath);"));
 
 					// Compute time lag between incident P and scattered S
 					Tpx=compute_scatter_point_Ptime(raygrid,i,j,k,*TPptr,hypo);
-					tlag=Tpx+Stime[kk]-Tpr;
-					if(tlag>=0)
-						SPtime[kk]=tlag;
+					/* This flags an interpolation error.  Break the loop 
+					and post a serious warning if this happens */
+					if(Tpx<TTERROR)
+					{
+						tcompute_problem=true;
+						cerr << "Interpolation error computing scatter point time"<<endl;
+						TPptr->reset_index();
+						break;
+					}
 					else
 					{
-						const double ndtlagcut(5.0);
-						// The multiplier ndtlagcut
-						// is needed to allow 
-						// for rounding errors 
-						// for points near surface
-						if(abs(tlag)<(ndtlagcut*dt))
-							SPtime[kk]=0.0;
-						else
+						tlag=Tpx+Stime[kk]-Tpr;
+						if(tlag<0.0)
 						{
-							tcompute_problem=true;
-							break;
+							if(k<SPtime_SIZE_MIN)
+							{
+								tcompute_problem=true;
+								cerr << "Raypath integration error.  "
+									<< "Too many points have negative lag"<<endl
+									<< "Computed negative lag "
+									<< k
+									<< " points into a path "
+									<< raygrid.n3
+									<< " points long."<<endl
+									<< "This is probably a serious problem with 3d velocity models."
+									<< "Check for endian mismatch between grid and field files"<<endl;
+								break;
+							}
 						}
+						// Always load result even with negative lags.
+						// Interpolator will just drop negative lag data.
+						SPtime.push_back(tlag);
 					}
+							
+//DEBUG
+/*
+cout << "tlag=Tpx+Stime[kk]-Tp ->"
+		<< tlag << "="
+		<< Tpx << "+"
+		<< Stime[kk]<<"[kk="<<kk<<"] - "
+		<< Tpr <<endl;
+*/
 				}
+cout << "SPtime.size()="<<SPtime.size()<<endl;
+
 #ifdef MATLABDEBUG
 //DEBUG
 /*
@@ -1400,17 +1464,40 @@ mp.process(string("plot3c(gradtp);pause(1)"));
 						<< ", grid position index ("
 						<< i << ","
 						<< j << "). Ray project dropped" << endl
-						<< "Failure in computing lag.  "
-						<< "Probably need to increase border_pad"<<endl;
+						<< "Computed P to scatter time="<<Tpx
+						<< " computed S travel time="<<Stime[kk]
+						<< " computed P time to receiver="<<Tpr<<endl
+						<< "Failure in computing lag.  "<<endl
+						<< "This may leave ugly holes in the output image."<<endl;
 					continue;
 
+				}
+				// Pad SPtime if necessary to length raygrid.n3
+				// necessary to complain about this, however, as with
+				// the current logic this really shouldn't happen
+				if(SPtime.size()<raygrid.n3)
+				{
+					cerr << "Warning:  slowness gridid "<<gridid
+						<< ", grid position index ("
+						<< i << ","
+						<< j << "). SPtime array was incorrectly truncated."
+						<< endl
+						<< "Should be "<<raygrid.n3<<" points long."<<endl
+						<< "Actual length = "<<SPtime.size() <<endl
+						<< "Padding and blundering on. "
+						<< "This is not serious unless truncation is extreme."
+						<<endl;
+					// Paranoia could test for k=1 but with current logic this
+					// will not happen as this condition would raise the tcompute_problem
+					// flag.  The 0.001 s pad is arbitrary
+					for(k=SPtime.size();k<raygrid.n3;++k) SPtime[k]=SPtime[k-1]-0.001;
 				}
 				// We now interpolate the data with tlag values to map
 				// the data from time to an absolute location in space
 				// Note carefully SPtime and work sense is inverted from
 				// the raygrid.  i.e. they are oriented for a ray from the surface
 				// to the bottom.  Below we have to reverse this
-				dmatrix work(3,SPtime.size());
+				dmatrix work(3,raygrid.n3);
 				linear_vector_regular_to_irregular(t0,dt,pwdata->member[is].u,
 					&(SPtime[0]),work);
 #ifdef MATLABDEBUG
