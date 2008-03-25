@@ -31,7 +31,7 @@ MatlabProcessor mp(stdout);
 #endif
 void usage()
 {
-        cbanner((char *)"$Revision: 1.3 $ $Date: 2008/01/07 20:54:45 $",
+        cbanner((char *)"$Revision: 1.4 $ $Date: 2008/03/25 23:47:48 $",
                 (char *)"db  listfile [-V -v -pf pfname]",
                 (char *)"Gary Pavlis",
                 (char *)"Indiana University",
@@ -1207,11 +1207,10 @@ mp.run_interactive();
 */
 #endif
 			int gridid=pwdata->member[0].get_int("gridid");
-//DEBUG
-if(gridid!=221) 
+if(gridid!=5)
 {
-delete pwdata;
-continue;
+	delete pwdata;
+	continue;
 }
 cout << "DEBUG:  processing ensemble with gridid="<<gridid<<endl;
 cout << "DEBUG: ensemble size="<<pwdata->member.size()<<endl;
@@ -1416,7 +1415,6 @@ mp.process(string("plot3c(gradtp);pause(1)"));
 					&(SPtime[0]),work);
 #ifdef MATLABDEBUG
 //DEBUG
-/*
 cout << "Input data number of samples="<<pwdata->member[is].ns<<endl;
 cout << "DAta before interpolation" << endl;
 for(int ifoo=0;ifoo<pwdata->member[is].ns;++ifoo)
@@ -1429,7 +1427,6 @@ mp.load(&(SPtime[0]),SPtime.size(),string("sptime"));
 mp.load(work,string("di"));
 cerr << "Loaded sptime and interpolated data (work matrix)"<<endl;
 mp.process(string("plot6c(de,sptime,di);pause(1.0);"));
-*/
 #endif
 				// New feature of coherence weighting.  We have
 				// the option of either scalar or 3c weighting.
@@ -1566,13 +1563,11 @@ mp.process(string("plotow;title 'after smoother';"));
 				}
 #ifdef MATLABDEBUG
 //DEBUG
-/*
 dmatrix dproj(3,n3);
 for(k=0;k<n3;++k)
 	for(l=0;l<3;++l) dproj(l,k)=pwdgrid.val[i][j][k][l];
 mp.load(dproj,string("d"));
 mp.process(string("plot3c(d);pause(0.1);"));
-*/
 #endif
 			}
 			delete pwdata;
@@ -1608,6 +1603,7 @@ cout << "Elapsed time to compute pwdgrid="<<rundtime-now()<<endl;
 //DEBUG 
 cout << "Running += operators "<<endl;
 			migrated_image += pwdgrid;
+cout << migrated_image;
 			if(save_partial_sums)
 			{
 				// This will write final result twice 
