@@ -87,22 +87,25 @@ PwmigFileHandle::PwmigFileHandle(string fname, bool rmode, bool smode)
 PwmigFileHandle::~PwmigFileHandle()
 {
 	close(datafd);
-	const string message("PwmigFileHandle::destructor:  error dumping output header data");
-	ssize_t test;
-	test=write(hdrfd,static_cast<void *>(&filehdr),sizeof(PwmigFileGlobals) );
-	if(test!=sizeof(PwmigFileGlobals) )
+	if(!readmode)
 	{
-		close(hdrfd);
-		throw SeisppError(message);
-	}
-	for(current_record=recs.begin();current_record!=recs.end();++current_record)
-	{
-		test=write(hdrfd,static_cast<void *>(&(*current_record)),
-			sizeof(PwmigFileRecord) );
-		if(test!=sizeof(PwmigFileRecord))
+		const string message("PwmigFileHandle::destructor:  error dumping output header data");
+		ssize_t test;
+		test=write(hdrfd,static_cast<void *>(&filehdr),sizeof(PwmigFileGlobals) );
+		if(test!=sizeof(PwmigFileGlobals) )
 		{
 			close(hdrfd);
 			throw SeisppError(message);
+		}
+		for(current_record=recs.begin();current_record!=recs.end();++current_record)
+		{
+			test=write(hdrfd,static_cast<void *>(&(*current_record)),
+				sizeof(PwmigFileRecord) );
+			if(test!=sizeof(PwmigFileRecord))
+			{
+				close(hdrfd);
+				throw SeisppError(message);
+			}
 		}
 	}
 }
