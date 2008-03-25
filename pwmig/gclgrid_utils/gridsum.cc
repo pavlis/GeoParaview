@@ -44,6 +44,14 @@ string splitfieldname(string s)
 	result.assign(s,end_gridstring+1,s.length());
 	return(result);
 }	
+bool grids_are_same(GCLscalarfield3d *ga, GCLscalarfield3d *gb)
+{
+	if((*ga) != (*gb) ) return(false);
+	if(ga->n1 != gb->n1) return(false);
+	if(ga->n2 != gb->n2) return(false);
+	if(ga->n3 != gb->n3) return(false);
+	return(true);
+}
 bool SEISPP::SEISPP_verbose(true);
 int main(int argc, char **argv)
 {
@@ -155,13 +163,31 @@ cout << "Field c =" << gridc << " " <<fieldc <<endl;
 			}
 GCLscalarfield3d gasave(ga);
 			if(signswitch) (*gb) *= -1.0;
-			ga+=(*gb);
-for(int ii=0;ii<ga.n1;++ii) for(int jj=0;jj<ga.n2;++jj) for(int kk=0;kk<ga.n3;++kk)
-{
-cout << gasave.val[ii][jj][kk] <<" + "
-  << gb->val[ii][jj][kk] <<" = "
-  << ga.val[ii][jj][kk] <<endl;
-}
+			if(grids_are_same(&ga,gb))
+			{
+				for(int ii=0;ii<ga.n1;++ii) 
+				  for(int jj=0;jj<ga.n2;++jj) 
+				    for(int kk=0;kk<ga.n3;++kk)
+				    {
+					ga.val[ii][jj][kk]
+					 += gb->val[ii][jj][kk];
+				    }
+			}
+			else
+			{
+				ga+=(*gb);
+			}
+			if(SEISPP_verbose)
+			{
+			  for(int ii=0;ii<ga.n1;++ii) 
+			   for(int jj=0;jj<ga.n2;++jj) 
+			    for(int kk=0;kk<ga.n3;++kk)
+			    {
+			 	cout << gasave.val[ii][jj][kk] <<" + "
+			  	<< gb->val[ii][jj][kk] <<" = "
+			  	<< ga.val[ii][jj][kk] <<endl;
+			    }
+			}
 			ga.name=gridc;
 			ga.dbsave(dbgrd,string(""),outdir,fieldc,dfileout);
 		}
