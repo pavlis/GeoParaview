@@ -5,7 +5,7 @@ using namespace std;
 using namespace SEISPP;
 void usage()
 {
-	cerr << "dumpfield db gridname fieldname [-component n -3c]"<<endl
+	cerr << "dumpfield db gridname fieldname [-component n -3d]"<<endl
 		<< " outputs lon,lat,z,value to stdout"<<endl
 		<< " -component sets vector mode writing component n"<<endl;
 	exit(-1);
@@ -17,23 +17,50 @@ int main(int argc, char **argv)
 	string dbname(argv[1]);
 	string gridname(argv[2]);
 	string fieldname(argv[3]);
-	bool threecmode(false);
-	if(argc==4) 
+	bool threedmode(false);
+	bool vectormode(false);
+	int component;
+	int i,j,k;
+	for(i=4;i<argc;++i)
 	{
-		string sw3c(argv[3]);
-		if(sw3c!="-3c") usage();
-		threecmode=true;
+		string argstr(argv[i]);
+		if(argstr=="-3d") 
+			threedmode=true;
+		else if(argstr=="-component")
+		{
+			vectormode = true;
+			++i;
+			component = atof(argv[i]);
+		}
+		else
+			usage();
 	}
 	try {
 		DatascopeHandle dbh(dbname,true);
-		if(threecmode)
+		if(threedmode)
 		{
-			GCLgrid3d grid(dbh.db,gridname);
-			int k=grid.n3 - 1;
-			for(int j=0;j<grid.n2;++j)
-			    for(int i=0;i<grid.n1;++i)
-				cout << deg(grid.lon(i,j,k)) <<" "
-					<<deg(grid.lat(i,j,k))<<endl;
+		   if(vectormode)
+		   {
+			GCLvectorfield3d field(dbh.db,gridname,fieldname);
+			for(i=0;i<field.n1;++i)
+			  for(j=0;j<field.n2;++j)
+			     for(k=0;k<field.n3;++k)
+				cout << deg(field.lon(i,j,k)) <<" "
+					<<deg(field.lat(i,j,k))<<" "
+					<<field.depth(i,j,k)<<" "
+					<<field.val[i][j][k][component]<<endl;
+		   }
+		   else
+		   {
+			GCLscalarfield3d field(dbh.db,gridname,fieldname);
+			for(i=0;i<field.n1;++i)
+			  for(j=0;j<field.n2;++j)
+			     for(k=0;k<field.n3;++k)
+				cout << deg(field.lon(i,j,k)) <<" "
+					<<deg(field.lat(i,j,k))<<" "
+					<<field.depth(i,j,k)<<" "
+					<<field.val[i][j][k]<<endl;
+		    }
 			
 		}
 		else
