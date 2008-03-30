@@ -4,7 +4,8 @@
 #include <stdio.h>
 #include "stock.h"
 #include "pf.h"
-#include "metadata.h"
+#include "seispp.h"
+#include "Metadata.h"
 #include "gclgrid.h"
 using namespace SEISPP;
 // Ugly FORTRAN programs 
@@ -15,9 +16,14 @@ void utmtoll_(int*, double *, double *,char *,double *, double *,int *,int);
 }
 void usage()
 {
-	cerr << "rpitomo2db tomofile db [-vpvs x ]\n";
+	cerr << "rpitomo2db tomofile db [-S -vpvs x ]\n"
+		<< "Options: "<<endl
+		<< "-S save the S model (default is P)"<<endl
+		<< "-vpvs save a version of P model converted to S with vpvs"
+		<<endl;
 	exit(-1);
 }
+bool SEISPP::SEISPP_verbose(true);
 int main(int argc, char **argv)
 {
 	int nx,ny,nz;
@@ -36,19 +42,28 @@ int main(int argc, char **argv)
 	if(argc<3) usage();
 	tomofile=argv[1];
 	dbname=argv[2];
-	for(int iarg=0;iarg<argc;++iarg)
+	bool usevpvs(false);
+	for(int iarg=3;iarg<argc;++iarg)
 	{
 		string sarg(argv[iarg]);
 		if(sarg=="-vpvs")
 		{
 			++iarg;
 			vpvs=atof(argv[iarg]);
-			save_S=true;
+			usevpvs=true;
 		}
+		if(sarg=="-S")
+			save_S=true;
 		else
 			usage();
 	}
-	
+	if(usevpvs && save_S) 
+	{
+		cerr << "Inconsistent parameters."
+			<<endl
+			<< "-vpvs and -S cannot be used together"<<endl;
+		exit(-1);
+	}
 	
 	Pf *pf;
 	char *pfname="rpitomo2db";
@@ -66,6 +81,10 @@ int main(int argc, char **argv)
 		double northing,easting;
 		double northing0,easting0;
 		double lat0,lon0;
+		/* New parameter.  Needed because grid usually has
+		a negative depth origin.  Shifts grid up by this 
+		amount */
+		double dzshift;
 		int zonenumber;
 		string sin;
 		char utmzone[2];		
@@ -77,6 +96,7 @@ int main(int argc, char **argv)
 		dxutm=dx*1000.0;
 		dyutm=dy*1000.0;
 		dz=control.get_double("dz");
+		dzshift=control.get_double("vertical_grid_offset");
 		zonenumber=control.get_int("utm_zone_number");
 		sin=control.get_string("utm_zone_letter_code");
 		easting0=control.get_double("easting0");
@@ -103,6 +123,7 @@ int main(int argc, char **argv)
 		int ntotal=nx*ny*nz;
 		float *buffer=new float[ntotal];
 		ntest = fread(buffer,sizeof(float),ntotal,fp);
+		if(save_S)  fread(buffer,sizeof(float),ntotal,fp);
 		if(ntest!=ntotal)
 		{
 			cerr << "Read error:  read "<<ntest
@@ -161,6 +182,7 @@ int main(int argc, char **argv)
 			x = x_lowerleft + ((double)i)*dxutm;
 			y = y_lowerleft + ((double)j)*dyutm;
 			z = dz*(static_cast<double>(kk));
+			z -= dzshift;
 			utmtoll_(&ReferenceEllipsoid,&y,&x,utmzone,&lat,&lon,
 				&zonenumber,strlen(utmzone));
 			geo.lat=rad(lat);
@@ -185,17 +207,19 @@ int main(int argc, char **argv)
 		}
 		// save field to database
 		string modelname;
-		modelname=modelbasename+"_P";
-		// Use the model name for the output data file name
-		dbsave(db,gclgdir,fielddir,modelname,modelname);
 		if(save_S)
+			modelname=modelbasename+"_S";
+		else
+			modelname=modelbasename+"_P";
+		if(usevpvs)
 		{
 			modelname=modelbasename+"_S";
 			vel *= vpvs;
-			dbsave(db,"",fielddir,modelname,modelname);
 		}
+		// Use the model name for the output data file name
+		vel.dbsave(db,gclgdir,fielddir,modelname,modelname);
 	}
-	catch (Metadata_get_error mderr)
+	catch (MetadataGetError mderr)
 	{
 		mderr.log_error();
 		exit(-1);

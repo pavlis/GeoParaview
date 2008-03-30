@@ -1,6 +1,7 @@
 BIN=rpitomo2db
+PF=rpitomo2db.pf
 cflags=-g
-ldlibs=-lm -lgclgrid -lseispp -lperf $(DBLIBS) $(TRLIBS) $(F77LIBS)
+ldlibs=-lm -lgclgrid -lseispp -lperf $(DBLIBS) $(TRLIBS) 
 
 include $(ANTELOPEMAKE)
 OBJS=rpitomo2db.o utmsubs.o
