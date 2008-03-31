@@ -126,6 +126,8 @@ int main(int argc, char **argv)
 			for(k=0;k<d.ns;++k)
 				for(j=0;j<3;++j) d3c.u(j,k)=0.0;
 			for(k=0;k<d.ns;++k) d3c.u(1,k)=d.s[k];
+			// always mark data live
+			d3c.live=true;
 			d3c.rotate_to_standard();
 			/* We need to post these things or we're screwed */
 			d3c.put("dir",outdir);
@@ -135,8 +137,6 @@ int main(int argc, char **argv)
 			d3c.put("dfile",ss.str());
 			d3c.put("wfprocess.algorithm","convertRF");
 			d3c.put("timetype","a");
-			// always mark data live
-			d3c.live=true;
 			int rec=dbsave(d3c,dbho.db,outtable,mdlout,am);
 			if(rec<0)
 			{
