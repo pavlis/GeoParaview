@@ -1,0 +1,135 @@
+.TH EXTRACT_SECTION 1 "$Date: 2008/04/09 20:10:36 $"
+.SH NAME
+extract_section - extract a cross-section from a 3D object
+.SH SYNOPSIS
+.nf
+extract_section db gridname fieldname [-pf pffile -o outfile -vectordata]
+.fi
+.SH DESCRIPTION
+.LP
+This program extracts a cross section through fields stored in 
+GCLscalarfield3d and GCLvectorfield3d objects.  The cross-section
+is specified as a set of 2 or more ordered pairs of latitude and
+longitudes.  The field volume referenced is then sliced vertically
+on the path defined by the set of ordered pairs that define the 
+section.  The output is always an equally sampled interpolation of 
+the parent volue through a specified path.  i.e. the output can
+always be treated as a matrix with the column index defining the
+x coordinate and the row index defining the depth coordinate.
+By default the data that define the section are pushed
+to standard output.  
+.LP
+This program is driven by a mix of command line arguments and parameters 
+defined through a parameter file.  The following are required arguments:
+.LP
+\fIdb\fR is the database that was used to store the field data from
+which the requested section is to be extracted.
+.LP
+\fIgridname\fR is the named used to tag the GCLgrid3d that defines
+the geometry of the field data to be extracted.  
+\fIfieldname\fR is the named used to tag the field variable.  Note
+this uses extension table gclfield and gclgdisk that are used to 
+index the files containing these objects.  The combination of 
+gridname and fieldname are unique keys used to find a particular
+instance of a 3d field object.
+.SH OPTIONS
+.IP -pf
+This allows pffile to be used as an alternative to the standard
+name of extract_section.
+.IP -o 
+Writes results to outfile instead of stdout.  
+.IP -vectordata
+is a flag to inform the program to expect the input field to 
+be a vector field.  By default it assumes the field holds only
+scalar data.
+.SH PARAMETER FILE
+.LP
+\fIoutput_format\fR must be one of two options:  (1) dmatrix
+or (2) GMT (gmt is also accepted).  The former writes the results
+as a ascii numbers in a table with spaces separating the fields.  
+This matrix can, for example, be read into matlab with the 
+dlmread command.  The later (GMT) writes the results suitable
+as input to the GMT command pswiggle.  
+.LP
+\fIgeographic_output\fR is a boolean used to control the 
+format for gmt format output.  When false (the default) 
+data are output in a cartesian coordinate set of x (along section
+distance), z (depth), and value.  When true the output format is
+latitude, longitude, depth, and value.  
+.LP
+\fIpath_sample_interval\fR is the sampling interval 
+(in km) of the volume
+along the x (along path) coordinate. 
+.LP
+\fIdepth_sample_interval\fR is the sampling interval (in km)
+in depth.  
+.LP
+\fImaximum_depth\fR is the maximum depth (in km) to sample.
+If the input volume does not extend this deep the final point in the
+volume is extended downward.  Thus, in this situation you can expect
+a constant region at depths between the actual bottom of the volume
+and this depth.
+.LP
+\fIminimum_depth\fR is the minimum depth (in km) to sample.  
+As with the maximum depth if this extends above the volume the 
+output will be filled with the top value of the field at the 
+latitude and longitude of the given point.
+.LP
+\fIcomponent_number\fR in vector field data this is the component
+that is extracted as output. This parameter is ignored or scalar
+fields.
+.LP
+\fIsection_points\fR is a Tbl that contain the set of ordered
+pairs that define the section line.  An example should make this
+clearer:
+.nf
+section_points &Tbl{
+8.0 -66.0
+10.0 -66.0
+12.0 -67.0
+}
+.fi
+This defines the section through two line segments.  The first 
+runs from latitude 8.0 and longitude -66 to latitude 10.0 
+and longitude -66.  The section then runs from the (10.0,-66) 
+point to (12.0,-67.0).  There is no limit on the number of 
+points, but paths with points closer than the horizontal sample
+interval are almost certainly trouble.  Corners are also rounded
+by a simple nearest integer formula so complex paths are subject
+to serious rounding problems. 
+.SH FILES
+.LP
+The output can be in one of two formats depending on the setting
+of the \fIoutput_format\fR parameter in the parameter file.  
+.LP
+\fIdmatrix\fR format is a simple ascii table output of the
+section matrix.  i.e. each line is one row of the section
+matrix with the elements separated by the ascii space character.  
+.LP
+\fIGMT\fR format is normally in a format suitable as input to
+pswiggle.  When the geographic_output parameter is set true, 
+however, the output normally needs to be reformatted with
+awk to be of any use.  Thus gmt format in combination with 
+geographic_output should be viewed as recommended only 
+for advanced users who know both gmt and the ins and outs
+of awk.  See the man page for pswiggle to learn more about
+this format.
+.SH DIAGNOSTICS
+.LP
+The program will die with a hopefully explanatory message with
+inconsistent input or reading problems.
+.SH "BUGS AND CAVEATS"
+.LP
+The algorithm used to pass through a corner of a section 
+path is not very sophisticated.  Roundoff errors should be
+expected at each corner.  i.e. the x coordinate after a
+corner can be off by a significant fraction of the horizontal
+sampling interval because the jump across the segments is 
+controlled only by a nearest integer scheme. 
+.SH AUTHOR
+.nf
+Gary L. Pavlis
+Indiana University
+pavlis@indiana.edu
+.fi
+.\" $Id: extract_section.1,v 1.1 2008/04/09 20:10:36 pavlis Exp $

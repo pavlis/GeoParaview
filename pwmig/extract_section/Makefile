@@ -1,7 +1,7 @@
 BIN=extract_section
 PF=extract_section.pf
 
-#MAN1=extract_section.1
+MAN1=extract_section.1
 #cflags=-O
 ldlibs=-lseispp -ltrvltm -lgclgrid -lseispp $(TRLIBS) $(DBLIBS) -lperf -lm
 
