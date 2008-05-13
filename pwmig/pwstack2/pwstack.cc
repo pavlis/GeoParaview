@@ -17,7 +17,7 @@ bool Verbose;
 
 void usage()
 {
-    cbanner((char *)"$Revision: 1.8 $ $Date: 2008/03/24 12:21:39 $",
+    cbanner((char *)"$Revision: 1.9 $ $Date: 2008/05/13 17:09:31 $",
         (char *)"dbin [-v -V -pf pfname]",
         (char *)"Gary Pavlis",
         (char *)"Indiana University",
@@ -138,7 +138,7 @@ int main(int argc, char **argv)
         DatascopeHandle dbh(dbnmi,false);
 	string dbviewmode(pfget_string(pf,"database_view_mode"));
 	if(dbviewmode=="dbprocess")
-        	dbh=DatascopeHandle(dbh.db,pf,string("dbprocess_commands"));
+        	dbh=DatascopeHandle(dbh,pf,string("dbprocess_commands"));
 	else if(dbviewmode=="use_wfdisc")
 	{
 		dbh.lookup("arrival");
@@ -209,6 +209,7 @@ int main(int argc, char **argv)
         /*
         MatlabProcessor mp(stdout);
         */
+	ostringstream ss;
         for(rec=0,dbh.rewind();rec<dbh.number_tuples();++rec,++dbh)
         {
             int iret;
@@ -250,8 +251,7 @@ int main(int argc, char **argv)
             olat=rad(olat);  olon=rad(olon);
             odepth=ensemble->get_double("origin.depth");
             otime=ensemble->get_double("origin.time");
-	    char *dfbuf=new char[256];
-	    ostringstream ss(dfbuf);
+	    ss.clear();
 	    ss << dir << "/" << string(dfilebase) << "_" << evid;
 	    string dfilebase=ss.str();
 	    string dfile=dfilebase+DataFileExtension;
@@ -263,7 +263,6 @@ int main(int argc, char **argv)
 	    load_file_globals(coh3cfh,evid,olat,olon,odepth,otime,stagridname);
 	    PwmigFileHandle cohfh(cohf,false,true);
 	    load_file_globals(cohfh,evid,olat,olon,odepth,otime,stagridname);
-	    delete [] dfbuf;
             double lat0,lon0,elev0;
 	    cout << "Beginning process for event id = "<<evid<<endl;
             for(i=0;i<stagrid.n1;++i)

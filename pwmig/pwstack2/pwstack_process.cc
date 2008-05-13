@@ -127,6 +127,11 @@ PwmigFileHandle& cohfh)
     int evid;
     string dfile;
     const double WEIGHT_MINIMUM=1.0e-2;
+//DEBUG remove this fixed array buffer when completed
+/*
+double DEBUGBUFFER[10000];
+vector<double>::iterator idbg;
+*/
     try
     {
         lat0=indata.get_double("lat0");
@@ -451,11 +456,25 @@ PwmigFileHandle& cohfh)
                                 gather[j](jj,icol)=twork[jj];
                             }
 
+//DEBUG
+/*
+dcopy(nsout,&(twork[0]),1,DEBUGBUFFER,1);
+idbg=max_element(twork.begin(),twork.end());
+cout << "Max before weighting="<<*idbg<<endl;
+*/
                             //mp.load(twork,string("d0"));
                             vscal(nsout,weights.get_address(i,0),nsta,&(twork[0]),1);
                             //mp.load(twork,string("ds"));
+//DEBUG
+/*
+dcopy(nsout,&(twork[0]),1,DEBUGBUFFER,1);
+idbg=max_element(twork.begin(),twork.end());
+cout << "Max after weighting="<<*idbg<<endl;
+*/
                             vadd(nsout,&(twork[0]),1,stack.get_address(j,0),3);
                             //mp.load(stack,string("stack"));
+			    /* We accumulate the stack_weight vector only on the first component. */
+			    if(j==0) vadd(nsout,weights.get_address(i,0),nsta,&(stack_weight[0]),1);
 #ifdef MATLABDEBUG
                             mp.load(stack_weight,string("w"));
                             mp.process(string("stackdebugplot"));
@@ -509,6 +528,14 @@ PwmigFileHandle& cohfh)
             }
             */
 
+//DEBUG
+/*
+dcopy(nsout*3,stack.get_address(0,0),1,DEBUGBUFFER,1);
+twork.clear();
+for(int kkk=0;kkk<(3*nsout);++kkk) twork.push_back(DEBUGBUFFER[kkk]);
+idbg=max_element(twork.begin(),twork.end());
+cout << "Max of stack="<<*idbg<<endl;
+*/
             // Create the output stack as a 3c trace object and copy
             // metadata from the input into the output object.
             stackout = new ThreeComponentSeismogram(nsout);
@@ -532,6 +559,14 @@ PwmigFileHandle& cohfh)
             // migration algorithm.
             stackout->put("elev",avg_elev);
             ApplyTopMute(*stackout,smuteused);
+//DEBUG
+/*
+dcopy(nsout*3,stackout->u.get_address(0,0),1,DEBUGBUFFER,1);
+twork.clear();
+for(int kkk=0;kkk<(3*nsout);++kkk) twork.push_back(DEBUGBUFFER[kkk]);
+idbg=max_element(twork.begin(),twork.end());
+cout << "Max of stackout="<<*idbg<<endl;
+*/
 #ifdef MATLABDEBUG
             double smax=0.0;
             int is,js;
