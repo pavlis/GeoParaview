@@ -31,7 +31,7 @@ MatlabProcessor mp(stdout);
 #endif
 void usage()
 {
-        cbanner((char *)"$Revision: 1.5 $ $Date: 2008/03/25 23:58:54 $",
+        cbanner((char *)"$Revision: 1.6 $ $Date: 2008/05/13 17:06:00 $",
                 (char *)"db  listfile [-V -v -pf pfname]",
                 (char *)"Gary Pavlis",
                 (char *)"Indiana University",
@@ -1027,11 +1027,14 @@ int main(int argc, char **argv)
 		}
 		// These constructors load a velocity model into a GCLgrid
 		GCLscalarfield3d Up3d(db,Pvelocity_grid_name,Pmodel3d_name);
-cout << "P velocity model"<<endl;
-cout << Up3d;
 		GCLscalarfield3d Us3d(db,Svelocity_grid_name,Smodel3d_name);
-cout << "S velocity model"<<endl;
-cout << Us3d;
+		if(SEISPP_verbose)
+		{
+			cout << "P velocity model"<<endl;
+			cout << Up3d;
+			cout << "S velocity model"<<endl;
+			cout << Us3d;
+		}
 		// CHANGE ME:  hack fix for test model.  Units wrong
 		/*
 		Up3d *= 0.001;
@@ -1686,11 +1689,8 @@ delete sfptr;
 */
 			// last but not least, add this component to the stack
 			//
-cout << "Elapsed time to compute pwdgrid="<<rundtime-now()<<endl;
-//DEBUG 
-cout << "Running += operators "<<endl;
+			cout << "Elapsed time to compute pwdgrid="<<rundtime-now()<<endl;
 			migrated_image += pwdgrid;
-cout << migrated_image;
 			if(save_partial_sums)
 			{
 				// This will write final result twice 
@@ -1701,7 +1701,7 @@ cout << migrated_image;
                 		migrated_image.dbsave(db,"",fielddir,
 					dfile,dfile);
 			}
-cout << "Total time for this plane wave component="<<rundtime-now()<<endl;
+			cout << "Total time for this plane wave component="<<rundtime-now()<<endl;
 //DEBUG  save partial sums
 /*
                 dfile=MakeDfileName(dfilebase+string("_psum"),gridid+1000);
@@ -1812,6 +1812,11 @@ delete sfptr;
 	{
 		die(1,"Something threw a simple int exception of %d\n",
 			ierr);
+	}
+	catch (VelocityModel_1d_Error vmoderr)
+	{
+		vmoderr.log_error();
+		die(1,"Problems reading 1D velocity model");
 	}
 	catch (...)
 	{
