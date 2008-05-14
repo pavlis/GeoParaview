@@ -31,16 +31,16 @@ output_mdl &Tbl{
 }
 
 save_assoc_mdl &Tbl{
-sta string
-orid int
+assoc.sta string
+assoc.orid int
 assoc.phase string
-assoc.vmodel.string
+assoc.vmodel string
 assoc.timedef string
 }
 
 save_arrival_mdl &Tbl{
-sta string
-chan string
-atime real
+arrival.sta string
+arrival.chan string
+arrival.time real
 arrival.iphase string
 }
