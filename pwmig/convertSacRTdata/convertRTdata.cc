@@ -10,6 +10,7 @@ for more info. */
 #include "ThreeComponentSeismogram.h"
 #include "TimeSeries.h"
 #include "Hypocenter.h"
+#include "ArrivalUpdater.h"
 using namespace std;
 using namespace SEISPP;
 void usage()
@@ -47,32 +48,13 @@ int main(int argc, char **argv)
 	}
 	MetadataList mdl=pfget_mdlist(pf,"trace_mdl");
 	MetadataList mdlout=pfget_mdlist(pf,"output_mdl");
+	MetadataList mdlassoc=pfget_mdlist(pf,"save_assoc_mdl");
+	MetadataList mdlarrival=pfget_mdlist(pf,"save_arrival_mdl");
 	
 		
 	try {
 		AttributeMap am("css3.0");
 		DatascopeHandle dbhi(dbin,true);
-		/* This set of db manipulations is a bit odd, 
-		but seems to work with these data. */
-		/*
-		dbhi.lookup("wfdisc");
-		dbhi.natural_join("arrival");
-		string sstr("iphase=~/P/");
-		dbhi.subset(sstr);
-		dbhi.natural_join("site");
-		list<string> jk;
-		jk.push_back("arid");
-		dbhi.leftjoin("assoc",jk,jk);
-		jk.clear();
-		jk.push_back("orid");
-		dbhi.leftjoin("origin",jk,jk);
-		jk.clear();
-		jk.push_back("evid");
-		dbhi.leftjoin("event",jk,jk);
-		sstr="orid==prefor";
-		dbhi.subset(sstr);
-		*/
-
 		dbhi.lookup("event");
 		dbhi.natural_join("origin");
 		dbhi.natural_join("assoc");
@@ -98,6 +80,8 @@ int main(int argc, char **argv)
 		dbhosc.lookup("sclink");
 		DatascopeHandle dbhoev(dbho);
 		dbhoev.lookup("evlink");
+		/* We use this as a convenient way to create a new assoc and arrival */
+		ArrivalUpdater AUhandle(dynamic_cast<DatabaseHandle&>(dbho),mdlassoc,mdlarrival,string("css3.0"));
 		dbhi.rewind();
 		int j,k;
 		double slat,slon,sdepth,stime;
@@ -154,6 +138,8 @@ int main(int argc, char **argv)
 			cout << "t0 of this seismogram changed by "
 				<< d.t0-oldt0 
 				<< " seconds"<<endl;
+			/* correct the arrival time and we'll post it below to the new 3c trace */
+			atime=stime + ptime;
 			
 			seaz=h.seaz(stalat,stalon);
 			/* radial is defined as propagation direction, but seaz is back azimuth */
@@ -180,6 +166,9 @@ int main(int argc, char **argv)
 			d.put("U33",1.0);
 			/* this uses the Metadata from d to create a template or 3c data.*/
 			ThreeComponentSeismogram d3c(dynamic_cast<Metadata&>(d),false);
+			d3c.t0=d.t0;
+			d3c.ns=d.ns;
+			d3c.dt=d.dt;
 			/* Zero components 1 and 3 and put data from d into component 2*/
 			for(k=0;k<d.ns;++k)
 				for(j=0;j<3;++j) d3c.u(j,k)=0.0;
@@ -214,6 +203,27 @@ int main(int argc, char **argv)
 			is used to handle this. */
 			dbhosc.put("chan","3C");
 			dbhosc.put("pwfid",pwfid);
+			/* These are frozen so will put them in */
+			d3c.put("arrival.time",atime);
+			d3c.put("arrival.iphase","P");
+			d3c.put("assoc.phase","P");
+			d3c.put("assoc.vmodel","iasp91");
+			d3c.put("assoc.timedef","d");
+			d3c.put("time",d3c.t0);
+			d3c.put("endtime",d3c.endtime());
+			/* The following should not be necessary, but ArrivalUpdater at this
+			point does not handle aliases correctly */
+			string sval;
+			int ival;
+			double dval;
+			sval=d3c.get_string("sta");
+			d3c.put("assoc.sta",sval);
+			d3c.put("arrival.sta",sval);
+			sval=d3c.get_string("chan");
+			d3c.put("arrival.chan",sval);
+			ival=d3c.get_int("orid");
+			d3c.put("assoc.orid",ival);
+			AUhandle.update(d3c);
 
 		}
 	

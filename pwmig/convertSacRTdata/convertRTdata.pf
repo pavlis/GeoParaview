@@ -10,8 +10,10 @@ trace_mdl &Tbl{
     evid int
     source_depth real
     source_time real
+    orid int
     sta_lat real
     sta_lon real
+    sta_elev real
     dir string
     dfile string
     atime real
@@ -26,4 +28,19 @@ output_mdl &Tbl{
     dfile string
     timetype string 
     wfprocess.algorithm string
+}
+
+save_assoc_mdl &Tbl{
+sta string
+orid int
+assoc.phase string
+assoc.vmodel.string
+assoc.timedef string
+}
+
+save_arrival_mdl &Tbl{
+sta string
+chan string
+atime real
+arrival.iphase string
 }
