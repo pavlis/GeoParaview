@@ -54,6 +54,7 @@ int main(int argc, char **argv)
 		DatascopeHandle dbhi(dbin,true);
 		/* This set of db manipulations is a bit odd, 
 		but seems to work with these data. */
+		/*
 		dbhi.lookup("wfdisc");
 		dbhi.natural_join("arrival");
 		string sstr("iphase=~/P/");
@@ -70,8 +71,8 @@ int main(int argc, char **argv)
 		dbhi.leftjoin("event",jk,jk);
 		sstr="orid==prefor";
 		dbhi.subset(sstr);
+		*/
 
-		/* Old code - did not work for mysterious reasons 
 		dbhi.lookup("event");
 		dbhi.natural_join("origin");
 		dbhi.natural_join("assoc");
@@ -80,10 +81,13 @@ int main(int argc, char **argv)
 		dbhi.subset(sstr);
 		list<string> jk1,jk2;
 		jk1.push_back(string("arrival.time"));
+		jk1.push_back(string("sta"));
 		jk2.push_back(string("wfdisc.time::wfdisc.endtime"));
-		dbhi.join("wfdisc",jk1,jk2);
+		jk2.push_back(string("sta"));
+		//dbhi.join("wfdisc",jk1,jk2);
+		//dbhi.natural_join("wfdisc");
+		dbhi.leftjoin("wfdisc",jk2,jk1);
 		dbhi.natural_join("site");
-		**********************************************/
 
 		cout << "Working input view has "<<dbhi.number_tuples()
 			<<" rows"<<endl;
@@ -145,7 +149,8 @@ int main(int argc, char **argv)
 			double oldt0=d.t0;
 			double pdt=atime-oldt0;
 			cout << sta << " original atime - t0 ="<<pdt<<endl;
-			d.t0=ptime-pdt;
+			cout << "origin time and atime difference="<< stime-atime<<endl;
+			d.t0=stime+ptime-pdt;
 			cout << "t0 of this seismogram changed by "
 				<< d.t0-oldt0 
 				<< " seconds"<<endl;
