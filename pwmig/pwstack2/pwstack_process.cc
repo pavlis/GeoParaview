@@ -476,30 +476,21 @@ cout << "Max after weighting="<<*idbg<<endl;
 			    /* We accumulate the stack_weight vector only on the first component. */
 			    if(j==0) vadd(nsout,weights.get_address(i,0),nsta,&(stack_weight[0]),1);
 #ifdef MATLABDEBUG
+			    if(j==2)
+			    {
                             mp.load(stack_weight,string("w"));
                             mp.process(string("stackdebugplot"));
-                            cout << "plotting component "<<j<<endl;
+			    }
 #endif
                         }
                         ++icol;
                     }
                 }
             }
-            //DEBUG
-            /*
-            if(ix1>15 && ix2>15)
-            {
-            mp.load(weights,string("w"));
-            mp.process(string("imagesc(w)"));
-            }
-            */
             // normalize the stack.
             // not trivial for a variety of reasons
 	    // This uses a threshold to avoid divide by zero but 
 	    // no other complexity.
-            //DEBUG
-            //cerr << "ismin="<<ismin<<" iend_this="<<iend_this<<endl;
-            //for(i=ismin;i<iend_this;++i)
 	    for(i=0;i<nsout;++i)
             {
                 if(stack_weight[i]>WEIGHT_MINIMUM)
@@ -511,22 +502,6 @@ cout << "Max after weighting="<<*idbg<<endl;
                     for(j=0;j<3;++j) stack(j,i)=0.0;
                 }
             }
-            //DEBUG
-            /*
-            double swt_max=0;
-            for(i=ismin;i<iend_this;++i) swt_max=max(1.0/stack_weight[i],swt_max);
-            if(swt_max>100.0)
-            {
-            cerr << "Starting matlab:  swt_max="<<swt_max<<endl;
-            cerr << "ismin="<<ismin<<" iend_this="<<iend_this<<endl;
-            MatlabProcessor mp(stdout);
-            mp.load(&(stack_weight[0]),stack_weight.size(),string("sw"));
-            mp.load(stack,string("d"));
-            mp.process(string("plot(sw);"));
-            mp.process(string("figure;  plot(d(1,:));"));
-            mp.run_interactive();
-            }
-            */
 
 //DEBUG
 /*
@@ -568,17 +543,9 @@ idbg=max_element(twork.begin(),twork.end());
 cout << "Max of stackout="<<*idbg<<endl;
 */
 #ifdef MATLABDEBUG
-            double smax=0.0;
-            int is,js;
-            for(js=0;js<3;++js) for(is=0;is<stackout->ns;++is) smax=max(abs(stackout->u(js,is)),smax);
-            if(smax>10000000.0)
-            {
-                cout << "Trap for smax="<<smax<<endl;
-                cout << "(ux,uy)="<<ux<<","<<uy<<endl;
-                mp.load(*stackout,string("d"));
-                mp.load(stack_weight,string("sw"));
-                mp.process(string("pwsplot"));
-            }
+             mp.load(*stackout,string("d"));
+             mp.load(stack_weight,string("sw"));
+             mp.process(string("pwsplot"));
 #endif
             // new March 2007: compute stack coherence
             Coharray coh=compute_stack_coherence(gather,gathwgt,*stackout,

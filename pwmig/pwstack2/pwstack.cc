@@ -17,7 +17,7 @@ bool Verbose;
 
 void usage()
 {
-    cbanner((char *)"$Revision: 1.9 $ $Date: 2008/05/13 17:09:31 $",
+    cbanner((char *)"$Revision: 1.10 $ $Date: 2008/05/27 20:42:59 $",
         (char *)"dbin [-v -V -pf pfname]",
         (char *)"Gary Pavlis",
         (char *)"Indiana University",
@@ -123,8 +123,21 @@ int main(int argc, char **argv)
         MetadataList ensemble_mdl=pfget_mdlist(pf,"ensemble_metadata");
         AttributeMap InputAM("css3.0");
         DepthDependentAperture aperture(pf,aperture_tag);
+	/* These will throw an exception if not defined.  
+	We use a parameter to turn these off if desired.
+	Not very elegant, but functional. */
         TopMute mute(pf,string("Data_Top_Mute"));
+	bool enable_data_mute=pfget_boolean(pf,"enable_data_mute");
+	if(enable_data_mute)
+		mute.enabled=true;
+	else
+		mute.enabled=false;
         TopMute stackmute(pf,string("Stack_Top_Mute"));
+	bool enable_stack_mute=pfget_boolean(pf,"enable_stack_mute");
+	if(enable_stack_mute)
+		stackmute.enabled=true;
+	else
+		stackmute.enabled=false;
         /* new parameters April 2007 for coherence attribute calculator*/
         double dtcoh,cohwinlen;
         dtcoh=pfget_double(pf,"coherence_sample_interval");
@@ -204,12 +217,12 @@ int main(int argc, char **argv)
         string grdnm(stagridname);
         GCLgrid stagrid(dbh.db,grdnm);
 
+	char ssbuf[256];
         int rec;
         //DEBUG
         /*
         MatlabProcessor mp(stdout);
         */
-	ostringstream ss;
         for(rec=0,dbh.rewind();rec<dbh.number_tuples();++rec,++dbh)
         {
             int iret;
@@ -225,23 +238,24 @@ int main(int argc, char **argv)
                 dynamic_cast<DatabaseHandle&>(dbh),
                 station_mdl, ensemble_mdl,InputAM);
             //DEBUG
-            /*
+#ifdef MATLABDEBUG
             string chans[3]={"x1","x2","x3"};
             mp.load(*din,chans);
-            mp.process(string("wigb(x3)"));
+            mp.process(string("wigb(x1);figure;wigb(x2);figure;wigb(x3);"));
             mp.run_interactive();
-            */
+#endif
             auto_ptr<ThreeComponentEnsemble>
                 ensemble=ArrivalTimeReference(*din,"arrival.time",
                 data_window);
             // Release this potentially large memory area
             delete din;
             //DEBUG
-            /*
+#ifdef MATLABDEBUG
             mp.load(*ensemble,chans);
-            mp.process(string("wigb(x3)"));
+            mp.process(string("figure; wigb(x1)"));
+            mp.process(string("figure; wigb(x2)"));
             mp.run_interactive();
-            */
+#endif
             // this should probably be in a try block, but we need to
             // extract it here or we extract it many times later.
             evid=ensemble->get_int("evid");
@@ -251,7 +265,9 @@ int main(int argc, char **argv)
             olat=rad(olat);  olon=rad(olon);
             odepth=ensemble->get_double("origin.depth");
             otime=ensemble->get_double("origin.time");
-	    ss.clear();
+	    /* A way to asssure this is cleared.  May not be necessary */
+	    ssbuf[0]='\0';
+	    stringstream ss(ssbuf);
 	    ss << dir << "/" << string(dfilebase) << "_" << evid;
 	    string dfilebase=ss.str();
 	    string dfile=dfilebase+DataFileExtension;
