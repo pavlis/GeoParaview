@@ -365,14 +365,14 @@ vector<double>::iterator idbg;
 
             dzero(nsout,&(stack_weight[0]),1);
 
-            ux = ugrid.ux(iu);
-            uy = ugrid.uy(ju);
-
             /* The input gather is assumed prealigned with the slowness
-            vector defined by raygath->ux,uy.  We use relative moveouts
-            from this base moveout for the actual stacks */
-            dux = ux - ux0;
-            duy = uy - uy0;
+            vector defined by ux0,uy0.  We use relative moveouts
+            from this base moveout for the actual stacks dux,duy*/
+            dux = ugrid.ux(iu);
+            duy = ugrid.uy(ju);
+
+            ux =  ux0+dux;
+            uy =  uy0+duy;
             // moveout computed here and used below assumes the
             // data are aligned on the P arrival
             compute_pwmoveout(nsta,&(deast[0]),&(dnorth[0]),dux,duy,&(moveout[0]));
