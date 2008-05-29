@@ -31,7 +31,7 @@ MatlabProcessor mp(stdout);
 #endif
 void usage()
 {
-        cbanner((char *)"$Revision: 1.6 $ $Date: 2008/05/13 17:06:00 $",
+        cbanner((char *)"$Revision: 1.7 $ $Date: 2008/05/29 13:03:41 $",
                 (char *)"db  listfile [-V -v -pf pfname]",
                 (char *)"Gary Pavlis",
                 (char *)"Indiana University",
@@ -164,7 +164,8 @@ vector<double> compute_gridttime(GCLscalarfield3d& U3d,
 // with 3d model definition.  Bypass for now and use 1d model only 
 // for initial result.  
 /*  Turned back on for test */
-	vector<double> times=pathintegral(U3d,thispath);
+	vector<double> times;
+	times=pathintegral(U3d,thispath);
 /*
 --The next two line are needed to make this work strictly 1d mode
 vector<double> times;
@@ -449,9 +450,12 @@ GCLscalarfield3d *ComputeIncidentWaveRaygrid(GCLgrid& pstagrid,
 				// this is the pwmig function using 1d if path is outside 3d model
 // DEBUG
 //cout << "Pseudostation point ("<<i<<","<<j<<") ";
-				vector<double>Ptimes=compute_gridttime(UP3d,i,j,vp1d,*IncidentRaygrid,*path);
+				vector<double>Ptimes;
+				Ptimes=compute_gridttime(UP3d,i,j,vp1d,*IncidentRaygrid,*path);
 				for(k=0,kk=kend;k<=kend;++k,--kk)
+				{
 					Tp->val[i][j][k] = Tp0.val[i][j] - Ptimes[kk];
+				}
 /* DEBUG
 #ifdef MATLABDEBUG
 mp.load(Ptimes,string("tp"));
@@ -477,6 +481,10 @@ const double TTERROR=-9999999999.0;
 // @param h location of source
 //
 //@}
+//DEBUG these globals are for debug only
+vector<double>x1tmp,x2tmp,x3tmp;
+vector<int> tpix1,tpix2,tpix3;
+vector<double> derrx1,derrx2,derrx3;
 double compute_scatter_point_Ptime(GCLgrid3d& raygrid, int ix1, int ix2, int ix3,
 		GCLscalarfield3d& TP,Hypocenter& h)
 {
@@ -492,10 +500,17 @@ double compute_scatter_point_Ptime(GCLgrid3d& raygrid, int ix1, int ix2, int ix3
 	x2=raygrid.x2[ix1][ix2][ix3];
 	x3=raygrid.x3[ix1][ix2][ix3];
 	err=TP.lookup(x1,x2,x3);
+//DEBUG ray path debug 
+x1tmp.push_back(x1);
+x2tmp.push_back(x2);
+x3tmp.push_back(x3);
 //DEBUG
-/*
 int gindex[3];
 TP.get_index(gindex);
+tpix1.push_back(gindex[0]);
+tpix2.push_back(gindex[1]);
+tpix3.push_back(gindex[2]);
+/*
 cout <<"raygrid indices="
 	<<ix1<<", "
 	<<ix2<<", "
@@ -503,15 +518,19 @@ cout <<"raygrid indices="
 	<<gindex[0]<<", "
 	<<gindex[1]<<", "
 	<<gindex[2]<<endl;
+*/
 double dist;
 dist=x1-TP.x1[gindex[0]][gindex[1]][gindex[2]];
 cout << "Vector between grid points="
 	<< dist <<",";
+derrx1.push_back(dist);
 dist=x2-TP.x2[gindex[0]][gindex[1]][gindex[2]];
 cout << dist << ", ";
+derrx2.push_back(dist);
 dist=x3-TP.x3[gindex[0]][gindex[1]][gindex[2]];
 cout << dist << endl;
-*/
+derrx3.push_back(dist);
+
 
 	switch (err)
 	{
@@ -530,6 +549,13 @@ cout << dist << endl;
 			TP.reset_index();
 			return(2.0*TTERROR);
 	}
+cout << "Tpx="<<Tpx<<endl;
+if(ix3==(raygrid.n3 - 1)) 
+{
+	x1tmp.clear();  x2tmp.clear(); x3tmp.clear(); tpix1.clear(); tpix2.clear(); tpix3.clear();
+	derrx1.clear(); derrx2.clear(); derrx3.clear();
+}
+
 	return(Tpx);
 }
 double compute_receiver_Ptime(GCLgrid3d& raygrid, int ix1, int ix2,
@@ -1285,9 +1311,6 @@ if(fabs(ustack.uy)>=0.007)
 			int n30;  // convenient since top surface is at n3-1
 			n30 = raygrid.n3 - 1;
 			int SPtime_SIZE_MIN=static_cast<int>(N3_FRACTION_ERROR*static_cast<double>(n30));
-//DEBUG
-cout << "n3="<<raygrid.n3<<endl
-	<< "SPtime_SIZE_MIN="<<SPtime_SIZE_MIN<<endl;
 			// create work spaces for accumation of this component
 			// This is a large memory model.  I'll use it until it proves
 			// intractable
@@ -1372,6 +1395,8 @@ mp.process(string("plot3c(spath);"));
 				dmatrix gradTp(3,n3);
 				dmatrix nup(3,n3);
 				vector<double> zP(n3);
+//DEBUG
+vector<double> tpxtmp,tprtmp;
 
 				// Now loop over each point on this ray computing the 
 				// p wave path and using it to compute the P time and
@@ -1405,6 +1430,9 @@ mp.process(string("plot3c(spath);"));
 					Tpx=compute_scatter_point_Ptime(raygrid,i,j,k,*TPptr,hypo);
 					/* This flags an interpolation error.  Break the loop 
 					and post a serious warning if this happens */
+//DEBUG
+tpxtmp.push_back(Tpx);
+tprtmp.push_back(Tpr);
 					if(Tpx<TTERROR)
 					{
 						tcompute_problem=true;
@@ -1446,7 +1474,6 @@ cout << "tlag=Tpx+Stime[kk]-Tp ->"
 		<< Tpr <<endl;
 */
 				}
-cout << "SPtime.size()="<<SPtime.size()<<endl;
 
 #ifdef MATLABDEBUG
 //DEBUG
@@ -1470,6 +1497,7 @@ mp.process(string("plot3c(gradtp);pause(1)"));
 						<< "Computed P to scatter time="<<Tpx
 						<< " computed S travel time="<<Stime[kk]
 						<< " computed P time to receiver="<<Tpr<<endl
+						<< "These yield a lag time ="<<tlag<<endl
 						<< "Failure in computing lag.  "<<endl
 						<< "This may leave ugly holes in the output image."<<endl;
 					continue;
@@ -1639,18 +1667,26 @@ mp.process(string("plotow;title 'after smoother';"));
 				// copy weights and domega at same time
 				//
 
+//DEBUG
+vector<double> x1test;
 				for(k=0,kk=raygrid.n3-1;k<raygrid.n3;++k,--kk)
 				{
+cout << "Results for i,j,k="<<i<<", "<<j<<", "<<k<<" = ";
 					for(l=0;l<3;++l)
 					{
-						// DEBUG
-						//pwdgrid.val[i][j][k][l]=work(l,kk);
 						pwdgrid.val[i][j][k][l]=work(l,kk)
 							*dweight_ij[kk]*domega_ij[kk];
+cout << work(l,kk)<<", ";
+						// DEBUG
 					}
 					pwdgrid.val[i][j][k][3]=domega_ij[kk];
 					pwdgrid.val[i][j][k][4]=dweight_ij[kk];
+cout << "omega,weight="<<domega_ij[kk]<<", "<<dweight_ij[kk]<<endl;
+x1test.push_back(work(0,kk));
 				}
+x1test.clear();
+tpxtmp.clear();
+tprtmp.clear();
 #ifdef MATLABDEBUG
 //DEBUG
 dmatrix dproj(3,n3);
