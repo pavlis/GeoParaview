@@ -50,7 +50,12 @@ int main(int argc, char **argv)
 	MetadataList mdlout=pfget_mdlist(pf,"output_mdl");
 	MetadataList mdlassoc=pfget_mdlist(pf,"save_assoc_mdl");
 	MetadataList mdlarrival=pfget_mdlist(pf,"save_arrival_mdl");
-	
+	Metadata control(pf);
+	bool start_time_is_origin=control.get_bool("start_time_is_origin");
+	/* Current sources of deconvolved data I've dealt with either have
+	radial only or r and t */
+	string Rchan=control.get_string("radial_channel_code");
+	string Tchan=control.get_string("tangential_channel_code");
 		
 	try {
 		AttributeMap am("css3.0");
@@ -70,6 +75,10 @@ int main(int argc, char **argv)
 		//dbhi.natural_join("wfdisc");
 		dbhi.leftjoin("wfdisc",jk2,jk1);
 		dbhi.natural_join("site");
+		list<string> sortkeys;
+		sortkeys.push_back("origin.time");
+		sortkeys.push_back("sta");
+		dbhi.sort(sortkeys);
 
 		cout << "Working input view has "<<dbhi.number_tuples()
 			<<" rows"<<endl;
@@ -82,7 +91,6 @@ int main(int argc, char **argv)
 		dbhoev.lookup("evlink");
 		/* We use this as a convenient way to create a new assoc and arrival */
 		ArrivalUpdater AUhandle(dynamic_cast<DatabaseHandle&>(dbho),mdlassoc,mdlarrival,string("css3.0"));
-		dbhi.rewind();
 		int j,k;
 		double slat,slon,sdepth,stime;
 		string method("tttaup"),model("iasp91");
@@ -91,139 +99,193 @@ int main(int argc, char **argv)
 		double a,b;
 		double atime;
 		int evid,pwfid;
-		string sta;
+		string sta,laststa;
 		/* frozen for now */
 		string outdir("wf3c");
 		string dfilebase("RFdata");
-		for(i=0;i<dbhi.number_tuples();++i,++dbhi)
+		dbhi.rewind();
+		laststa=dbhi.get_string("sta");
+		/* This holds radial and transverse - hence 2*/
+		TimeSeries d[3];
+		int ic(0);  // always 0 or 1 */
+		int ntuples=dbhi.number_tuples();
+		for(i=0;i<ntuples;++i,++dbhi)
 		{
-			TimeSeries d(dynamic_cast<DatabaseHandle&>(dbhi),mdl,am);
-			/* We need to compute an equivalent transformation matrix for
-			these data from the hypocenter information.  We'll let this exit
-			with an exception if origin information is not present. */
-			slat=d.get_double("source_lat");
-			slon=d.get_double("source_lon");
-			evid=d.get_int("evid");
-			cout << "Processing event "<<evid
-				<< " located at (lat,lon)=("<<slat
-				<<", "<<slon<<") "<<endl;
-
-			slat=rad(slat);
-			slon=rad(slon);
-			sdepth=d.get_double("source_depth");
-			stime=d.get_double("source_time");
-			Hypocenter h(slat,slon,sdepth,stime,method,model);
-			sta=d.get_string("sta");
-			stalat=d.get_double("sta_lat");
-			stalon=d.get_double("sta_lon");
-			staelev=d.get_double("sta_elev");
-			stalat=rad(stalat);
-			stalon=rad(stalon);
-			/* We have to fudge the start time because
-			Fenglin's rf code seems to not keep absolute
-			time.  Well, it might be in sac2db, but in
-			any case the arrival.time of P is the same
-			as the origin time.  Thus, to fix this start 
-			time we find the time difference between atime
-			and start time of the trace, compute P travel time,
-			and then correct t0 to make P time match theoretical
-			time exactly. */
-			atime=d.get_double("atime");
-			double ptime=h.ptime(stalat,stalon,staelev);	
-			double oldt0=d.t0;
-			double pdt=atime-oldt0;
-			cout << sta << " original atime - t0 ="<<pdt<<endl;
-			cout << "origin time and atime difference="<< stime-atime<<endl;
-			d.t0=stime+ptime-pdt;
-			cout << "t0 of this seismogram changed by "
-				<< d.t0-oldt0 
-				<< " seconds"<<endl;
-			/* correct the arrival time and we'll post it below to the new 3c trace */
-			atime=stime + ptime;
-			
-			seaz=h.seaz(stalat,stalon);
-			/* radial is defined as propagation direction, but seaz is back azimuth */
-			az=seaz+M_PI;
-			if(az>(2*M_PI)) az-=M_PI;
-			cout <<" station="<<sta
-				<<" computed radial azimuth="<<deg(az)<<endl;
-			/* Now we have to set the transformation matrix from az.  Convention here
-			is we put R into x2, so the rotation angle turns out to be -az when you 
-			work through the difference between rotation from the x1 axis and an
-			azimuth.  Hence, this is the correction tranformation matrix */
-			a=cos(-az);
-			b=sin(-az);
-			/* by loading these in the metadata for d they will be cloned
-			and used to construct the transformation matrix for d3c. */
-			d.put("U11",a);
-			d.put("U21",-b);
-			d.put("U31",0.0);
-			d.put("U12",b);
-			d.put("U22",a);
-			d.put("U32",0.0);
-			d.put("U13",0.0);
-			d.put("U23",0.0);
-			d.put("U33",1.0);
-			/* this uses the Metadata from d to create a template or 3c data.*/
-			ThreeComponentSeismogram d3c(dynamic_cast<Metadata&>(d),false);
-			d3c.t0=d.t0;
-			d3c.ns=d.ns;
-			d3c.dt=d.dt;
-			/* Zero components 1 and 3 and put data from d into component 2*/
-			for(k=0;k<d.ns;++k)
-				for(j=0;j<3;++j) d3c.u(j,k)=0.0;
-			for(k=0;k<d.ns;++k) d3c.u(1,k)=d.s[k];
-			// always mark data live
-			d3c.live=true;
-			d3c.rotate_to_standard();
-			/* We need to post these things or we're screwed */
-			d3c.put("dir",outdir);
-			char buf[128];
-			stringstream ss(buf);
-			ss<<dfilebase<<i;
-			d3c.put("dfile",ss.str());
-			d3c.put("wfprocess.algorithm","convertRF");
-			d3c.put("timetype","a");
-			int rec=dbsave(d3c,dbho.db,outtable,mdlout,am);
-			if(rec<0)
+			d[ic]=TimeSeries(dynamic_cast<DatabaseHandle&>(dbhi),mdl,am);
+			sta=d[ic].get_string("sta");
+cout << "TESING:  i,ic,sta:  "<<i<<", "<<ic<<", "<<sta<<endl;
+			if(sta==laststa && (i != (ntuples-1)))
 			{
-				cerr << "dbsave failed working on input record="<<i<<endl;
-				exit(-1);
+				if(ic>1) 
+				{
+					cerr << "Irregular data.  ic>1"<<endl;
+					exit(-1);
+				}
+				++ic;
 			}
-			/* We have to set up these tables because we are using wfprocess
-			to store 3c objects.*/
-			dbho.db.record=rec;
-			pwfid=dbho.get_int("pwfid");
-			rec=dbhoev.append();
-			dbhoev.put("pwfid",pwfid);
-			dbhoev.put("evid",evid);
-			rec=dbhosc.append();
-			dbhosc.put("sta",sta);
-			/* Ignore the fact this has endian implications.  At present datatype
-			is used to handle this. */
-			dbhosc.put("chan","3C");
-			dbhosc.put("pwfid",pwfid);
-			/* These are frozen so will put them in */
-			d3c.put("arrival.time",atime);
-			d3c.put("arrival.iphase","P");
-			d3c.put("assoc.phase","P");
-			d3c.put("assoc.vmodel","iasp91");
-			d3c.put("assoc.timedef","d");
-			d3c.put("time",d3c.t0);
-			d3c.put("endtime",d3c.endtime());
-			/* The following should not be necessary, but ArrivalUpdater at this
-			point does not handle aliases correctly */
-			string sval;
-			int ival;
-			double dval;
-			sval=d3c.get_string("sta");
-			d3c.put("assoc.sta",sval);
-			d3c.put("arrival.sta",sval);
-			sval=d3c.get_string("chan");
-			d3c.put("arrival.chan",sval);
-			ival=d3c.get_int("orid");
-			d3c.put("assoc.orid",ival);
-			AUhandle.update(d3c);
+			else
+			{
+				int tracecount=ic;
+				ic=0;
+				/* We need to compute an equivalent transformation matrix for
+				these data from the hypocenter information.  We'll let this exit
+				with an exception if origin information is not present. */
+				slat=d[ic].get_double("source_lat"); // ic always 1 in this section
+				slon=d[ic].get_double("source_lon");
+				evid=d[ic].get_int("evid");
+				cout << "Processing event "<<evid
+					<< " located at (lat,lon)=("<<slat
+					<<", "<<slon<<") "<<endl;
+	
+				slat=rad(slat);
+				slon=rad(slon);
+				sdepth=d[ic].get_double("source_depth");
+				stime=d[ic].get_double("source_time");
+				Hypocenter h(slat,slon,sdepth,stime,method,model);
+				stalat=d[ic].get_double("sta_lat");
+				stalon=d[ic].get_double("sta_lon");
+				staelev=d[ic].get_double("sta_elev");
+				stalat=rad(stalat);
+				stalon=rad(stalon);
+				if(start_time_is_origin)
+				{
+				/* We have to fudge the start time because
+				Fenglin's rf code seems to not keep absolute
+				time.  Well, it might be in sac2db, but in
+				any case the arrival.time of P is the same
+				as the origin time.  Thus, to fix this start 
+				time we find the time difference between atime
+				and start time of the trace, compute P travel time,
+				and then correct t0 to make P time match theoretical
+				time exactly. */
+				atime=d[ic].get_double("atime");
+				double ptime=h.ptime(stalat,stalon,staelev);	
+				double oldt0=d[ic].t0;
+				double pdt=atime-oldt0;
+				cout << laststa << " original atime - t0 ="<<pdt<<endl;
+				cout << "origin time and atime difference="<< stime-atime<<endl;
+				d[ic].t0=stime+ptime-pdt;
+				cout << "t0 of this seismogram changed by "
+					<< d[ic].t0-oldt0 
+					<< " seconds"<<endl;
+				/* correct the arrival time and we'll post it below to the new 3c trace */
+				atime=stime + ptime;
+				}
+				else
+				{
+					atime=d[ic].get_double("atime");
+				}
+				
+				seaz=h.seaz(stalat,stalon);
+				/* radial is defined as propagation direction, but seaz is back azimuth */
+				az=seaz+M_PI;
+				if(az>(2*M_PI)) az-=M_PI;
+				cout <<" station="<<laststa
+					<<" computed radial azimuth="<<deg(az)
+					<<" Distance(deg)="<<deg(h.distance(stalat,stalon))<<endl;
+				/* Now we have to set the transformation matrix from az.  Convention here
+				is we put R into x2, so the rotation angle turns out to be -az when you 
+				work through the difference between rotation from the x1 axis and an
+				azimuth.  Hence, this is the correction tranformation matrix */
+				a=cos(-az);
+				b=sin(-az);
+				/* by loading these in the metadata for d they will be cloned
+				and used to construct the transformation matrix for d3c. */
+				d[ic].put("U11",a);
+				d[ic].put("U21",-b);
+				d[ic].put("U31",0.0);
+				d[ic].put("U12",b);
+				d[ic].put("U22",a);
+				d[ic].put("U32",0.0);
+				d[ic].put("U13",0.0);
+				d[ic].put("U23",0.0);
+				d[ic].put("U33",1.0);
+				/* this uses the Metadata from d to create a template or 3c data.*/
+				ThreeComponentSeismogram d3c(dynamic_cast<Metadata&>(d[ic]),false);
+				d3c.t0=d[ic].t0;
+				d3c.ns=d[ic].ns;
+				d3c.dt=d[ic].dt;
+				d3c.components_are_orthogonal = true;
+				/* initialize */
+				for(k=0;k<d[ic].ns;++k)
+					for(j=0;j<3;++j) d3c.u(j,k)=0.0;
+				/* stuff r into 1 (x2) and t into 0 (x1).  Leave x3 0 */
+				int iic,jc;
+				for(iic=0;iic<tracecount;++iic)
+				{
+					string chan;
+					chan=d[iic].get_string("chan");
+					if(chan==Rchan)
+						jc=1;
+					else if(chan==Tchan)
+						jc=0;
+					else
+					{
+						cerr << "Fatal: do not know how to handle channel "
+							<< chan <<endl;
+						exit(-1);
+					}
+					for(k=0;k<d[iic].ns;++k) d3c.u(jc,k)=d[iic].s[k];
+				}
+				// always mark data live
+				d3c.live=true;
+				d3c.rotate_to_standard();
+				/* We need to post these things or we're screwed */
+				d3c.put("dir",outdir);
+				char buf[128];
+				stringstream ss(buf);
+				ss<<dfilebase<<i;
+				d3c.put("dfile",ss.str());
+				d3c.put("wfprocess.algorithm","convertRF");
+				d3c.put("timetype","a");
+				int rec=dbsave(d3c,dbho.db,outtable,mdlout,am);
+				if(rec<0)
+				{
+					cerr << "dbsave failed working on input record="<<i<<endl;
+					exit(-1);
+				}
+				/* We have to set up these tables because we are using wfprocess
+				to store 3c objects.*/
+				dbho.db.record=rec;
+				pwfid=dbho.get_int("pwfid");
+				rec=dbhoev.append();
+				dbhoev.put("pwfid",pwfid);
+				dbhoev.put("evid",evid);
+				rec=dbhosc.append();
+				dbhosc.put("sta",sta);
+				/* Ignore the fact this has endian implications.  At present datatype
+				is used to handle this. */
+				dbhosc.put("chan","3C");
+				dbhosc.put("pwfid",pwfid);
+				/* This is necessary only if time is foobarred */
+				if(start_time_is_origin)
+				{
+					/* These are frozen so will put them in */
+					d3c.put("arrival.time",atime);
+					d3c.put("arrival.iphase","P");
+					d3c.put("assoc.phase","P");
+					d3c.put("assoc.vmodel","iasp91");
+					d3c.put("assoc.timedef","d");
+					d3c.put("time",d3c.t0);
+					d3c.put("endtime",d3c.endtime());
+					/* The following should not be necessary, but ArrivalUpdater at this
+					point does not handle aliases correctly */
+					string sval;
+					int ival;
+					double dval;
+					sval=d3c.get_string("sta");
+					d3c.put("assoc.sta",sval);
+					d3c.put("arrival.sta",sval);
+					sval=d3c.get_string("chan");
+					d3c.put("arrival.chan",sval);
+					ival=d3c.get_int("orid");
+					d3c.put("assoc.orid",ival);
+					AUhandle.update(d3c);
+				}
+				// also must copy seismogram 2 to 0
+				d[0]=d[2];
+				laststa=sta;
+			}
 
 		}
 	
