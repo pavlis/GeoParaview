@@ -3,6 +3,7 @@ for pwmig.  That means 3c data objects.  See design file in this directory
 for more info. */
 #include <math.h>
 #include <sstream>
+#include <stdio.h>
 #include "coords.h"
 #include "stock.h"
 #include "seispp.h"
@@ -11,11 +12,12 @@ for more info. */
 #include "TimeSeries.h"
 #include "Hypocenter.h"
 #include "ArrivalUpdater.h"
+#include "MatlabProcessor.h"
 using namespace std;
 using namespace SEISPP;
 void usage()
 {
-	cerr << "convertRTdata dbin dbout [-pf pffile]"<<endl;
+	cerr << "convertRTdata dbin dbout [-pf pffile -mlplot]"<<endl;
 	exit(-1);
 }
 bool SEISPP::SEISPP_verbose(true);
@@ -27,6 +29,8 @@ int main(int argc, char **argv)
 	const string outtable("wfprocess");
 	cout << "convertRTdata:  read from db="<<dbin<<" writing results to db="<<dbout<<endl;
 	string pffile("convertRTdata");
+	MatlabProcessor *mp(NULL);
+	bool plot_enabled(false);
 	int i;
 	for(i=3;i<argc;++i)
 	{
@@ -36,6 +40,17 @@ int main(int argc, char **argv)
 			++i;
 			if(i>=argc) usage();
 			pffile=string(argv[i]);
+		}
+		else if(argstr=="-mlplot")
+		{
+			try{
+			mp=new MatlabProcessor(stdin);
+			plot_enabled = true;
+			} catch (SeisppError serr)
+			{
+				serr.log_error();
+				usage();
+			}
 		}
 		else
 			usage();
@@ -56,6 +71,7 @@ int main(int argc, char **argv)
 	radial only or r and t */
 	string Rchan=control.get_string("radial_channel_code");
 	string Tchan=control.get_string("tangential_channel_code");
+	int ir,it;
 		
 	try {
 		AttributeMap am("css3.0");
@@ -113,7 +129,6 @@ int main(int argc, char **argv)
 		{
 			d[ic]=TimeSeries(dynamic_cast<DatabaseHandle&>(dbhi),mdl,am);
 			sta=d[ic].get_string("sta");
-cout << "TESING:  i,ic,sta:  "<<i<<", "<<ic<<", "<<sta<<endl;
 			if(sta==laststa && (i != (ntuples-1)))
 			{
 				if(ic>1) 
@@ -126,7 +141,7 @@ cout << "TESING:  i,ic,sta:  "<<i<<", "<<ic<<", "<<sta<<endl;
 			else
 			{
 				int tracecount=ic;
-				ic=0;
+				ic=1;
 				/* We need to compute an equivalent transformation matrix for
 				these data from the hypocenter information.  We'll let this exit
 				with an exception if origin information is not present. */
@@ -184,9 +199,7 @@ cout << "TESING:  i,ic,sta:  "<<i<<", "<<ic<<", "<<sta<<endl;
 					<<" computed radial azimuth="<<deg(az)
 					<<" Distance(deg)="<<deg(h.distance(stalat,stalon))<<endl;
 				/* Now we have to set the transformation matrix from az.  Convention here
-				is we put R into x2, so the rotation angle turns out to be -az when you 
-				work through the difference between rotation from the x1 axis and an
-				azimuth.  Hence, this is the correction tranformation matrix */
+				is we put R into x2*/
 				a=cos(-az);
 				b=sin(-az);
 				/* by loading these in the metadata for d they will be cloned
@@ -216,9 +229,15 @@ cout << "TESING:  i,ic,sta:  "<<i<<", "<<ic<<", "<<sta<<endl;
 					string chan;
 					chan=d[iic].get_string("chan");
 					if(chan==Rchan)
+					{
 						jc=1;
+						ir=iic;
+					}
 					else if(chan==Tchan)
+					{
 						jc=0;
+						it=iic;
+					}
 					else
 					{
 						cerr << "Fatal: do not know how to handle channel "
@@ -227,9 +246,36 @@ cout << "TESING:  i,ic,sta:  "<<i<<", "<<ic<<", "<<sta<<endl;
 					}
 					for(k=0;k<d[iic].ns;++k) d3c.u(jc,k)=d[iic].s[k];
 				}
+				if(plot_enabled)
+				{
+					string name("x1raw");
+					mp->load(d[it],name);
+					name="x2raw";
+					mp->load(d[ir],name);
+				}
 				// always mark data live
 				d3c.live=true;
 				d3c.rotate_to_standard();
+//DEBUG test transformation operator
+/*
+SlownessVector slow;
+double vp0(6.0);
+double vs0(3.5);
+slow=h.pslow(stalat,stalon,staelev);
+d3c.free_surface_transformation(slow,vp0,vs0);
+cout << "slowness vector azimuth = "<< deg(slow.azimuth())<<endl;
+*/
+				if(plot_enabled)
+				{
+					string name("x3c");
+					mp->load(d3c,name);
+					string command=string("subplot(4,1,1),plot(x1raw); ")
+							+ string("subplot(4,1,2),plot(x2raw); ")
+							+ string("subplot(4,1,3),plot(x3c(1,:)); ")
+							+ string("subplot(4,1,4),plot(x3c(2,:)); ")
+							+ string("pause(2);");
+					mp->process(command);
+				}
 				/* We need to post these things or we're screwed */
 				d3c.put("dir",outdir);
 				char buf[128];
