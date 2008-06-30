@@ -44,3 +44,6 @@ arrival.chan string
 arrival.time real
 arrival.iphase string
 }
+start_time_is_origin false
+radial_channel_code ITR
+tangential_channel_code ITT
