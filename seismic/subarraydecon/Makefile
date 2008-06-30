@@ -1,4 +1,5 @@
-BIN=tcee
+BIN=subarraydecon
+PF=subarraydecon.pf
 DBG=-g
 MATLAB=/opt/matlab6p1/extern
 RPATH="-Wl,--rpath-link,$TMW_ROOT/extern/lib/$Arch,--rpath-link,$TMW_ROOT/bin/$Arch"
@@ -8,7 +9,7 @@ ldlibs= -L$(MATLAB)/lib/sol2 -R$(MATLAB)/lib/sol2 -lmatlabprocessor -lgclgrid -l
 	$(TRLIBS) -lperf
 
 include $(ANTELOPEMAKE)
-OBJS=	tcee.o
+OBJS=	subarraydecon.o
 $(BIN) : $(OBJS)
 	$(RM) $@
 	$(CXX) $(CCFLAGS) -o $@ $(OBJS) $(LDFLAGS) $(LDLIBS)
