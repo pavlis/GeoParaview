@@ -1,10 +1,11 @@
 #include "dbpp.h"
 #include "VectorStatistics.h"
+#include "MatlabProcessor.h"
 using namespace std;
 using namespace SEISPP;
 void usage()
 {
-cerr << "xcoravg dbin dbout [-v]"<<endl;
+cerr << "xcoravg dbin dbout [-v -pf pffile]"<<endl;
 exit(-1);
 }
 bool SEISPP::SEISPP_verbose(false);
@@ -13,14 +14,28 @@ int main(int argc, char **argv)
 	if(argc<3) usage();
 	string dbname(argv[1]);
 	string dbout(argv[2]);
+	string pffile("xcoravg");
 	int i;
 	for(i=3;i<argc;++i)
 	{
-		if(string(argv[i])=="-v")
+		string sarg(argv[i]);
+		if(sarg=="-v")
 			SEISPP_verbose=true;
+                else if(sarg=="-pf")
+                {
+                        ++i;
+                        if(i>=argc)usage();
+                        pffile=string(argv[i]);
+                }
 		else
 			usage();
 	}
+        Pf *pf;
+        if(pfread((char *)(pffile.c_str()),&pf))
+        {
+                cerr << "pfread failed for file = "<<pffile<<endl;
+                usage();
+        }
 	try{
 		DatascopeHandle dbhout(dbout,false);
 		dbhout.lookup("arrival");
@@ -34,6 +49,7 @@ int main(int argc, char **argv)
 		xcatgrpkeys=xcatskeys;
 		xcatskeys.push_back("gridid");
 		dbhxcat.sort(xcatskeys);
+		dbhxcat.natural_join("wfprocess");
 		/* Tricky, but this groups by phase:sta */
 		dbhxcat.group(xcatgrpkeys);
 		/* Build a match handle on arrival */
@@ -65,6 +81,11 @@ int main(int argc, char **argv)
 		dbh.db as the table to match against. */
 		DatascopeMatchHandle arrivalhandle(dbh,string(""),
 			matchkeys,am);
+                /* set up for matlab plotting of stacked data for each gather.
+                Need to load a metadata list and then start matlab */
+                MetadataList mdtrace=pfget_mdlist(pf,"Trace_mdlist");
+                MetadataList mdens=pfget_mdlist(pf,"Ensemble_mdlist");
+                MatlabProcessor mp(stdout);
 		/* Now loop through the group view computing statistics for
 		each arrival.  The median of the group is used to set the
 		new arrival time estimate */
@@ -107,6 +128,11 @@ int main(int argc, char **argv)
 			}
 			else
 			{
+				TimeSeriesEnsemble tse(dynamic_cast<DatabaseHandle&>(dbhxcat),
+					mdens,mdtrace,am);
+	cout << "DEBUG:  number of members in this ensemble = "<<tse.member.size()<<endl;
+				mp.load(tse,string("beams"));
+				mp.process("wigb(beams);");
 				string sta=dbhxcat.get_string("sta");
 				string phase=dbhxcat.get_string("phase");
 				int evid=dbhxcat.get_int("evid");
