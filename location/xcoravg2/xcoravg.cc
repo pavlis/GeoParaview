@@ -1,21 +1,51 @@
+#include <fstream>
+#include <iostream>
 #include "dbpp.h"
 #include "VectorStatistics.h"
 using namespace std;
 using namespace SEISPP;
 void usage()
 {
-cerr << "xcoravg dbarr db2 [-v -pf pffile]"<<endl
+cerr << "xcoravg dbarr db2 [-v -pf pffile -u]"<<endl
 	<<" dbarr - db with arrival and first order dbxcor xsaa table"<<endl
-	<<" db2 - db with stacked beams from second-order dbxcor run"<<endl;
+	<<" db2 - db with stacked beams from second-order dbxcor run"
+	<<"    -u will replace update arrivals in dbarr (default is a dry run)"
+	<<endl;
 exit(-1);
 }
 bool SEISPP::SEISPP_verbose(false);
+/* Prints a frozen file name called "mismatches.log" that identifies 
+potentially unprocessed rows */
+void save_mismatch_log(list<Metadata>& mml)
+{
+	try {
+		ofstream mmlstrm("mismatches.log",ios::out);
+		mmlstrm << "sta phase evid"<<endl;
+		list<Metadata>::iterator mptr;
+		for(mptr=mml.begin();mptr!=mml.end();++mptr)
+		{
+			string sta=mptr->get_string("sta");
+			string phase=mptr->get_string("phase");
+			int evid=mptr->get_int("evid");
+			mmlstrm << sta <<" "
+				<< phase << " "
+				<< evid << endl;
+		}
+		mmlstrm.close();
+	} catch (ios::failure& ioerr)
+	{
+		cerr << "Open failed on file mistmatches.log"<<endl
+		<< "System Message: from what method ios"<<endl;
+		cerr << ioerr.what();
+	}
+}
 int main(int argc, char **argv)
 {
 	if(argc<3) usage();
 	string dbarr(argv[1]);
 	string db2(argv[2]);
 	string pffile("xcoravg");
+	bool update_enabled(false);
 	int i;
 	for(i=3;i<argc;++i)
 	{
@@ -28,6 +58,8 @@ int main(int argc, char **argv)
                         if(i>=argc)usage();
                         pffile=string(argv[i]);
                 }
+		else if(sarg=="-u")
+			update_enabled=true;
 		else
 			usage();
 	}
@@ -38,6 +70,16 @@ int main(int argc, char **argv)
                 usage();
         }
 	try{
+		Metadata control(pf);
+		bool set_deltim=control.get_bool("set_deltim_in_arrival");
+		double xcordeltim;
+		if(set_deltim)
+			xcordeltim=control.get_bool("arrival_deltim");
+		/* This is posted to arrival.  Get it over with right away as the
+		effort is trivial */
+		char username[20];
+		my_username(username);
+		string auth=string("xcoravg:")+username;
 		DatascopeHandle dbh2(db2,false);
 		dbh2.lookup("xsaa");
 		if(dbh2.number_tuples()<=0)
@@ -49,7 +91,7 @@ int main(int argc, char **argv)
 		if(SEISPP_verbose) 
 			cout << "Double beam xsaa table has "<<dbh2.number_tuples()
 			<<" rows"<<endl;
-		DatascopeHandle dbh(dbarr,true);
+		DatascopeHandle dbh(dbarr,false);
 		DatascopeHandle dbhxcat(dbh);
 		dbhxcat.lookup("xsaa");
 		list<string> xcatskeys,xcatgrpkeys;
@@ -108,11 +150,15 @@ int main(int argc, char **argv)
 		the right row in arrival */
 		list<int> matchlist;
 		vector<double> arrival_times;
-		cout << "evid sta phase db_arrival_time median_dt mean_dt interquartile mad range ndgf " <<endl;
+		cout << "evid sta phase db_arrival_time median_dt mean_dt interquartile mad range ndgf nskipped" <<endl;
 		/* Hold keys extracted with dbgetv in loop below for matching to db2 */
 		int gridid, evid;
 		char sta[20],phase[10];
 		Metadata matchxsaa;
+		/* this holds a list mismatches. That is rows in db1
+		with no matches in db2.  */
+		list<Metadata> mismatches;
+		double oldatime,newatime;
 		for(i=0;i<dbhxcat.number_tuples();++i,++dbhxcat)
 		{
 			Dbptr dbarrival;  // holds Datascope Dbptr fetched from view below
@@ -122,7 +168,9 @@ int main(int argc, char **argv)
 			int narr=grp.end_record-grp.start_record;
 			dbview=grp.parent;
 			arrival_times.clear();
-			for(dbview.record=grp.start_record;dbview.record<grp.end_record;++dbview.record)
+			int nskipped;
+			for(dbview.record=grp.start_record,nskipped=0;
+				dbview.record<grp.end_record;++dbview.record)
 			{
 				double atime;
 				ierr=dbgetv(dbview,0,"time",&atime,
@@ -158,7 +206,9 @@ int main(int argc, char **argv)
 							<< gridid <<endl
 						     << "Using first record found"<<endl;
 					}
-					if(nrecs!=0)
+					if(nrecs==0)
+						++nskipped;
+					else if(nrecs!=0)
 					{
 						double adt;
 						list<int>::iterator irptr=recs.begin();
@@ -172,10 +222,10 @@ int main(int argc, char **argv)
 			narr=arrival_times.size();
 			if(narr<=0)
 			{
-				cerr << "Warning:  no arrivals retrieved for row "
-					<< i << " of sorted and grouped xsaa table"<<endl
-					<< "Likely cause is skipped gather in dbxcor pass 2"
-					<<endl;;
+				/* Note matchxsaa has an extra entry for
+				gridid that is baggage here.  We handle
+				this by just not printing it on output */
+				mismatches.push_back(matchxsaa);
 			}
 			else
 			{
@@ -215,26 +265,27 @@ int main(int argc, char **argv)
 						<<endl;
 					else
 					{
-					    double oldatime;
 					    dbgetv(dbarrival,0,"time",&oldatime,0);
 					    if(narr>1)
 					    {
 						VectorStatistics<double> atstat(arrival_times);
-						double atime=atstat.median();
+						newatime=atstat.median();
 						
 						cout << evid <<" "
 							<< stastr<<" "
 							<< phasestr <<" "
 							<< strtime(oldatime) << " "
-							<< oldatime-atime << " "
+							<< oldatime-newatime << " "
 							<< oldatime-atstat.mean() <<" "
 							<< atstat.interquartile() <<" "
-							<< atstat.mad(atime) <<" "
+							<< atstat.mad(newatime) <<" "
 							<< atstat.range() <<" "
-							<< narr-1 <<endl;
+							<< narr-1 <<" "
+							<< nskipped<<endl;
 					    }
 					    else
 					    {
+						newatime=arrival_times[0];
 						cout << evid <<" "
 							<< stastr <<" "
 							<< phasestr <<" "
@@ -244,12 +295,22 @@ int main(int argc, char **argv)
 							<< "0.0 "
 							<< "0.0 "
 							<< "0.0 "
-							<< "0" <<endl;
+							<< "0 " 
+							<< nskipped <<endl;
+					    }
+					    if(update_enabled)
+					    {
+						dbputv(dbarrival,0,
+							"time",newatime,
+							"auth",auth.c_str(),0);
+						if(set_deltim)
+							dbputv(dbarrival,0,"deltim",xcordeltim,0);
 					    }
 					}
 				}
 			}
 		}
+		if(mismatches.size()>0)save_mismatch_log(mismatches);
 	}
 	catch(SeisppError serr)
 	{
