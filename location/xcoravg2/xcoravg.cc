@@ -74,7 +74,7 @@ int main(int argc, char **argv)
 		bool set_deltim=control.get_bool("set_deltim_in_arrival");
 		double xcordeltim;
 		if(set_deltim)
-			xcordeltim=control.get_bool("arrival_deltim");
+			xcordeltim=control.get_double("arrival_deltim");
 		/* This is posted to arrival.  Get it over with right away as the
 		effort is trivial */
 		char username[20];

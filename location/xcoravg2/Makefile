@@ -1,6 +1,7 @@
 BIN=xcoravg
 
 #MAN1=		# man pages for commands
+PF=xcoravg.pf
 ldlibs=	$(DBLIBS) -lseispp
 
 include $(ANTELOPEMAKE)
