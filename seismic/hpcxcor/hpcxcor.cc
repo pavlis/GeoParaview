@@ -25,6 +25,147 @@ phase to collect my ideas.
 /* List of methods used to select one or more traces as reference event
 for MultichannelCorrelator */
 enum ReferenceTraceMethod {UseAll, MaxSnrDB, MaxSnrComputed, MaxPeakAmplitude};
+/* This is a helper used by some of the reference trace methods below.
+Returns a integer of first live trace.  -1 means no live data were found.
+Note this could easily have been templatized for any ensemble type in SEISPP. */
+int find_first_live(TimeSeriesEnsemble& d)
+{
+	for(i=0,ival=-1;i<ensemblesize;++i)
+	{
+		if(d.member[i].live)
+		{
+			ival=i;
+			break;
+		}
+	}
+	return(ival);
+}
+/* These are methods tied to ReferenceTraceMethod.  All return list of int
+values that are an index position into ensemble member vector.  
+Some may return an empty list if the algorithm fails.  Caller needs to handle
+this error condition and deal with it.
+*/
+/* This method returns a trivial list of all member (i=0, ..., d.member.size-1)
+or a subset of size MaxToUse, whichever is smaller.  If not really all, 
+the list is approximated by skippling through the list at intervals of mod size/MaxToUse 
+*/
+list<int> UseAll_ChooseReference(TimeSeriesEnsemble& d,int MaxToUse)
+{
+	if(MaxToUse<1) throw SeisppError(string("UseAll_ChooseReference:  ")
+			+"maximum to use argument must be a positive integer");
+	list<int> result;
+	int ensemblesize=d.member.size();
+	int i;
+	if(ensemblesize<MaxToUse)
+	{
+		result.reserve(ensemblesize);
+		for(i=0;i<ensemble_size;++i) result.push_back(i);
+	}
+	else
+	{
+		int skipinterval=ensemblesize/MaxToUse;
+		if(skipinterval<1)skipinterval=1;
+		for(i=0;i<MaxToUse;i+=skipinterval)
+			result.push_back(i);
+	}
+	return(result);
+}
+/* Chooses largest value of posted snr through trace header (metadata)
+keyword key.  */
+list<int> MaxSnrDB_ChooseReference(TimeSeriesEnsemble& d, string key)
+{
+	list<int> result;
+	vector<double> snrvalues;
+	int ensemblesize=d.member.size();
+	srnvalues.reserve(ensemblesize);
+	int number_fetched=0;
+	int i;
+	for(i=0;i<ensemblesize;++i)
+	{
+		double val;
+		try {
+			val=d.member[i].get_double(key);
+			++number_fetched;  
+		} catch (MetadataGetError mdge)	
+		{
+			if(SeisppVerbose) 
+			{
+				cerr << "Error MaxSnrDB_ChooseReference: "<<endl;
+				mdge.log_error();
+			}
+			val=-1.0;
+		}
+		snrvalues.push_back(val);
+	}
+	if(number_fetched<=0)
+	{
+		// This maybe should be only used if verbose is set, but this seems wise to 
+		// me to always log this.
+		ival=find_first_live(d);
+		if(ival>=0)
+		{
+			cerr << "Warning(MaxSNRDB_ChooseReference:  "
+			  << "No members of this ensemble had snr posted"
+			  <<endl
+			  <<"Returning first live data (member="<<ival<<") as default"<<endl;
+			result.push_back(ival);
+		}
+	}
+	else
+	{
+		/* may be a more elegant way to do this than a linear search, but the
+		cost here is small */
+		int imax=0;
+		double snrmax=snrvalues[0];
+		for(i=1;i<ensemblesize;++i)
+		{
+			if(snrvalues[i]>snrmax)
+			{
+				snrmax=snrvalues[i];
+				imax=i;
+			}
+		}
+		result.push_back(imax);
+	}
+	return(result);
+}
+/* Returns trace with computed highs snr based in input signal and noise
+time windows */
+list<int> MaxSnrComputed_ChooseReference(TimeSeriesEnsemble& d, TimeWindow signal, TimeWindow noise)
+{
+	list<int> result;
+	int imax;
+	double snrmax;
+	vector<TimeSeries>::iterator iptr;
+	/* This loop never tests live boolean because it depends on undocumented fact that
+	SNR_rms tests this and returns a -1 immediately if so marked.*/
+	imax=0;  // assume we aren't called if d is empty
+	iptr=d.member.begin();
+	snrmax=SNR_rms(*iptr,signal,noise);
+	++iptr;
+	for(i=1;i!=d.member.end();++iptr,++i)
+	{
+		double testval;
+		testval=SNR_rms(*iptr,signal,noise);
+		if(testval>snrmax)
+		{
+			snrmax=testval
+			imax=i;
+		}
+	}
+	/* Take same philosophy as above if all failed. */
+	if(snrmax<0.0)
+double SNR_rms(TimeSeries& d, TimeWindow signal, TimeWindow noise)
+
+}
+list<int> MaxPeakAmplitude_ChooseReference(TimeSeriesEnsemble& d, TimeWindow signal, TimeWindow noise)
+{
+double PeakAmplitude(TimeSeries *p)
+
+}
+		
+		
+}
 /* List of options for deciding with ensemble is "best" if run in a
 mode with multiple reference traces */
 enum BestEnsembleMethod {MaxSumWeights, MaxSurvivors};
@@ -221,6 +362,7 @@ int main(int argc, char **argv)
 		asetting.set_robust_tw(robusttw);
 		string method(global_md.get_string("TTmethod"));
 		string model(global_md.get_string("TTmodel"));
+		int MaxTrials=global_md.get_int("MaximumReferenceStationTrials");
 		/* This is an ugly way to get this key attribute from parameter
 		space, but stuck with it.  This should really be available to the 
 		user from the user interface to XcorProcessingEngine, but I 
@@ -279,8 +421,10 @@ int main(int argc, char **argv)
 		This could get out of control for large ensembles, but we'll try it 
 		until it proves problematic. */
 		vector<TimeSeriesEnsemble> trials;
+		int ensemblenumber=-1;  // -1 because we have to increment it at the top of the loop
 		int load_status;  // Return code from load_data used to test for end of data 
 		do {
+		    ++ensemblenumber;
 #ifdef MPI_SET
 		    if(gathernumber%np == rank)
 		    {
@@ -302,6 +446,15 @@ int main(int argc, char **argv)
 				xpe.load_data(h);
 			};
 			TimeSeriesEnsemble *tse=xpe.get_waveforms_gui();
+			/* Silently skip any ensemble with only one member */
+			if(tse->member.size()<2) 
+			{
+				if(enginemode==ContinuousDB)
+				{
+					if(!dpq.has_data()) break;
+				}
+				continue;
+			}
 			/* We have to deal with the critical issue of setting
 			the event to be used as the reference trace for the MultichannelCorrelator.
 			We handle that here through an enum with different methods called.
@@ -316,10 +469,25 @@ enum ReferenceTraceMethod {UseAll, MaxSnrDB, MaxSnrComputed, MaxPeakAmplitude};
 			switch(ReferenceTraceMethod)
 			{
 			case UseAll:
+				reference_traces=UseAll_ChooseReference(*tse,MaxTrials);
 			case MaxSnrDB:
 			case MaxSnrComputed:
 			case MaxPeakAmplitude:
 			};
+			if(reference_traces.size()<=0) 
+			{
+				cerr << "WARNING:  Reference trace selection method failed for ensemble number "
+					<< ensemblenumber <<endl
+					<< "Skipping these data"<<endl;
+				if(enginemode==ContinuousDB)
+				{
+					if(!dpq.has_data()) break;
+				}
+				else
+				{
+					continue;
+				}
+			}
 			trials.clear();
 			for(rtptr=reference_traces.begin(),i=0;
 				rtptr!=reference_traces.end();
