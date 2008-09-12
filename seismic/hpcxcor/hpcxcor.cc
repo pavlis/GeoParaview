@@ -1,10 +1,14 @@
 #include "seispp.h"
+#include "Hypocenter.h"
+#include "SignalToNoise.h"
+#include "ensemble.h"
 #include "XcorProcessingEngine.h"
 #ifdef MPI_SET
         #include <mpi.h>
 #endif
 using namespace std;
 using namespace SEISPP;
+bool SEISPP::SEISPP_verbose(false);
 /* This program is a variant of dbxcor and rtxcor.  It is aimed as a batch
 processing program to grind through large volumes of 
 data without intervention.  This is in contrast to dbxcor which is aimed
@@ -20,16 +24,19 @@ it to run on a many processors simultaneously.  It does this by
 using a procesing queue to drive the processing.  Output is a design
 issue that will evolve.  I'm writing this right now at the design 
 phase to collect my ideas.
-*/
 
-/* List of methods used to select one or more traces as reference event
+ List of methods used to select one or more traces as reference event
 for MultichannelCorrelator */
 enum ReferenceTraceMethod {UseAll, MaxSnrDB, MaxSnrComputed, MaxPeakAmplitude};
+/* file scope keyword used here */
+string dbsnrkey("arrival.snr");
 /* This is a helper used by some of the reference trace methods below.
 Returns a integer of first live trace.  -1 means no live data were found.
 Note this could easily have been templatized for any ensemble type in SEISPP. */
 int find_first_live(TimeSeriesEnsemble& d)
 {
+	int i,ival;
+	int ensemblesize=d.member.size();
 	for(i=0,ival=-1;i<ensemblesize;++i)
 	{
 		if(d.member[i].live)
@@ -58,8 +65,7 @@ list<int> UseAll_ChooseReference(TimeSeriesEnsemble& d,int MaxToUse)
 	int i;
 	if(ensemblesize<MaxToUse)
 	{
-		result.reserve(ensemblesize);
-		for(i=0;i<ensemble_size;++i) result.push_back(i);
+		for(i=0;i<ensemblesize;++i) result.push_back(i);
 	}
 	else
 	{
@@ -77,7 +83,7 @@ list<int> MaxSnrDB_ChooseReference(TimeSeriesEnsemble& d, string key)
 	list<int> result;
 	vector<double> snrvalues;
 	int ensemblesize=d.member.size();
-	srnvalues.reserve(ensemblesize);
+	snrvalues.reserve(ensemblesize);
 	int number_fetched=0;
 	int i;
 	for(i=0;i<ensemblesize;++i)
@@ -88,20 +94,23 @@ list<int> MaxSnrDB_ChooseReference(TimeSeriesEnsemble& d, string key)
 			++number_fetched;  
 		} catch (MetadataGetError mdge)	
 		{
-			if(SeisppVerbose) 
+			if(SEISPP_verbose) 
 			{
 				cerr << "Error MaxSnrDB_ChooseReference: "<<endl;
 				mdge.log_error();
 			}
 			val=-1.0;
 		}
+		/* We must copy this here to create chaos in the sort because the
+		sort method doesn't know this key */
+		d.member[i].put(snr_keyword,val);
 		snrvalues.push_back(val);
 	}
 	if(number_fetched<=0)
 	{
 		// This maybe should be only used if verbose is set, but this seems wise to 
 		// me to always log this.
-		ival=find_first_live(d);
+		int ival=find_first_live(d);
 		if(ival>=0)
 		{
 			cerr << "Warning(MaxSNRDB_ChooseReference:  "
@@ -131,95 +140,224 @@ list<int> MaxSnrDB_ChooseReference(TimeSeriesEnsemble& d, string key)
 }
 /* Returns trace with computed highs snr based in input signal and noise
 time windows */
-list<int> MaxSnrComputed_ChooseReference(TimeSeriesEnsemble& d, TimeWindow signal, TimeWindow noise)
+list<int> MaxSNRComputed_ChooseReference(TimeSeriesEnsemble& d, TimeWindow signal, TimeWindow noise)
 {
 	list<int> result;
 	int imax;
 	double snrmax;
-	vector<TimeSeries>::iterator iptr;
-	/* This loop never tests live boolean because it depends on undocumented fact that
-	SNR_rms tests this and returns a -1 immediately if so marked.*/
-	imax=0;  // assume we aren't called if d is empty
-	iptr=d.member.begin();
-	snrmax=SNR_rms(*iptr,signal,noise);
-	++iptr;
-	for(i=1;i!=d.member.end();++iptr,++i)
+	/* This template does 99% of the work.  All we do afterward is scan the metadata
+	and find the largest value */
+	ensemble_SNR_rms<TimeSeriesEnsemble,TimeSeries>(d,signal,noise,snr_keyword);
+	int i;
+	snrmax=-1.0;
+	for(i=find_first_live(d);i<d.member.size();++i)
 	{
 		double testval;
-		testval=SNR_rms(*iptr,signal,noise);
-		if(testval>snrmax)
+		if(d.member[i].live)
 		{
-			snrmax=testval
-			imax=i;
-		}
-	}
-	/* Take same philosophy as above if all failed. */
-	if(snrmax<0.0)
-double SNR_rms(TimeSeries& d, TimeWindow signal, TimeWindow noise)
-
-}
-list<int> MaxPeakAmplitude_ChooseReference(TimeSeriesEnsemble& d, TimeWindow signal, TimeWindow noise)
-{
-double PeakAmplitude(TimeSeries *p)
-
-}
-		
-		
-}
-/* List of options for deciding with ensemble is "best" if run in a
-mode with multiple reference traces */
-enum BestEnsembleMethod {MaxSumWeights, MaxSurvivors};
-
-
-/* Finds the reference trace as the index position by a
-simple linear search for maximum signal to noise ratio. 
-May eventually want a more complex recipe.*/
-int choose_reference(DatascopeHandle& dbh,
-		TimeSeriesEnsemble *d)
-{
-	string maxsta,sta;
-	double maxsnr,snr;
-	int i;
-	try {
-	dbh.rewind();
-	for(i=0;i<dbh.number_tuples();++i,++dbh)
-	{
-		if(i==0)
-		{
-			maxsnr=dbh.get_double("snr");
-			maxsta=dbh.get_string("sta");
-		}
-		else
-		{
-			snr=dbh.get_double("snr");
-			sta=dbh.get_string("sta");
-			if(snr>maxsnr)
+		 	testval=d.member[i].get_double(snr_keyword);
+			if(testval>snrmax)
 			{
-				maxsta=sta;
-				maxsnr=snr;
+				snrmax=testval;
+				imax=i;
 			}
 		}
 	}
-	} catch (SeisppDberror se)
+			
+	/* Take same philosophy as above if all failed. */
+	if(snrmax<0.0)
 	{
-		se.log_error();
-		cerr << "hpcxcor defaulting to first trace as reference"<<endl;
-		return(0);
-	}
-	// Now search for this station in the ensemble
-	for(i=0;i<d->member.size();++i)
-	{
-		if(d->member[i].live)
+		int ival=find_first_live(d);
+		if(ival>=0)
 		{
-			sta=d->member[i].get_string("sta");
-			if(sta==maxsta)  return(i);
+			cerr << "Warning(MaxSNRComputed_ChooseReference:  "
+			  << "SNR compution failed for all "
+			  << d.member.size() << " members of this ensemble"
+			  <<endl
+			  <<"Returning first live data (member="<<ival<<") as default"<<endl;
+			result.push_back(ival);
+		}
+		// Caller must handle this condition of an empty list and should also
+		// issue a more specific warning.  In verbose mode this will produce
+		// two similar messages.
+		else if (SEISPP_verbose)
+			cerr << "Warning(MaxSNRComputed_ChooseReference:  "
+				<< " no live data in this ensemble"<<endl;
+	}
+	else
+	{
+		result.push_back(imax);
+	}
+	return(result);
+}
+
+/* This method uses a peak largest amplitude method to get the largest amplitude 
+signal.  The entire signal is scanned because we make use of the template function
+in libseispp.  The flow of the algorithm is virtually identical to the rms code
+above and was, in fact, produced by editing it to produce this. */
+const string ampltude_keyword("peak_amplitude");
+list<int> MaxPeakAmplitude_ChooseReference(TimeSeriesEnsemble& d)
+{
+	list<int> result;
+	int imax;
+	double amax;
+	int i;
+	/* amplitude_static_keyword is one of a fixed set of keywords allowed by the
+	less than totally generic sort functionals defined in XcorProcessingEngine.h.
+	We use it somewhat incorrectly here as a convenience, so beware.*/
+	MeasureEnsemblePeakAmplitudes<TimeSeriesEnsemble,TimeSeries>(d,amplitude_static_keyword);
+	amax=-1.0;
+	for(i=find_first_live(d);i<d.member.size();++i)
+	{
+		double testval;
+		if(d.member[i].live)
+		{
+		 	testval=d.member[i].get_double(amplitude_static_keyword);
+			if(testval>amax)
+			{
+				amax=testval;
+				imax=i;
+			}
 		}
 	}
-	cerr << "hpcxcor data mismatch in search for reference trace"<<endl
-		<<"arrival maximum snr station="<<sta<<" has no trace data  "
-		<<"Default to 0"<< endl;
-	return(0);
+	/* Take same philosophy as above if all failed. */
+	if(amax<0.0)
+	{
+		int ival=find_first_live(d);
+		if(ival>=0)
+		{
+			cerr << "Warning(MaxPeakAmplitude_ChooseReference:  "
+			  << "Peak amplitude compution failed for all "
+			  << d.member.size() << " members of this ensemble"
+			  <<endl
+			  <<"Returning first live data (member="<<ival<<") as default"<<endl;
+			result.push_back(ival);
+		}
+		// Caller must handle this condition of an empty list and should also
+		// issue a more specific warning.  In verbose mode this will produce
+		// two similar messages.
+		else if (SEISPP_verbose)
+			cerr << "Warning(MaxPeakAmplitude_ChooseReference:  "
+				<< " no live data in this ensemble"<<endl;
+	}
+	else
+	{
+		result.push_back(imax);
+	}
+	return(result);
 }
+/* This function can be used by any method that posts it's result as a double 
+accessible with keyword key from each member.  It returns a list of int 
+index values of the original ensemble containing the largest values of 
+entries accessible with key.  It works by a bit of a trick.  It takes
+the input ensemble and posts the original index positions to the trace
+headers (metadata).  It then sorts the ensemble by key selecting the
+nmax largest values.  It is VERY INMPORTANT to realize that because the
+input ensemble d is is sorted here it is passed by reference and 
+NOT by a TimeSeries& (reference) declaration.  This will mysteriously 
+stop working if that one character were added.  I seriously considered
+an explicit copy internally, but hope these comments are sufficient to
+prevent a future error here.  
+
+Warning 2:  key is very restricted right now to match allowed keywords
+for ensemble sorting defined in XcorProcessingEngine.h */
+
+list<int> find_largest(TimeSeriesEnsemble d, string key, int nmax)
+{
+	int i;
+	int ensemblesize=d.member.size();
+	for(i=0;i<ensemblesize;++i)
+		d.member[i].put("index",i);
+	if(key==amplitude_static_keyword)
+		sort(d.member.begin(),d.member.end(),
+			greater_metadata_double<TimeSeries,AMPLITUDE>());
+	else if(key==snr_keyword || key==dbsnrkey)
+	/* Warning:  this asumes db method copies it's snr value to the snr_keyword
+	attribute.  This may do bad things if that is not the case */
+		sort(d.member.begin(),d.member.end(),
+			greater_metadata_double<TimeSeries,SNR>());
+	/* Assume that dead traces get shoved to the end of the sorted output 
+	so finding a dead trace is a signal to trucate the output list.
+	We silently return an empty list if it ends that way, although it 
+	really shouldn't here. */
+	list<int> result;
+	int ival;
+	for(i=0;i<nmax,i<ensemblesize;++i)
+	{
+		if(!d.member[i].live) break;
+		ival=d.member[i].get_int("index");
+		result.push_back(ival);
+	}	
+	return(result);
+}
+
+/* List of options for deciding with ensemble is "best" if run in a
+mode with multiple reference traces */
+enum BestEnsembleMethod {MaxSumWeights, MaxSurvivors};
+vector<TimeSeriesEnsemble>::iterator find_best_ensemble(vector<TimeSeriesEnsemble>& trials,
+	BestEnsembleMethod bem, Metadata md)
+{
+	int i;
+	vector<TimeSeriesEnsemble>::iterator result,tse;
+	/*An odd inconsistency in C is that declarations aren't allowed in an individual 
+	case portion of a switch block so we have to declare these here.  We further
+	have to extract these from md.  keywords match those in dbxcor for obvious reasons.*/
+	double stack_weight_cutoff=md.get_double("stack_weight_cutoff");
+	double time_lag_cutoff=md.get_double("time_lag_cutoff");
+	double coherence_cutoff=md.get_double("coherence_cutoff");
+	double correlation_peak_cutoff=md.get_double("stack_weight_cutoff");
+	double stackwt, lag, coherence, correlation;
+	vector<int> survivorcounts;
+	int count,countmax,ensemblesize;
+	double sumwtmax,sumwt;
+	switch (bem)
+	{
+	case MaxSumWeights:
+		result=trials.end();
+		sumwtmax=-1.0;
+		for(tse=trials.begin();tse!=trials.end();++tse)
+		{
+			ensemblesize=tse->member.size();
+			for(i=0,sumwt=0.0;i<ensemblesize;++i)
+			{
+				if(tse->member[i].live)
+				{
+					//Intentionally avoid a try block here for efficiency
+					stackwt=tse->member[i].get_double(stack_weight_keyword);
+					sumwt += stackwt;
+				}
+			}
+			if(sumwt>sumwtmax) result=tse;
+		}
+		break;
+	case MaxSurvivors:
+	default:
+		result=trials.end();
+		countmax=-1;
+		for(tse=trials.begin();tse!=trials.end();++tse)
+		{
+			ensemblesize=tse->member.size();
+			for(i=0,count=0;i<ensemblesize;++i)
+			{
+				if(!tse->member[i].live) continue;
+				correlation=tse->member[i].get_double(peakxcor_keyword);
+				if(correlation<correlation_peak_cutoff) continue;
+				stackwt=tse->member[i].get_double(stack_weight_keyword);
+				if(stackwt<stack_weight_cutoff) continue;
+				coherence=tse->member[i].get_double(coherence_keyword);
+				if(coherence<coherence_cutoff) continue;
+				lag=tse->member[i].get_double(moveout_keyword);
+				if(fabs(lag)>time_lag_cutoff) continue;
+				++count;
+			}
+			if(count>countmax) result=tse;
+		}
+			
+	}
+	return(result);
+}
+
+
 /* This program has a complicated parameter file with options that
 may be mutually exclusive.  This procedure encapsulates all required
 tests to avoid cluttering up main. 
@@ -239,15 +377,53 @@ bool validate_parameters(Metadata md,XcorEngineMode mode,string qfile, string or
 	case GenericGathers:
 		break;
 	case ContinuousDB:
+	default:
 		if(origindb.size()<=0 || qfile.size()<=0)
+		{
 			cerr << "Usage error.  "
 				<< "The -q and -e arguments are required "
 				<< "when running in ContinuousDB processing mode"<<endl;
 			result=false;
+		}
 			
-	default:
-	};
-	/* dummy for now, always true */
+	}
+	/* Some required parameters that will cause a downstream abort if not
+	set */
+	double dtest;
+	try {
+		dtest=md.get_double("correlation_peak_cutoff");
+	} catch (MetadataGetError mdge)
+	{
+		cerr << "Parameter file error:  missing required parameter "
+			<< "correlation_peak_cutoff"<<endl;
+		result=false;
+	}
+	/* this gets a bit repetitious, but unless this list gets real long this is simpler */
+	try {
+		dtest=md.get_double("stack_weight_cutoff");
+	} catch (MetadataGetError mdge)
+	{
+		cerr << "Parameter file error:  missing required parameter "
+			<< "stack_weight_cutof"<<endl;
+		result=false;
+	}
+	try {
+		dtest=md.get_double("time_lag_cutoff");
+	} catch (MetadataGetError mdge)
+	{
+		cerr << "Parameter file error:  missing required parameter "
+			<< "time_lag_cutoff"<<endl;
+		result=false;
+	}
+	try {
+		dtest=md.get_double("coherence_cutoff");
+	} catch (MetadataGetError mdge)
+	{
+		cerr << "Parameter file error:  missing required parameter "
+			<< "coherence_cutoff"<<endl;
+		result=false;
+	}
+	
 	return result;
 }
 /* Return this critical state enum value from parameter space */
@@ -260,7 +436,7 @@ XcorEngineMode get_engine_mode(Metadata& md)
 			result=EventGathers;
 		else if(pmodestr=="GenericGathers")
 			result==GenericGathers;
-		else if(pmodstr=="ContinuousDB")
+		else if(pmodestr=="ContinuousDB")
 			result=ContinuousDB;
 		else
 		{
@@ -277,13 +453,60 @@ XcorEngineMode get_engine_mode(Metadata& md)
 		exit(-1);
 	}
 }
+/* Similar to above to get reference trace method from Metadata */
+ReferenceTraceMethod GetReferenceTraceMethod(Metadata& md)
+{
+	string stest;
+	try {
+		stest=md.get_string("ReferenceTraceMethod");
+	}
+	catch (MetadataGetError mderr)
+	{
+		mderr.log_error();
+		exit(-1);
+	}
+	ReferenceTraceMethod result;
+	if(stest=="UseAll")
+		result=UseAll;
+	else if(stest=="MaxSnrDB" )
+		result=MaxSnrDB;
+	else if(stest=="MaxSnrComputed")
+		result=MaxSnrComputed;
+	else if(stest=="MaxPeakAmplitude")
+		result=MaxPeakAmplitude;
+	else
+	{
+		cerr<< "Illegal keyword for parameter ReferenceTraceMethod"<<endl
+			<<"Must be one of:  UseAll, MaxSnrDB, MaxSnrComputed, or MaxPeakAmplitude"
+			<<endl;
+		exit(-1);
+	}
+}
+
+Hypocenter load_hypo(DatascopeHandle& dbh,string method, string model)
+{
+	double lat,lon,depth,otime;
+	try {
+		lat=dbh.get_double("lat");
+		lon=dbh.get_double("lon");
+		lat=rad(lat);
+		lon=rad(lon);
+		depth=dbh.get_double("depth");
+		otime=dbh.get_double("origin.time");
+		return(Hypocenter(lat,lon,depth,otime,method,model));
+	} catch (SeisppError serr)
+	{
+		serr.log_error();
+		exit(-1);
+	}
+}
+
 
 void usage()
 {
 	cerr << "hpcxcor db [-o dbout -e origindb -q queuefile -pf pffile]"<<endl;
 	exit(-1);
 }
-bool SEISPP::SEISPP_verbose(false);
 int main(int argc, char **argv)
 {
 	int i;
@@ -321,19 +544,19 @@ int main(int argc, char **argv)
 		}
 		if(argtest=="-q")
 		{
-			++i
+			++i;
 			if(i>=argc)usage();
 			queuefile=string(argv[i]);
 		}
 		if(argtest=="-o")
 		{
-			++i
+			++i;
 			if(i>=argc)usage();
 			dbout=string(argv[i]);
 		}
 		if(argtest=="-e")
 		{
-			++i
+			++i;
 			if(i>=argc)usage();
 			origindb=string(argv[i]);
 		}
@@ -360,9 +583,17 @@ int main(int argc, char **argv)
 		te=global_md.get_double("robust_window_end_time");
 		TimeWindow robusttw(ts,te);
 		asetting.set_robust_tw(robusttw);
+		ts=global_md.get_double("SNR_signal_window_start_time");
+		te=global_md.get_double("SNR_signal_window_end_time");
+		TimeWindow SNR_signal_tw(ts,te);
+		ts=global_md.get_double("SNR_noise_window_start_time");
+		te=global_md.get_double("SNR_noise_window_end_time");
+		TimeWindow SNR_noise_tw(ts,te);
 		string method(global_md.get_string("TTmethod"));
 		string model(global_md.get_string("TTmodel"));
 		int MaxTrials=global_md.get_int("MaximumReferenceStationTrials");
+		ReferenceTraceMethod refmeth=GetReferenceTraceMethod(global_md);
+		BestEnsembleMethod bem=GetBestEnsembleMethod(global_md);
 		/* This is an ugly way to get this key attribute from parameter
 		space, but stuck with it.  This should really be available to the 
 		user from the user interface to XcorProcessingEngine, but I 
@@ -385,7 +616,7 @@ int main(int argc, char **argv)
 		XcorProcessingEngine xpe(pf,asetting,dbname,dbout,queuefile);
 		/* Not totally necessary in this context, but a useful test to 
 		require anyway*/
-		if(!xpe.validate_setting()) 
+		if(!xpe.validate_setting(asetting)) 
 		{
 			cerr << "XcorProcessingEngine::validate_setting returned false"
 				<< endl <<"Cannot continue.  Exiting. "<<endl;
@@ -397,7 +628,9 @@ int main(int argc, char **argv)
 		/* In continuous mode we need to loop through the event database.  We
 		do this by building a handle to origindb and a linked queue */
 		DatascopeHandle dbhorigin;
+		DatascopeProcessingQueue *dpq;  //Must be pointer as there is no opeator = for this
 		if(enginemode==ContinuousDB)
+		{
 			dbhorigin=DatascopeHandle(origindb,true);
 			dbhorigin.lookup("event");
 			dbhorigin.natural_join("origin");
@@ -409,12 +642,12 @@ int main(int argc, char **argv)
 				exit(-1);
 			}
 			dbhorigin.rewind();
-			dpq=DatascopeProcessingQueue(dbhorigin,queuefile);
+			dpq=new DatascopeProcessingQueue(dbhorigin,queuefile);
 		}
 
 		/* Top of loop over gathers.   Algorithm loops through each gather.
 		Eventually plan an mpi split here.  i.e. this loop is a perfect
-		data-driven, embarassingly parallel process. &/
+		data-driven, embarassingly parallel process. */
 		int gathernumber(0);
 		bool keeplooping(true);
 		/* We push sorted copies of each ensemble to this vector of ensembles.
@@ -441,8 +674,8 @@ int main(int argc, char **argv)
 				load_status=xpe.load_data(*dbhwf,FINISHED);
 				break;
 			case ContinuousDB:
-				dpq.set_to_current(dbhorigin);
-				h=load_hypo(dbhorigin);
+				dpq->set_to_current(dbhorigin);
+				h=load_hypo(dbhorigin,method,model);
 				xpe.load_data(h);
 			};
 			TimeSeriesEnsemble *tse=xpe.get_waveforms_gui();
@@ -451,7 +684,7 @@ int main(int argc, char **argv)
 			{
 				if(enginemode==ContinuousDB)
 				{
-					if(!dpq.has_data()) break;
+					if(!dpq->has_data()) break;
 				}
 				continue;
 			}
@@ -465,15 +698,23 @@ int main(int argc, char **argv)
 			to the original data that will be sorted during analysis, for example. */
 			list<int> reference_traces;
 			list<int>::iterator rtptr;
-enum ReferenceTraceMethod {UseAll, MaxSnrDB, MaxSnrComputed, MaxPeakAmplitude};
-			switch(ReferenceTraceMethod)
+			switch(refmeth)
 			{
 			case UseAll:
 				reference_traces=UseAll_ChooseReference(*tse,MaxTrials);
 			case MaxSnrDB:
+				reference_traces=MaxSnrDB_ChooseReference(*tse,dbsnrkey);
+				if(reference_traces.size()<1) break;  // handle this error below
+				if(MaxTrials>1) reference_traces=find_largest(*tse,dbsnrkey,MaxTrials);
 			case MaxSnrComputed:
+				reference_traces=MaxSNRComputed_ChooseReference(*tse,SNR_signal_tw, SNR_noise_tw);
+				if(reference_traces.size()<1) break;  // handle this error below
+				if(MaxTrials>1) reference_traces=find_largest(*tse,snr_keyword,MaxTrials);
 			case MaxPeakAmplitude:
-			};
+				reference_traces=MaxPeakAmplitude_ChooseReference(*tse);
+				if(reference_traces.size()<1) break;  // handle this error below
+				if(MaxTrials>1) reference_traces=find_largest(*tse,amplitude_static_keyword,MaxTrials);
+			}
 			if(reference_traces.size()<=0) 
 			{
 				cerr << "WARNING:  Reference trace selection method failed for ensemble number "
@@ -481,7 +722,7 @@ enum ReferenceTraceMethod {UseAll, MaxSnrDB, MaxSnrComputed, MaxPeakAmplitude};
 					<< "Skipping these data"<<endl;
 				if(enginemode==ContinuousDB)
 				{
-					if(!dpq.has_data()) break;
+					if(!dpq->has_data()) break;
 				}
 				else
 				{
@@ -510,20 +751,19 @@ enum ReferenceTraceMethod {UseAll, MaxSnrDB, MaxSnrComputed, MaxPeakAmplitude};
 			/* Passing this the global_md is a backdoor way to get 
 			any parameters needed by any of the allowed methods. 
 			Not best practice, but preferable to modifying the engine. */
-			bestens=find_best_ensemble(trials, BestEnsembleMethod,
+			bestens=find_best_ensemble(trials, bem,
 				global_md);
 			/* We cannot use the save_results methods in the engine 
 			because it would be very evil to delete and modify the
 			tse pointer.  Hence we largely duplicate code from XcorProcessingEngine
 			in the procedure called here.  see above*/
 			save_results(enginemode,xpe,*bestens);
-				
 
 #ifdef MPI_SET
 		    }
 #endif
 		    ++gathernumber;
-		    if(enginemode==ContinousDB) ++dbhorigin;
+		    if(enginemode==ContinuousDB) ++dbhorigin;
 		    /* Because of inconsistent input methods, we have this ugly construct to 
 		    break this loop */
 		    switch(enginemode):
@@ -533,33 +773,11 @@ enum ReferenceTraceMethod {UseAll, MaxSnrDB, MaxSnrComputed, MaxPeakAmplitude};
 			if(load_status) keeplooping=false;
 			break;
 		    case ContinuousDB:
-			if(!dpq.has_data()) keeplooping=false;
+			if(!dpq->has_data()) keeplooping=false;
 		    };
 			
 		}
 		while(keeplooping);
-		// The current method has a default filter applied
-		// immediately after reading.  Here that is the filter.
-		// To extend to multiple filters will require 
-		// a different approach
-		xpe.load_data(h);
-		// Now we need to select a reference trace.  We use
-		// snr from the tmp database. xpe wants the index
-		// position of this trace that we have to search for.
-		TimeSeriesEnsemble *ens=xpe.get_waveforms_gui();
-cout << "data loaded.  Number of members in this ensemble="
-	<<ens->member.size()<<endl;
-		dbh.natural_join(string("assoc"));
-		dbh.natural_join(string("arrival"));
-		int reftrace=choose_reference(dbh,ens);
-		asetting.set_ref_trace(reftrace);
-cout << "Using reference trace ="<<reftrace<<endl;
-		xpe.change_analysis_setting(asetting);
-cout << "Running correlator"<<endl;
-		MultichannelCorrelator *mce=xpe.analyze();
-		orid=dbnextid(dbh.db,"orid");
-cout << "Saving results tagged with orid="<<orid<<endl;
-		xpe.save_results(evid,orid,h);
 	}
 	catch(MetadataError mde)
 	{
