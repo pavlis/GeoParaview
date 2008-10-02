@@ -1,0 +1,33 @@
+proto tbl
+SHHdrAttributes &Tbl{
+# key shtype qfnum SHname table outname output_type
+L001 long 1 LENGTH wfdisc nsamp int
+I011 int 11 RECNO wfid int
+I012 int 12 EVENTNO event evid int
+I014 int 14 MARK NULL mark int
+R000 real 0 DELTA NULL dt real
+R026 real 26 CALIB wfdisc calib real
+R011 real 11 DISTANCE assoc delta real
+R012 real 12 AZIMUTH assoc delta seaz real
+R018 real 18 SLOWNESS assoc slow real
+R013 real 13 INCI assoc ema real
+R014 real 14 DEPTH origin depth real
+R015 real 15 MAGNITUDE origin mb real
+R016 real 16 LAT origin lat real
+R017 real 17 LON origin lon real
+R022 real 22 SIGNOISE assoc snr real
+R023 real 23 PWDW NULL pwdw real
+R024 real 24 DCVREG NULL dcvreg real
+R025 real 25 DCVINCI NULL dcvinci real
+S000 string 0 COMMENT NULL comment string
+S001 string 1 STATION wfdisc sta string
+S002 string 2 OPINFO NULL opinfo string
+S011 string 11 FILTER NULL filter string
+S012 string 12 QUALITY NULL quality string
+C000 char 0 COMP NULL comp string
+C001 char 1 CHAN1 NULL chan1 string
+C002 char 2 CHAN2 NULL chan2 string
+S021 time 21 START wfdisc time real
+S022 time 22 P-ONSET NULL Ptime real
+S023 time 23 S-ONSET NULL Stime real
+}
