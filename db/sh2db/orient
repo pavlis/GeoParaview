@@ -1,0 +1,38 @@
+Attribute pwfid
+        Integer (8)
+        Format ( "%8d" )
+        Null ( "-1" )
+        Range ( "wfid > 0" )
+        Description ( "processed waveform id" )
+        Detail {
+                Comparable to wfid used in wfdisc, but this integer
+                key is the primary index of the core processing waveform
+                table and is used for association and joining of
+                ancillary tables created by all processing algorithms
+                that use this schema.
+        }
+        ;
+
+Attribute pchan
+        String (8)
+        Format ( "%-8s" )
+        Null ( "-" )
+        Description ( "Processing channel code" )
+        Detail {
+                This is a processing channel code that may or may not match the more
+common chan attribute.  It is intended most to denote  generic channel after resampling
+and/or coordinate reorientation.  The expected codes are Z,N,E,L,R,T,H, and 3C but the
+range is not currently restricted to these.
+        }
+        ;
+
+
+Relation orient
+	Fields ( pwfid pchan hang vang comment )
+	Primary ( pwfid )
+	Description ( "Orientation data for processed channels." )
+	Detail {
+		Many processing algorithms that work on three-component data return time series that are not standard channels codes.  These can easily be channels that are vector motion in some arbitrary direction.  This extension table is intimately linked to wfprocess.  The idea is to provide a mechanism to provide orientation information for rows in a wfprocess table.
+	}
+	;
+
