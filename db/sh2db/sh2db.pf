@@ -1,4 +1,3 @@
-proto tbl
 SHHdrAttributes &Tbl{
 # key shtype qfnum SHname table outname output_type
 L001 long 1 LENGTH wfdisc nsamp int
@@ -30,4 +29,77 @@ C002 char 2 CHAN2 NULL chan2 string
 S021 time 21 START wfdisc time real
 S022 time 22 P-ONSET NULL Ptime real
 S023 time 23 S-ONSET NULL Stime real
+S024 time 24 ORIGIN NULL otime real
 }
+# Either t4 or u4 (standard css3.0 datatype)
+datatype u4
+# This must be either wfdisc or wfprocess
+waveform_output_table wfdisc
+schema css3.0
+wfdisc_attribute_list &Tbl{
+	sta string
+	chan string
+	time real
+	endtime real
+	nsamp int
+	samprate real
+	calib real
+	datatype string
+	dir string
+	dfile string
+	foff int
+}
+wfprocess_attribute_list &Tbl{
+	time real
+	endtime real
+	timetype string
+	dir string
+	dfile string
+	foff int
+	datatype string
+	samprate real
+	nsamp int
+	algorithm string
+}
+eventdb_attribute_list &Tbl{
+	evid int
+	orid int
+	mb real
+}
+
+#
+# This key is used to try to extract inclination angle
+# If set to "none" or "NULL" program never attempts to 
+# fetch this angle and assumes it has to compute it
+# Note this MUST match a Metadata key in the SHHdrAttributes 
+# Tbl in this pf.
+#
+ema_key ema
+#
+# When emergence angle (ema in css3.0) has to be computed
+# this is a velocity (km/s) used to convert computed incident 
+# slowness to an angle using Snell's Law.
+#
+v0 6.2
+#
+# This parameter is required as a rational first guess of the 
+# approximate start of this dataset.  It is used to load the 
+# station geometry from the database since SH does not store
+# receiver location information in Q files.  As a result we
+# have to look up the coordinates of each station by name.
+# We use the SEISPP::SeismicArray object to handle this and 
+# it uses a timestamp to autorefresh when ondate::offdate
+# ranges are exceeded.  This should be time string antelope
+# can parse with str2epoch(3)
+#
+initial_timestamp 2005001:00:00:00.0
+#
+# used internally to define the SeismicArray name
+# Currently ignored, but set here as a parameter.
+# 
+netname SHNET
+#
+# ttcalc parameters
+#
+ttmethod tttaup
+ttmodel iasp91
