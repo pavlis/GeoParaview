@@ -5,7 +5,7 @@
 #include <sstream>
 #include <map>
 #include "stock.h"
-#include "Pf.h"
+#include "pf.h"
 #include "seispp.h"
 #include "Hypocenter.h"
 #include "AttributeMap.h"
@@ -47,7 +47,7 @@ may eventually be depricated.
 \param mdl Internal to external namespace mapper that defines what
 	attributes will be written to the db.  The function will
 	attempt to update ALL attributes listed. 
-\return number of nonfatal failures.  Thus 0 means all done ok. 
+\return number record number of added tuple
 \exception SeisppError is thrown for some problems.  In virtually
 	all cases this means the new row was probably created but 
 	is probably incomplete.
@@ -80,12 +80,13 @@ int dbsave(Metadata& md, DatabaseHandle& dbh, MetadataList& mdl,
 	catch (SeisppError serr){throw serr;};
 	
 	Dbptr db=dsdbh.db;
-	char sbuf[32];
-	if(dbquery(db,dbTABLE_NAME,(void *)sbuf)<0)
+	Dbvalue dbval;
+	if(dbquery(db,dbTABLE_NAME,&dbval)<0)
 	{
 		throw SeisppError(base_message
 			+ "dbquery failed asking for dbTABLE_NAME");
 	}
+	char *sbuf=dbval.t;
 	string table(sbuf);
 
 	for(mdli=mdl.begin();mdli!=mdl.end();++mdli)
@@ -206,6 +207,7 @@ int dbsave(Metadata& md, DatabaseHandle& dbh, MetadataList& mdl,
 			    string("dbsave object failure from problem in metadata components"));
 		}
 	}
+	return(rec);
 }
 
 
@@ -285,14 +287,28 @@ vector<string> parse_hdr(istream& in)
 	int linecount(0);
 	string linestr;
 	int nseis,nlastseis;
+	/* Always compare the first line to the magic string here.  It seems
+	all Q files have this magic string as the first line.  We'll print 
+	a warning if there is a mismatch.*/
+	if(!in.getline(buf,128))
+		throw SeisppError("Empty input stream.  EOF encountered immediately.");
+	const string Qmagic("43981");
+	string sbuf=string(buf);
+	sbuf=sbuf.substr(0,5);
+	if(Qmagic!=sbuf)
+		cerr << "Warning:  Q file magic string not found on first line"
+			<< " of header file.  "<<endl
+			<< "Read this: "<< sbuf<<endl
+			<< "Expected to find: "<<Qmagic<<endl;
+	
 	/* getline returns *this or a NULL on EOF, so the books says this should work*/
 	while(in.getline(buf,128))  // default unix newline character since SH is unix always
 	{
 		string wholeline(buf);
 		if(linecount==0)
 		{
-			nseis=0;
-			nlastseis=0;
+			nseis=1;
+			nlastseis=1;
 		}
 		/* This strips leading "xx|" used for trace numbers*/
 		string thispiece=wholeline.substr(3);
@@ -303,13 +319,16 @@ vector<string> parse_hdr(istream& in)
 		{
 			result.push_back(outline);
 			nlastseis=nseis;
-			linestr.clear();
+			outline=thispiece;
 		}
 		else
 		{
 			 outline += thispiece;
 		}
+		++linecount;
 	}
+	/* Have to push the last entry before we return */
+	result.push_back(outline);
 	return result;
 }
 /* Procedure for function immediately below. Seismic Handler uses an
@@ -323,7 +342,10 @@ double shtime_to_epoch(string s)
 	int i; 
 	// tacitly assume s was correctly copied and buffer has same length
 	for(i=0;i<s.length();++i)
+	{
 		if(buffer[i]=='_') buffer[i]=' ';
+		if(buffer[i]=='-') buffer[i]=' ';
+	}
 	double result=str2epoch(buffer);
 	free(buffer);
 	return(result);
@@ -343,6 +365,7 @@ Metadata shstr2md(SHHdrMap& hdrmap, string hdrstr)
 	size_t current(0);
 	int ival;
 	double dval;
+	int endstr=hdrstr.size();
 	do {
 		found=hdrstr.find(":",current);
 		if(found==string::npos)
@@ -393,7 +416,7 @@ Metadata shstr2md(SHHdrMap& hdrmap, string hdrstr)
 
 		}
 	}
-	while(found!=string::npos);
+	while((found!=string::npos) && (current<endstr));
 	return(result);
 }
 /* Names and some attribute concepts clash in any format and this is no 
@@ -426,6 +449,11 @@ void set_required(Metadata& md,string dir, string dfile, string datatype)
 		md.put("dir",dir);
 		md.put("dfile",dfile);
 		md.put("pchan",comp);
+		md.put("datatype",datatype);
+		/* As far as I can tell SH only saves data in absolute
+		time frames */
+		md.put("timetype","a");
+		md.put("wfprocess.algorithm","SH");
 	} catch(MetadataGetError mderr)
 	{
 		mderr.log_error();
@@ -434,7 +462,7 @@ void set_required(Metadata& md,string dir, string dfile, string datatype)
 		throw err;
 	}
 }
-void set_hang_vang(Metadata& mx,ema,seaz);
+void set_hang_vang(Metadata& mx,double ema,double seaz)
 {
 	/* LQT in SH seems to be defined as follows:  x1=L = up and away,
 	x2=Q up and in seaz direction (backazimuth), and x3=T=LXQ (cross product)*/
@@ -515,8 +543,8 @@ v0 - see above
 threecmode - see above
 */
 void set_orientation(Metadata& mx1, Metadata& mx2, Metadata& mx3,
-		Hypocenter& h, SeismicArray& array,string ema_key,double v0,
-			bool threecmode))
+		Hypocenter& h, SeismicArray& receivers,string ema_key,double v0,
+			bool threecmode)
 {
     try {
 	double ema,seaz;
@@ -560,14 +588,14 @@ void set_orientation(Metadata& mx1, Metadata& mx2, Metadata& mx3,
 				<< " were not found.  Setting ema an seaz for this stations to 0"
 				<<endl;
 			ema=0.0;
-			seaz=0.0
+			seaz=0.0;
 		}
 		else
 		{
 			double rlat,rlon,relev;
-			rlat=rptr->lat;
-			rlon=rptr->lon;
-			relev=rptr->elev;
+			rlat=rptr->second.lat;
+			rlon=rptr->second.lon;
+			relev=rptr->second.elev;
 			seaz=h.seaz(rlat,rlon);
 			SlownessVector up=h.pslow(rlat,rlon,relev);
 			double u=up.mag();
@@ -578,17 +606,78 @@ void set_orientation(Metadata& mx1, Metadata& mx2, Metadata& mx3,
 				ema=asin(u*v0);
 		}
 	}
-	set_hang_vang(Metadata& mx1,ema,seaz);
+	set_hang_vang(mx1,ema,seaz);
 	/* simply skip these if no running 3c*/
 	if(threecmode)
 	{
-		set_hang_vang(Metadata& mx2,ema,seaz);
-		set_hang_vang(Metadata& mx3,ema,seaz);
+		set_hang_vang(mx2,ema,seaz);
+		set_hang_vang(mx3,ema,seaz);
 	}
     } catch (SeisppError serr) {throw serr;};
 }
-							save_scalar_data(sx3,dbh,dbhwfp,dbhevl,
-								dbhscl,dbhorien,mdlwd,mdlwp);
+
+/* Get Hypocenter information and update EventCatalog if needed.*/
+Hypocenter handle_event_data(Metadata& mx1, EventCatalog& evcat, Dbptr db,
+		string ttmethod,string ttmodel)
+{
+
+	double slat,slon,sz,otime;
+	/*WARNING:  this is very error prone since it depends
+	on name mapping in the parameter file.  Users should
+	be warned to not mess with the name mapping Tbl */
+	try {
+		slat=mx1.get_double("lat");
+		slon=mx1.get_double("lon");
+		sz=mx1.get_double("depth");
+		otime=mx1.get_double("otime");
+	}
+	catch (MetadataGetError mderr)
+	{
+		cerr << "Problems parsing header data for event data"<<endl
+			<< "Required location information is missing or incomplete"
+			<<endl<< "Details:"<<endl;
+		mderr.log_error();
+		cerr << "Fatal eroror.  Exiting"<<endl;
+		exit(-1);
+	}
+	Hypocenter h(rad(slat),rad(slon),sz,otime,ttmethod,ttmodel);
+	/* This is a truly evil way to accomplish this, so a comment
+	is absolutely required given how evil it is.  To simplify
+	database updating we handle this here by posting a boolean
+	"is_new_evid".  When true the downstream writer will save
+	event and origin table entries for event so marked in
+	its Metadata.  I suppose a spin doctor would put this a 
+	different way. This isn't evil it's clever and innovative.*/
+	int evid,orid;
+	if(evcat.find(h))
+	{
+		Metadata maux=evcat.current_aux();
+		try {
+			evid=maux.get_int("evid");
+			orid=maux.get_int("orid");
+			mx1.put("evid",evid);
+			mx1.put("orid",orid);
+		} catch(...){throw;};
+	}
+	else
+	{
+		evid=dbnextid(db,"evid");
+		orid=dbnextid(db,"orid");
+		mx1.put("evid",evid);
+		mx1.put("orid",orid);
+		Metadata md;
+		md.put("evid",evid);
+		md.put("orid",orid);
+		md.put("is_new_evid",true);
+		try {
+			double mb=mx1.get_double("mb");
+			md.put("mb",mb);
+		} catch (...){};
+		evcat.add(h,md);
+	}
+	return(h);
+}
+
 /* Procedure to save all the attributes or one scalar trace to both wfdisc and wfprocess.
 Can fail for a lot fo reason leading to throwing a SeisppError object. 
 
@@ -616,7 +705,10 @@ void save_scalar_data(Metadata& d,
 	try {
 		/* First save the trace data because if that fails the secondary
 		tables are completely junk*/
-		dbsave(d,dbhwd,mdlwd,am);
+		int rec=dbsave(d,dynamic_cast<DatabaseHandle&>(dbhwd),
+			mdlwd,am);
+		/* Seem to need to do this.  Not sure why */
+		dbhwd.db.record=rec;
 		/* We get everything we need before we try to save wfprocess 
 		and the set of link tables connect to it.  If this fails we 
 		will produce less debris */
@@ -628,7 +720,8 @@ void save_scalar_data(Metadata& d,
 		double vang=d.get_double("vang");
 		/* This is used to mark orientation as measured or computed */
 		string otype=d.get_string("orientation_type");
-		dbsave(d,dbhwp,mdlwp,am);
+		rec=dbsave(d,dynamic_cast<DatabaseHandle&>(dbhwp),mdlwp,am);
+		dbhwp.db.record=rec;
 		int pwfid=dbhwp.get_int("pwfid");
 		dbhevl.append();
 		dbhevl.put("pwfid",pwfid);
@@ -641,17 +734,68 @@ void save_scalar_data(Metadata& d,
 		dbhor.put("pwfid",pwfid);
 		dbhor.put("pchan",pchan);
 		dbhor.put("hang",hang);
-		dbhor.put("vang",van);
-		dbhor.put("comment",otype);
+		dbhor.put("vang",vang);
+		dbhor.put("meastype",otype);
 	}
-	catch (SeisppError serr){ throw serr;};
+	catch (SeisppError serr){ throw serr;}
 	catch (MetadataGetError mderr)
 	{
-		cerr << "save_scalar_data:  MetadataGet error:"
+		cerr << "save_scalar_data:  MetadataGet error:";
 		mderr.log_error();
 		throw SeisppError(string("Database save failure.  Output db is definitely incomplete."));
 	}
-
+}
+void save_catalog(DatascopeHandle& dbh, EventCatalog& evcat)
+{
+	evcat.rewind();
+	int i;
+	int nrec=evcat.size();
+	DatascopeHandle dbhev(dbh);
+	dbhev.lookup("event");
+	DatascopeHandle dbhorigin(dbh);
+	dbhorigin.lookup("origin");
+	
+	for(i=0;i<nrec;++i,++evcat)
+	{
+		Metadata md=evcat.current_aux();
+		double mb(-10.0);
+		/* put this is a separate try block in
+		case it isn't set */
+		try {
+			mb=md.get_double("mb");
+		} catch(...){};
+		
+		try {
+			bool is_new=md.get_bool("is_new_evid");
+			
+			if(is_new)
+			{
+				int evid,orid;
+				evid=md.get_int("evid");
+				orid=md.get_int("orid");
+				Hypocenter h=evcat.current();
+				dbaddv(dbhev.db,0,"evid",evid,
+					"prefor",orid,0);
+				int iret=dbaddv(dbhorigin.db,0,
+					"lat",deg(h.lat),
+					"lon",deg(h.lon),
+					"time",h.time,
+					"depth",h.z,
+					"orid",orid,0);
+				if(iret==dbINVALID)
+				{
+					cerr << "Warning:  dbaddv failure "
+						<< "appending new origin rows"
+						<<endl;
+				}
+				else if(mb>0.0)
+				{
+					dbhorigin.db.record=iret;
+					dbputv(dbhorigin.db,0,"mb",mb,0);
+				}
+			}
+		} catch (MetadataGetError) {};// handle this silently
+	}
 }
 
 		
@@ -659,7 +803,7 @@ void usage()
 {
 	cerr << "sh2db db [-3c -e "
 	  << "-pf pffile -v] < file_list"  <<endl
-	  << "Default all flags false, do not save eventdb,  and use wfdisc to index data"<<endl;
+	  << "Default all flags false"<<endl;
 }
 	
 bool SEISPP::SEISPP_verbose(false);
@@ -675,7 +819,7 @@ int main(int argc, char **argv)
 	string eventdb;
 	string pffile("sh2db");
 	bool verbose(false);
-	for(i=0;i<argc;++i)
+	for(i=2;i<argc;++i)
 	{
 		string sarg(argv[i]);
 		if(sarg=="-3c")
@@ -719,7 +863,6 @@ int main(int argc, char **argv)
 	}
 	SHHdrMap shhdrmap;
 	shhdrmap=load_shhdrmap(pf);
-	outputtable=pfget_string(pf,"waveform_output_table");
 	try {
 		DatascopeHandle dbh;
 		dbh=DatascopeHandle(dbname,false);
@@ -776,7 +919,10 @@ int main(int argc, char **argv)
 	string ema_key=pfget_string(pf,"ema_key");
 	bool use_header_ema;
 	if(ema_key=="none" || ema_key=="NULL")
+	{
 		use_header_ema=false;
+		ema_key="";
+	}
 	else
 		use_header_ema=true;
 	double v0=pfget_double(pf,"v0");
@@ -784,8 +930,8 @@ int main(int argc, char **argv)
 	DatascopeHandle evdbh(dbh);
 	evdbh.lookup("event");
 	evdbh.natural_join("origin");
-	evdbh.subset(string("orid==prefor");
-	EventCatalog evcat(evmdl);
+	evdbh.subset(string("orid==prefor"));
+	EventCatalog evcat(mdlev);
 	if(evdbh.number_tuples()>0 )
 	{
 		cout << "Loading existing catalog with "<<evdbh.number_tuples()
@@ -793,6 +939,7 @@ int main(int argc, char **argv)
 		evcat=EventCatalog(evdbh,mdlev,am);
 		
 	}
+	set<int> newevids;
 	/* We need this because we cannot guarantee SH stores receiver coordinates
 	in a Q file.  We require a db to have a shot at this. */
 	char *netstr=pfget_string(pf,"netname");
@@ -835,12 +982,14 @@ int main(int argc, char **argv)
 			cerr << cont_mess;
 			continue;
 		}
-		dfilebase=new char[lenfull-3];  //-3 to allow for \0
-		strncpy(dfilebase,dfilefull,lenfull-4);
+		//dfilebase=new char[lenfull-3];  //-3 to allow for \0
+		//strncpy(dfilebase,dfilefull,lenfull-4);
+		string dfilebase;
+		dfilebase.assign(string(dfilefull),0,lenfull-4);
 		qfdfile=string(dir)+"/"+string(dfilebase)+"."+qdfext;
 		hdrdfile=string(dir)+"/"+string(dfilebase)+"."+qhdrext;
 		string dfbsave(dfilebase);  // need this below, but better to use a string than char *
-		delete [] dfilebase;
+		//delete [] dfilebase;
 		ifstream headerstream;
 		try {
 			headerstream.open(hdrdfile.c_str(),ios::in);
@@ -870,15 +1019,16 @@ int main(int argc, char **argv)
 		{
 			/* Dogmatically refuse to process a file when ntrace is not a 
 			multiple of 3 */
-			if(ntrace%3 == 0)
+			if(ntraces%3 == 0)
 			{
 				/* The test of ntraces-2 is safer, but somewhat redundant
 				with the mod 3 conditional */
-				for(i=0;i<(ntraces-2);i+=3)
+				int foff;
+				for(i=0,foff=0;i<(ntraces-2);i+=3)
 				{
-					mx1=shstr2md(shhdrmap,hdrstrvec[i]);
-					mx2=shstr2md(shhdrmap,hdrstrvec[i+1]);
-					mx3=shstr2md(shhdrmap,hdrstrvec[i+1]);
+					Metadata mx1=shstr2md(shhdrmap,hdrstrvec[i]);
+					Metadata mx2=shstr2md(shhdrmap,hdrstrvec[i+1]);
+					Metadata mx3=shstr2md(shhdrmap,hdrstrvec[i+1]);
 					string qdfbase=string(dfbsave)+"."+qdfext;
 					try {
 						set_required(mx1,string(dir),qdfbase,datatype);
@@ -892,40 +1042,15 @@ int main(int argc, char **argv)
 					vector<TimeSeries> components;
 					/* computer foff needed to read actual data into memory in this mode */
 					int nsamp=mx1.get_int("nsamp");
-					mx1.put("foff",(int)0);
+					mx1.put("foff",foff);
+					foff+=4*nsamp;
 					/* This may have an off by one error.  It also assumes Q files are 32 bit */
-					mx2.put("foff",4*nsamp+1);
-					mx3.put("foff",2*4*nsamp+1);
-					/* Assume all 3 components have common source information */
-					double slat,slon,sz,otime;
-					/*WARNING:  this is very error prone since it depends
-					on name mapping in the parameter file.  Users should
-					be warned to not mess with the name mapping Tbl */
-					try {
-						slat=mx1.get_double("lat");
-						slon=mx1.get_double("lon");
-						sz=mx1.get_double("depth");
-						otime=mx1.get_double("otime");
-					catch (MetadataGetError mderr)
-					{
-						cerr << "Problems parsing header data for file="
-							<< qdfbase<<endl
-							<< "Required location information is missing or incomplete"
-							<<endl<< "Details:"<<endl;
-						mderr.log_error();
-						cerr << "Trying next group in this file"<<endl;
-						continue;
-					}
-					Hypocenter h(rad(slat),rad(slon),sz,otime,ttmethod,ttmodel);
-					if(evcat.add(h) && SEISPP_verbose)
-						cout << "Added event to catalog with otime="
-							<< strtime(otime)<<endl;
-MISSING HERE:  needs logic to deal with evid issue.  Realized what is needed is to make
-the EventCatalog internal be a map<Hypocenter,Metadata,CompareFunctio> instead of
-the current STL set container.  Metadata can contain anything you want to post. 
-Better than defining something like a css extension to hypocenter to allow evid as
-an internal.  
-					/* Refresh array geometry if necessary.  Not try/catch
+					mx2.put("foff",foff);
+					foff+=4*nsamp;
+					mx3.put("foff",foff);
+					foff+=4*nsamp;
+					Hypocenter h=handle_event_data(mx1,evcat,dbh.db,ttmethod,ttmodel);
+					/* Refresh array geometry if necessary.  No try/catch
 					here as we can assume set_required set these.  */
 					TimeWindow tracerange(mx1.get_double("time"),
 							mx1.get_double("endtime"));
@@ -940,7 +1065,7 @@ an internal.
 						or the three components making some 
 						rather restrictive assumptions.  See procedure
 						code above or details */
-						set_orientation(mx1,mx2,mx3,h,receivers,ema_key,true);
+						set_orientation(mx1,mx2,mx3,h,receivers,ema_key,v0,true);
 						TimeSeries sx1,sx2,sx3;
 						sx1=TimeSeries(mx1,true);
 						components.push_back(sx1);
@@ -955,13 +1080,13 @@ an internal.
 						try {
 							save_scalar_data(mx1,
 								dbh,dbhwfp,dbhevl,
-								dbhscl,dbhorien,mdlwd,mdlwp,am);
+								dbhscl,dbhorient,mdlwd,mdlwp,am);
 							save_scalar_data(mx2,
 								dbh,dbhwfp,dbhevl,
-								dbhscl,dbhorien,mdlwd,mdlwp,am);
+								dbhscl,dbhorient,mdlwd,mdlwp,am);
 							save_scalar_data(mx3,
 								dbh,dbhwfp,dbhevl,
-								dbhscl,dbhorien,mdlwd,mdlwp,am);
+								dbhscl,dbhorient,mdlwd,mdlwp,am);
 						} catch (SeisppError serr)
 						{
 							cerr << "Error saving db attributes from"
@@ -973,7 +1098,7 @@ an internal.
 						//This procedure is dogmatic about saving data as 3c objects.
 						// Be careful of datatype field if this is ever changed.
 						// Potential maintenance issue too.
-						dbsave(d3c,dbhwfp.db,string("wfprocess"),mdl,am);
+						dbsave(d3c,dbhwfp.db,string("wfprocess"),mdlwp,am);
 						if(verbose)
 						  cout << dynamic_cast<Metadata&>(d3c);
 					} catch (SeisppError serr)
@@ -987,10 +1112,10 @@ an internal.
 			}
 			else
 			{
-				cerr << hdrfile << " and associated Q file="<<qfdfile
+				cerr << hdrdfile << " and associated Q file="<<qfdfile
 					<< " were not processed."<<endl
-					<< "Running in P RF mode requires number of trace to be "
-					<< "a multiple of 3.  Actual ntrace="<<ntrace<<endl;
+					<< "Running in three component mode requires number of trace to be "
+					<< "a multiple of 3.  Actual ntraces="<<ntraces<<endl;
 			}
 		
 		}
@@ -1000,15 +1125,32 @@ an internal.
 		list of header strings, create TimeSeries objects, and write them to the db */
 			try {
 				string qdfbase=string(dfbsave)+"."+qdfext;
-				for(i=0;i<ntraces;++i)
+				int foff;
+				for(i=0,foff=0;i<ntraces;++i)
 				{
 					Metadata mx=shstr2md(shhdrmap,hdrstrvec[i]);
 					set_required(mx,string(dir),qdfbase,datatype);
+					Hypocenter h=handle_event_data(mx,evcat,dbh.db,ttmethod,ttmodel);
+					/* repetitious with above, but judged better
+					to repeat than add overhead of a new call */
+					TimeWindow tracerange(mx.get_double("time"),
+							mx.get_double("endtime"));
+					if(!receivers.GeometryIsValid(tracerange))
+					{
+						receivers=SeismicArray(
+						      dynamic_cast<DatabaseHandle&> (dbh),
+								tracerange.start,string(netstr));
+					}
 					/* This works because the false arg causes this to 
 					not touch arg 2 and 3. */
-					set_orientation(mx,mx,mx,h,receivers,ema_key,false);
+					set_orientation(mx,mx,mx,h,receivers,ema_key,v0,false);
+					/* no try block here as we can 	
+					normally assume this attribute is set*/
+					int nsamp=mx.get_int("nsamp");
+					mx.put("foff",foff);
+					foff+=4*nsamp;
 					save_scalar_data(mx,dbh,dbhwfp,dbhevl,
-							dbhscl,dbhorien,mdlwd,mdlwp,am);
+							dbhscl,dbhorient,mdlwd,mdlwp,am);
 				}
 			} catch(SeisppError serr)
 			{
@@ -1018,6 +1160,7 @@ an internal.
 			}
 		}
 	}
+	if(saveorigin)	save_catalog(evdbh,evcat);
 
 	}
 	catch(SeisppError serr)

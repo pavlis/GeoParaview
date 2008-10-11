@@ -33,8 +33,6 @@ S024 time 24 ORIGIN NULL otime real
 }
 # Either t4 or u4 (standard css3.0 datatype)
 datatype u4
-# This must be either wfdisc or wfprocess
-waveform_output_table wfdisc
 schema css3.0
 wfdisc_attribute_list &Tbl{
 	sta string

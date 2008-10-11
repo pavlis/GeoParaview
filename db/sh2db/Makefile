@@ -1,4 +1,5 @@
 BIN=sh2db
+DATADIR=schemas/css3.0.ext
 DATA=orient
 PF=sh2db.pf
 MAN1=sh2db.1
