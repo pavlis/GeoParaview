@@ -1,5 +1,6 @@
 SHHdrAttributes &Tbl{
 # key shtype qfnum SHname table outname output_type
+L000 ong 0 UNKNOWN NULL extra int
 L001 long 1 LENGTH wfdisc nsamp int
 I011 int 11 RECNO wfid int
 I012 int 12 EVENTNO event evid int
@@ -48,6 +49,7 @@ wfdisc_attribute_list &Tbl{
 	foff int
 }
 wfprocess_attribute_list &Tbl{
+	pwfid int
 	time real
 	endtime real
 	timetype string
@@ -57,7 +59,7 @@ wfprocess_attribute_list &Tbl{
 	datatype string
 	samprate real
 	nsamp int
-	algorithm string
+	wfprocess.algorithm string
 }
 eventdb_attribute_list &Tbl{
 	evid int
@@ -72,7 +74,7 @@ eventdb_attribute_list &Tbl{
 # Note this MUST match a Metadata key in the SHHdrAttributes 
 # Tbl in this pf.
 #
-ema_key ema
+ema_key none
 #
 # When emergence angle (ema in css3.0) has to be computed
 # this is a velocity (km/s) used to convert computed incident 
@@ -101,3 +103,18 @@ netname SHNET
 #
 ttmethod tttaup
 ttmodel iasp91
+#
+# These parameters control behaviour in RFmode.  SH (It is not alone
+# in this) does not keep time correctly when it deconvolves data.
+# To work around this time can be skewed by hunting for a peak
+# amplitude on Z or L and defining that as time 0 which equates
+# here to skewing the start time by make the peak match the 
+# computed P arrival time.  Note these parameters are ignored
+# unless running with the -RFmode flag on the command line.
+#
+enable_time_skewing true
+time_zero_component L
+maximum_time_skew 30.0
+# When true amplitudes are normalized to produce peak amplitude=1
+# on time_zero_component 
+peak_normalization false
