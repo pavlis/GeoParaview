@@ -216,6 +216,9 @@ throw(SeisppError)
 
 
 /*********END SECTION FOR SEISPP ***********/
+/* This is used for receiver cooordinate metadata*/
+const string rlatkey("rlat"), rlonkey("rlon"),relevkey("relev");
+
 class SHHdrAttribute
 {
     public:
@@ -532,6 +535,39 @@ void set_hang_vang(Metadata& mx,double ema,double seaz)
     mx.put("vang",vang);
 }
 
+void set_receiver_coordinates(Metadata& md, SeismicArray& receivers)
+{
+	try {
+            string sta=md.get_string("sta");
+            map<string,SeismicStationLocation>::iterator rptr;
+            rptr=receivers.array.find(sta);
+            if(rptr==receivers.array.end())
+            {
+                cerr << "Warning (set_orientation):  station coordinates for "<<sta
+                    << " were not found.  "<<endl
+		    << "Coordinates are not set in trace header.  Expect downstream problems"
+                    <<endl;
+            }
+            else
+            {
+                double rlat,rlon,relev;
+                rlat=rptr->second.lat;
+                rlon=rptr->second.lon;
+                relev=rptr->second.elev;
+		md.put(rlatkey,rlat);
+		md.put(rlonkey,rlon);
+		md.put(relevkey,relev);
+            }
+		
+	}catch(MetadataGetError mderr)
+	{
+		mderr.log_error();
+		cerr << "This should not happen in this code so will exit."
+			<< "Contact the author:  pavlis@indiana.edu"<<endl;
+		exit(-1);
+	}
+
+}
 
 /* This internal procedure ultimately sets the hang and vang metadata attributes
 that are needed to define orientation on output channels.  The overall behaviour
@@ -613,6 +649,8 @@ bool threecmode)
             }
             else
             {
+		/* These could be retrieved from Metadata but
+		this is probably actually faster */
                 double rlat,rlon,relev;
                 rlat=rptr->second.lat;
                 rlon=rptr->second.lon;
@@ -721,7 +759,7 @@ double RFskewtime(vector<TimeSeries>& components, string skewcomp, double dtmax,
     for(i=0;i<components.size();++i)
     {
     	string comp=components[i].get_string("comp");
-	if(comp=="skewcomp")
+	if(comp==skewcomp)
 	{
 		iskew=i;
 		break;
@@ -731,22 +769,34 @@ double RFskewtime(vector<TimeSeries>& components, string skewcomp, double dtmax,
     			+ skewcomp + " not found in 3c set");
     vector<double>::iterator maxamp;
     maxamp=max_element(components[iskew].s.begin(),components[iskew].s.end());
+    /* Normalize using a trick.  Change nothing, just alter calib */
     if(normalize)
     {
-    	double gain=1.0/(*maxamp);  // this way we can use dscal 
+	double calib;
+    	double gain=(*maxamp);  
 	for(i=0;i<components.size();++i)
-		dscal(components[i].ns,gain,&(components[i].s[0]),1);
+	{
+	    try {
+		calib=components[i].get_double("calib");
+	     } catch (MetadataGetError mderr)
+	    {
+		calib=1.0;
+	    }
+	    //calib*=gain;
+	    calib=gain;
+	    components[i].put("calib",calib);
+	}
     }
     //1difference_type idist;  // STL distance function returns this object
-    int ip=distance(components[i].s.begin(),maxamp);
+    int ip=distance(components[iskew].s.begin(),maxamp);
     double ptime=components[iskew].time(ip);
     double predP;
     double lat,lon,elev;
     try {
-    	lat=components[iskew].get_double("rlat");
-	lon=components[iskew].get_double("rlon");
-	elev=components[iskew].get_double("elev");
-	predP=h.ptime(lat,lon,elev);
+    	lat=components[iskew].get_double(rlatkey);
+	lon=components[iskew].get_double(rlonkey);
+	elev=components[iskew].get_double(relevkey);
+	predP=h.ptime(lat,lon,elev) + h.time;
     } catch (MetadataGetError mderr)
     {
     	cerr << "RFskewtime:  error fetching receiver coordinates"<<endl;
@@ -756,7 +806,16 @@ double RFskewtime(vector<TimeSeries>& components, string skewcomp, double dtmax,
     }
     double skewtime=predP-ptime;
     for(i=0;i<components.size();++i)
+    {
     	components[i].t0 += skewtime;
+	/* safer to reset these.  Required actually to skew
+	scalar traces since we only reference the metatdata */
+	components[i].put("time",components[i].t0);
+	components[i].put("endtime",components[i].endtime());
+	/* Need to reset this even if it is set correctly in the header.
+	No guarantee this calculator matches that used in SH */
+	components[i].put("Ptime",predP);
+    }
     return(skewtime);
 }
 
@@ -820,6 +879,57 @@ AttributeMap& am)
         dbhor.put("hang",hang);
         dbhor.put("vang",vang);
         dbhor.put("meastype",otype);
+	/* this is an oddity done as a local workaround.
+	If found in a release version, consider removing this */
+	try {
+	  string comment=d.get_string("comment");
+	  dbhor.put("auth",comment);
+	} catch(...){}; // intentional do nothing
+    }
+    catch (SeisppError serr){ throw serr;}
+    catch (MetadataGetError mderr)
+    {
+        cerr << "save_scalar_data:  MetadataGet error:";
+        mderr.log_error();
+        throw SeisppError(string("Database save failure.  Output db is definitely incomplete."));
+    }
+}
+/* Painfully parallel routine for 3c data.  Key difference is does
+not map to wfdisc so there is no argument for wfdisc handle.  Similarly
+there is no need for the orient table. */
+void save_vector_data(ThreeComponentSeismogram& d,
+DatascopeHandle& dbhwp,
+DatascopeHandle& dbhevl,
+DatascopeHandle& dbhscl,
+MetadataList& mdlwp,
+AttributeMap& am)
+{
+    try
+    {
+        string sdtype;
+        if(IntelByteOrder())
+                sdtype=string("c3");
+        else
+                sdtype=string("3c");
+	d.put("datatype",sdtype);
+        int rec=dbsave(d,dbhwp.db,
+            string("wfprocess"),mdlwp,am);
+        dbhwp.db.record=rec;
+        /* We get everything we need before we try to save wfprocess
+        and the set of link tables connect to it.  If this fails we
+        will produce less debris */
+        int evid=d.get_int("evid");
+        string sta=d.get_string("sta");
+        string chan=sdtype;
+        string pchan=sdtype;
+        int pwfid=dbhwp.get_int("pwfid");
+        dbhevl.append();
+        dbhevl.put("pwfid",pwfid);
+        dbhevl.put("evid",evid);
+        dbhscl.append();
+        dbhscl.put("pwfid",pwfid);
+        dbhscl.put("sta",sta);
+        dbhscl.put("chan",chan);
     }
     catch (SeisppError serr){ throw serr;}
     catch (MetadataGetError mderr)
@@ -872,6 +982,7 @@ void save_catalog(DatascopeHandle& dbh, EventCatalog& evcat)
                     "lon",deg(h.lon),
                     "time",h.time,
                     "depth",h.z,
+		    "evid",evid,
                     "orid",orid,0);
                 if(iret==dbINVALID)
                 {
@@ -891,24 +1002,84 @@ void save_catalog(DatascopeHandle& dbh, EventCatalog& evcat)
         };
     }
 }
+void apply_calib(TimeSeries& d)
+{
+	try {
+		double calib;
+		calib=d.get_double("calib");
+		if(calib!=1.0 & calib>0.0)
+		{
+			int i;
+			for(i=0;i<d.ns;++i) d.s[i]*=calib;
+		}
+	} catch (MetadataGetError mderr)
+	{
+		cerr << "Warning:  calib not initialized.  apply_calib does nothing"<<endl;
+	}
+}
+void save_arrivals(Metadata& d,DatascopeHandle& dbh, string Pcomp, string Scomp)
+{
+	string sta;
+	int arid;
+	double time;
+	int jdate;
+	string iphase;
+	int ierr;
+	try {
+		sta=d.get_string("sta");
+	} catch (MetadataGetError mderr)
+	{
+		throw SeisppError(string("save_arrivals:  sta is not defined for data passed\n")
+			+"Cannot save arrivals");
+	}
+	try {
+		time=d.get_double("Ptime");
+		jdate=yearday(time);
+		iphase="P";
+		ierr=dbaddv(dbh.db,0,"sta",sta.c_str(),
+			"time",time,
+			"jdate",jdate,
+			"chan",Pcomp.c_str(),
+			"iphase",iphase.c_str(),0);
+		if(ierr==dbINVALID) cerr << "save_arrivals(WARNING):   "
+			<< "dbaddv failed writing P arrival record for station="
 
+			<< sta<<endl;
+	} catch(...){};  //Intentionally do nothing here.  Ptime not always defined
+	try {
+		time=d.get_double("Stime");
+		jdate=yearday(time);
+		iphase="S";
+		ierr=dbaddv(dbh.db,0,"sta",sta.c_str(),
+			"time",time,
+			"jdate",jdate,
+			"chan",Scomp.c_str(),
+			"iphase",iphase.c_str(),0);
+		if(ierr==dbINVALID) cerr << "save_arrivals(WARNING):   "
+			<< "dbaddv failed writing S arrival record for station="
+
+			<< sta<<endl;
+	} catch(...){};  //Intentionally do nothing here.  Ptime not always defined
+		
+}
 
 void usage()
 {
     cerr << "sh2db db [-3c -e "
-        << "-RFmode "
+        << "-RFmode"
         << "-pf pffile -v] < file_list"  <<endl
         << "Default all flags false"<<endl;
+    exit(-1);
 }
 
 
 bool SEISPP::SEISPP_verbose(false);
 int main(int argc, char **argv)
 {
-    const string qdfext("QBN"), qhdrext("QHD");
+    const string qdfext("QBN"), qhdrext("QHD"),threecext("3C");
     const string cont_mess("Trying next input line\n");
-    string dbname(argv[1]);
     if(argc<2) usage();
+    string dbname(argv[1]);
     int i;
     bool threecmode(false);
     bool saveorigin(false);
@@ -983,6 +1154,8 @@ int main(int argc, char **argv)
         dbhscl.lookup("sclink");
         DatascopeHandle dbhorient(dbh);
         dbhorient.lookup("orient");
+	DatascopeHandle dbharr(dbh);
+	dbharr.lookup("arrival");
 
         /* indent tear here.  Eventually need to fix this with bcpp*/
         char *schema=pfget_string(pf,"schema");
@@ -1067,6 +1240,20 @@ int main(int argc, char **argv)
 	bool normalize(false);
 	normalize=pfget_boolean(pf,"peak_normalization");
 	maximum_time_skew=pfget_double(pf,"maximum_time_skew");
+	bool save_relative_time_data;
+	save_relative_time_data=pfget_boolean(pf,"save_relative_time_data");
+	TimeWindow atime_window;
+	if(RFmode && time_skewing && save_relative_time_data)
+	{
+		double ts,te;
+		ts=pfget_double(pf,"relative_time_window_start");
+		te=pfget_double(pf,"relative_time_window_end");
+		atime_window=TimeWindow(ts,te);
+	}
+	/* these determine which component used to post P and S  arrivals */
+	string Pcomp,Scomp;
+	Pcomp=pfget_string(pf,"P_arrival_component");
+	Scomp=pfget_string(pf,"S_arrival_component");
 
         /* In the loop below we have to split dir and dfile of the input files.  The
         interface to the plain C function requires a pointer and warnings to not
@@ -1145,8 +1332,9 @@ int main(int argc, char **argv)
                     {
                         Metadata mx1=shstr2md(shhdrmap,hdrstrvec[i]);
                         Metadata mx2=shstr2md(shhdrmap,hdrstrvec[i+1]);
-                        Metadata mx3=shstr2md(shhdrmap,hdrstrvec[i+1]);
+                        Metadata mx3=shstr2md(shhdrmap,hdrstrvec[i+2]);
                         string qdfbase=string(dfbsave)+"."+qdfext;
+			string threecdfile=string(dfbsave)+"."+threecext;
                         try
                         {
                             set_required(mx1,string(dir),qdfbase,datatype);
@@ -1168,6 +1356,15 @@ int main(int argc, char **argv)
                         mx3.put("foff",foff);
                         foff+=4*nsamp;
                         Hypocenter h=handle_event_data(mx1,evcat,dbh.db,ttmethod,ttmodel);
+			/* We can assume the are set here */
+			int evid,orid;
+			evid=mx1.get_int("evid");
+			orid=mx1.get_int("orid");
+			mx2.put("evid",evid);
+			mx2.put("orid",orid);
+			mx3.put("evid",evid);
+			mx3.put("orid",orid);
+
                         /* Refresh array geometry if necessary.  No try/catch
                         here as we can assume set_required set these.  */
                         TimeWindow tracerange(mx1.get_double("time"),
@@ -1180,11 +1377,15 @@ int main(int argc, char **argv)
                                     dynamic_cast<DatabaseHandle&> (dbh),
                                     tracerange.start,string(netstr));
                             }
+			    set_receiver_coordinates(mx1,receivers);
+			    set_receiver_coordinates(mx2,receivers);
+			    set_receiver_coordinates(mx3,receivers);
                             /* This procedure sets hang and vang
                             or the three components making some
                             rather restrictive assumptions.  See procedure
                             code above or details */
                             set_orientation(mx1,mx2,mx3,h,receivers,ema_key,v0,true);
+
                             TimeSeries sx1,sx2,sx3;
                             sx1=TimeSeries(mx1,true);
                             components.push_back(sx1);
@@ -1201,21 +1402,25 @@ int main(int argc, char **argv)
 				 		<< " for event "<< sx1.get_int("evid")
 						<< " skewed time by "<<skew<<" seconds"<<endl;
 			    }
+			    else if(RFmode)
+			    {
+				// only do this if skewing off and RFmode on
+				for(int ic=0;ic<3;++ic)
+					components[ic].put("calib",1.0);
+			    }
+			 
                             /* Save these scalar components to wfdisc and
                             wfprocess.  Use just one catch block assuming
                             if one fails they all fail.  Not optimal, but
                             cleaner. */
                             try
                             {
-                                save_scalar_data(mx1,
-                                    dbh,dbhwfp,dbhevl,
-                                    dbhscl,dbhorient,mdlwd,mdlwp,am);
-                                save_scalar_data(mx2,
-                                    dbh,dbhwfp,dbhevl,
-                                    dbhscl,dbhorient,mdlwd,mdlwp,am);
-                                save_scalar_data(mx3,
-                                    dbh,dbhwfp,dbhevl,
-                                    dbhscl,dbhorient,mdlwd,mdlwp,am);
+				int icmp;
+				for(icmp=0;icmp<3;++icmp)
+                                	save_scalar_data(
+					 dynamic_cast<Metadata&>(components[icmp]),
+                                    	 dbh,dbhwfp,dbhevl,
+                                    	 dbhscl,dbhorient,mdlwd,mdlwp,am);
                             } catch (SeisppError serr)
                             {
                                 cerr << "Error saving db attributes from"
@@ -1223,13 +1428,28 @@ int main(int argc, char **argv)
                                     << "SeisppError message:";
                                 serr.log_error();
                             }
+			    save_arrivals(dynamic_cast<Metadata&>(components[0]),
+				dbharr,Pcomp,Scomp);
+			    if(normalize)
+			    {
+				int icmp;
+				for(icmp=0;icmp<3;++icmp)
+					apply_calib(components[icmp]);
+			    }
                             ThreeComponentSeismogram d3c(components);
-                            //This procedure is dogmatic about saving data as 3c objects.
-                            // Be careful of datatype field if this is ever changed.
-                            // Potential maintenance issue too.
-                            dbsave(d3c,dbhwfp.db,string("wfprocess"),mdlwp,am);
+			    /* This gets a different name, but is placed in same dir */
+			    d3c.put("dfile",threecdfile);
+			    save_vector_data(d3c,dbhwfp,dbhevl,dbhscl,mdlwp,am);
                             if(verbose)
                                 cout << dynamic_cast<Metadata&>(d3c);
+			    if(save_relative_time_data)
+			    {
+				auto_ptr<ThreeComponentSeismogram> d3cr=ArrivalTimeReference(
+						d3c,string("Ptime"),atime_window);
+				/* This must be reset to tag this as relative time */
+				d3cr->put("timetype","r");
+				save_vector_data(*d3cr,dbhwfp,dbhevl,dbhscl,mdlwp,am);
+			    }
                         } catch (SeisppError serr)
                         {
                             cerr << "Error creating ThreeComponentSeismogram object."<<endl;
@@ -1271,6 +1491,7 @@ int main(int argc, char **argv)
                                 dynamic_cast<DatabaseHandle&> (dbh),
                                 tracerange.start,string(netstr));
                         }
+			set_receiver_coordinates(mx,receivers);
                         /* This works because the false arg causes this to
                         not touch arg 2 and 3. */
                         set_orientation(mx,mx,mx,h,receivers,ema_key,v0,false);
@@ -1281,6 +1502,7 @@ int main(int argc, char **argv)
                         foff+=4*nsamp;
                         save_scalar_data(mx,dbh,dbhwfp,dbhevl,
                             dbhscl,dbhorient,mdlwd,mdlwp,am);
+			save_arrivals(mx,dbharr,Pcomp,Scomp);
                     }
                 } catch(SeisppError serr)
                 {

@@ -118,3 +118,14 @@ maximum_time_skew 30.0
 # When true amplitudes are normalized to produce peak amplitude=1
 # on time_zero_component 
 peak_normalization false
+#
+#  Used only in RFmode
+#
+save_relative_time_data false
+relative_time_window_start -10.0
+relative_time_window_end 80.0
+#
+# These are posted verbatime with no checking to arrival table as chan
+#
+P_arrival_component BHL
+S_arrival_component BHT

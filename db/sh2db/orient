@@ -27,7 +27,7 @@ Attribute pwfid
 	;
 
 Relation orient
-	Fields ( pwfid pchan hang vang meastype )
+	Fields ( pwfid pchan hang vang meastype auth lddate )
 	Primary ( pwfid )
 	Description ( "Orientation data for processed channels" )
 	Detail {
