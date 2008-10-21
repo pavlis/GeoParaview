@@ -31,7 +31,7 @@ MatlabProcessor mp(stdout);
 #endif
 void usage()
 {
-        cbanner((char *)"$Revision: 1.7 $ $Date: 2008/05/29 13:03:41 $",
+        cbanner((char *)"$Revision: 1.8 $ $Date: 2008/10/21 19:42:27 $",
                 (char *)"db  listfile [-V -v -pf pfname]",
                 (char *)"Gary Pavlis",
                 (char *)"Indiana University",
@@ -471,22 +471,15 @@ mp.process(string("plot(tp);"));
 // used in function below to flag an error
 // has file scope so pwmig main can do a consistent check
 const double TTERROR=-9999999999.0;
-//@{
-// computes lag time for P to S conversions in 3d.
-// @param raygrid S plane wave component ray grid
-// @param ix1 coordinate 1 index position of scattering point where the lag is to be computed
-// @param ix2 coordinate 2 index position of scattering point where the lag is to be computed
-// @param ix3 coordinate 3 index position of scattering point where the lag is to be computed
-// @param TP scalarfield holding P wave travel times from source.  Assumed congruent with raygrid
-// @param h location of source
-//
-//@}
 //DEBUG these globals are for debug only
+/*
 vector<double>x1tmp,x2tmp,x3tmp;
 vector<int> tpix1,tpix2,tpix3;
 vector<double> derrx1,derrx2,derrx3;
+vector<double> dtdiff;
+*/
 double compute_scatter_point_Ptime(GCLgrid3d& raygrid, int ix1, int ix2, int ix3,
-		GCLscalarfield3d& TP,Hypocenter& h)
+		GCLscalarfield3d& TP)
 {
 	//This algorithm ASSUMES raygrid and TP are congruent. I avoids the overhead
 	// of constant testing because it will be called a lot.
@@ -501,16 +494,15 @@ double compute_scatter_point_Ptime(GCLgrid3d& raygrid, int ix1, int ix2, int ix3
 	x3=raygrid.x3[ix1][ix2][ix3];
 	err=TP.lookup(x1,x2,x3);
 //DEBUG ray path debug 
+/*
 x1tmp.push_back(x1);
 x2tmp.push_back(x2);
 x3tmp.push_back(x3);
-//DEBUG
 int gindex[3];
 TP.get_index(gindex);
 tpix1.push_back(gindex[0]);
 tpix2.push_back(gindex[1]);
 tpix3.push_back(gindex[2]);
-/*
 cout <<"raygrid indices="
 	<<ix1<<", "
 	<<ix2<<", "
@@ -518,18 +510,18 @@ cout <<"raygrid indices="
 	<<gindex[0]<<", "
 	<<gindex[1]<<", "
 	<<gindex[2]<<endl;
-*/
 double dist;
 dist=x1-TP.x1[gindex[0]][gindex[1]][gindex[2]];
 cout << "Vector between grid points="
 	<< dist <<",";
 derrx1.push_back(dist);
 dist=x2-TP.x2[gindex[0]][gindex[1]][gindex[2]];
-cout << dist << ", ";
+//cout << dist << ", ";
 derrx2.push_back(dist);
 dist=x3-TP.x3[gindex[0]][gindex[1]][gindex[2]];
-cout << dist << endl;
+//cout << dist << endl;
 derrx3.push_back(dist);
+*/
 
 
 	switch (err)
@@ -549,12 +541,16 @@ derrx3.push_back(dist);
 			TP.reset_index();
 			return(2.0*TTERROR);
 	}
-cout << "Tpx="<<Tpx<<endl;
+/*
+dtdiff.push_back(Tpx-TP.val[gindex[0]][gindex[1]][gindex[2]]);
+//cout << "Tpx="<<Tpx<<" dtfiff="<<Tpx-TP.val[gindex[0]][gindex[1]][gindex[2]]<<endl;
 if(ix3==(raygrid.n3 - 1)) 
 {
 	x1tmp.clear();  x2tmp.clear(); x3tmp.clear(); tpix1.clear(); tpix2.clear(); tpix3.clear();
 	derrx1.clear(); derrx2.clear(); derrx3.clear();
+	dtdiff.clear();
 }
+*/
 
 	return(Tpx);
 }
@@ -894,6 +890,49 @@ void VelocityFieldToSlowness(GCLscalarfield3d& g)
 		for(int j=0;j<g.n2;++j)
 			for(int k=0;k<g.n3;++k) g.val[i][j][k]=1.0/g.val[i][j][k];
 }
+/* Returns a 1d velocity model consistent with slowness field
+stored in u.  Algorithm averages node values at each constant x3
+level in u and sets 1d node values to be the same.  It then 
+computes gradients to provide linear interpolator between each
+node point in the 1d model.  This makes the result as close to
+the 3d model as reasonably possible in terms of interpolation method. */
+VelocityModel_1d DeriveVM1Dfrom3D(GCLscalarfield3d& u)
+{
+	VelocityModel_1d result(u.n3);
+	double zavg,uavg;
+	int i,j,k;
+	int nperlayer=(u.n1)*(u.n2);
+	/* We have to count backwards because the grid orientation is
+	from the bottom to the top */
+	for(k=u.n3-1;k>=0;k--)
+	{
+		zavg=0.0;
+		uavg=0.0;
+		for(i=0;i<u.n1;++i)
+		{
+			for(j=0;j<u.n2;++j)
+			{
+				zavg+=u.depth(i,j,k);
+				uavg+=u.val[i][j][k];
+			}
+		}
+		zavg /= nperlayer;
+		uavg /= nperlayer;
+		result.z.push_back(zavg);
+		result.v.push_back(1.0/uavg);
+	}
+	/* Now set gradients */
+	for(k=0;k<result.nlayers-1;++k)
+	{
+		double deriv;
+		deriv=(result.v[k+1] - result.v[k])
+			/ (result.z[k+1]-result.z[k]);
+		result.grad.push_back(deriv);
+	}
+	/* Set the gradient for the final point to 0 */
+	result.grad.push_back(0.0);
+	return(result);
+}
 SlownessVector slowness_average(ThreeComponentEnsemble *d)
 {
 	double ux,uy;
@@ -1103,8 +1142,16 @@ cout << "Display S velocity model horizontal slices"<<endl;
 sleep(5);
 HorizontalSlicer(mp,Us3d);
 */
-		VelocityModel_1d Vp1d(db,Pmodel1d_name,pvfnm);
-		VelocityModel_1d Vs1d(db,Smodel1d_name,svfnm);
+		VelocityModel_1d Vp1d,Vs1d;
+		if(Pmodel1d_name=="derive_from_3d")
+			//Caution this procedure assumes Up3d is slowness
+			Vp1d=DeriveVM1Dfrom3D(Up3d);
+		else
+			VelocityModel_1d Vp1d(db,Pmodel1d_name,pvfnm);
+		if(Smodel1d_name=="derive_from_3d")
+			Vs1d=DeriveVM1Dfrom3D(Us3d);
+		else
+			VelocityModel_1d Vs1d(db,Smodel1d_name,svfnm);
 		GCLgrid parent(db,const_cast<char*>(parent_grid_name.c_str()) );
 
 		// This loads the image volume assuming this was precomputed with
@@ -1305,8 +1352,13 @@ if(fabs(ustack.uy)>=0.007)
 			// This builds a 3d grid using ustack slowness rays with
 			// 2d grid parent as the surface grid array
 			// use first member of ensemble to get dt
+			// VPVS is used to scale tmax to avoid ray truncation
+			// dt scaling could be done differently, but using
+			// VPVS approximately keeps ray sample interval near
+			// data sample interval
+			const double VPVS(1.9);  // higher than normal, but better large here
 			grdptr =  Build_GCLraygrid(true,parent,ustack,hypo,
-				Vs1d,zmax,tmax,dt);
+				Vs1d,zmax,VPVS*tmax,dt*VPVS);
 			GCLgrid3d& raygrid=*grdptr;  // convenient shorthand because we keep changing this
 			int n30;  // convenient since top surface is at n3-1
 			n30 = raygrid.n3 - 1;
@@ -1316,6 +1368,8 @@ if(fabs(ustack.uy)>=0.007)
 			// intractable
 			// Below assumes the val arrays in these fields
 			// have been initialized to zero.
+//DEBUG
+cout << "raygrid max depth="<<raygrid.depth(0,0,0)<<endl;
 			GCLvectorfield3d pwdgrid(raygrid,5);
 
 
@@ -1396,7 +1450,7 @@ mp.process(string("plot3c(spath);"));
 				dmatrix nup(3,n3);
 				vector<double> zP(n3);
 //DEBUG
-vector<double> tpxtmp,tprtmp;
+//vector<double> tpxtmp;
 
 				// Now loop over each point on this ray computing the 
 				// p wave path and using it to compute the P time and
@@ -1418,31 +1472,50 @@ vector<double> tpxtmp,tprtmp;
 					vector<double>nu;
 					double vp;
 
-					nu = compute_unit_normal_P(*TPptr,raygrid.x1[i][j][k],
-						raygrid.x2[i][j][k], raygrid.x3[i][j][k]);
-					for(l=0;l<3;++l) nup(l,k)=nu[l];
+					nu = compute_unit_normal_P(*TPptr,raygrid.x1[i][j][kk],
+						raygrid.x2[i][j][kk], raygrid.x3[i][j][kk]);
+					for(l=0;l<3;++l) nup(l,kk)=nu[l];
 					// zP and gradTp are computed in reverse order
-					zP[kk]=raygrid.depth(i,j,k);
-					vp=Vp1d.getv(zP[kk]);
-					for(l=0;l<3;++l) gradTp(l,kk)=nu[l]/vp;
+					zP[k]=raygrid.depth(i,j,kk);
+					vp=Vp1d.getv(zP[k]);
+					for(l=0;l<3;++l) gradTp(l,k)=nu[l]/vp;
 
 					// Compute time lag between incident P and scattered S
-					Tpx=compute_scatter_point_Ptime(raygrid,i,j,k,*TPptr,hypo);
+					Tpx=compute_scatter_point_Ptime(raygrid,i,j,kk,*TPptr);
 					/* This flags an interpolation error.  Break the loop 
 					and post a serious warning if this happens */
 //DEBUG
-tpxtmp.push_back(Tpx);
-tprtmp.push_back(Tpr);
+//tpxtmp.push_back(Tpx);
 					if(Tpx<TTERROR)
 					{
-						tcompute_problem=true;
-						cerr << "Interpolation error computing scatter point time"<<endl;
-						TPptr->reset_index();
+						// This is an error only 
+						// if early.  Common to break
+						// loop if hits bottom
+						// Hence the else condition
+						// is to do nothing
+						if(k<SPtime_SIZE_MIN)
+						{
+							tcompute_problem=true;
+							cerr << "Interpolation error computing scatter point time"<<endl;
+							TPptr->reset_index();
+						}
 						break;
 					}
 					else
 					{
-						tlag=Tpx+Stime[kk]-Tpr;
+						tlag=Tpx+Stime[k]-Tpr;
+//DEBUG
+/*
+cout << "k, kk, Tpx, Stime[kk], Tpr, tlag="
+  << k <<", "
+  << kk <<":   "
+  << Tpx <<" + "
+  << Stime[kk] <<" -  "
+  << Tpr <<" =  "
+  << tlag <<endl;
+*/
+
+						/*   Remove this for now.  
 						if(tlag<0.0)
 						{
 							if(k<SPtime_SIZE_MIN)
@@ -1460,19 +1533,11 @@ tprtmp.push_back(Tpr);
 								break;
 							}
 						}
+						*/  
 						// Always load result even with negative lags.
 						// Interpolator will just drop negative lag data.
 						SPtime.push_back(tlag);
 					}
-							
-//DEBUG
-/*
-cout << "tlag=Tpx+Stime[kk]-Tp ->"
-		<< tlag << "="
-		<< Tpx << "+"
-		<< Stime[kk]<<"[kk="<<kk<<"] - "
-		<< Tpr <<endl;
-*/
 				}
 
 #ifdef MATLABDEBUG
@@ -1506,6 +1571,7 @@ mp.process(string("plot3c(gradtp);pause(1)"));
 				// Pad SPtime if necessary to length raygrid.n3
 				// necessary to complain about this, however, as with
 				// the current logic this really shouldn't happen
+				/* Remove for now.  Not consistent with change above 
 				if(SPtime.size()<raygrid.n3)
 				{
 					cerr << "Warning:  slowness gridid "<<gridid
@@ -1523,6 +1589,7 @@ mp.process(string("plot3c(gradtp);pause(1)"));
 					// flag.  The 0.001 s pad is arbitrary
 					for(k=SPtime.size();k<raygrid.n3;++k) SPtime[k]=SPtime[k-1]-0.001;
 				}
+				*/
 				// We now interpolate the data with tlag values to map
 				// the data from time to an absolute location in space
 				// Note carefully SPtime and work sense is inverted from
@@ -1531,6 +1598,14 @@ mp.process(string("plot3c(gradtp);pause(1)"));
 				dmatrix work(3,raygrid.n3);
 				linear_vector_regular_to_irregular(t0,dt,pwdata->member[is].u,
 					&(SPtime[0]),work);
+
+//DEBUG
+/*
+cout <<"dendtime="<<pwdata->member[is].endtime()
+ << " SPtime_max="<<SPtime[SPtime.size()-1]
+ << "Max depth="<<raygrid.depth(i,j,0)<<endl;
+*/
+
 #ifdef MATLABDEBUG
 //DEBUG
 cout << "Input data number of samples="<<pwdata->member[is].ns<<endl;
@@ -1668,25 +1743,24 @@ mp.process(string("plotow;title 'after smoother';"));
 				//
 
 //DEBUG
-vector<double> x1test;
+//vector<double> x1test(n3);
 				for(k=0,kk=raygrid.n3-1;k<raygrid.n3;++k,--kk)
 				{
-cout << "Results for i,j,k="<<i<<", "<<j<<", "<<k<<" = ";
+//cout << "Results for i,j,k="<<i<<", "<<j<<", "<<k<<" = ";
 					for(l=0;l<3;++l)
 					{
 						pwdgrid.val[i][j][k][l]=work(l,kk)
 							*dweight_ij[kk]*domega_ij[kk];
-cout << work(l,kk)<<", ";
+//cout << work(l,kk)<<", ";
 						// DEBUG
 					}
 					pwdgrid.val[i][j][k][3]=domega_ij[kk];
 					pwdgrid.val[i][j][k][4]=dweight_ij[kk];
-cout << "omega,weight="<<domega_ij[kk]<<", "<<dweight_ij[kk]<<endl;
-x1test.push_back(work(0,kk));
 				}
-x1test.clear();
+//x1test.clear();
+/*
 tpxtmp.clear();
-tprtmp.clear();
+*/
 #ifdef MATLABDEBUG
 //DEBUG
 dmatrix dproj(3,n3);

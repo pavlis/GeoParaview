@@ -47,7 +47,7 @@ dmatrix *compute_local_verticals(GCLgrid& g, dmatrix& path)
 
 /* computes depth dependent transformation matrix assuming a scattering
 is specular.  That is, transformation matrices will yield a form of
-L,R,T 
+T,R,L as output.
 */
 
 
@@ -85,6 +85,7 @@ dmatrix Ray_Transformation_Operator::apply(dmatrix& in)
 		work[0]=in(0,i);
 		work[1]=in(1,i);
 		work[2]=in(2,i);
+		// Note this is computing U^T u(t) for each sample
 		p=U[i].get_address(0,0);
 		out(0,i)=p[0]*work[0]+p[1]*work[1]+p[2]*work[2];
 		out(1,i)=p[3]*work[0]+p[4]*work[1]+p[5]*work[2];
@@ -154,8 +155,12 @@ Ray_Transformation_Operator::Ray_Transformation_Operator(GCLgrid& g,
 	// need to check for a vertical vector and revert to identity 
 	// to avoid roundoff problems
 	xdotxv = ddot(3,x,1,x_vertical,1);
-	// azimuth is from North while theta in spherical coordinates is measured from x1
-	phi = M_PI_2 - azimuth;
+	// For the transformation matrix used here we make phi the 
+	// negative of the azimuth where x2 is to point.  This is
+	// the same transformation found in the free_surface_transformation
+	// method of ThreeComponentSeismogram
+	//phi = M_PI_2 - azimuth;
+	phi = -azimuth;
 	if(fabs(xdotxv)<=DBL_EPSILON)
 	{
 		// L vertical means theta=0.0
@@ -177,6 +182,7 @@ Ray_Transformation_Operator::Ray_Transformation_Operator(GCLgrid& g,
 	        c = cos(theta);
 	        d = sin(theta);
 	}
+	/* As predicted above, this was wrong. 
 	U0(0,0) = a*c;
         U0(1,0) = b*c;
         U0(2,0) = d;
@@ -186,6 +192,20 @@ Ray_Transformation_Operator::Ray_Transformation_Operator(GCLgrid& g,
         U0(0,2) = -a*d;
         U0(1,2) = -b*d;
         U0(2,2) = c;
+
+	For consistent with rotate method June 29, 2008.
+	Note:  apply method uses U^T of this matrix as does
+	rotate_to_standard.   */
+	U0(0,0) = a*c;
+        U0(1,0) = -b;
+        U0(2,0) = a*d;
+        U0(0,1) = b*c;
+        U0(1,1) = a;
+        U0(2,1) = b*d;
+        U0(0,2) = -d;
+        U0(1,2) = 0.0;
+        U0(2,2) = c;
+	
 	for(int i=0;i<np;++i)
 	{
 		// This works because container push_back calls copy constructor on *dtmp
@@ -225,7 +245,7 @@ Arguments:
 		the direction of propagation of the incident wavefield (nominally upward)
 
 The output array of matrices when applied to data will yield output with x1 = generalized
-R, x2= generalized T, and x3=L.  
+T, x2= generalized R, and x3=L.  
 
 */
 Ray_Transformation_Operator::Ray_Transformation_Operator(GCLgrid& g, 
