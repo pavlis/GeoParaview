@@ -94,6 +94,10 @@ Normal return is 0.  Returns nonzero if stack was null.
 (This is not an exception as it will happen outside the boundaries
 of an array and this case needs to be handled cleanly.
 
+Changed July 1, 2008
+Now returns count of fold for this grid point.  negative or 0
+means did nothing.
+
 Throws a MetadataError exception object if there are problems
 parsing required metadata from any trace.  Current caller will
 abort the program on this condition, but evolution might want
@@ -272,6 +276,7 @@ vector<double>::iterator idbg;
     // it will happen often at the edges of arrays
     //
     if(stack_count<=0) return(-1);
+    cout << "Processing data for node ("<<ix1<<", "<<ix2<<") with fold="<<stack_count<<endl;
     vector <double>moveout(nsta);
     dmatrix stack(3,nsout);
     vector<double>stack_weight(nsout);
@@ -320,8 +325,8 @@ vector<double>::iterator idbg;
     }
     /* no reason to continue if all the weights are tiny as that means
     all coverage is at the fringe of the aperture.  Normally best to drop
-    such points */
-    if(stack_start>=nsout) return(-1);
+    such points.  Return 0 in this case instead of -1 as above. */
+    if(stack_start>=nsout) return(0);
     /* Apply the top mute to the start the data to taper discontinuties
     that can happen otherwise when the aperture gets wider with time. */
     TopMute smuteused(stackmute);
@@ -574,5 +579,5 @@ cout << "Max of stackout="<<*idbg<<endl;
             exit(-1);
         }
     }
-    return(0);
+    return(stack_count);
 }

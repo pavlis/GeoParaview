@@ -17,7 +17,7 @@ bool Verbose;
 
 void usage()
 {
-    cbanner((char *)"$Revision: 1.10 $ $Date: 2008/05/27 20:42:59 $",
+    cbanner((char *)"$Revision: 1.11 $ $Date: 2008/10/21 19:41:48 $",
         (char *)"dbin [-v -V -pf pfname]",
         (char *)"Gary Pavlis",
         (char *)"Indiana University",
@@ -114,6 +114,9 @@ int main(int argc, char **argv)
         if(makedir(dir))
             elog_die(0,"Cannot create directory %s\n",dir);
 	char *dfilebase=pfget_string(pf,"output_data_file_base_name");
+
+	char *fielddir=pfget_string(pf,"field_file_directory");
+	char *fieldnamebase=pfget_string(pf,"field_base_name");
         //
         // station_mdl defines database attributes copied to
         // metadata space of data object.  ensemble_mdl are
@@ -178,12 +181,14 @@ int main(int argc, char **argv)
 		dbh.subset("orid==prefor");
 		dbh.natural_join("assoc");
 		dbh.natural_join("arrival");
-		list<string> j1,j2;
-		j1.push_back("arrival.time");
-		j2.push_back("wfprocess.time::wfprocess.endtime");
-		dbh.join("wfprocess",j1,j2);
-		dbh.natural_join("sclink");
-		dbh.subset("sclink.sta == arrival.sta");
+		DatascopeHandle ljhandle(dbh);
+		ljhandle.lookup("wfprocess");
+		ljhandle.natural_join("sclink");
+		ljhandle.natural_join("evlink");
+		list<string> jk;
+		jk.push_back("evid");
+		jk.push_back("sta");
+		dbh.join(ljhandle,jk,jk);
 		dbh.natural_join("site");
 		list<string> sortkeys;
 		sortkeys.push_back("evid");
@@ -216,6 +221,12 @@ int main(int argc, char **argv)
         stagridname=pfget_string(pf,"pseudostation_grid_name");
         string grdnm(stagridname);
         GCLgrid stagrid(dbh.db,grdnm);
+        cout << "Using pseudostation grid of size "<<stagrid.n1<<" X " <<stagrid.n2<<endl;
+
+	/* This field derived from stagrid is used to hold stack fold
+	for each pseudostation grid point */
+	GCLscalarfield fold(stagrid);
+	fold.zero();  // best to guarantee initialization
 
 	char ssbuf[256];
         int rec;
@@ -265,6 +276,9 @@ int main(int argc, char **argv)
             olat=rad(olat);  olon=rad(olon);
             odepth=ensemble->get_double("origin.depth");
             otime=ensemble->get_double("origin.time");
+	    if(SEISPP_verbose) cout << "Ensemble for evid="<<evid
+			<< " has "<<ensemble->member.size()<<" seismograms"
+			<<endl;
 	    /* A way to asssure this is cleared.  May not be necessary */
 	    ssbuf[0]='\0';
 	    stringstream ss(ssbuf);
@@ -310,8 +324,6 @@ int main(int argc, char **argv)
                     ensemble->put("ux0",slow.ux);
                     ensemble->put("uy0",slow.uy);
 
-                    if(SEISPP_verbose) cout << "Working on grid i,j = " 
-					<< i << "," << j << endl;
                     iret=pwstack_ensemble(*ensemble,
                         ugrid,
                         mute,
@@ -325,11 +337,18 @@ int main(int argc, char **argv)
                         dfh,
 			coh3cfh,
 			cohfh);
-                    if((iret<0) && (Verbose))
-                        cout << "Ensemble number "<< rec
-                            << " has no data in pseudoarray aperture"<<endl
-                            << "Pseudostation grid point indices (i,j)="
-                            << "("<<i<<","<<j<<")"<<endl;
+		    if(iret<=0)
+		    {
+			fold.val[i][j]=0.0;
+		    }
+		    else
+		    {
+			fold.val[i][j]=static_cast<double>(iret);
+		    }
+		    if(SEISPP_verbose)
+			cout << "Grid point ("<<i<<", "<<j
+				<<") has stack fold="<<(int)(fold.val[i][j])
+				<<endl;
                 } catch (MetadataError& mderr1)
                 {
                     mderr1.log_error();
@@ -342,6 +361,10 @@ int main(int argc, char **argv)
                     serr.log_error();
                 }
             }
+	    char fsbuf[64];
+	    sprintf(fsbuf,"%s_%d",fieldnamebase,evid);
+	    string fieldname(fsbuf);
+	    fold.dbsave(dbh.db,string(""),fielddir,fieldname,fieldname);
         }
     } catch (SeisppError& err)
     {
