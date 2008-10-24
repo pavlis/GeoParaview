@@ -773,7 +773,7 @@ double RFskewtime(vector<TimeSeries>& components, string skewcomp, double dtmax,
     if(normalize)
     {
 	double calib;
-    	double gain=(*maxamp);  
+    	double gain=1.0/(*maxamp);  
 	for(i=0;i<components.size();++i)
 	{
 	    try {
@@ -786,6 +786,10 @@ double RFskewtime(vector<TimeSeries>& components, string skewcomp, double dtmax,
 	    calib=gain;
 	    components[i].put("calib",calib);
 	}
+    }
+    else
+    {
+	for(i=0;i<components.size();++i) components[i].put("calib",1.0);
     }
     //1difference_type idist;  // STL distance function returns this object
     int ip=distance(components[iskew].s.begin(),maxamp);
@@ -1262,11 +1266,14 @@ int main(int argc, char **argv)
         char *dfilefull;
         char *dfilebase;                          // contains dfilefull stripping ".QBN" at end of name
         string qfdfile,hdrdfile;
-        char inbuf[1024];
+        char inbuf[1024],tstr[1024];
         while(cin.getline(inbuf,1024))
         {
             cout << "Processing file="<<inbuf<<endl;
-            dir=dirname(inbuf);
+	    /* a copy is required.  man page says so and found out the 
+	    hard way why */
+	    strcpy(tstr,inbuf);
+            dir=dirname(tstr);
             dfilefull=basename(inbuf);
             if(dir==NULL || dfilefull==NULL)
             {
@@ -1291,8 +1298,7 @@ int main(int argc, char **argv)
             dfilebase.assign(string(dfilefull),0,lenfull-4);
             qfdfile=string(dir)+"/"+string(dfilebase)+"."+qdfext;
             hdrdfile=string(dir)+"/"+string(dfilebase)+"."+qhdrext;
-            string dfbsave(dfilebase);            // need this below, but better to use a string than char *
-            //delete [] dfilebase;
+            string dfbsave(dfilebase); // need this below, but better to use a string than char *
             ifstream headerstream;
             try
             {
