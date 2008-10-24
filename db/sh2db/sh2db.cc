@@ -773,7 +773,7 @@ double RFskewtime(vector<TimeSeries>& components, string skewcomp, double dtmax,
     if(normalize)
     {
 	double calib;
-    	double gain=1.0/(*maxamp);  
+    	double gain=(*maxamp);  
 	for(i=0;i<components.size();++i)
 	{
 	    try {
