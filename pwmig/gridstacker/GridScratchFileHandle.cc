@@ -28,15 +28,15 @@ MemberGrid& MemberGrid::operator= (const MemberGrid& parent)
 /* More rigorous test for equality than operator== required for this code */
 bool compare_equal(GCLvectorfield3d& g1, GCLvectorfield3d& g2)
 {
-	if(g1!=g1) return(false);
-	if(g1.n1!=g2.n2) return(false);
+	if(g1!=g2) return(false);
+	if(g1.n1!=g2.n1) return(false);
 	if(g1.n2!=g2.n2) return(false);
 	if(g1.n3!=g2.n3) return(false);
 	if(g1.nv!=g2.nv) return(false);
 }
 
 GridScratchFileHandle::GridScratchFileHandle(GCLvectorfield3d& mastergrid,
-		list<MemberGrid> mgl, Dbptr db)
+		list<MemberGrid>& mgl, Dbptr db)
 {
 	const string base_error("GridScratchFileHandle constructor:  ");
 	fp=tmpfile();
@@ -124,6 +124,7 @@ int GridScratchFileHandle::load_next(double *buffer)
 	if(nread!=nval) throw SeisppError(
 		string("GridScratchFileHandle::load_next:  fread error"));
 	++current_member;
+	return(nread);
 }
 bool GridScratchFileHandle::at_eof()
 {

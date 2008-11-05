@@ -3,7 +3,7 @@ DIRS=
 PF=gridstacker.pf
 
 #MAN1=gridstacker.1
-ldflags=-lseispp -lgclgrid $(TRLIBS) $(DBLIBS) -lperf -lm
+ldflags=-lseispp -lgclgrid $(TRLIBS) $(DBLIBS) -lperf -lseispp -lm
 
 include $(ANTELOPEMAKE) 
 OBJS= gridstacker.o \

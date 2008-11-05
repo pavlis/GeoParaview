@@ -49,7 +49,7 @@ class GridScratchFileHandle
 {
 public:
 	GridScratchFileHandle(GCLvectorfield3d& mastergrid,
-		list<MemberGrid> mg, Dbptr db);
+		list<MemberGrid>& mg, Dbptr db);
 	// copy constructor and operator= intentionally ommitted
 	~GridScratchFileHandle();  
 	

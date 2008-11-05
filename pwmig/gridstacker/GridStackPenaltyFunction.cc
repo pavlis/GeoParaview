@@ -48,7 +48,7 @@ double GridStackPenaltyFunction::weight(int nd, double *d, double *d0)
 	}
 	for(i=0,sumsqd=0.0;i<nd;++i) 
 	{
-		sumsqr += (d[i])*(d[i]);
+		sumsqd += (d[i])*(d[i]);
 	}
 	if(sumsqr>=sumsqd)
 		coh=0.0;
@@ -69,4 +69,5 @@ double GridStackPenaltyFunction::weight(int nd, double *d, double *d0)
 		wt=pow(coh,cohpow);
 		break;
 	}
+	return(wt);
 }
