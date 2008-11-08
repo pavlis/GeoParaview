@@ -6,6 +6,9 @@ PF=gridstacker.pf
 ldflags=-lseispp -lgclgrid $(TRLIBS) $(DBLIBS) -lperf -lseispp -lm
 
 include $(ANTELOPEMAKE) 
+CXXFLAGS+=-D_FILE_OFFSET_BITS=64
+CXXFLAGS+=-D_LARGEFILE_SOURCE
+CXXFLAGS+=-D_LARGEFILE64_SOURCE
 OBJS= gridstacker.o \
   GridScratchFileHandle.o \
   GridStackPenaltyFunction.o
