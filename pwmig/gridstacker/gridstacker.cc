@@ -365,7 +365,7 @@ ddbg.push_back(val);
 					val=0.0;
 				else
 					val=sqrt(sumr3sq/sumd3sq);
-				if(val<1.0)
+				if(val>1.0)
 					coh.val[ic][jc][kc]=0.0;
 				else
 					coh.val[ic][jc][kc]=1.0-val;
