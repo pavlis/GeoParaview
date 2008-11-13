@@ -1,3 +1,5 @@
+#include <stdio.h>
+#include "stock.h"
 #include "seispp.h"
 #include "dbpp.h"
 #include "gclgrid.h"
@@ -13,6 +15,7 @@ void usage()
 bool SEISPP::SEISPP_verbose(true);
 int main(int argc, char **argv)
 {
+	elog_init(argc,argv);
 	if(argc < 3) usage();
 	string dbname(argv[1]);
 	string gridname(argv[2]);
@@ -20,7 +23,6 @@ int main(int argc, char **argv)
 	bool threedmode(false);
 	bool isfield(false);
 	bool vectorfield(false);
-	if(argc==4) 
 	for(int i=3;i<argc;i++)
 	{
 		string sarg(argv[i]);
@@ -45,17 +47,28 @@ int main(int argc, char **argv)
 		    if(isfield)
 		    {
 			if(vectorfield)
+			{
+				GCLvectorfield3d field(dbh.db,gridname,fieldname);
+				cout << field;
+			}
 			else
-
+			{
+				GCLscalarfield3d field(dbh.db,gridname,fieldname);
+				cout << field;
+			}
 		     }
 		     else
 		     {
 			GCLgrid3d grid(dbh.db,gridname);
-			int k=grid.n3 - 1;
-			for(int j=0;j<grid.n2;++j)
+			/* fields define operator <<, but there is this is not
+			currently defined for grids.  We write a grid in a simpler
+			format*/
+			for(int k=0;k<grid.n3;++k)
+			  for(int j=0;j<grid.n2;++j)
 			    for(int i=0;i<grid.n1;++i)
 				cout << deg(grid.lon(i,j,k)) <<" "
-					<<deg(grid.lat(i,j,k))<<endl;
+					<<deg(grid.lat(i,j,k))<<" "
+					<<grid.depth(i,j,k)<<endl;
 			
 		     }
 		}
@@ -64,8 +77,15 @@ int main(int argc, char **argv)
 		    if(isfield)
 		    {
 			if(vectorfield)
+			{
+				GCLvectorfield field(dbh.db,gridname,fieldname);
+				cout << field;
+			}
 			else
-
+			{
+				GCLscalarfield field(dbh.db,gridname,fieldname);
+				cout << field;
+			}
 		     }
 		     else
 		     {
@@ -77,8 +97,9 @@ int main(int argc, char **argv)
 		}
 	} catch (int ierr)
 	{
-		cerr << "GCLgrid constructor threw exception ="<<ierr<<endl;
-		usage();
+		cerr << "The GCL object constructor called threw exception ="<<ierr<<endl;
+		cerr << "Antelope elog message:"<<endl;
+		elog_die(0,"exportgrid:  failed");
 	}
 	catch (SeisppError serr)
 	{
