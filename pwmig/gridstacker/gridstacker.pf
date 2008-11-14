@@ -10,5 +10,13 @@ coherence_x2_decimation_factor 4
 coherence_x3_decimation_factor 10
 coherence_component 0
 coherence_grid_name cohgrid
-coherence_field_base_name cohfield
 use_largest_weight_as_initial true
+#
+# These parameters control normalization by solid
+# angle.  Normally should be true.  Cutooff can
+# be determind by running exportgrid program to
+# get am ascii dump of one or more input grids
+# and examining range of component 4 of 5 in
+# pwmig output (solid angle term)
+normalize_by_scattering_angle_range true
+normalization_solid_angle_cutoff 0.0001

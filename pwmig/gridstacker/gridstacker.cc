@@ -16,15 +16,24 @@ void VectorField3DWeightedStack(GCLvectorfield3d& result,GridScratchFileHandle& 
 	list<MemberGrid>::iterator mptr;
 	handle.rewind();
 	result.zero();
+	if(result.nv!=5) throw SeisppError(base_error + "Version skew:  nv must be exactly 5");
 	int nsize=result.n1*result.n2*result.n3*result.nv;
 	double *buffer=new double[nsize];
-	double totalweight,sumwt;
+	double totalweight;
 	int nread;
-	for(sumwt=0.0,mptr=mgl.begin();mptr!=mgl.end();++mptr)
+	double ***counts=create_3dgrid_contiguous(result.n1,result.n2,result.n3);
+	double ***sumwt=create_3dgrid_contiguous(result.n1,result.n2,result.n3);
+	int i,j,k,l,ii;
+	for(i=0;i<result.n1;++i)
+	 for(j=0;j<result.n2;++j)
+	  for(k=0;k<result.n3;++k) counts[i][j][k]=0.0;
+	for(mptr=mgl.begin();mptr!=mgl.end();++mptr)
 	{
 		if(handle.at_eof())
 		{
 			delete [] buffer;
+			free_3dgrid_contiguous(counts,result.n1,result.n2);
+			free_3dgrid_contiguous(sumwt,result.n1,result.n2);
 			throw SeisppError(base_error
 			  + string("EOF encountered prematurely on scratch file"));
 		}
@@ -32,20 +41,49 @@ void VectorField3DWeightedStack(GCLvectorfield3d& result,GridScratchFileHandle& 
 		if(nread!=nsize)
 		{
 			delete [] buffer;
+			free_3dgrid_contiguous(counts,result.n1,result.n2);
+			free_3dgrid_contiguous(sumwt,result.n1,result.n2);
 			throw SeisppError(base_error
 				+ string("short read from scratch file"));
 		}
 		totalweight=(mptr->baseweight)*(mptr->reswt);
+		/* This is grossly inefficient when input grids are sparse, but
+		presumption is we make up for in vector efficiency - not valid
+		unless using specialized blas, but found to be minor importance for
+		now */
 		daxpy(nsize,totalweight,buffer,1,result.val[0][0][0],1);
-		sumwt+=totalweight;
+		/* Getting the count is a bit ugly because we preserve the original 
+		5 vector output from pwmig.  Use component 5 of the 5 vector to 
+		determine count (assumes set negative when null */
+		for(i=0,ii=4;i<result.n1;++i)
+		 for(j=0;j<result.n2;++j)
+		  for(k=0;k<result.n3;++k,ii+=5) 
+				if(buffer[ii]>0.0) 
+				{
+					counts[i][j][k]+=1.0;
+					sumwt[i][j][k]+=totalweight;
+				}
 	}
 	delete [] buffer;
 	if(!handle.at_eof())
 		throw SeisppError(base_error
 		  + string("Scratch file mismatch.")
 		  + string("  Not at EOF after working through member list"));
-	/* Always normalize by sumwt*/
-	dscal(nsize,1.0/sumwt,result.val[0][0][0],1);
+	/* Clear cells with zero count, set the hit count field in component 5,
+	and normalize each cell for irregular hit count */
+	for(i=0;i<result.n1;++i)
+	 for(j=0;j<result.n2;++j)
+	  for(k=0;k<result.n3;++k) 
+	  {
+		if(fabs(counts[i][j][k])<0.1) 
+			for(l=0;l<3;++l) result.val[i][j][k][l]=0.0;
+		else
+			for(l=0;l<3;++l) result.val[i][j][k][l]/=sumwt[i][j][k];
+		result.val[i][j][k][4]=counts[i][j][k];
+	  }
+	
+	free_3dgrid_contiguous(counts,result.n1,result.n2);
+	free_3dgrid_contiguous(sumwt,result.n1,result.n2);
 }
 /*! \brief Decimate a GCLgrid3d.
 
@@ -190,9 +228,10 @@ void ComputeGridCoherence(GCLvectorfield3d& f,
 		mode3c=true;
 	else
 		mode3c=false;
-	/* This is a cutoff constant on weight component of each grid point.
-	Using this is safer than a test against zero to skip points with no data */
-	const double minweight(0.00001);
+	/* Don't compute coherence figure when stack count in a cell is below
+	this threshold.  For now frozen as a fixed constant.  Made slightly 
+	smaller than integer value to avoid roundoff issues */
+	const double mincount(1.99);
 	/* These may not be necessary, but cost for maintenance advantage is
 	small */
 	gsfh.rewind();
@@ -201,9 +240,10 @@ void ComputeGridCoherence(GCLvectorfield3d& f,
 	int i,j,k,l;
 	int nsize=f.n1*f.n2*f.n3*f.nv;
 	int npoints=f.n1*f.n2*f.n3;
-	double ***sumsqr, ***sumsqd;
+	double ***sumsqr, ***sumsqd, ***counts;
 	sumsqr=create_3dgrid_contiguous(f.n1,f.n2,f.n3);
 	sumsqd=create_3dgrid_contiguous(f.n1,f.n2,f.n3);
+	counts=create_3dgrid_contiguous(f.n1,f.n2,f.n3);
 	/* This is a huge memory model to do this calculation, but pwmig has
 	more problems so this shouldn't be an issue for any pwmig output */
 	double ****buffer;
@@ -220,13 +260,14 @@ void ComputeGridCoherence(GCLvectorfield3d& f,
 	allows passing through the scratch file only once. */
 	double weight,sumwt,sumr3sq,sumd3sq,val;
 //DEBUG
-vector<double> ddbg;
+//vector<double> ddbg,rdbg,sdbg;
 	for(i=0;i<f.n1;++i)
 	 for(j=0;j<f.n2;++j)
 	  for(k=0;k<f.n3;++k)
 	  {
 	    sumsqr[i][j][k]=0.0;
 	    sumsqd[i][j][k]=0.0;
+	    counts[i][j][k]=0.0;
 	  }
 	list<MemberGrid>::iterator mptr; 
 	for(mptr=mgl.begin();mptr!=mgl.end();++mptr)
@@ -235,6 +276,12 @@ vector<double> ddbg;
 		nread=gsfh.load_next(buffer[0][0][0]);
 		double totalweight=(mptr->baseweight)*(mptr->reswt);
 		sumwt+=totalweight;
+//DEBUG
+/*
+ddbg.clear();
+rdbg.clear();
+sdbg.clear();
+*/
 		if(mode3c)
 		{
 		    for(i=0;i<f.n1;++i)
@@ -243,7 +290,10 @@ vector<double> ddbg;
 			{
 				for(k=0;k<f.n3;++k)
 				{
-				    if(f.val[i][j][k][4]>minweight)
+				/* When the data are read, 4 is set negative if full null data.
+				The 0.1 is a safe test against 0  */
+				    if( (buffer[i][j][k][4]>0.0)
+					&& (f.val[i][j][k][4]>0.1) )
 				    {
 					for(l=0,sumd3sq=0.0,sumr3sq=0.0;l<3;++l)
 					{
@@ -255,6 +305,7 @@ vector<double> ddbg;
 					}
 					sumsqr[i][j][k]+=sumr3sq*totalweight*totalweight;
 					sumsqd[i][j][k]+=sumd3sq*totalweight*totalweight;
+					counts[i][j][k]+=1.0;
 				    }
 				}
 			}
@@ -266,19 +317,34 @@ vector<double> ddbg;
 		    {
 			for(j=0;j<f.n2;++j)
 			{
+//DEBUG
+/*
+if(ddbg.size()>70)
+{
+	cout << i << " "<<j<<endl;
+	cout << "Check me"<<endl;
+}
+ddbg.clear();
+rdbg.clear();
+sdbg.clear();
+*/
 				for(k=0;k<f.n3;++k)
 				{
-				    if(f.val[i][j][k][4]>minweight)
+				    if( (buffer[i][j][k][4]>0.0)
+					&& (f.val[i][j][k][4]>0.1) )
 				    {
 					val=buffer[i][j][k][component];
 					sumd3sq=val*val;
 //DEBUG
-ddbg.push_back(val);
+//ddbg.push_back(val);
+//sdbg.push_back(f.val[i][j][k][component]);
 					/* subtract stack value */
 					val-=f.val[i][j][k][component];
+//rdbg.push_back(val);
 					sumr3sq=val*val;
 					sumsqr[i][j][k]+=sumr3sq*totalweight*totalweight;
 					sumsqd[i][j][k]+=sumd3sq*totalweight*totalweight;
+					counts[i][j][k]+=1.0;
 				    }
 				}
 			}
@@ -298,6 +364,7 @@ ddbg.push_back(val);
 	int dec1o2=dec1/2;
 	int dec2o2=dec2/2;
 	int dec3o2=dec3/2;
+	double cellcount;
 	for(ic=0;ic<coh.n1;++ic)
 	{
 		for(jc=0;jc<coh.n2;++jc)
@@ -338,42 +405,56 @@ ddbg.push_back(val);
 					imax=imin+dec1;
 					if(imax>=f.n1)
 					{
-						imax = f.n1 - 1;
-						imin = imax - dec1 + 1;
+						imax = f.n1;
+						imin = imax - dec1;
+						if(imin<0)imin=0;
 					}
 					jmax=jmin+dec2;
 					if(jmax>=f.n2)
 					{
-						jmax = f.n2 - 1;
-						jmin = jmax - dec2 + 1;
+						jmax = f.n2;
+						jmin = jmax - dec2;
+						if(jmin<0) jmin=0;
 					}
 					kmax=kmin+dec3;
 					if(kmax>=f.n3)
 					{
-						kmax = f.n3 - 1;
-						kmin = kmax - dec3 + 1;
+						kmax = f.n3;
+						kmin = kmax - dec3;
+						if(kmin<0)kmin=0;
 					}
 				}
-				for(i=imin;i<=imax;++i)
-				  for(j=jmin;j<=jmax;++j)
-				    for(k=kmin,sumr3sq=0.0,sumd3sq=0.0;k<=kmax;++k)
+				cellcount=0.0;
+				for(i=imin;i<imax;++i)
+				  for(j=jmin;j<jmax;++j)
+				    for(k=kmin,sumr3sq=0.0,sumd3sq=0.0;k<kmax;++k)
 				    {
-					sumr3sq+=sumsqr[i][j][k];
-					sumd3sq+=sumsqd[i][j][k];
+					if(counts[i][j][k]>0.0)
+					{
+						sumr3sq+=sumsqr[i][j][k];
+						sumd3sq+=sumsqd[i][j][k];
+						cellcount+=counts[i][j][k];
+					}
 				    }
-				if(fabs(sumd3sq)<DBL_EPSILON) 
-					val=0.0;
-				else
+				// A doublely cautious test against 0
+				if((cellcount>0.1) && (fabs(sumd3sq)>DBL_EPSILON))
+				{
 					val=sqrt(sumr3sq/sumd3sq);
-				if(val>1.0)
-					coh.val[ic][jc][kc]=0.0;
+					if(val>1.0)
+						coh.val[ic][jc][kc]=0.0;
+					else
+						coh.val[ic][jc][kc]=1.0-val;
+				}
 				else
-					coh.val[ic][jc][kc]=1.0-val;
+					coh.val[ic][jc][kc]=0.0;  // null value
+//DEBUG
+//cout << coh.val[ic][jc][kc]<<endl;
 			}
 		}
 	}
 	free_3dgrid_contiguous(sumsqr,f.n1,f.n2);
 	free_3dgrid_contiguous(sumsqd,f.n1,f.n2);
+	free_3dgrid_contiguous(counts,f.n1,f.n2);
 }
 void compute_reswt(GCLvectorfield3d& stack,GridScratchFileHandle& handle,
                 list<MemberGrid>& mgl,GridStackPenaltyFunction& penalty_function)
@@ -400,7 +481,7 @@ void compute_reswt(GCLvectorfield3d& stack,GridScratchFileHandle& handle,
 			throw SeisppError(base_error
 				+ string("short read from scratch file"));
 		}
-		mptr->reswt=penalty_function.weight(nsize,buffer,stack.val[0][0][0]);
+		mptr->reswt=penalty_function.weight(nsize,buffer,stack);
 		if(SEISPP_verbose) cout << mptr->fieldname
 				<< " " << mptr->baseweight
 				<< " " << mptr->reswt <<endl;
@@ -516,11 +597,13 @@ int main(int argc, char **argv)
 				inreadabort();
 		*/
 		char *inputline=new char[512];
+		cout << "Gridstacker:  summing the following GCLfield3d objects contained in database:"<<endl;
 		while(in.getline(inputline,512))
 		{
 			stringstream ss(inputline);
 			string g,f;
 			const double wgt(1.0);
+			cout << inputline<<endl;
 			ss >> g;
 			ss >> f;
 			// Initialize residual weight portion to 1.0 at start
@@ -541,11 +624,11 @@ int main(int argc, char **argv)
 		string outdir=control.get_string("output_data_directory");
 		int dec1,dec2,dec3;
 		dec1=control.get_int("coherence_x1_decimation_factor");
-		dec2=control.get_int("coherence_x3_decimation_factor");
+		dec2=control.get_int("coherence_x2_decimation_factor");
 		dec3=control.get_int("coherence_x3_decimation_factor");
 		int coherence_component;
 		coherence_component=control.get_int("coherence_component");
-		string cohgname,cohbasefname;
+		string cohgname;
 		cohgname=control.get_string("coherence_grid_name");
 		string cohgdir;
 		if(GridNameDefined(dbh,cohgname,3) )
@@ -560,7 +643,6 @@ int main(int argc, char **argv)
 		{
 			cohgdir=outdir;
 		}
-		cohbasefname=control.get_string("coherence_field_base_name");
 		// Default is to use the average as the initial estimate
 		// If this is set true wil use member of list with largest weight as initial
 		bool uselargest=control.get_bool("use_largest_weight_as_initial");
@@ -568,11 +650,15 @@ int main(int argc, char **argv)
 		it even if robust stack is not requested as at present the construction
 		is trivial and doesn't waste any memory. */
 		GridStackPenaltyFunction penalty_function(control);
+		/* These enable scattering angle normalization and set cutoff if used  (cutoff
+		essential to avoid a divide by zero */
+		bool normalize=control.get_bool("normalize_by_scattering_angle_range");
+		double solid_angle_cutoff=control.get_double("normalization_solid_angle_cutoff");
 
 		/* End section extracting control parameters */
 
 		GCLvectorfield3d mastergrid(dbh.db,mastergridname,masterfieldname);
-		GridScratchFileHandle gsfh(mastergrid,mgl,dbh.db);
+		GridScratchFileHandle gsfh(mastergrid,mgl,dbh.db,normalize,solid_angle_cutoff);
 		gsfh.rewind();
 		/* First compute and save a straight stack.  This works because
 		mgl.reswt values are all set to 1.0 above. */
@@ -580,6 +666,8 @@ int main(int argc, char **argv)
 		result.zero();
 		VectorField3DWeightedStack(result,gsfh,mgl);
 		string avgfname=baseofn + "_avg";
+//DEBUG
+//cout << result;
 		result.dbsave(dbh.db,string(""),outdir,avgfname,avgfname);
 		gsfh.rewind();
 		/* Now compute and save a coherence attribute grid for straight stack.
@@ -596,8 +684,8 @@ int main(int argc, char **argv)
 		// Assume this will throw an error if the grid name is already defined.
 		// Probably should test first to make sure it does not exist already
 		// as this will likely be a common error.  Ignored for now
-		string sscohf=cohbasefname+"_avg";
-		coh.dbsave(dbh.db,cohgdir,outdir,sscohf,sscohf);
+		string cohfieldname=baseofn+"_coh_avg";
+		coh.dbsave(dbh.db,cohgdir,outdir,cohfieldname,cohfieldname);
 		/* At this point no matter what we set cohgdir as a null string.  This is
 		a weird feature of the gclgrid library that turns off saving grid file */
 		cohgdir=string("");
@@ -625,7 +713,7 @@ int main(int argc, char **argv)
 		result.dbsave(dbh.db,string(""),outdir,robustfname,robustfname);
 		gsfh.rewind();
 		ComputeGridCoherence(result,gsfh,mgl,coh,dec1,dec2,dec3,coherence_component);
-		string robustcohf=cohbasefname+"_ravg";
+		string robustcohf=baseofn+"_coh_ravg";
 		coh.dbsave(dbh.db,cohgdir,outdir,robustcohf,robustcohf);
 
 	} catch (int ierr)

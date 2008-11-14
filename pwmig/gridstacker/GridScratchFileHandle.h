@@ -48,8 +48,18 @@ this particular program.
 class GridScratchFileHandle
 {
 public:
+	/*! One and only constructor.
+
+	\param mastergrid - used as reference.  All grids are interpolated onto master
+	\param mg is a list used to define grids to be build stack(includes weights)
+	\param db Datascope database 
+	\param normalize controls solid angle normalization.  if true all field values are normalized by 1/solid angle range
+	\aram cutoff minimum solid angle to use.  Points with solid angle range less than this will be zeroed and the solid angle
+		vector component will be set to -1.0 as a signal that this cell is empty. 
+	*/
 	GridScratchFileHandle(GCLvectorfield3d& mastergrid,
-		list<MemberGrid>& mg, Dbptr db);
+		list<MemberGrid>& mg, Dbptr db,
+		bool normalize, double cutoff);
 	// copy constructor and operator= intentionally ommitted
 	~GridScratchFileHandle();  
 	
