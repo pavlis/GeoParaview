@@ -20,3 +20,4 @@ use_largest_weight_as_initial true
 # pwmig output (solid angle term)
 normalize_by_scattering_angle_range true
 normalization_solid_angle_cutoff 0.0001
+robust_weight_floor 0.0001
