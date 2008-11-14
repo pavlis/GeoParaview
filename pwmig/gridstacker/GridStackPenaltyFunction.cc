@@ -63,7 +63,7 @@ double GridStackPenaltyFunction::weight(int nd, double *d, GCLvectorfield3d& d0)
 	    for(k=0;k<d0.n3;++k,ii+=5)
 	    {
 		/* this is assumed to have been set for d when it was created from a grid file */
-		if(d[ii+4]>0.0)
+		if( (d[ii+4]>0.0) && (d0.val[i][j][k][4]>0.1) )
 		{
 			for(l=0,ll=0;l<3;++l,++ll)
 			{

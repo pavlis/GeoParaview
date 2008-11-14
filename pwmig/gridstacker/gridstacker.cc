@@ -709,6 +709,10 @@ int main(int argc, char **argv)
 			mgl_previous=mgl;
 			++robust_loop_count;
 		} while ( (robust_loop_count<MAXIT) && keep_looping);
+		if(robust_loop_count>=MAXIT)
+			cout << "Robust stack loop terminated on count at iteration "<<robust_loop_count<<endl;
+		else
+			cout << "Robust stack loop converged after "<<robust_loop_count<<" iterations"<<endl;
 		string robustfname=baseofn+"_ravg";
 		result.dbsave(dbh.db,string(""),outdir,robustfname,robustfname);
 		gsfh.rewind();

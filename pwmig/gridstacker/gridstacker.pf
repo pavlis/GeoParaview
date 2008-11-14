@@ -10,7 +10,7 @@ coherence_x2_decimation_factor 4
 coherence_x3_decimation_factor 10
 coherence_component 0
 coherence_grid_name cohgrid
-use_largest_weight_as_initial true
+use_largest_weight_as_initial false
 #
 # These parameters control normalization by solid
 # angle.  Normally should be true.  Cutooff can
