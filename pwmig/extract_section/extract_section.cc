@@ -226,16 +226,16 @@ int main(int argc, char **argv)
 		switch (odform)
 		{
 		case GMT:
-			for(j=0,sptr=path.begin();j<section.columns() && sptr!=path.end();++j)
+			for(j=0,sptr=path.begin();j<section.columns() && sptr!=path.end();++j,++sptr)
 			{
 				for(i=0;i<nz;++i)
 				{
 				    if(out_to_other)
 				    {
 					if(output_latlon)
-					    outstrm << sptr->lat
-						<< " "<<sptr->lon
-						<< " "<<sptr->r
+					    outstrm << deg(sptr->lat)
+						<< " "<<deg(sptr->lon)
+						<< " "<<zmin+i*dz
 						<< " "<<section(i,j)<<endl;
 					else
 					    outstrm << j*dx
@@ -245,9 +245,9 @@ int main(int argc, char **argv)
 				    else
 				    {
 					if(output_latlon)
-					    cout << sptr->lat
-						<< " "<<sptr->lon
-						<< " "<<sptr->r
+					    cout << deg(sptr->lat)
+						<< " "<<deg(sptr->lon)
+						<< " "<<zmin+i*dz
 						<< " "<<section(i,j)<<endl;
 					else
 					    cout << j*dx
