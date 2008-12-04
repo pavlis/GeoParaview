@@ -1,39 +1,25 @@
 Data_Top_Mute	&Arr{
-    end_time	5.0
+    end_time	0.5
     time_reference_type	relative
-    zero_end_time	2.0
+    zero_end_time	0.1
 }
 Slowness_Grid_Definition	&Arr{
     Slowness_Grid_Name	test
     dux	0.01
     duy	0.01
-    nux	21
-    nuy	21
-    uxlow	-0.1
-    uylow	-0.1
+    nux	3
+    nuy	3
+    uxlow	-0.01
+    uylow	-0.01
 }
 Stack_Top_Mute	&Arr{
-    end_time	4.0
+    end_time	0.5
     time_reference_type	relative
-    zero_end_time	2.0
-}
-data_time_window_end	50.0
-data_time_window_start	-25.0
-dbprocess_commands	&Tbl{
-    dbopen arrival
-    dbleftjoin wfdisc
-    dbjoin assoc
-    dbjoin origin
-    dbjoin event
-    dbjoin sitechan
-    dbjoin site
-    dbsort evid sta chan
-    dbgroup evid sta
+    zero_end_time	0.1
 }
 depth_dependent_aperture	&Tbl{
-    0.0 10.0  20.0
-    5.0 10.0 30.0
-   50.0 10.0 40.0
+0.0 50.0 100.0
+50.0 50.0 100.0
 }
 ensemble_metadata	&Tbl{
 dir string
@@ -45,7 +31,7 @@ origin.depth real
 
 }
 pf_revision_time	1107002513
-pseudostation_grid_name	subduct
+pseudostation_grid_name	bolivar
 stack_metadata	&Tbl{
     pwfid int
     wfprocess.dir string
@@ -82,5 +68,5 @@ station_metadata	&Tbl{
     vang real
 }
 waveform_directory	./pwstack
-coherence_sample_interval 5.0
-coherence_average_interval 10.0
+coherence_sample_interval 1.0
+coherence_average_length 5.0

@@ -2,7 +2,7 @@ BIN=S2Pstacker
 
 cflags=-g
 # Use the following for Solaris
-ldflags=-lseispp -lgclgrid -ltrvltm -lpfstream -lbrttutil $(TRLIBS) $(DBLIBS) -lperf -lgclgrid -lseispp
+ldlibs= -lseispp -lgclgrid -ltrvltm -lpfstream -lbrttutil $(TRLIBS) $(DBLIBS) -lperf -lgclgrid -lseispp
 # Following is required to work with g++ 3.2.3
 #ldflags=-shared -lseispp -lgclgrid -ltrvltm -lpfstream -lbrttutil $(TRLIBS) $(DBLIBS) -lperf -lgclgrid
 
@@ -14,4 +14,4 @@ OBJS=S2Pstacker.o \
 	pwstack_process.o \
 	compute_stack_coherence.o
 $(BIN) : $(OBJS)
-	$(CXX) $(CXXFLAGS) -o $@ $(OBJS) $(DBX) $(LDFLAGS) $(LDLIBS)
+	$(CXX) $(CXXFLAGS) -o $@ $(OBJS) $(LDFLAGS) $(LDLIBS)

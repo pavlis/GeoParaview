@@ -47,6 +47,9 @@ string MakeDfileName(int evid, int x1, int x2)
     sbuf<<"pwstack_"<<evid<<"_"<<x1<<"_"<<x2;
     return(sbuf.str());
 }
+#ifdef MATLABDEBUG 
+extern MatlabProcessor mp;
+#endif
 
 
 /*
@@ -67,9 +70,6 @@ mute - mute applied to data before stacking
 stackmute - mute applied to data after stacking
 (This stack is aligned relative to latest
 mute time of raw data in stack.)
-lat0, lon0 - pseudostation grid point (IN RADIANS)
-ux0, uy0 - slowness vector of input data (stacking
-is relative to this vector)
 tstart:tend - define time period for output stack
 The routine pretty much assumes relative timing
 so this is normally time wrt the start of
@@ -81,6 +81,7 @@ Assumed implicitly to be larger than data dt.
 overlap - overlap fraction.  coherence windows at dtcoh
 intervals overlpa by this fraction to form an
 implicit smoothing.
+minfold - cutoff on fold.  If less than this, no stacking.
 mdlcopy - defines metadata to copy from the raw data
 ensemble to each stack output
 mdlout - list of metadata to be saved to output database
@@ -104,13 +105,13 @@ ensemble metadata.
 */
 int pwstack_ensemble(ThreeComponentEnsemble& indata,
 RectangularSlownessGrid& ugrid,
-TopMute& mute,
 TopMute& stackmute,
 double tstart,
 double tend,
 DepthDependentAperture& aperture,
 double dtcoh,
 double cohwinlen,
+int minfold,
 MetadataList& mdlcopy,
 MetadataList& mdlout,
 AttributeMap& am,
@@ -171,8 +172,7 @@ DatabaseHandle& dbh)
     int istart = SEISPP::nint(tstart/dt);
     int iend = SEISPP::nint(tend/dt);
     int nsout = iend-istart+1;
-    int ismute = SEISPP::nint(mute.t1/dt);
-    int ismute_this, ie_this;
+    int ie_this;
     DatascopeHandle& dshandle=dynamic_cast<DatascopeHandle&>(dbh);
     DatascopeHandle dbstack(dshandle);
     dbstack.lookup("pwstack");
@@ -187,8 +187,11 @@ DatabaseHandle& dbh)
         elog_die(0,(char *)"Irreconcilable window request:  Requested stack time window = %lf to %lf\nThis is outside range of input data\n",
             tstart,tend);
 
-    /* Apply front end mutes to all traces */
-    ApplyTopMute(indata,mute);
+#ifdef MATLABDEBUG
+//            string chans[3]={"x1","x2","x3"};
+//            mp.load(indata,chans);
+//            mp.process(string("figure(3); wigb(x3)"));
+#endif MATLABDEBUG
 
     /* We need dnorth, deast vectors to compute moveout sensibly
     for this program.  Since we use them repeatedly we will
@@ -235,9 +238,7 @@ DatabaseHandle& dbh)
     //
     // the weights become are a nsta by nsamp matrix to allow
     // variable length apertures.  This algorithm assumes the
-    // aperture object input is an nsta by
-    // Should use a matrix class for this, but it is easy enough
-    // for this simple case to just code inline.
+    // aperture object input is an nsta by number samples
 
     dmatrix weights(nsta,nsout);
     int stack_count=0;                            //maximum number of traces not zeroed
@@ -276,7 +277,27 @@ DatabaseHandle& dbh)
     // an exception.  It is a case that has to be handled gracefully.
     // it will happen often at the edges of arrays
     //
-    if(stack_count<=0) return(-1);
+    //if(stack_count<=0) return(-1);
+    if(stack_count<=minfold) 
+    {
+	cout << "grid (ix1,ix2) = ("<<ix1<<",  "<< ix2 <<") deleted due to low fold = "<<stack_count<<endl;
+	return(-1);
+    }
+#ifdef MATLABDEBUG
+dmatrix warray(nsout,stack_count);
+for(i=0,stack_count=0;i<nsta;++i)
+{
+        if(use_this_sta[i])
+	{
+		for(int isamp=0;isamp<nsout;++isamp)
+			warray(isamp,stack_count)=weights(i,isamp);
+	        ++stack_count;
+	}
+}
+mp.load(warray,string("warray"));
+mp.process(string("imagesc(warray);"));
+
+#endif
     vector <double>moveout(nsta);
     dmatrix stack(3,nsout);
     vector<double>stack_weight(nsout);
@@ -345,7 +366,7 @@ DatabaseHandle& dbh)
             // data are aligned on the P arrival
             compute_pwmoveout(nsta,&(deast[0]),&(dnorth[0]),dux,duy,&(moveout[0]));
             int icol;
-            for(i=0,icol=0,iv=indata.member.begin(),ismute_this=0,iend_this=0,ismin=nsout;
+            for(i=0,icol=0,iv=indata.member.begin(),iend_this=0,ismin=nsout;
                 iv!=indata.member.end();++iv,++i)
             {
                 int is0,ietest, is, ns_to_copy;
@@ -360,10 +381,10 @@ DatabaseHandle& dbh)
 
                     lag = tstart - (iv->t0) + moveout[i];
                     //DEBUG
-                    /*
+/*
                     cerr << "lag="<<lag<<" time 0 lag="<<tstart - (iv->t0)<< "moveout="<<moveout[i]<<endl
                         << "i="<<i<<", dnorth="<<dnorth[i]<<", deast="<<deast[i]<<endl;
-                    */
+*/
                     is0=SEISPP::nint(lag/dt);
                     if(is0>=0)
                     {
@@ -425,15 +446,19 @@ DatabaseHandle& dbh)
                                 gather[j](jj,icol)=twork[jj];
                             }
 
-                            //mp.load(twork,string("d0"));
                             vscal(nsout,weights.get_address(i,0),nsta,&(twork[0]),1);
-                            //mp.load(twork,string("ds"));
                             vadd(nsout,&(twork[0]),1,stack.get_address(j,0),3);
-                            //mp.load(stack,string("stack"));
 #ifdef MATLABDEBUG
-                            mp.load(stack_weight,string("w"));
-                            mp.process(string("stackdebugplot"));
-                            cout << "plotting component "<<j<<endl;
+	 	double *wdbg=new double[nsout];
+		dcopy(nsout,weights.get_address(i,0),nsta,wdbg,1);
+            mp.load(wdbg,nsout,string("w"));
+            mp.load(stack,string("stack"));
+	    mp.load(iv->u,string("uraw"));
+	    mp.process("figure(1); plot3c(uraw);");
+	    mp.process("title original");
+            mp.process("figure(2); stackplot");
+	    mp.process("title summing");
+		delete [] wdbg;
 #endif
                         }
                         // Need to accumulate the sum of weights to normalize
@@ -444,60 +469,39 @@ DatabaseHandle& dbh)
                     }
                 }
             }
-            //DEBUG
-            /*
-            if(ix1>15 && ix2>15)
-            {
-            mp.load(weights,string("w"));
-            mp.process(string("imagesc(w)"));
-            }
-            */
             // normalize the stack.
             // not so trivial because of machine zero issue
             // Use a hard limit based on ismax and iend_this and then
             // assume mutes kill possible transients in mute zone
             //DEBUG
             //cerr << "ismin="<<ismin<<" iend_this="<<iend_this<<endl;
-            for(i=ismin;i<iend_this;++i)
+            //for(i=ismin;i<iend_this;++i)
+	    for(i=0;i<nsout;++i)
             {
                 if(stack_weight[i]>WEIGHT_MINIMUM)
                 {
                     for(j=0;j<3;++j) stack(j,i)/=stack_weight[i];
+#ifdef MATLABDEBUG
+                mp.load(&(stack_weight[0]),stack_weight.size(),string("w"));
+                mp.load(stack,string("stack"));
+                mp.process(string("stackplot"));
+#endif
                 }
                 else
                 {
                     for(j=0;j<3;++j) stack(j,i)=0.0;
                 }
-                /*
-                if(fabs(stack(2,i))>100000.0)
-                {
-                cerr << "Starting matlab:  "<<endl;
-                MatlabProcessor mp(stdout);
-                mp.load(&(stack_weight[0]),stack_weight.size(),string("sw"));
-                mp.load(stack,string("d"));
-                mp.process(string("plot(sw);"));
-                mp.process(string("figure;  plot(d(1,:));"));
-                mp.run_interactive();
-                }
-                */
-
             }
             //DEBUG
-            /*
+#ifdef MATLABDEBUG
             double swt_max=0;
             for(i=ismin;i<iend_this;++i) swt_max=max(1.0/stack_weight[i],swt_max);
-            if(swt_max>100.0)
-            {
             cerr << "Starting matlab:  swt_max="<<swt_max<<endl;
             cerr << "ismin="<<ismin<<" iend_this="<<iend_this<<endl;
-            MatlabProcessor mp(stdout);
-            mp.load(&(stack_weight[0]),stack_weight.size(),string("sw"));
-            mp.load(stack,string("d"));
-            mp.process(string("plot(sw);"));
-            mp.process(string("figure;  plot(d(1,:));"));
-            mp.run_interactive();
-            }
-            */
+            mp.load(&(stack_weight[0]),stack_weight.size(),string("w"));
+            mp.load(stack,string("stack"));
+            mp.process("stackplot");
+#endif
 
             // Create the output stack as a 3c trace object and copy
             // metadata from the input into the output object.
@@ -511,8 +515,8 @@ DatabaseHandle& dbh)
             stackout->put("ux",ux);
             stackout->put("uy",uy);
             stackout->put("gridid",gridid);
-            stackout->put("dux",dux);
-            stackout->put("duy",duy);
+            stackout->put("ux",dux);
+            stackout->put("uy",duy);
             // These could be copied with the copy_selected_metadata
             // call above, but it is better to do this explicitly
             // as these are completely internal parameters
@@ -543,8 +547,12 @@ DatabaseHandle& dbh)
             stackout->put("samprate",1.0/dt);
             stackout->put("nsamp",nsout);
             stackout->put("wfprocess.algorithm","pwstack");
+	    stackout->put("ix1",ix1);
+	    stackout->put("ix2",ix2);
+	    stackout->put("sta",sta);
             ApplyTopMute(*stackout,stackmute);
 #ifdef MATLABDEBUG
+/*
             double smax=0.0;
             int is,js;
             for(js=0;js<3;++js) for(is=0;is<stackout->ns;++is) smax=max(abs(stackout->u(js,is)),smax);
@@ -556,6 +564,7 @@ DatabaseHandle& dbh)
                 mp.load(stack_weight,string("sw"));
                 mp.process(string("pwsplot"));
             }
+*/
 #endif
             // new March 2007: compute stack coherence
             Coharray coh=compute_stack_coherence(gather,gathwgt,*stackout,
@@ -602,8 +611,8 @@ DatabaseHandle& dbh)
                 // ux,uy.  i.e. ux,uy in the db is the actual
                 // plane wave slowness vector used for stack
                 // watch out for this internal symbolic confusion
-                dbstack.put("ux",dux);
-                dbstack.put("uy",duy);
+                dbstack.put("ux",ux);
+                dbstack.put("uy",uy);
                 dbstack.put("gridid",gridid);
                 dbstack.put("ux0",ux0);
                 dbstack.put("uy0",uy0);
