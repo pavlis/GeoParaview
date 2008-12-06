@@ -915,6 +915,8 @@ AttributeMap& am)
                 sdtype=string("c3");
         else
                 sdtype=string("3c");
+	/* MUST first transform to standard coordinates */
+	d.rotate_to_standard();
 	d.put("datatype",sdtype);
         int rec=dbsave(d,dbhwp.db,
             string("wfprocess"),mdlwp,am);
