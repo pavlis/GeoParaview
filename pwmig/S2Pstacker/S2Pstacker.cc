@@ -131,7 +131,7 @@ auto_ptr<ThreeComponentEnsemble> lto3c(TimeSeriesEnsemble& dz)
 
 void usage()
 {
-    cbanner((char *)"$Revision: 1.2 $ $Date: 2008/12/04 19:25:50 $",
+    cbanner((char *)"$Revision: 1.3 $ $Date: 2008/12/29 16:17:40 $",
         (char *)"dbout [-pf pfname] < infilelist",
         (char *)"Gary Pavlis",
         (char *)"Indiana University",
@@ -214,7 +214,7 @@ int main(int argc, char **argv)
         MetadataList station_mdl=pfget_mdlist(pf,"station_metadata");
         MetadataList ensemble_mdl=pfget_mdlist(pf,"ensemble_metadata");
         MetadataList stack_mdl=pfget_mdlist(pf,"stack_metadata");
-        AttributeMap OutputAM("pwmig1.1");
+        AttributeMap OutputAM("css3.0");
         AttributeMap InputAM("css3.0");
         DepthDependentAperture aperture(pf,aperture_tag);
         TopMute mute(pf,string("Data_Top_Mute"));

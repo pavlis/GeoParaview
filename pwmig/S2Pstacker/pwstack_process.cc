@@ -191,7 +191,7 @@ DatabaseHandle& dbh)
 //            string chans[3]={"x1","x2","x3"};
 //            mp.load(indata,chans);
 //            mp.process(string("figure(3); wigb(x3)"));
-#endif MATLABDEBUG
+#endif 
 
     /* We need dnorth, deast vectors to compute moveout sensibly
     for this program.  Since we use them repeatedly we will
@@ -283,6 +283,8 @@ DatabaseHandle& dbh)
 	cout << "grid (ix1,ix2) = ("<<ix1<<",  "<< ix2 <<") deleted due to low fold = "<<stack_count<<endl;
 	return(-1);
     }
+    else
+	cout << "gridid("<<ix1<<","<<ix2<<") fold="<<stack_count<<endl;
 #ifdef MATLABDEBUG
 dmatrix warray(nsout,stack_count);
 for(i=0,stack_count=0;i<nsta;++i)

@@ -1,5 +1,8 @@
 BIN=S2Pstacker
 
+DATADIR=schemas/css3.0.ext
+DATA=pwstack
+
 cflags=-g
 # Use the following for Solaris
 ldlibs= -lseispp -lgclgrid -ltrvltm -lpfstream -lbrttutil $(TRLIBS) $(DBLIBS) -lperf -lgclgrid -lseispp
