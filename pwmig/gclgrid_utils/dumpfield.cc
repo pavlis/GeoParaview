@@ -30,7 +30,7 @@ int main(int argc, char **argv)
 		{
 			vectormode = true;
 			++i;
-			component = atof(argv[i]);
+			component = atoi(argv[i]);
 		}
 		else
 			usage();
