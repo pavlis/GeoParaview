@@ -161,7 +161,8 @@ Ray_Transformation_Operator::Ray_Transformation_Operator(GCLgrid& g,
 	// method of ThreeComponentSeismogram
 	//phi = M_PI_2 - azimuth;
 	phi = -azimuth;
-	if(fabs(xdotxv)<=DBL_EPSILON)
+	/* conservative test for vertical incidence*/
+	if((1.0-fabs(xdotxv))<=FLT_EPSILON)
 	{
 		// L vertical means theta=0.0
 		a=cos(phi);

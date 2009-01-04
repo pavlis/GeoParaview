@@ -31,7 +31,7 @@ MatlabProcessor mp(stdout);
 #endif
 void usage()
 {
-        cbanner((char *)"$Revision: 1.8 $ $Date: 2008/10/21 19:42:27 $",
+        cbanner((char *)"$Revision: 1.9 $ $Date: 2009/01/04 13:43:43 $",
                 (char *)"db  listfile [-V -v -pf pfname]",
                 (char *)"Gary Pavlis",
                 (char *)"Indiana University",
@@ -937,22 +937,48 @@ SlownessVector slowness_average(ThreeComponentEnsemble *d)
 {
 	double ux,uy;
 	int n;
-	n=0;
+	n=d->member.size();
+	if(n<=0) throw SeisppError(string("slowness_average:  ")
+			+"procedure was passed an empty ensemble ");
 	ux=0.0;
 	uy=0.0;
-	for(int i=0;i<d->member.size();++i)
+	for(int i=0;i<n;++i)
 	{
 		if(d->member[i].live)
 		{
 			ux+=d->member[i].get_double("ux");
 			uy+=d->member[i].get_double("uy");
-			++n;
 		}
 	}
 	SlownessVector result;
 	result.ux=ux/static_cast<double>(n);
 	result.uy=uy/static_cast<double>(n);
-	return(result);
+	ux /= static_cast<double>(n);
+	uy /= static_cast<double>(n);
+	if(hypot(ux,uy)<FLT_EPSILON)
+	{
+		try {
+			/* assume n!= 0 or we don't get here */
+			ux=d->member[0].get_double("ux0");
+			uy=d->member[0].get_double("uy0");
+			SlownessVector u0(ux,uy);
+			if(u0.mag()<FLT_EPSILON)
+				return(SlownessVector(0.0,0.0,0.0));
+			else
+				return(SlownessVector(0.0,0.0,u0.azimuth()));
+			
+		} catch (MetadataGetError mde)
+		{
+			cerr << "Warning: slowness_average. "
+				<< "ux0 and uy0 not defined. using 0"
+				<<endl;
+			return(SlownessVector(0.0,0.0,0.0));
+		}
+	}
+	else
+	{
+		return(SlownessVector(ux,uy));
+	}
 }
 
 
@@ -1147,11 +1173,11 @@ HorizontalSlicer(mp,Us3d);
 			//Caution this procedure assumes Up3d is slowness
 			Vp1d=DeriveVM1Dfrom3D(Up3d);
 		else
-			VelocityModel_1d Vp1d(db,Pmodel1d_name,pvfnm);
+			Vp1d=VelocityModel_1d(db,Pmodel1d_name,pvfnm);
 		if(Smodel1d_name=="derive_from_3d")
 			Vs1d=DeriveVM1Dfrom3D(Us3d);
 		else
-			VelocityModel_1d Vs1d(db,Smodel1d_name,svfnm);
+			Vs1d=VelocityModel_1d(db,Smodel1d_name,svfnm);
 		GCLgrid parent(db,const_cast<char*>(parent_grid_name.c_str()) );
 
 		// This loads the image volume assuming this was precomputed with
@@ -1907,6 +1933,11 @@ delete sfptr;
 	{
 		gcle.log_error();
 		die(1,"GCLgrid library fatal error\n");
+	}
+	catch (MetadataGetError mde)
+	{
+		mde.log_error();
+		die(1,"Required processing metadata missing from input stream\n");
 	}
 	catch (MetadataError mde)
 	{
