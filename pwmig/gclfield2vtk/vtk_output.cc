@@ -17,12 +17,16 @@ vtkStructuredGrid*	convert_gcl3d_to_vtksg(GCLscalarfield3d &g, bool swap_xz = tr
 	vtkPoints		*pPoints		= vtkPoints::New();
 	vtkDoubleArray		*pData			= vtkDoubleArray::New();
 
+/*
 	if(swap_xz)	pGrid->SetDimensions(g.n3, g.n2, g.n1);
 	else 		pGrid->SetDimensions(g.n1, g.n2, g.n3);
+*/
+	pGrid->SetDimensions(g.n1, g.n2, g.n3);
 
 	pData->SetNumberOfTuples(g.n1 * g.n2 * g.n3);
 	pData->SetNumberOfComponents(1);
 
+/*
 	for(int i = 0; i < g.n1; i++)
 	{
 		for(int j = 0; j < g.n2; j++)
@@ -34,7 +38,27 @@ vtkStructuredGrid*	convert_gcl3d_to_vtksg(GCLscalarfield3d &g, bool swap_xz = tr
 				else		pPoints->InsertNextPoint(g.x1[i][j][k], g.x2[i][j][k], g.x3[i][j][k]);
 
 				// insert the 'data'
-				pData->SetValue((i * g.n2 * g.n3) + (j * g.n3) + k, g.val[i][j][k]);
+				// corrupted.  not the original
+				pData->SetValue((k * g.n2 * g.n3) + (j * g.n3) + k, g.val[i][j][k]);
+				
+			}
+		}
+	}
+*/
+	int kk;
+	for(int k=g.n3-1,kk=0;k>=0;k--,kk++)
+	{
+		for(int j = 0; j < g.n2; j++)
+		{
+			for(int i = 0; i < g.n1; i++)
+			{
+				pPoints->InsertNextPoint(g.x1[i][j][k], 
+					g.x2[i][j][k], g.x3[i][j][k]);
+
+				// insert the 'data'
+				//pData->SetValue((i * g.n2 * g.n3) + (j * g.n3) + k, g.val[i][j][k]);
+				pData->SetValue((kk*g.n1*g.n2)+(j*g.n1)+i,
+					g.val[i][j][k]);
 				
 			}
 		}
@@ -50,7 +74,7 @@ vtkStructuredGrid*	convert_gcl3d_to_vtksg(GCLscalarfield3d &g, bool swap_xz = tr
 }
 
 template<typename W>
-static void write_vtksg(vtkStructuredGrid *pGrid, const char *filename)
+void write_vtksg(vtkStructuredGrid *pGrid, const char *filename)
 {
 	W*	pWriter = W::New();
 
