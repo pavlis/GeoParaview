@@ -31,7 +31,7 @@ MatlabProcessor mp(stdout);
 #endif
 void usage()
 {
-        cbanner((char *)"$Revision: 1.10 $ $Date: 2009/01/06 11:44:07 $",
+        cbanner((char *)"$Revision: 1.11 $ $Date: 2009/01/06 11:50:24 $",
                 (char *)"db  listfile [-V -v -pf pfname]",
                 (char *)"Gary Pavlis",
                 (char *)"Indiana University",
@@ -1101,7 +1101,8 @@ int main(int argc, char **argv)
 			smooth_wt=true;
 		/* Parameters for handling elevation statics. */
 		bool ApplyElevationStatics=control.get_bool("apply_elevation_statics");
-		double static_velocity=control.get_double("elevation_static_correction_velocity")
+		double static_velocity
+			=control.get_double("elevation_static_correction_velocity");
 		// new parameters for coherence weighting version.  
 		// Makes some old features now optional
 		bool use_grt_weights,use_coh_weights;
@@ -1423,7 +1424,7 @@ cout << "raygrid max depth="<<raygrid.depth(0,0,0)<<endl;
 				// first decide in which grid cell to place this seismogram 
 				i = pwdata->member[is].get_int("ix1");
 				j = pwdata->member[is].get_int("ix2");
-				if(ApplyElevationStatic)
+				if(ApplyElevationStatics)
 				{
 					/* We assume elevation has been posted as elev.  This is done
 					by PwmigFileHandle methods on loading, but if data handling method
