@@ -31,7 +31,7 @@ MatlabProcessor mp(stdout);
 #endif
 void usage()
 {
-        cbanner((char *)"$Revision: 1.9 $ $Date: 2009/01/04 13:43:43 $",
+        cbanner((char *)"$Revision: 1.10 $ $Date: 2009/01/06 11:44:07 $",
                 (char *)"db  listfile [-V -v -pf pfname]",
                 (char *)"Gary Pavlis",
                 (char *)"Indiana University",
@@ -1099,6 +1099,9 @@ int main(int argc, char **argv)
 			smooth_wt=false;
 		else
 			smooth_wt=true;
+		/* Parameters for handling elevation statics. */
+		bool ApplyElevationStatics=control.get_bool("apply_elevation_statics");
+		double static_velocity=control.get_double("elevation_static_correction_velocity")
 		// new parameters for coherence weighting version.  
 		// Makes some old features now optional
 		bool use_grt_weights,use_coh_weights;
@@ -1217,15 +1220,6 @@ HorizontalSlicer(mp,Us3d);
 		// Let's make sure these are initialized
 		migrated_image.zero();
 		
-
-//YET ANOTHER NOTE.  HAVE TO DECIDE HOW TO HANDLE ZERO DATUM.  DO WE DO A GEOMETRIC STATIC
-// AS IN REFLECTION PROCESSING?  PROBABLY SHOULD PUT THIS IN PWSTACK.  THAT IS STACK SHOULD
-// SHOULD ALWAYS BE SHIFTED TO DATUM.
-// Solution for now.  Modified pwstack to put an elev estimate for the pseudostation
-// grid point computed as a weighted sum of elevations of contributing stations.  Algorithm
-// below should use a vertical ray approximation to this static to datum or it will get
-// unnecessarily complex.  A p=0 approximation for an elevation correction is pretty
-// good for teleseismic data and is unlikely to be a big problem.
 		/* Previous version had a long string of db manipulations here
 		This version uses a special file to access data from pwstack.
 		The main loop is over file names.  */
@@ -1429,6 +1423,20 @@ cout << "raygrid max depth="<<raygrid.depth(0,0,0)<<endl;
 				// first decide in which grid cell to place this seismogram 
 				i = pwdata->member[is].get_int("ix1");
 				j = pwdata->member[is].get_int("ix2");
+				if(ApplyElevationStatic)
+				{
+					/* We assume elevation has been posted as elev.  This is done
+					by PwmigFileHandle methods on loading, but if data handling method
+					changes this needs to be watched.  Be aware this elevation is produced
+					in pwstack as a weighted average of elevations of summed traces */
+					double pselev=pwdata->member[is].get_double("elev");
+					t0=pwdata->member[is].t0;
+					ApplyGeometricStatic(dynamic_cast<BasicTimeSeries *>(&(pwdata->member[is])),
+						static_velocity,pselev);
+					if(SEISPP_verbose)
+						cout << "Applying static time shift = "
+							<< pwdata->member[is].t0 - t0<<endl;
+				}
 				t0=pwdata->member[is].t0;
 				if( (i<0) || (i>raygrid.n1) || (j<0) || (j>raygrid.n2) )
 				{

@@ -28,4 +28,10 @@ coherence_weight_mode scalar
 # make the weighting more aggresive with the dark side of approach
 # the linf norm
 coherence_weight_power 1.0
+#
+# elevation static parameters.  velocity should be a surface value
+# for 1(us-up) where us and up are s and p slowness
+#
+apply_elevation_statics false
+elevation_static_correction_velocity 8.4
 pf_revision_time	1098359696
