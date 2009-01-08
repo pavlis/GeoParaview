@@ -172,6 +172,7 @@ double FieldEditData::apply(double val)
 			<<endl;
 		exit(-1);
 	}
+	return(result);
 }
 
 
@@ -187,7 +188,7 @@ bool SEISPP::SEISPP_verbose(true);
 int main(int argc, char **argv)
 {
 	int i,j,k,l;
-	if(argc!=5) usage();
+	if(argc<5) usage();
 	string dbname(argv[1]);
 	string gridname(argv[2]);
 	string infield(argv[3]);
@@ -203,24 +204,31 @@ int main(int argc, char **argv)
 			else if(sarg=="-dir")
 			{
 				++i;
-				outdir=sarg;
+				outdir=string(argv[i]);
 			}
 			else
 				usage();
 		}
-		DatascopeHandle dbh(dbname,true);
+		DatascopeHandle dbh(dbname,false);
 		dbh.lookup("gclgdisk");
 		GCLscalarfield3d *gsf;
 		GCLvectorfield3d *gvf;
+		int n1,n2,n3;
 		gsf=NULL;
 		gvf=NULL;
 		if(vectormode)
 		{
 			gvf=new GCLvectorfield3d(dbh.db,gridname,infield);
+			n1=gvf->n1;
+			n2=gvf->n2;
+			n3=gvf->n3;
 		}
 		else
 		{
 			gsf=new GCLscalarfield3d(dbh.db,gridname,infield);
+			n1=gsf->n1;
+			n2=gsf->n2;
+			n3=gsf->n3;
 		}
 		/* Now loop over instruction lines running potentially multiple
 		operations on the same data */
@@ -232,9 +240,12 @@ int main(int argc, char **argv)
 				fed=new FieldEditData(gvf,line);
 			else
 				fed=new FieldEditData(gsf,line);
-			for(i=fed->ilow;i<fed->ihigh;++i)
-			  for(j=fed->jlow;j<fed->jhigh;++j)
-			    for(k=fed->klow;k<fed->klow;++k)
+			for(i=0;i<n1;++i)
+			 for(j=0;j<n2;++j)
+			  for(k=0;k<n3;++k)
+			    if( (i>=fed->ilow) && (i<=fed->ihigh) 
+				 && (j>=fed->jlow) && (j<=fed->jhigh)
+				&& (k>=fed->klow) && (k<=fed->khigh) )
 			    {
 			      if(vectormode)
 			      {
