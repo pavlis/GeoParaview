@@ -80,8 +80,21 @@ int main(int argc, char **argv)
 		if(linemode)
 		{
 			int i=0;
-			while(cin.getline(line,256))
+			while(!cin.eof())
 			{
+				cin.getline(line,256);
+				if(cin.eof())
+				{
+					/*this is an odd logic construct, but
+					we make this look like a > line to force
+					the last segment to be pushed to the segments
+					list.  We make sure the size isn't zero */
+					if(thissegment.size()>1)
+					{
+						line[0]='>';
+						line[1]='\0';
+					}
+				}
 				if(line[0]=='#') continue;
 				if(line[0]=='>')
 				{
@@ -140,7 +153,7 @@ int main(int argc, char **argv)
 						++i;
 					}
 				}
-			}
+			} 
 					
 		}
 		else
@@ -184,7 +197,7 @@ int main(int argc, char **argv)
 			of items in segments and number of points for the "size" parameter
 			of the LINES keyword line. */
 			int sizepar;
-			sizepar=cplist.size();
+			sizepar=0;
 			list<LineLinks>::iterator llptr;
 			LineLinks::iterator lineptr;
 			for(llptr=segments.begin();llptr!=segments.end();++llptr)
@@ -192,7 +205,6 @@ int main(int argc, char **argv)
 				for(lineptr=llptr->begin();lineptr!=llptr->end();++lineptr)
 					++sizepar;
 			}
-			++sizepar;
 			sizepar+=segments.size();
 			cout <<  "LINES " << segments.size() << " " <<sizepar<<endl;
 			for(llptr=segments.begin();llptr!=segments.end();++llptr)
