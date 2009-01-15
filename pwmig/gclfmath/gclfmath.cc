@@ -61,13 +61,13 @@ RangePair parse_token(string s, int length)
 	{
 		/* land here for things like "2-" */
 		result.high=length-1;
-		slow.assign(s,0,dashposition-1);
+		slow.assign(s,0,dashposition);
 		result.low=atoi(s.c_str());
 	}
 	else
 	{
 		/* For things like 2-44 */
-		slow.assign(s,0,dashposition-1);
+		slow.assign(s,0,dashposition);
 		// Use length() because assign stops copy at end of string or count
 		shigh.assign(s,dashposition+1,s.length()); 
 		result.low=atoi(slow.c_str());
@@ -163,7 +163,7 @@ double FieldEditData::apply(double val)
 		result=val*opvalue;
 		break;
 	case ASSIGN:
-		result=val;
+		result=opvalue;
 		break;
 	default:
 		cerr << "FieldEditData::apply:  illegal opcode="
