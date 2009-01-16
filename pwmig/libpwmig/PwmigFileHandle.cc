@@ -29,12 +29,20 @@ PwmigFileHandle::PwmigFileHandle(string fname, bool rmode, bool smode)
 	readmode=rmode;
 	if(readmode)
 	{
+#ifdef _LARGEFILE64_SOURCE
 		datafd=open(dfile.c_str(),O_RDONLY | O_LARGEFILE);
+#else
+		datafd=open(dfile.c_str(),O_RDONLY);
+#endif
 		if(datafd<0)
 			throw SeisppError(base_error
 			 + string("Cannot open input data file=")
 			 + dfile);
+#ifdef _LARGEFILE64_SOURCE
 		hdrfd=open(hfile.c_str(),O_RDONLY | O_LARGEFILE);
+#else
+		hdrfd=open(hfile.c_str(),O_RDONLY);
+#endif
 		if(hdrfd<0)
 		{
 			close(datafd);
@@ -68,14 +76,24 @@ PwmigFileHandle::PwmigFileHandle(string fname, bool rmode, bool smode)
 	{
 		mode_t fumask=0775;
 		/* In output mode all we do is open the file in write mode */
+#ifdef _LARGEFILE64_SOURCE
 		datafd=open(dfile.c_str(),
 			O_WRONLY | O_CREAT | O_TRUNC | O_LARGEFILE,fumask);
+#else
+		datafd=open(dfile.c_str(),
+			O_WRONLY | O_CREAT | O_TRUNC, fumask);
+#endif
 		if(datafd<0)
 			throw SeisppError(base_error
 			 + string("Cannot open output data file=")
 			 + dfile);
+#ifdef _LARGEFILE64_SOURCE
 		hdrfd=open(hfile.c_str(),
 			O_WRONLY | O_CREAT | O_TRUNC | O_LARGEFILE,fumask);
+#else
+		hdrfd=open(hfile.c_str(),
+			O_WRONLY | O_CREAT | O_TRUNC,fumask);
+#endif
 		if(hdrfd<0)
 		{
 			close(datafd);
