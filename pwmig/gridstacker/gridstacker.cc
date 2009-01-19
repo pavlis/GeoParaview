@@ -85,6 +85,9 @@ void VectorField3DWeightedStack(GCLvectorfield3d& result,GridScratchFileHandle& 
 	free_3dgrid_contiguous(counts,result.n1,result.n2);
 	free_3dgrid_contiguous(sumwt,result.n1,result.n2);
 }
+/*NOTE:   A copy of this is in the latest version of pwmig.
+Should eventually probably be moved to gclgrid library */
+
 /*! \brief Decimate a GCLgrid3d.
 
 We sometimes want to decimate a grid. This procedure does this for
