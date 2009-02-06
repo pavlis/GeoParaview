@@ -1,4 +1,4 @@
 BIN=restest
-FORT=gfortran
+FORT=f77 -g
 $(BIN) : restest.f
-	$(FORT) -o $@ restest.f
+	$(FORT) -o $@ -g restest.f

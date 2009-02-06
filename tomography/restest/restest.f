@@ -2,8 +2,8 @@
 
 	integer SIZEOFA,NMAX,MMAX
 	parameter(NMAX=1000000)
-	parameter(MMAX=50000)
-	parameter(SIZEOFA=2000000)
+	parameter(MMAX=100000)
+	parameter(SIZEOFA=100000000)
         common /lsqrdat/ a(SIZEOFA),ja(SIZEOFA),
      +                   na(MMAX),b(MMAX),jndx(NMAX)
 c--this vector holds the model that defines this resolution test
@@ -43,7 +43,7 @@ c--Now we load a model vector by column index
 	write(*,*) 'Enter file with cells to be set ',
      $     'for the resolution test'
 	read(*,1000) modfile
-	open(lunmod,form='formatted',access='sequential')
+	open(lunmod,file=modfile,form='formatted',access='sequential')
   150	read(lunmod,*,end=200) imod,mtmp
   		if(imod.gt.n) then
 			write(*,*)'illegal model index=',imod
@@ -90,8 +90,8 @@ c  in this example, a, ja, na are stored  in common.
 c
 	integer SIZEOFA,NMAX,MMAX
 	parameter(NMAX=1000000)
-	parameter(MMAX=50000)
-	parameter(SIZEOFA=2000000)
+	parameter(MMAX=100000)
+	parameter(SIZEOFA=100000000)
         common /lsqrdat/ a(SIZEOFA),ja(SIZEOFA),
      +                   na(MMAX),b(MMAX),jndx(NMAX)
 
@@ -195,8 +195,8 @@ c
 	integer ja,na
 	integer SIZEOFA,NMAX,MMAX
 	parameter(NMAX=1000000)
-	parameter(MMAX=50000)
-	parameter(SIZEOFA=2000000)
+	parameter(MMAX=100000)
+	parameter(SIZEOFA=100000000)
 	common /lsqrdat/ a(SIZEOFA),ja(SIZEOFA),
      +                   na(MMAX),b(MMAX),jndx(NMAX)
 
