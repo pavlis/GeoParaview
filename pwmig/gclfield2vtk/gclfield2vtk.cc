@@ -3,12 +3,14 @@
 #include <sstream>
 #include <string>
 #include <stdio.h>
+#include <float.h>
 #include "stock.h"
 #include "elog.h"
 #include "pf.h"
 #include "seispp.h"
 #include "Metadata.h"
 #include "gclgrid.h"
+#include "agc.h"
 #include "vtk_output.h"
 
 using namespace SEISPP;
@@ -35,6 +37,26 @@ void remove_mean_x3(GCLscalarfield3d& f)
 			for(j=0;j<f.n2;++j)
 				f.val[i][j][k] = f.val[i][j][k]-mean;
 	}
+}
+/* Applies an agc operator with window length iwagc to data along the x3 direction
+then normalizes a vector constructed from each x3 grid line to have rms=1 (L2 norm unity).
+*/
+void agc_scalar_field(GCLscalarfield3d& g, int iwagc)
+{
+	vector<double> x3vals;
+	double nrmx3v;
+	int i,j,k;
+	for(i=0;i<g.n1;++i)
+		for(j=0;j<g.n2;++j)
+		{
+			x3vals.clear();
+			for(k=0;k<g.n3;++k) x3vals.push_back(g.val[i][j][k]);
+			x3vals=agc<double>(x3vals,iwagc);
+			nrmx3v=dnrm2(g.n3,&(x3vals[0]),1);
+			/* do nothing if nrm is 0 */
+			if(nrmx3v<DBL_EPSILON) nrmx3v=1.0;
+			for(k=0;k<g.n3;++k) g.val[i][j][k]=x3vals[k]/nrmx3v;
+		}
 }
 		
 
@@ -151,6 +173,12 @@ int main(int argc, char **argv)
 		bool SaveAsVectorField;
 		int VectorComponent;
 		bool rmeanx3=control.get_bool("remove_mean_x3_slices");
+		bool apply_agc=control.get_bool("apply_agc");
+		int iwagc(0);
+		if(apply_agc)
+		{
+			iwagc=control.get_int("agc_operator_length");
+		}
 		if(fieldtype=="scalar3d")
 		{
 			GCLscalarfield3d field(db,gridname,fieldname);
@@ -161,8 +189,8 @@ int main(int argc, char **argv)
 						*rgptr);
 			}
 			if(rmeanx3) remove_mean_x3(field);
-			output_gcl3d_to_vtksg(field,
-				const_cast<string>(outfile),false,true);
+			if(apply_agc) agc_scalar_field(field,iwagc);
+			output_gcl3d_to_vtksg(field,outfile,false,true);
 		}
 		else if(fieldtype=="vector3d")
 		{
@@ -189,6 +217,7 @@ int main(int argc, char **argv)
 			for(i=0;i<vfield.nv;++i)
 			{
 				sfptr = extract_component(vfield,i);
+				if(apply_agc) agc_scalar_field(*sfptr,iwagc);
 				stringstream ss;
 				ss << outfile <<"_"<<i<<".vtk";
 				output_gcl3d_to_vtksg(*sfptr,
@@ -207,6 +236,8 @@ int main(int argc, char **argv)
 			}
 			npoly=vtk_output_GCLgrid(g,outfile);
 			cout << "Wrote "<<npoly<<" polygons to output file"<<endl;
+			if(apply_agc)cerr <<"WARNING: apply_agc was set true\n"
+					<<"This is ignored for grids and 2d fields"<<endl;
 		}
 		else if(fieldtype=="scalar2d")
 		{
@@ -220,6 +251,8 @@ int main(int argc, char **argv)
 			}
 			vtk_output_GCLgrid(dynamic_cast<GCLgrid&>(field),outfile);
 			cout << "Wrote "<<npoly<<" polygons to output file"<<endl;
+			if(apply_agc)cerr <<"WARNING: apply_agc was set true\n"
+					<<"This is ignored for grids and 2d fields"<<endl;
 		}	
 		else
 		{

@@ -16,4 +16,5 @@ save_as_vector_field false
 # Which component of vector will be saved as scalar field file
 #
 vector_component 0
-remove_mean_x3_slices true
+remove_mean_x3_slices false
+apply_agc false
