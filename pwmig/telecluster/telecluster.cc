@@ -101,8 +101,10 @@ RadialGrid::RadialGrid(double azmin, double azmax, int nazin,
 	double daz=(azmax-azmin)/static_cast<double>(nazbins);
 	double ddel=(delmax-delmin)/static_cast<double>(ndelbins);
 	int i;
-	for(i=0;i<naz;++i) delta.push_back(azmin+daz*static_cast<double>(i));
-	for(i=0;i<ndelta;++i) delta.push_back(delmin+ddel*static_cast<double>(i));
+	for(i=0;i<naz;++i) 
+	  azimuth.push_back(rad(azmin+daz*static_cast<double>(i)));
+	for(i=0;i<ndelta;++i) 
+	  delta.push_back(rad(delmin+ddel*static_cast<double>(i)));
 }
 double RadialGrid::lat(int ir, int id)
 {
@@ -120,15 +122,21 @@ double RadialGrid::lon(int ir, int id)
 }
 Geographic_point RadialGrid::grid_point(int ir, int id)
 {
-	if( (ir<0) || (ir>=naz) || (id<0) || (id>=ndelta) )
+	if( (ir<0) || (ir>=nazbins) || (id<0) || (id>=ndelbins) )
 	{
 		stringstream ss;
 		ss << "RadialGrid:  requested index (az,del)=("
-			<<ir<<", "<<id<<") out of range";
+			<<ir<<", "<<id<<") out of range"<<endl
+			<<"Allowed: distance=(0,"<<nazbins
+			<<") azimuth=(0,"<<ndelbins<<")"<<endl;
 		throw SeisppError(ss.str());
 	}
 	double plat,plon,pr;
-	latlon(lat0,lon0,azimuth[ir],delta[id],&plat,&plon);
+	double delcenter,azcenter;
+	delcenter=(delta[id]+delta[id+1])/2.0;
+	azcenter=(azimuth[ir]+azimuth[ir+1])/2.0;
+	latlon(lat0,lon0,delta[id],azimuth[ir],&plat,&plon);
+	latlon(lat0,lon0,delcenter,azcenter,&plat,&plon);
 	pr=r0_ellipse(plon);
 	Geographic_point result;
 	result.lat=plat;
@@ -222,6 +230,7 @@ void save_hypocentroid_data(EventCatalog& events, DatascopeHandle& dbh,
 	az=atan2(deltaE,deltaN);
 	double hclat,hclon;
 	latlon(lat0,lon0,del,az,&hclat,&hclon);
+	dbh.append();
 	dbh.put("gridname",gridname);
 	dbh.put("gridid",gridid);
 	dbh.put("hclat",deg(hclat));
@@ -237,6 +246,7 @@ bool SEISPP::SEISPP_verbose(false);
 int main(int argc, char **argv)
 {
 	string pfname("telecluster");
+	if(argc<2) usage();
 	string dbname(argv[1]);
 	int i;
 	for(i=2;i<argc;++i)
@@ -267,7 +277,7 @@ int main(int argc, char **argv)
 		double origin_lon=control.get_double("origin_longitude");
 		RadialGrid *grid;
 		bool use_regular_grid=control.get_bool("use_regular_grid");
-		string gridame=control.get_string("gridname");
+		string gridname=control.get_string("gridname");
 		if(use_regular_grid)
 		{
 			double azmin=control.get_double("grid_minimum_azimuth");
@@ -291,8 +301,13 @@ int main(int argc, char **argv)
 		dbhcluster.lookup("cluster");
 		DatascopeHandle dbhypoc(dbh);
 		dbhypoc.lookup("hypocentroid");
-		EventCatalog catalog(dbh,ttmethod,ttmodel);
-		string gridname=control.get_string("gridname");
+		/* Hand code this one required aux attribute */
+		Metadata_typedef mdevid={string("evid"),MDint};
+		MetadataList mdl;
+		mdl.push_back(mdevid);
+		AttributeMap am("css3.0");
+		EventCatalog catalog(dynamic_cast<DatabaseHandle&>(dbh),
+			mdl,am,ttmethod,ttmodel);
 		int gridid;
 		double latp,lonp;
 		/* Main loop  over azimuth and delta segments */
@@ -304,6 +319,13 @@ int main(int argc, char **argv)
 			if(evsubset->size() > 0)
 			{
 				Geographic_point p=grid->grid_point(ia,id);
+				if(SEISPP_verbose) 
+				  cout <<"Grid point at lat="
+					<< deg(p.lat)
+					<< " lon="
+					<< deg(p.lon) 
+					<< " has " << evsubset->size()
+					<< " events"<<endl;
 				gridid=save_cluster_data(*evsubset,dbhcluster,gridname);
 				save_hypocentroid_data(*evsubset,dbhypoc,
 					p.lat,p.lon,gridname,gridid);
