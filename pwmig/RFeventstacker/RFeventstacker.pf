@@ -1,0 +1,31 @@
+stack_starttime -5.0
+stack_endtime 60.0
+ttmodel iasp91
+ttmethod tttaup
+first_fake_origin_time 2020001:00:00:00.0
+fake_origin_time_offset 3600.0
+phase_for_alignment P
+# chan in arrival will get this label or all posted (fake) arrivals
+arrival_chan Z
+# In this program all data are written to a single file directory set by output_dir
+output_dir stackdata
+output_dfile stackdata.w
+# The user must never change these 
+Station_mdlist &Tbl{
+sta
+site.lat
+site.lon
+site.elev
+arrival.time
+}
+Ensemble_mdlist &Tbl{
+sta
+gridid
+hclat
+hclon
+hcdepth
+}
+wfprocess_mdlist &Tbl{
+}
+wfdisc_mdlist &Tbl{
+}
