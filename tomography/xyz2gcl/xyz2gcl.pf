@@ -1,0 +1,9 @@
+nx 20
+ny 23
+nz 14
+lat0 62.5
+lon0 -142
+z0 0.0
+azimuth_y 10.0
+field_directory GCLdata
+grid_directory GCLgrids
