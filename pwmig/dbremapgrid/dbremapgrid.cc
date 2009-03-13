@@ -1,3 +1,4 @@
+#include "seispp.h"
 #include "dbpp.h"
 #include "Metadata.h"
 #include "gclgrid.h"
@@ -9,6 +10,7 @@ void usage()
 	cerr << "dbremapgrid db [-g gridname -f fieldname -p pattern -og outgrid -vector -2D]" << endl;
 	exit(-1);
 }
+bool SEISPP::SEISPP_verbose(false);
 int main(int argc, char **argv)
 {
 	int i;
