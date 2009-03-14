@@ -489,7 +489,8 @@ void set_hang_vang(Metadata& mx,double ema,double seaz)
     double vang,hang,az;
     az=seaz+M_PI;
     if(az>2.0*M_PI) az -= 2.0*M_PI;
-    /* Need to convert all these angles to degrees for external storage*/
+    /* Need to convert all these angles to degrees.  Needed because metatata
+	angles are always degrees by default */
     az=deg(az);
     ema=deg(ema);
     seaz=deg(seaz);
@@ -502,14 +503,19 @@ void set_hang_vang(Metadata& mx,double ema,double seaz)
     }
     else if(comp=="Q")
     {
-        vang=90.0-ema;
-        hang=seaz+90.0;
+        vang=90.0+ema;
+	//Previous version had this in error
+        //vang=90.0-ema;
+        //hang=seaz+90.0;
+        hang=az;
     }
     else if(comp=="T")
     {
         vang=90.0;
-        hang=az+90.0;
-        if(hang>360.0) hang -= 360.0;
+	//Previous version had this in error
+        //hang=az+90.0;
+	hang=az-90.0;
+	if(hang<-180.0) hang +=360.0;
     }
     else if(comp=="Z")
     {
@@ -533,6 +539,9 @@ void set_hang_vang(Metadata& mx,double ema,double seaz)
     }
     mx.put("hang",hang);
     mx.put("vang",vang);
+//DEBUG
+//cout << "chan="<<comp<<" has hang,vang="<<hang<<" "<<vang<<endl;
+
 }
 
 void set_receiver_coordinates(Metadata& md, SeismicArray& receivers)
