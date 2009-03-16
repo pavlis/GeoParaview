@@ -1032,26 +1032,42 @@ void apply_calib(TimeSeries& d)
 		cerr << "Warning:  calib not initialized.  apply_calib does nothing"<<endl;
 	}
 }
-void save_arrivals(Metadata& d,DatascopeHandle& dbh, string Pcomp, string Scomp)
+void save_arrivals(Metadata& d,DatascopeHandle& dbh, 
+	DatascopeHandle& dbhassoc, Hypocenter& h,string Pcomp, string Scomp)
 {
 	string sta;
-	int arid;
+	double stalat,stalon;
+	double seaz,esaz,delta;
 	double time;
 	int jdate;
 	string iphase;
+	int orid;
+	long int arid;
 	int ierr;
 	try {
 		sta=d.get_string("sta");
+		stalat=d.get_double("sta_lat");
+		stalon=d.get_double("sta_lon");
+		delta=h.distance(stalat,stalon);
+		seaz=h.seaz(stalat,stalon);
+		esaz=h.esaz(stalat,stalon);
+		delta=deg(delta);
+		seaz=deg(seaz);
+		esaz=deg(esaz);
+		orid=d.get_int("orid");
 	} catch (MetadataGetError mderr)
 	{
-		throw SeisppError(string("save_arrivals:  sta is not defined for data passed\n")
+		mderr.log_error();
+		throw SeisppError(string("save_arrivals:  required metadata missing ")
 			+"Cannot save arrivals");
 	}
 	try {
+		arid=dbnextid(dbh.db,"arid");
 		time=d.get_double("Ptime");
 		jdate=yearday(time);
 		iphase="P";
 		ierr=dbaddv(dbh.db,0,"sta",sta.c_str(),
+			"arid",arid,
 			"time",time,
 			"jdate",jdate,
 			"chan",Pcomp.c_str(),
@@ -1060,8 +1076,19 @@ void save_arrivals(Metadata& d,DatascopeHandle& dbh, string Pcomp, string Scomp)
 			<< "dbaddv failed writing P arrival record for station="
 
 			<< sta<<endl;
+		ierr=dbaddv(dbhassoc.db,0,"arid",arid,
+			"orid",orid,
+			"sta",sta.c_str(),
+			"phase",iphase.c_str(),
+			"delta",delta,
+			"seaz",seaz,
+			"esaz",esaz,0);
+		if(ierr==dbINVALID) cerr << "save_arrivals(WARNING):   "
+			<< "dbaddv failed writing P assoc record for station="
+			<< sta<<endl;
 	} catch(...){};  //Intentionally do nothing here.  Ptime not always defined
 	try {
+		arid=dbnextid(dbh.db,"arid");
 		time=d.get_double("Stime");
 		jdate=yearday(time);
 		iphase="S";
@@ -1073,6 +1100,16 @@ void save_arrivals(Metadata& d,DatascopeHandle& dbh, string Pcomp, string Scomp)
 		if(ierr==dbINVALID) cerr << "save_arrivals(WARNING):   "
 			<< "dbaddv failed writing S arrival record for station="
 
+			<< sta<<endl;
+		ierr=dbaddv(dbhassoc.db,0,"arid",arid,
+			"orid",orid,
+			"sta",sta.c_str(),
+			"phase",iphase.c_str(),
+			"delta",delta,
+			"seaz",seaz,
+			"esaz",esaz,0);
+		if(ierr==dbINVALID) cerr << "save_arrivals(WARNING):   "
+			<< "dbaddv failed writing P assoc record for station="
 			<< sta<<endl;
 	} catch(...){};  //Intentionally do nothing here.  Ptime not always defined
 		
@@ -1171,6 +1208,8 @@ int main(int argc, char **argv)
         dbhorient.lookup("orient");
 	DatascopeHandle dbharr(dbh);
 	dbharr.lookup("arrival");
+	DatascopeHandle dbhassoc(dbh);
+	dbharr.lookup("assoc");
 
         /* indent tear here.  Eventually need to fix this with bcpp*/
         char *schema=pfget_string(pf,"schema");
@@ -1446,7 +1485,7 @@ int main(int argc, char **argv)
                                 serr.log_error();
                             }
 			    save_arrivals(dynamic_cast<Metadata&>(components[0]),
-				dbharr,Pcomp,Scomp);
+				dbharr,dbhassoc,h,Pcomp,Scomp);
 			    if(normalize)
 			    {
 				int icmp;
@@ -1519,7 +1558,7 @@ int main(int argc, char **argv)
                         foff+=4*nsamp;
                         save_scalar_data(mx,dbh,dbhwfp,dbhevl,
                             dbhscl,dbhorient,mdlwd,mdlwp,am);
-			save_arrivals(mx,dbharr,Pcomp,Scomp);
+			save_arrivals(mx,dbharr,dbhassoc,h,Pcomp,Scomp);
                     }
                 } catch(SeisppError serr)
                 {
