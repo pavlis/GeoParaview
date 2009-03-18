@@ -1046,8 +1046,8 @@ void save_arrivals(Metadata& d,DatascopeHandle& dbh,
 	int ierr;
 	try {
 		sta=d.get_string("sta");
-		stalat=d.get_double("sta_lat");
-		stalon=d.get_double("sta_lon");
+		stalat=d.get_double(rlatkey);
+		stalon=d.get_double(rlonkey);
 		delta=h.distance(stalat,stalon);
 		seaz=h.seaz(stalat,stalon);
 		esaz=h.esaz(stalat,stalon);
@@ -1493,6 +1493,8 @@ int main(int argc, char **argv)
 					apply_calib(components[icmp]);
 			    }
                             ThreeComponentSeismogram d3c(components);
+			    // Useful to force this for efficiency
+			    d3c.components_are_orthogonal=true;
 			    /* This gets a different name, but is placed in same dir */
 			    d3c.put("dfile",threecdfile);
 			    save_vector_data(d3c,dbhwfp,dbhevl,dbhscl,mdlwp,am);
@@ -1506,6 +1508,11 @@ int main(int argc, char **argv)
 				d3cr->put("timetype","r");
 				save_vector_data(*d3cr,dbhwfp,dbhevl,dbhscl,mdlwp,am);
 			    }
+//DEBUG
+d3c.rotate_to_standard();
+vector<double> ztmp;
+for(int izz=0;izz<d3c.ns;++izz) ztmp.push_back(d3c.u(2,izz));
+ztmp.clear();
                         } catch (SeisppError serr)
                         {
                             cerr << "Error creating ThreeComponentSeismogram object."<<endl;
