@@ -3,7 +3,7 @@ stack_endtime 60.0
 ttmodel iasp91
 ttmethod tttaup
 first_fake_origin_time 2020001:00:00:00.0
-fake_origin_time_offset 3600.0
+fake_origin_time_offsets 3600.0
 phase_for_alignment P
 # chan in arrival will get this label or all posted (fake) arrivals
 arrival_chan Z
@@ -12,20 +12,46 @@ output_dir stackdata
 output_dfile stackdata.w
 # The user must never change these 
 Station_mdlist &Tbl{
-sta
-site.lat
-site.lon
-site.elev
-arrival.time
+sta string
+site.lat real
+site.lon real
+site.elev real
+arrival.time real
+nsamp int
+samprate real
+time real
+endtime real
+timetype string
+datatype string
+dfile string
+dir string
+foff int
 }
 Ensemble_mdlist &Tbl{
-sta
-gridid
-hclat
-hclon
-hcdepth
+sta string
+gridid int
+hclat real
+hclon real
+hcdepth real
 }
 wfprocess_mdlist &Tbl{
+pwfid
+time
+endtime
+dir
+dfile
+foff
+datatype
+samprate
+nsamp
+wfprocess.algorithm
 }
+# time, endtime, nsamp, samprate, and datatype are intentionally not here
+# they are automatically written by dbsave procedure 
 wfdisc_mdlist &Tbl{
+sta
+chan
+dir
+dfile
+foff
 }

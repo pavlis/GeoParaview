@@ -80,15 +80,29 @@ DatascopeHandle BuildWaveformView(DatascopeHandle& dbhin)
 		dbh.subset("orid==prefor");
 		dbh.natural_join("assoc");
 		dbh.natural_join("arrival");
+		if(SEISPP_verbose) cout << "hypocentroid->cluster->catalogdata "
+			<< "view size="<<dbh.number_tuples()<<endl;
 		DatascopeHandle ljhandle(dbh);
 		ljhandle.lookup("wfprocess");
 		ljhandle.natural_join("sclink");
 		ljhandle.natural_join("evlink");
+		if(SEISPP_verbose) cout << "waveform view size="
+					<< ljhandle.number_tuples()<<endl;
 		list<string> jk;
 		jk.push_back("evid");
 		jk.push_back("sta");
 		dbh.join(ljhandle,jk,jk);
-		dbh.natural_join("site");
+//DEBUG
+cout << "presite join size="<<dbh.number_tuples()<<endl;
+		list<string> sitejoinkeys;
+		sitejoinkeys.push_back("sta");
+		sitejoinkeys.push_back("ondate::offdate");
+		list<string> viewjkeys;
+		viewjkeys.push_back("sta");
+		viewjkeys.push_back("wfprocess.time");
+		dbh.join("site",viewjkeys,sitejoinkeys);
+		if(SEISPP_verbose) cout << "Full working waveform view size="
+					<< dbh.number_tuples()<<endl;
 		list<string> sortkeys;
 		sortkeys.push_back("gridid");
 		sortkeys.push_back("sta");
@@ -98,6 +112,9 @@ DatascopeHandle BuildWaveformView(DatascopeHandle& dbhin)
 		group_keys.push_back("gridid");
 		group_keys.push_back("sta");
 		dbh.group(group_keys);
+		if(SEISPP_verbose) cout << "Number of waveform ensembles "
+					<< "(Number of stacks to compute) = "
+					<< dbh.number_tuples()<<endl;
 		dbh.rewind();
 		return(dbh);
 	} catch (...) {throw;};
@@ -117,6 +134,18 @@ void exit_if_exists(DatascopeHandle& dbh,char *table)
 		<< "Change output name or remove old tables"<<endl;
 	    exit(-1);
 	}
+}
+/* necessary for current 3c seismogram constructor.  This is very 
+crude and assuems components passed in d are cardinal components 
+in e,n,z order */
+void load_hang_vang(vector<TimeSeries>& d)
+{
+	d[0].put("hang",90.0);
+	d[0].put("vang",90.0);
+	d[1].put("hang",0.0);
+	d[1].put("vang",90.0);
+	d[2].put("hang",0.0);
+	d[2].put("vang",0.0);
 }
 /* These two procedures are special for this program.  They write a minimal
 amount of information ot arrival and assoc. */
@@ -238,7 +267,7 @@ int main(int argc, char **argv)
 		dbsclink.lookup("sclink");
 		exit_if_exists(dbsclink,"sclink");
 		DatascopeHandle dbevlink(dbho);
-		dbsclink.lookup("evlink");
+		dbevlink.lookup("evlink");
 		exit_if_exists(dbevlink,"evlink");
 		DatascopeHandle dbwfprocess(dbho);
 		dbwfprocess.lookup("wfprocess");
@@ -276,7 +305,7 @@ int main(int argc, char **argv)
 		int record;
 		int gridid,lastgridid;
 		Hypocenter hcen;
-		for(record=0,evid=1,orid=1;record<nrec;++record,++dbh)
+		for(record=0,evid=1,orid=1;record<nrec;++record,++dbhwf)
 		{
 			pwdataraw=new ThreeComponentEnsemble(dynamic_cast<DatabaseHandle&>(dbhwf),
 				mdlin,mdens,am);
@@ -292,37 +321,48 @@ int main(int argc, char **argv)
 				dbevent.append();
 				dbevent.put("evid",evid);
 				dbevent.put("prefor",orid);
+				dborigin.append();
 				dborigin.put("lat",deg(hcen.lat));
 				dborigin.put("lon",deg(hcen.lon));
 				dborigin.put("depth",hcen.z);
 				dborigin.put("time",hcen.time);
+				dborigin.put("orid",orid);
+				dborigin.put("evid",evid);
 				/* Now we load the next hypo data */
 				otime+=otoffset;
 				hcen=MakeHypocentroid(*pwdataraw,otime,
 					ttmethod,ttmodel);
 				++evid;
 				++orid;
+				lastgridid=gridid;
 			}
 			string sta=pwdataraw->get_string("sta");
 			auto_ptr<ThreeComponentEnsemble> 
 			  pwdata = ArrivalTimeReference(*pwdataraw,atkey,twin);
 			delete pwdataraw;
+			/* This appears to be necessary */
+			for(int im=0;im<pwdata->member.size();++im)
+				pwdata->member[im].put(moveout_keyword,0.0);
 			x1=ExtractComponent(*pwdata,0);
 			x2=ExtractComponent(*pwdata,1);
 			x3=ExtractComponent(*pwdata,2);
 			Stack s1(*x1,twin);
 			Stack s2(*x2,twin);
 			Stack s3(*x3,twin);
+			if(SEISPP_verbose)
+				cout << "station="<<sta<<" gridid="<<gridid
+					<< " stack fold="<<s1.fold<<endl;
 			stack3c.clear();
 			stack3c.push_back(s1.stack);
 			stack3c.push_back(s2.stack);
 			stack3c.push_back(s3.stack);
+			load_hang_vang(stack3c);
 			ThreeComponentSeismogram result(stack3c);
 			double stalat=result.get_double("site.lat");
 			double stalon=result.get_double("site.lon");
 			double staelev=result.get_double("site.elev");
-			double ttime=hcen.phasetime(stalat,stalon,staelev,
-							phase);
+			double ttime=hcen.phasetime(stalat,rad(stalon),
+				rad(staelev),phase);
 			result.put("dir",dir);
 			result.put("dfile",dfile);
 			/* result is in relative time.  This makes 
@@ -331,6 +371,7 @@ int main(int argc, char **argv)
 			double atime=hcen.time+ttime;
 			result.rtoa(atime);
 			result.put("arrival.time",atime);
+			result.put("wfprocess.algorithm","RFeventstacker");
 			/* Save data to both wfdisc and wfprocess */
 			int irec;
 			irec=dbsave(result,dbwfdisc.db,string("wfdisc"),
@@ -340,9 +381,11 @@ int main(int argc, char **argv)
 
 			dbwfprocess.db.record=irec;
 			int pwfid=dbwfprocess.get_int("pwfid");
+			dbevlink.append();
 			dbevlink.put("evid",evid);
 			dbevlink.put("pwfid",pwfid);
 			sta=result.get_string("sta");
+			dbsclink.append();
 			dbsclink.put("sta",sta);
 			dbsclink.put("chan","3C");
 			dbsclink.put("pwfid",pwfid);
