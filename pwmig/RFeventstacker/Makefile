@@ -1,4 +1,5 @@
 BIN=RFeventstacker
+PF=RFeventstacker.pf
 
 cflags=-g
 # Use the following for Solaris

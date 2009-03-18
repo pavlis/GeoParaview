@@ -69,7 +69,7 @@ Hypocenter MakeHypocentroid(ThreeComponentEnsemble& d,double otime,
     } catch (...){throw;};
 }
 
-DatascopeHandle BuildWaveformView(DatascopeHandle& dbhin)
+DatascopeHandle BuildWaveformView(DatascopeHandle& dbhin,string phase)
 {
 	try {
 		DatascopeHandle dbh(dbhin);
@@ -80,6 +80,9 @@ DatascopeHandle BuildWaveformView(DatascopeHandle& dbhin)
 		dbh.subset("orid==prefor");
 		dbh.natural_join("assoc");
 		dbh.natural_join("arrival");
+		string phase_subset;
+		phase_subset="phase=~/"+phase+"/";
+		dbh.subset(phase_subset);
 		if(SEISPP_verbose) cout << "hypocentroid->cluster->catalogdata "
 			<< "view size="<<dbh.number_tuples()<<endl;
 		DatascopeHandle ljhandle(dbh);
@@ -102,6 +105,9 @@ cout << "presite join size="<<dbh.number_tuples()<<endl;
 		viewjkeys.push_back("wfprocess.time");
 		dbh.join("site",viewjkeys,sitejoinkeys);
 		if(SEISPP_verbose) cout << "Full working waveform view size="
+					<< dbh.number_tuples()<<endl;
+		dbh.subset("datatype=~/3c/ || datatype=~/c3/");
+		if(SEISPP_verbose) cout << "View size of 3c data="
 					<< dbh.number_tuples()<<endl;
 		list<string> sortkeys;
 		sortkeys.push_back("gridid");
@@ -199,7 +205,7 @@ void usage()
 		<< "dbout must be empty"<<endl;;
 	exit(-1);
 }
-bool SEISPP::SEISPP_verbose(true);
+bool SEISPP::SEISPP_verbose(false);
 int main(int argc, char **argv)
 {
 	ios::sync_with_stdio();
@@ -210,7 +216,9 @@ int main(int argc, char **argv)
         for(int i=3;i<argc;++i)
         {
                 if(!strcmp(argv[i],"-V"))
-                        usage();
+		{
+                        SEISPP_verbose=true;
+		}
                 else if(!strcmp(argv[i],"-pf"))
                 {
                         ++i;
@@ -246,7 +254,7 @@ int main(int argc, char **argv)
 		string dir=control.get_string("output_dir");
 		string dfile=control.get_string("output_dfile");
 		DatascopeHandle dbh(string(dbinname),true);
-		DatascopeHandle dbhwf=BuildWaveformView(dbh);
+		DatascopeHandle dbhwf=BuildWaveformView(dbh,phase);
 		dbhwf.rewind();
 		DatascopeHandle dbho(string(dboutname),false);
 		DatascopeHandle dborigin(dbho);
