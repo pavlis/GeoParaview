@@ -301,6 +301,10 @@ int main(int argc, char **argv)
 		dbhcluster.lookup("cluster");
 		DatascopeHandle dbhypoc(dbh);
 		dbhypoc.lookup("hypocentroid");
+		/* This view is needed for EventCatalog constructor */
+		dbh.lookup("event");
+		dbh.natural_join("origin");
+		dbh.subset("orid==prefor");
 		/* Hand code this one required aux attribute */
 		Metadata_typedef mdevid={string("evid"),MDint};
 		MetadataList mdl;
