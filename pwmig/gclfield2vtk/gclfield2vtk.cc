@@ -62,7 +62,7 @@ void agc_scalar_field(GCLscalarfield3d& g, int iwagc)
 
 void usage()
 {
-	cerr << "gclfield2vtk db outfile [-g gridname -f fieldname -r remapgridname -pf pffile] -V" << endl;
+	cerr << "gclfield2vtk db outfile [-g gridname -f fieldname -r remapgridname -odbf outfieldname -pf pffile] -V" << endl;
 	exit(-1);
 }
 bool SEISPP::SEISPP_verbose(true);
@@ -81,6 +81,8 @@ int main(int argc, char **argv)
 	string gridname(nodef);
 	string fieldname(nodef);
 	string remapgridname(nodef);
+	bool saveagcfield(false);
+	string outfieldname;
 	for(i=3;i<argc;++i)
 	{
 		argstr=string(argv[i]);
@@ -115,6 +117,13 @@ int main(int argc, char **argv)
 			++i;
 			if(i>=argc)usage();
 			remapgridname=string(argv[i]);
+		}
+		else if(argstr=="-odbf")
+		{
+			++i;
+			if(i>=argc)usage();
+			saveagcfield=true;
+			outfieldname=string(argv[i]);
 		}
 		else
 		{
@@ -179,7 +188,17 @@ int main(int argc, char **argv)
 		{
 			iwagc=control.get_int("agc_operator_length");
 		}
-		if(fieldtype=="scalar3d")
+		if(saveagcfield  && !apply_agc)
+		{
+			cerr << "Illegal option combination"<<endl
+			  << "-odbf argument can only be used if apply_agc"
+			  << " pf parameter is set true"<<endl;
+			exit(-1);
+		}
+		string fielddir;
+		if(saveagcfield)
+			fielddir=control.get_string("field_directory");
+		if(fieldtype=="scalar3d") 
 		{
 			GCLscalarfield3d field(db,gridname,fieldname);
 			if(remap)
@@ -191,6 +210,9 @@ int main(int argc, char **argv)
 			if(rmeanx3) remove_mean_x3(field);
 			if(apply_agc) agc_scalar_field(field,iwagc);
 			output_gcl3d_to_vtksg(field,outfile,false,true);
+			if(saveagcfield) 
+				field.dbsave(db,string(""),fielddir,
+				  outfieldname,outfieldname);
 		}
 		else if(fieldtype=="vector3d")
 		{
@@ -222,6 +244,20 @@ int main(int argc, char **argv)
 				ss << outfile <<"_"<<i<<".vtk";
 				output_gcl3d_to_vtksg(*sfptr,
 					ss.str(),false,false);
+				/*This is not ideal, but will do this now
+				for expedience.  This creates a series of 
+				scalar fields when saveagcfield is enabled
+				that have a naming convention similar to
+				the vtk files.  These could easily overflow
+				but I don't test them here. beware */
+				if(saveagcfield) 
+				{
+					stringstream ssof;
+					ssof << outfieldname<<"_"<<i;
+					string ofld=ssof.str();
+					sfptr->dbsave(db,string(""),
+					  fielddir,ofld,ofld);
+				}
 				delete sfptr;
 			}
 		}
