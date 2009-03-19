@@ -369,8 +369,8 @@ int main(int argc, char **argv)
 			double stalat=result.get_double("site.lat");
 			double stalon=result.get_double("site.lon");
 			double staelev=result.get_double("site.elev");
-			double ttime=hcen.phasetime(stalat,rad(stalon),
-				rad(staelev),phase);
+			double ttime=hcen.phasetime(rad(stalat),rad(stalon),
+				staelev,phase);
 			result.put("dir",dir);
 			result.put("dfile",dfile);
 			/* result is in relative time.  This makes 
