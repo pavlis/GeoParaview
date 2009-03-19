@@ -13,7 +13,7 @@ class vtkStructuredGrid; 	// forward reference
 // @param swap_xz Swap X/Z values to fit a "z out" coordinate arrangement. (default = true)
 //
 // @}
-void	output_gcl3d_to_vtksg(GCLscalarfield3d &g, string filename, bool use_xml = false,
+void	output_gcl3d_to_vtksg(GCLscalarfield3d &g, const string filename, bool use_xml = false,
 							  bool swap_xz = true);
 
 // @{
