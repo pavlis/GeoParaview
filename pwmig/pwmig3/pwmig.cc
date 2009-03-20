@@ -31,7 +31,7 @@ MatlabProcessor mp(stdout);
 #endif
 void usage()
 {
-        cbanner((char *)"$Revision: 1.11 $ $Date: 2009/01/06 11:50:24 $",
+        cbanner((char *)"$Revision: 1.12 $ $Date: 2009/03/20 14:55:55 $",
                 (char *)"db  listfile [-V -v -pf pfname]",
                 (char *)"Gary Pavlis",
                 (char *)"Indiana University",
@@ -871,6 +871,27 @@ vector<double> running_average(vector<double>& x, int ns)
 	}
 	return(result);
 }
+/* Overloaded version of same procedure as above for a matrix.  Smoothing
+here is done only along rows.  Used here for coherence grid to handle 
+three-component data */
+dmatrix running_average(dmatrix x, int ns)
+{
+	int nr=x.rows();
+	int nc=x.columns();
+	int i,j;
+	vector<double> row;
+	row.reserve(nc);
+	dmatrix result(nr,nc);
+	for(i=0;i<nr;++i)
+	{
+		for(j=0;j<nc;++j) row.push_back(x(i,j));
+		row=running_average(row,ns);
+		for(j=0;j<nc;++j) result(i,j)=row[j];
+		row.clear();
+	}
+	return(result);
+}
+		
 // builds dfile names for migration output
 string MakeDfileName(string base, int evid)
 {
@@ -980,8 +1001,128 @@ SlownessVector slowness_average(ThreeComponentEnsemble *d)
 		return(SlownessVector(ux,uy));
 	}
 }
+/* NOTE:  this is a copy of procedure originally in gridstacker.  If a bug
+is found here make sure the other if fixed too. It probably really should
+be moved to libgclgrid*/
+
+/*! \brief Decimate a GCLgrid3d.
+
+We sometimes want to decimate a grid. This procedure does this for
+a 3D grid with variable decimation for each generalized coordinate 
+axis.
+
+\param g parent grid that is to be decimated
+\param dec1 decimation factor for x1
+\param dec2 decimation factor for x2
+\param dec3 decimamtion factor for x3
+
+\return pointer to decimated grid object 
+*/
+GCLgrid3d *decimate(GCLgrid3d& g,int dec1, int dec2, int dec3)
+{
+	int n1,n2,n3;
+	n1=(g.n1)/dec1;
+	n2=(g.n2)/dec2;
+	n3=(g.n3)/dec3;
+	if( (n1<2) || (n2<2) || (n3<2) )
+	  throw SeisppError(string("grid decimator:  decimation factor larger than grid dimension"));
+	/* Call an appropriate constructor here.  May need to reset
+	some attributes of the grid object */
+	GCLgrid3d *result=new GCLgrid3d(n1,n2,n3);;
+
+	int i,j,k,ii,jj,kk;
+	for(i=0,ii=0;i<g.n1 && ii<n1;i+=dec1,++ii)
+	{
+		for(j=0,jj=0;j<g.n2 && jj<n2;j+=dec2,++jj)
+		{
+			for(k=0,kk=0;k<g.n3 && kk<n3; k+=dec3,++kk)
+			{
+				result->x1[ii][jj][kk]=g.x1[i][j][k];
+				result->x2[ii][jj][kk]=g.x2[i][j][k];
+				result->x3[ii][jj][kk]=g.x3[i][j][k];
+			}
+		}
+	}
+	/* We clone other attribures of the parent grid.*/
+	result->lat0=g.lat0;
+	result->lon0=g.lon0;
+	result->r0=g.r0;
+	result->azimuth_y=g.azimuth_y;
+	result->x1low=g.x1low;
+	result->x1high=g.x1high;
+	result->x2low=g.x2low;
+	result->x2high=g.x2high;
+	result->x3low=g.x3low;
+	result->x3high=g.x3high;
+	result->dx1_nom=g.dx1_nom*(static_cast<double>(dec1));
+	result->dx2_nom=g.dx2_nom*(static_cast<double>(dec2));
+	result->dx3_nom=g.dx3_nom*(static_cast<double>(dec3));
+	result->i0=g.i0/dec1;
+	result->j0=g.j0/dec2;
+	result->k0=g.k0/dec3;
+	for(i=0;i<3;++i)
+		for(j=0;j<3;++j) 
+		    result->gtoc_rmatrix[i][j]=g.gtoc_rmatrix[i][j];
+	for(i=0;i<3;++i)result->translation_vector[i]
+			 = g.translation_vector[i];
+
+	return(result);
+}
+
+/* Trivial function to initialize coherence image to constant negative values */
+void initialize_cohimage(GCLvectorfield3d& f)
+{
+	const double cohundefined(-1.0);
+	for(int i=0;i<f.n1;++i)
+	  for(int j=0;j<f.n2;++j)
+	    for(int k=0;k<f.n3;++k)
+	      for(int l=0;l<f.nv;++l) 
+	      {
+		f.val[i][j][k][l]=cohundefined;
+	      }
+}
 
 
+/* This procedure has similarities to the += operator but instead of adding
+values it updates cells with max values.  This allows accumulation of a 3d grid
+with maximum coherence of stacks moved to proper position in space. */
+void accumulate_cohdata(GCLvectorfield3d& pwcomp, GCLvectorfield3d& cohimage)
+{
+	cohimage.reset_index(); 
+	pwcomp.reset_index();
+	int i,j,k,l;
+	int ierr;
+	double *valnew;
+	/* Here we assume these grids are congruent so we don't need to have
+	to deal with any geographic points */
+	Cartesian_point cx;
+	for(i=0;i<cohimage.n1;++i)
+	  for(j=0;j<cohimage.n2;++j)
+	    for(k=0;k<cohimage.n3;++k)
+	    {
+		cx.x1=cohimage.x1[i][j][k];
+		cx.x2=cohimage.x2[i][j][k];
+		cx.x3=cohimage.x3[i][j][k];
+		ierr=pwcomp.lookup(cx.x1,cx.x2,cx.x3);
+		// In this case silently do nothing unless lookup succeeded.
+		if(ierr==0)
+		{
+			valnew=pwcomp.interpolate(cx.x1,cx.x2,cx.x3);
+			for(l=0;l<cohimage.nv;++l)
+			{
+			    /* We bypass negative interpolated values because they can
+			    * only be interpolation artifacts */
+			    if(valnew[l]>0.0) 
+			    {
+				if(valnew[l]>cohimage.val[i][j][k][l])
+					cohimage.val[i][j][k][l]=valnew[l];
+			    }
+			}
+			delete [] valnew;
+		}
+	    }
+	
+}
 bool SEISPP::SEISPP_verbose(false);
 
 int main(int argc, char **argv)
@@ -1076,7 +1217,36 @@ int main(int argc, char **argv)
 				<< fielddir << endl;
 			exit(-1);
 		}
+		/* This is used to make sure name used will not overflow attribute field
+		in db tables.  15 is the current size of the string field in the db.
+		We compute it based on methods used to create unique names here.
+		The 10 comes from size of "_data" and allowing for 5 characters in
+		"_evid".  We warn for +2, abort if dfilebase is larger than this number */
+		const int dfbase_max_size(15-10);
 		string dfilebase=control.get_string("output_filename_base");
+		int dfbsize=dfilebase.length();
+		if(dfbsize>dfbase_max_size)
+		{
+			cerr << "Warning:  output_filename_base name = "
+                                        << dfilebase<<" is too long"<<endl
+                                        << "Recommended maximum length = "
+                                        << dfbase_max_size<<endl
+                                        << "Longer strings can overflow key field in output db"
+                                        <<endl;
+			if(dfbsize>(dfbase_max_size+2))
+			{
+				cerr << "Fatal:  this name is far to long.  It must be changed"
+					<<endl;
+				exit(-1);
+			}
+			else
+			{
+				cerr << "Be warned that data for any evid with more than "
+					<< dfbase_max_size + 5 - dfbsize <<" digits "
+					<< "may generate an error and not be saved"
+					<<endl;
+			}
+		}
 		int evid;  // output file name is build from dfilebase+"_"+evid
 		bool use_depth_variable_transformation
 			=control.get_bool("use_depth_variable_transformation");
@@ -1103,14 +1273,11 @@ int main(int argc, char **argv)
 		bool ApplyElevationStatics=control.get_bool("apply_elevation_statics");
 		double static_velocity
 			=control.get_double("elevation_static_correction_velocity");
-		// new parameters for coherence weighting version.  
-		// Makes some old features now optional
-		bool use_grt_weights,use_coh_weights;
+		bool use_grt_weights;
 		use_grt_weights=control.get_bool("use_grt_weights");
-		use_coh_weights=control.get_bool("use_coherence_weights");
-		// This defaults to scalar with "3C" using component weights
-		string cohwtmode=control.get_string("coherence_weight_mode");
-		double cohwtpow=control.get_double("coherence_weight_power");
+		/* When set domega weights are dropped */
+		bool stack_only;
+		stack_only=control.get_bool("stack_only");  
 		bool save_partial_sums;
 		save_partial_sums=control.get_bool("save_partial_sums");
 		// Create a database handle for reading data objects
@@ -1191,6 +1358,20 @@ HorizontalSlicer(mp,Us3d);
 		weights are 4 */
 
 		GCLvectorfield3d migrated_image(db,stack_grid_name,"",5);
+		/* This group of parameters relate to storing coherence values
+                in a separate 4-vector field.  This was derived from an earlier
+                inappropriate approach to put coherence weighting inside this
+                program.  Decided that was a bad idea, but I note that here to
+                remind me or any future maintainers there could be relics of that
+                misguided idea.  Now we require a new grid that is assumed to be
+		heavily decimated relative to the image grid.  For this reason
+		we include a smoothing parameter that reduces errors when the 
+		result is mapped to depth and then decimated. */
+		string cohgridname=control.get_string("coherence_grid_name");
+		GCLvectorfield3d cohimage(db,cohgridname,"",4);
+		initialize_cohimage(cohimage);
+		int cohsl=control.get_int("coherence_smoother_length");
+		int cohdecfac=control.get_int("coherence_raygrid_decimation");
 // DEBUG -- used ONLY for partial sum accumulation.  delete next line otherwise
 /*
 		GCLvectorfield3d psum(migrated_image);
@@ -1218,6 +1399,12 @@ HorizontalSlicer(mp,Us3d);
 			remap_grid(dynamic_cast<GCLgrid3d&>(Us3d),
 				dynamic_cast<BasicGCLgrid&>(parent));
 		}
+		if(dynamic_cast<BasicGCLgrid&>(cohimage)
+			!= dynamic_cast<BasicGCLgrid&>(parent))
+		{
+			remap_grid(dynamic_cast<GCLgrid3d&>(cohimage),
+				dynamic_cast<BasicGCLgrid&>(parent));
+		}
 		// Let's make sure these are initialized
 		migrated_image.zero();
 		
@@ -1243,22 +1430,16 @@ HorizontalSlicer(mp,Us3d);
 			inside this conditional in a clean way.  Note the auto_ptr
 			further allows automatic deletion when changed with 
 			operator = */
-			auto_ptr<PwmigFileHandle> cohfh;
-			if(use_coh_weights)
-			{
-				if(cohwtmode==string("3C"))
-				{
-					string coh3cfname=string(fname_base)+Coh3CExtension;
-					cohfh=auto_ptr<PwmigFileHandle>
+			auto_ptr<PwmigFileHandle> cohfh,cohfh3c;
+			string coh3cfname=string(fname_base)+Coh3CExtension;
+			string cohfname=string(fname_base)+CohExtension;
+//DEBUG
+cout << "coh3cfname="<<coh3cfname<<endl
+	<< "cohfname="<<cohfname<<endl;
+			cohfh3c=auto_ptr<PwmigFileHandle>
 						(new PwmigFileHandle(coh3cfname,true,false));
-				}
-				else
-				{
-					string cohfname=string(fname_base)+CohExtension;
-					cohfh=auto_ptr<PwmigFileHandle>
-						(new PwmigFileHandle(cohfname,true,false));
-				}
-			}
+			cohfh=auto_ptr<PwmigFileHandle>
+						(new PwmigFileHandle(cohfname,true,true));
 		
 double rundtime;
 rundtime=now();
@@ -1274,9 +1455,6 @@ cout << "Main loop processing begins at time "<<strtime(rundtime)<<endl;
 			// of the incident rays.  
 			auto_ptr<GCLscalarfield3d> TPptr(ComputeIncidentWaveRaygrid(parent,
 					border_pad,Up3d,Vp1d,hypo,zmax,tmax,dt));
-			// Use when coherence weighting is on to hold vector of 
-			// coherence weights
-			double *cohwgt;
 			/* Now loop over plane wave components.  The method in 
 			the PwmigFileHandle used returns a new data ensemble for
 			one plane wave component for each call.  NULL return is
@@ -1287,13 +1465,8 @@ cout << "Main loop processing begins at time "<<strtime(rundtime)<<endl;
 			the same number of entries.  This should always happen unless
 			pwstack fails.  For now we trust this is so and don't test
 			for that condition.  May want to change this. */
-			if(use_coh_weights)
-			{
-				if(cohwtmode==string("3C"))
-					coh3cens=cohfh->load_next_3ce();
-				else
-					cohens=cohfh->load_next_tse();
-			}
+			coh3cens=cohfh3c->load_next_3ce();
+			cohens=cohfh->load_next_tse();
 #ifdef MATLABDEBUG
 /* To examine P travel time volume.  Copied from MatlabGCLgrid*/
 const string volname("F");
@@ -1392,6 +1565,10 @@ if(fabs(ustack.uy)>=0.007)
 //DEBUG
 cout << "raygrid max depth="<<raygrid.depth(0,0,0)<<endl;
 			GCLvectorfield3d pwdgrid(raygrid,5);
+			GCLgrid3d *gtmp=decimate(raygrid,1,1,cohdecfac);
+			GCLvectorfield3d pwcohgrid(*gtmp,4);
+			pwcohgrid.zero();
+			delete gtmp;
 
 
 			// loop through the ensemble associating each trace with a 
@@ -1656,47 +1833,44 @@ mp.load(work,string("di"));
 cerr << "Loaded sptime and interpolated data (work matrix)"<<endl;
 mp.process(string("plot6c(de,sptime,di);pause(1.0);"));
 #endif
-				// New feature of coherence weighting.  We have
-				// the option of either scalar or 3c weighting.
-				if(use_coh_weights)
+				dmatrix raycoh(4,coh3cens->member[is].ns);
+				int ncohcopy=coh3cens->member[i].ns;
+				/* excessively paranoid, but murphy's law */
+				if(cohens->member[is].ns != ncohcopy)
 				{
-					double wgt;
-					int nout=SPtime.size();
-					if(cohwtmode==string("3C"))
-					{
-						ThreeComponentSeismogram coh3cwt(coh3cens->member[is]);
-						dmatrix cwt(3,nout);
-						linear_vector_regular_to_irregular(
-							coh3cwt.t0,coh3cwt.dt,
-							coh3cwt.u,&(SPtime[0]),cwt);
-						int iwt,jwt;
-						for(iwt=0;iwt<3;++iwt)
-							for(jwt=0;jwt<nout;++jwt)
-							{
-								wgt=pow(cwt(iwt,jwt),cohwtpow);
-								work(iwt,jwt)*=wgt;
-							}
-					}
-					else
-					{
-						TimeSeries cohwt(cohens->member[i]);
-						double *cwt=new double[nout];
-						linear_scalar_regular_to_irregular(
-							cohwt.ns,cohwt.t0,cohwt.dt,
-							&(cohwt.s[0]),
-							nout,&(SPtime[0]),cwt);
-						int iwt,jwt;
-						for(jwt=0;jwt<work.columns();++jwt)
-
-						{
-							wgt=pow(cwt[jwt],cohwtpow);
-							for(iwt=0;iwt<3;++iwt)
-							{
-								work(iwt,jwt)*=wgt;
-							}
-						}
-						delete [] cwt;
-					}
+					cerr << "Warning:  inconsistent coherence data size"<<endl
+						<< "Three-C data size="<<ncohcopy
+						<< " while all component sum size="
+						<< cohens->member[is].ns<<endl;
+					ncohcopy=min(cohens->member[is].ns,ncohcopy);
+					cerr << "Set to minimum="<<ncohcopy<<endl;
+				}
+				/* This component coherence into first 3 rows and sum in 4 */
+				dcopy(ncohcopy,coh3cens->member[is].u.get_address(0,0),3,
+					raycoh.get_address(0,0),4);
+				dcopy(ncohcopy,coh3cens->member[is].u.get_address(1,0),3,
+					raycoh.get_address(1,0),4);
+				dcopy(ncohcopy,coh3cens->member[is].u.get_address(2,0),3,
+					raycoh.get_address(2,0),4);
+				dcopy(ncohcopy,&(cohens->member[is].s[0]),1,
+					raycoh.get_address(3,0),4);
+				int nout=SPtime.size();
+				dmatrix raycohout(4,nout);
+				/* we assume t0 and dt are consistent or scalar and vector
+				coherence data */
+				linear_vector_regular_to_irregular(cohens->member[is].t0,
+					cohens->member[is].dt, raycoh,&(SPtime[0]),raycohout);
+				/* This nontrivial effort may not be required, but best to 
+				have it available until proven to be a big issue. */
+				raycohout=running_average(raycohout,cohsl);
+				/* Now copy these results to the coherence raygrid.
+				Note carefully the reverse order going from raycohout order
+				to rayrid order and decimation by cohdecfac */
+				for(k=0,kk=pwcohgrid.n3-1;(k<nout) && (kk>=0); 
+							k+=cohdecfac,--kk)
+				{
+				    for(l=0;l<4;++l)
+					pwcohgrid.val[i][j][kk][l]=raycohout(l,k);
 				}
 
 				//
@@ -1743,10 +1917,22 @@ mp.process(string("plot3c6(work,work2)"));
 				//
 				if(rcomp_wt || !weight_functions_set)
 				{
-				  domega_ij=compute_domega_for_path(ustack,dux,duy,
+				  /* This is a gross inefficiency in stack_only but since I only expect it to be
+				  used for CCP stacking equivalent, this should not be a big deal.  Probably should
+				  do it right some day */
+				  if(stack_only)
+				  {
+				    domega_ij.clear();
+				    for(k=0;k<n3;++k) domega_ij.push_back(1.0);
+				  }
+				  else
+				  {
+				    /* This is the normal block for computing solid angles */
+				    domega_ij=compute_domega_for_path(ustack,dux,duy,
 					Vs1d, zmaxray,dz,
 					raygrid, i, j, gradTp,zP);
-				  if(use_grt_weights)
+				  }
+				  if(use_grt_weights && (!stack_only) )
 					dweight_ij=compute_weight_for_path(gradTp,gradTs);
 				  else
 					for(k=0;k<n3;++k)dweight_ij[k]=1.0;
@@ -1757,7 +1943,7 @@ mp.load(&(domega_ij[0]),domega_ij.size(),string("domega"));
 mp.load(&(dweight_ij[0]),dweight_ij.size(),string("dweight"));
 mp.process(string("plotow;figure;"));
 */
-				  if(smooth_wt)
+				  if(smooth_wt && (!stack_only))
 				  {
 					domega_ij=running_average(domega_ij,nwtsmooth);
 					// Unnecessary when not using grt weighting
@@ -1806,13 +1992,6 @@ mp.process(string("plot3c(d);pause(0.1);"));
 #endif
 			}
 			delete pwdata;
-			if(use_coh_weights)
-			{
-				if(cohwtmode==string("3C"))
-					delete coh3cens;
-				else
-					delete cohens;
-			}
 /*
 cout << "plane wave data component" << endl;
 bool debugexit;
@@ -1834,8 +2013,12 @@ delete sfptr;
 */
 			// last but not least, add this component to the stack
 			//
-			cout << "Elapsed time to compute pwdgrid="<<rundtime-now()<<endl;
+			cout << "Elapsed time to compute pwdgrid="<<now()-rundtime<<endl;
 			migrated_image += pwdgrid;
+//cout << pwcohgrid<<endl;
+			accumulate_cohdata(pwcohgrid,cohimage);
+//cout << "image grid after accumulate:"<<endl;
+//cout << cohimage;
 			if(save_partial_sums)
 			{
 				// This will write final result twice 
@@ -1846,7 +2029,7 @@ delete sfptr;
                 		migrated_image.dbsave(db,"",fielddir,
 					dfile,dfile);
 			}
-			cout << "Total time for this plane wave component="<<rundtime-now()<<endl;
+			cout << "Total time for this plane wave component="<<now()-rundtime<<endl;
 //DEBUG  save partial sums
 /*
                 dfile=MakeDfileName(dfilebase+string("_psum"),gridid+1000);
@@ -1932,6 +2115,8 @@ delete sfptr;
 		// be reused
 		//
 		migrated_image.zero();
+		dfile=MakeDfileName(dfilebase+string("_coh"),evid);
+		cohimage.dbsave(db,"",fielddir,dfile,dfile);
 #ifdef MPI_SET
 		}
 		++filecount;

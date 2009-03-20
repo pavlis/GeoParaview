@@ -20,14 +20,14 @@ recompute_weight_functions false
 weighting_function_smoother_length 10
 # New for coherence option
 use_grt_weights false
-use_coherence_weights true
-# Set to 3C to use coherence calculated for components in
-# cardinal directions.  
-coherence_weight_mode scalar
-# coherence weights are raised to this power.  Higher powers
-# make the weighting more aggresive with the dark side of approach
-# the linf norm
-coherence_weight_power 1.0
+#
+# cohence parameter.  grid name and smoother length
+# should be at least the vertical component
+# decimation of the coherence grid relative to image grid.
+#
+coherence_grid_name cohgrid
+coherenece_smoother_length 5
+coherence_raygrid_decimation 5
 #
 # elevation static parameters.  velocity should be a surface value
 # for 1(us-up) where us and up are s and p slowness
