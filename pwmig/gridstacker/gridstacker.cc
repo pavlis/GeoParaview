@@ -585,7 +585,7 @@ int main(int argc, char **argv)
 		DatascopeHandle dbh(dbname,false);
 		/* Build the list of grid definitions to form stack */
 		list<MemberGrid> mgl;
-		/* Old loop top, retain in case simpler version fails 
+		/*`
 		while(in.good())
 		{
 			string g,f;

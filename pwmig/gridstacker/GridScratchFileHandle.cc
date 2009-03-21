@@ -33,6 +33,7 @@ bool compare_equal(GCLvectorfield3d& g1, GCLvectorfield3d& g2)
 	if(g1.n2!=g2.n2) return(false);
 	if(g1.n3!=g2.n3) return(false);
 	if(g1.nv!=g2.nv) return(false);
+	return(true);
 }
 const double null_field_value(-1.0);  // inserted in solid angle field (3) when data are considered null
 
