@@ -1,6 +1,6 @@
 #include "dbpp.h"
 #include "VectorStatistics.h"
-#include "MatlabProcessor.h"
+//#include "MatlabProcessor.h"
 using namespace std;
 using namespace SEISPP;
 void usage()
@@ -85,7 +85,7 @@ int main(int argc, char **argv)
                 Need to load a metadata list and then start matlab */
                 MetadataList mdtrace=pfget_mdlist(pf,"Trace_mdlist");
                 MetadataList mdens=pfget_mdlist(pf,"Ensemble_mdlist");
-                MatlabProcessor mp(stdout);
+                //MatlabProcessor mp(stdout);
 		/* Now loop through the group view computing statistics for
 		each arrival.  The median of the group is used to set the
 		new arrival time estimate */
@@ -130,9 +130,11 @@ int main(int argc, char **argv)
 			{
 				TimeSeriesEnsemble tse(dynamic_cast<DatabaseHandle&>(dbhxcat),
 					mdens,mdtrace,am);
+/*
 	cout << "DEBUG:  number of members in this ensemble = "<<tse.member.size()<<endl;
 				mp.load(tse,string("beams"));
 				mp.process("wigb(beams);");
+*/
 				string sta=dbhxcat.get_string("sta");
 				string phase=dbhxcat.get_string("phase");
 				int evid=dbhxcat.get_int("evid");

@@ -1,7 +1,7 @@
 BIN=xcoravg
 
 #MAN1=		# man pages for commands
-ldlibs=	$(DBLIBS) -lseispp
+ldlibs=	-lseispp -ltrvltm -lgclgrid $(TRLIBS) $(DBLIBS) -lperf -lm
 
 include $(ANTELOPEMAKE)
 OBJS=xcoravg.o
