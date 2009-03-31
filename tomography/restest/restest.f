@@ -49,10 +49,22 @@ c--Now we load a model vector by column index
 			write(*,*)'illegal model index=',imod
 			write(*,*)'Number of columns = ',n
 			write(*,*)'Abort with no output'
+			stop
+		else
+			do i=1,n
+				if(jndx(i).eq.imod) then
+					model(jndx(i))=mtmp
+					goto 150
+				endif
+			enddo
+			write(*,*) 'Warning invalid model index=',imod
+			write(*,*) 'Not found in index map of cells with data'
+			write(*,*) 'Request to set to value =',mtmp,' ignored'
 		endif
 		model(imod)=mtmp
 	goto 150
   200	continue
+  	close(lunmod)
 
 c
 c--clear the right hand side vector to 0 so when we call aprod 
