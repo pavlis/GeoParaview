@@ -1,0 +1,6 @@
+projection_dip_angle 90.0
+projection_strike_azimuth 90.0
+projection_depth_increment 10.0
+number_depth_increments 10
+output_grid_name test
+output_directory GCLgrids
