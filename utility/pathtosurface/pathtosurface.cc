@@ -102,18 +102,18 @@ int main(int argc, char **argv)
 		{
 			gp0.lat=rad(pathlat[i]);
 			gp0.lon=rad(pathlon[i]);
-			gp0.r=r0_ellipse(gp.lat);
+			gp0.r=r0_ellipse(gp0.lat);
 			for(j=0;j<nz;++j)
 			{
 				gp=gp0;
 				if(dip==90.0)
 				{
-					gp.r-=dz*static_cast<double>(j-1);
+					gp.r=gp0.r-dz*static_cast<double>(j);
 				}
 				else
 				{
-					gp.r-=ddz*static_cast<double>(j-1);
-					delta=ddelta*static_cast<double>(j-1);
+					gp.r=gp0.r-ddz*static_cast<double>(j);
+					delta=ddelta*static_cast<double>(j);
 					latlon(gp.lat,gp.lon,delta,az,
 						&lattmp,&lontmp);
 					gp.lat=lattmp;
