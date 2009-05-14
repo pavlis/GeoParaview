@@ -6,6 +6,7 @@
 #include "ensemble.h"
 #include "Metadata.h"
 #include "dbpp.h"
+#include "VectorStatistics.h"
 using namespace std;
 using namespace SEISPP;
 /* This procedure does not actually seem to be necessary.  Think we
@@ -95,8 +96,6 @@ DatascopeHandle BuildWaveformView(DatascopeHandle& dbhin,string phase)
 		jk.push_back("evid");
 		jk.push_back("sta");
 		dbh.join(ljhandle,jk,jk);
-//DEBUG
-cout << "presite join size="<<dbh.number_tuples()<<endl;
 		list<string> sitejoinkeys;
 		sitejoinkeys.push_back("sta");
 		sitejoinkeys.push_back("ondate::offdate");
@@ -199,6 +198,82 @@ void save_assoc(DatascopeHandle& dbh,ThreeComponentSeismogram& d,
 	dbh.put("timeres",0.0);
     }catch (...) {throw;};
 }
+double coherence(double ssqr,double ssqd)
+{
+    // This is an ambiguous choice to avoid a NaN but
+    // I make it 0 as a safer choice.  Avoids 0/0
+    if(ssqr<=0.0 && ssqd <= 0.0)
+        return(0.0);
+    else if(ssqr>ssqd)
+        return(0.0);
+    else
+        return(1.0-sqrt(ssqr)/sqrt(ssqd));
+}
+
+typedef struct {
+	double coherence;
+	double semblance;
+} StackStatistics;
+StackStatistics ComputeCoherence(TimeSeriesEnsemble& d1in, TimeSeriesEnsemble& d2in, TimeSeriesEnsemble& d3in, 
+	Stack& s1, Stack& s2, Stack& s3, TimeWindow twin, bool iz)
+{
+	/* We can assume d1,d2, and d3 are all the same size here. Don't blindly use this elsewhere without noting this*/
+	int n=d1in.member.size();
+	double ssr,ssd,resid;
+	double ssqstack;
+	int i,j,ns;
+	for(ssqstack=0.0,i=0;i<s1.stack.ns;++i)
+	{
+		ssqstack+=(s1.stack.s[i]*s1.stack.s[i]);
+		ssqstack+=(s2.stack.s[i]*s2.stack.s[i]);
+		if(!iz)ssqstack+=(s3.stack.s[i]*s3.stack.s[i]);
+	}
+	for(ssr=0.0,ssd=0.0,i=0;i<n;++i)
+	{
+		if(!d1in.member[i].live) continue;
+		TimeSeries d1=WindowData(d1in.member[i],twin);
+		/* this is mostly for debug.  As written here this should not happend, but best leave this
+		in as a sanity check.  Also intentionally only test d1 since d2 and d3 are totally parallel
+		in structure */
+		if(abs(d1.ns-s1.stack.ns)>1)
+		{
+			cerr << "Size mismatch between data ensemble and stack.  "<<endl
+				<< "Stack number samples="<<s1.stack.ns
+				<< " Windowed data size="<<d1.ns<<endl;
+			exit(-1);
+		}
+		ns=min(s1.stack.ns,d1.ns);
+		for(j=0;j<ns;++j)
+		{
+			ssd+=pow(d1.s[j],2);
+			resid=d1.s[j] - s1.stack.s[j];
+			ssr+=(resid*resid);
+		}
+		TimeSeries d2=WindowData(d2in.member[i],twin);
+		ns=min(s2.stack.ns,d2.ns);
+		for(j=0;j<ns;++j)
+		{
+			ssd+=pow(d2.s[j],2);
+			resid=d2.s[j] - s2.stack.s[j];
+			ssr+=(resid*resid);
+		}
+		if(!iz)
+		{
+			TimeSeries d3=WindowData(d3in.member[i],twin);
+			ns=min(s3.stack.ns,d3.ns);
+			for(j=0;j<ns;++j)
+			{
+				ssd+=pow(d3.s[j],2);
+				resid=d3.s[j] - s3.stack.s[j];
+				ssr+=(resid*resid);
+			}
+		}
+	}
+	StackStatistics result;
+	result.coherence=coherence(ssr,ssd);
+	result.semblance=ssqstack*static_cast<double>(n)/ssd;
+	return(result);
+}
 void usage()
 {
 	cerr << "RFeventstacker dbin dbout [-pf pfname]" << endl
@@ -248,6 +323,7 @@ int main(int argc, char **argv)
 		TimeWindow twin(ts,te);
 		string phase=control.get_string("phase_for_alignment");
 		string arrivalchan=control.get_string("arrival_chan");
+		bool ignore_vertical=control.get_bool("ignore_vertical");
 		/* All data will be written to this directory and to 
 		one file set by dfile.  Intentional to improve performance
 		in hpc systems*/
@@ -313,10 +389,22 @@ int main(int argc, char **argv)
 		int record;
 		int gridid,lastgridid;
 		Hypocenter hcen;
+		cout << "Station gridid fold coherence semblance"<<endl;
 		for(record=0,evid=1,orid=1;record<nrec;++record,++dbhwf)
 		{
 			pwdataraw=new ThreeComponentEnsemble(dynamic_cast<DatabaseHandle&>(dbhwf),
 				mdlin,mdens,am);
+//DEBUG
+/*
+cout << "Raw 3C data read "<<endl;
+for(int ii=0;ii<pwdataraw->member.size();++ii)
+{
+	cout << dynamic_cast<Metadata&>(pwdataraw->member[ii])<<endl;
+	cout << dynamic_cast<BasicTimeSeries&>(pwdataraw->member[ii])<<endl;
+	cout << "atime-t0="<<pwdataraw->member[ii].get_double("arrival.time")
+				- pwdataraw->member[ii].t0 <<endl;
+}
+*/
 			gridid=pwdataraw->get_int("gridid");
 			if(record==0) 
 			{
@@ -347,24 +435,57 @@ int main(int argc, char **argv)
 			string sta=pwdataraw->get_string("sta");
 			auto_ptr<ThreeComponentEnsemble> 
 			  pwdata = ArrivalTimeReference(*pwdataraw,atkey,twin);
+/*
+cout << "Windowed data"<<endl;
+for(int ii=0;ii<pwdata->member.size();++ii)
+{
+	cout << dynamic_cast<BasicTimeSeries&>(pwdata->member[ii])<<endl;
+	cout << dynamic_cast<Metadata&>(pwdata->member[ii])<<endl;
+	cout << "atime-metadata->time="<<pwdata->member[ii].get_double("arrival.time")
+				- pwdata->member[ii].get_double("time") <<endl;
+}
+*/
 			delete pwdataraw;
 			/* This appears to be necessary */
 			for(int im=0;im<pwdata->member.size();++im)
 				pwdata->member[im].put(moveout_keyword,0.0);
 			x1=ExtractComponent(*pwdata,0);
+/*
+cout << "x1 component from ensemble"<<endl;
+for(int ii=0;ii<pwdata->member.size();++ii)
+{
+	cout << dynamic_cast<BasicTimeSeries&>(x1->member[ii])<<endl;
+	cout << dynamic_cast<Metadata&>(x1->member[ii])<<endl;
+}
+*/
 			x2=ExtractComponent(*pwdata,1);
 			x3=ExtractComponent(*pwdata,2);
-			Stack s1(*x1,twin);
-			Stack s2(*x2,twin);
-			Stack s3(*x3,twin);
-			if(SEISPP_verbose)
-				cout << "station="<<sta<<" gridid="<<gridid
-					<< " stack fold="<<s1.fold<<endl;
-			stack3c.clear();
-			stack3c.push_back(s1.stack);
-			stack3c.push_back(s2.stack);
-			stack3c.push_back(s3.stack);
-			load_hang_vang(stack3c);
+			try {
+				Stack s1(*x1,twin);
+				Stack s2(*x2,twin);
+				Stack s3(*x3,twin);
+				StackStatistics stackstat
+					=ComputeCoherence(*x1,*x2,*x3,
+					  s1,s2,s3,twin,ignore_vertical);
+				cout << sta << " "
+					<< gridid <<" "
+					<< s1.fold <<" "
+					<< stackstat.coherence<<" "
+					<< stackstat.semblance<<endl;
+				stack3c.clear();
+				stack3c.push_back(s1.stack);
+				stack3c.push_back(s2.stack);
+				stack3c.push_back(s3.stack);
+				load_hang_vang(stack3c);
+			}
+			catch (SeisppError serr)
+			{
+				cerr << "Stack constructor failed for sta="<<sta<<" and gridid="<<gridid<<endl
+					<<"Stack returned this error message:"<<endl;
+				serr.log_error();
+				cerr << "Data for this station-gridid will be skipped"<<endl;
+				continue;
+			} 
 			ThreeComponentSeismogram result(stack3c);
 			double stalat=result.get_double("site.lat");
 			double stalon=result.get_double("site.lon");
@@ -380,6 +501,12 @@ int main(int argc, char **argv)
 			result.rtoa(atime);
 			result.put("arrival.time",atime);
 			result.put("wfprocess.algorithm","RFeventstacker");
+/*
+cout << "3c stack Metadata"<<endl;
+cout << dynamic_cast<Metadata&>(result);
+cout << dynamic_cast<BasicTimeSeries&>(result);
+cout << "atime-t0"<<result.get_double("arrival.time")-result.t0<<endl;
+*/
 			/* Save data to both wfdisc and wfprocess */
 			int irec;
 			irec=dbsave(result,dbwfdisc.db,string("wfdisc"),
