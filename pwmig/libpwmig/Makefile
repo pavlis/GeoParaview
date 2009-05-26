@@ -6,7 +6,8 @@ CXXFLAGS+=-D_FILE_OFFSET_BITS=64
 CXXFLAGS+=-D_LARGEFILE_SOURCE
 CXXFLAGS+=-D_LARGEFILE64_SOURCE
 
-OBJS=PwmigFileHandle.o
+OBJS=PwmigFileHandle.o PPWDeconProcessor.o
+PPWDeconProcessor.o :PPWDeconProcessor.h
 $(LIB) : $(OBJS)
 	$(RM) $@
 	$(CXXAR) $(CXXARFLAGS) $@ $(OBJS)  
