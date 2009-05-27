@@ -266,7 +266,7 @@ int main(int argc, char **argv)
 				d3c.put("dir",outdir);
 				char buf[128];
 				stringstream ss(buf);
-				ss<<dfilebase<<i<<endl;
+				ss<<dfilebase<<lastevid<<'\0';
 				d3c.put("dfile",ss.str());
 				d3c.put("wfprocess.algorithm","convertRF");
 				d3c.put("timetype","a");
