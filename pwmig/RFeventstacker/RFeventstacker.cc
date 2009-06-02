@@ -359,6 +359,9 @@ int main(int argc, char **argv)
 		DatascopeHandle dbwfdisc(dbho);
 		dbwfdisc.lookup("wfdisc");
 		exit_if_exists(dbwfdisc,"wfdisc");
+		DatascopeHandle dbstackstats(dbho);
+		dbstackstats.lookup("stackstats");
+		exit_if_exists(dbstackstats,"stackstats");
 
 		const string schema("css3.0");
 		AttributeMap am(schema);
@@ -472,6 +475,14 @@ for(int ii=0;ii<pwdata->member.size();++ii)
 					<< s1.fold <<" "
 					<< stackstat.coherence<<" "
 					<< stackstat.semblance<<endl;
+				dbstackstats.append();
+				dbstackstats.put("gridid",gridid);
+				dbstackstats.put("coherence",stackstat.coherence);
+				dbstackstats.put("semblance",stackstat.semblance);
+				dbstackstats.put("fold",s1.fold);
+				dbstackstats.put("sta",sta);
+				dbstackstats.put("pchan","3c");
+				dbstackstats.put("phase","P");
 				stack3c.clear();
 				stack3c.push_back(s1.stack);
 				stack3c.push_back(s2.stack);
@@ -516,6 +527,7 @@ cout << "atime-t0"<<result.get_double("arrival.time")-result.t0<<endl;
 
 			dbwfprocess.db.record=irec;
 			int pwfid=dbwfprocess.get_int("pwfid");
+			dbstackstats.put("pwfid",pwfid);
 			dbevlink.append();
 			dbevlink.put("evid",evid);
 			dbevlink.put("pwfid",pwfid);
