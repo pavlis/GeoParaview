@@ -17,7 +17,10 @@ using namespace SEISPP;
 
 void usage()
 {
-	cout << "pathtosurface db name [-pf pfname -V] "<<endl;
+	cout << "pathtosurface db outname [-pf pfname -V] < pathfile "<<endl
+		<<"with db as input database and outname being the output gridname for this surface"<<endl
+		<<"pathfile is list of lon-lat pairs"  <<endl
+		<<"WARNING:  outname must be unique"<<endl;
 	exit(-1);
 }
 void copy_master(GCLgrid3d& gin, GCLgrid& gout,string outname)
@@ -41,7 +44,7 @@ int main(int argc, char **argv)
 	if(argc<3) usage();
 	int i,j,k;
 	string dbname(argv[1]);
-	string gridname(argv[2]);
+	string outputgridname(argv[2]);
 	string pfname("pathtosurface");
 	for(i=3;i<argc;++i)
 	{
@@ -69,7 +72,7 @@ int main(int argc, char **argv)
 		double az=control.get_double("projection_strike_azimuth");
 		double dz=control.get_double("projection_depth_increment");
 		int nz=control.get_int("number_depth_increments");
-		string outputgridname=control.get_string("output_grid_name");
+		string gridname=control.get_string("reference_grid_name");
 		string outdir=control.get_string("output_directory");
 		DatascopeHandle dbh(dbname,false);
 		GCLgrid3d grid(dbh.db,gridname);
