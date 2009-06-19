@@ -1,5 +1,5 @@
 BIN=exportgrid
-#MAN1=exportgrid.1
+MAN1=exportgrid.1
 cflags=-g
 ldlibs=-lseispp -ltrvltm -lgclgrid $(TRLIBS) $(DBLIBS) -lperf -lm -lseispp
 
