@@ -42,6 +42,7 @@ dir
 dfile
 foff
 datatype
+timetype
 samprate
 nsamp
 wfprocess.algorithm

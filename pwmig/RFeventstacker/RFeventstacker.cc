@@ -331,6 +331,15 @@ int main(int argc, char **argv)
 		string dfile=control.get_string("output_dfile");
 		DatascopeHandle dbh(string(dbinname),true);
 		DatascopeHandle dbhwf=BuildWaveformView(dbh,phase);
+		if(dbhwf.number_tuples()<1)
+		{
+			cerr << "Waveform view has not data"<<endl
+				<< "This join must be defined:  "
+				<< "(wfprocess->sclink)<-"
+				<< "hypocentroid->cluster->event->origin->assoc->arrival"
+				<<endl;
+			usage();
+		}
 		dbhwf.rewind();
 		DatascopeHandle dbho(string(dboutname),false);
 		DatascopeHandle dborigin(dbho);
@@ -511,6 +520,8 @@ for(int ii=0;ii<pwdata->member.size();++ii)
 			double atime=hcen.time+ttime;
 			result.rtoa(atime);
 			result.put("arrival.time",atime);
+			/* This program writes fake, absolute times */
+			result.put("timetype","a");
 			result.put("wfprocess.algorithm","RFeventstacker");
 /*
 cout << "3c stack Metadata"<<endl;
