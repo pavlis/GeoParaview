@@ -493,7 +493,8 @@ void compute_reswt(GCLvectorfield3d& stack,GridScratchFileHandle& handle,
 	
 void usage()
 {
-	cerr << "gridstacker db [-i infile -pf pffile -norobust -V] "<<endl;
+	cerr << "gridstacker db [-i infile -pf pffile -norobust -V] "<<endl
+		<< "infile defaults to gridstacker.list"<<endl;
 	exit(-1);
 }
 void inreadabort()
@@ -546,8 +547,8 @@ bool SEISPP::SEISPP_verbose(false);
 
 int main(int argc, char **argv)
 {
-	//istream in=cin;
 	ifstream in;
+	string infile("gridstacker.list");
 	string pffile("gridstacker");
 	if(argc<2) usage();
 	string dbname(argv[1]);
@@ -560,14 +561,7 @@ int main(int argc, char **argv)
 		if(sarg=="-i")
 		{
 			++i;
-			string infile(argv[i]);
-			in.open(infile.c_str(), ios::in);
-			if(in.fail())
-			{
-				cerr << "Open failure on -i file="
-					<<argv[i]<<endl;
-				usage();
-			}
+			infile=string(argv[i]);
 		}
 		else if(sarg=="-pf")
 		{
@@ -580,6 +574,13 @@ int main(int argc, char **argv)
 			SEISPP_verbose=true;
 		else
 			usage();
+	}
+	in.open(infile.c_str(), ios::in);
+	if(in.fail())
+	{
+		cerr << "Open failure on -i file="
+			<<infile<<endl;
+		usage();
 	}
 	try {
 		DatascopeHandle dbh(dbname,false);
