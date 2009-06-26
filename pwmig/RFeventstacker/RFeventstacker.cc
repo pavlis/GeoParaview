@@ -489,19 +489,27 @@ for(int ii=0;ii<pwdata->member.size();++ii)
 				StackStatistics stackstat
 					=ComputeCoherence(*x1,*x2,*x3,
 					  s1,s2,s3,twin,ignore_vertical);
-				cout << sta << " "
-					<< gridid <<" "
-					<< s1.fold <<" "
-					<< stackstat.coherence<<" "
-					<< stackstat.semblance<<endl;
-				dbstackstats.append();
-				dbstackstats.put("gridid",gridid);
-				dbstackstats.put("coherence",stackstat.coherence);
-				dbstackstats.put("semblance",stackstat.semblance);
-				dbstackstats.put("fold",s1.fold);
-				dbstackstats.put("sta",sta);
-				dbstackstats.put("pchan","3c");
-				dbstackstats.put("phase","P");
+				if(fold<=1 && SEISPP_verbose)
+				{
+					cout << sta << " "
+					  << gridid <<" is single fold"<<endl;
+				}
+				else
+				{
+					cout << sta << " "
+						<< gridid <<" "
+						<< s1.fold <<" "
+						<< stackstat.coherence<<" "
+						<< stackstat.semblance<<endl;
+					dbstackstats.append();
+					dbstackstats.put("gridid",gridid);
+					dbstackstats.put("coherence",stackstat.coherence);
+					dbstackstats.put("semblance",stackstat.semblance);
+					dbstackstats.put("fold",s1.fold);
+					dbstackstats.put("sta",sta);
+					dbstackstats.put("pchan","3c");
+					dbstackstats.put("phase","P");
+				}
 				stack3c.clear();
 				stack3c.push_back(s1.stack);
 				stack3c.push_back(s2.stack);
