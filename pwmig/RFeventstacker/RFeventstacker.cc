@@ -72,6 +72,7 @@ Hypocenter MakeHypocentroid(ThreeComponentEnsemble& d,double otime,
 
 DatascopeHandle BuildWaveformView(DatascopeHandle& dbhin,string phase)
 {
+	const string base_error("RFEventStacker::BuildWaveformView(Fatal Error):  ");
 	try {
 		DatascopeHandle dbh(dbhin);
 		dbh.lookup("hypocentroid");
@@ -84,12 +85,17 @@ DatascopeHandle BuildWaveformView(DatascopeHandle& dbhin,string phase)
 		string phase_subset;
 		phase_subset="phase=~/"+phase+"/";
 		dbh.subset(phase_subset);
+		if(dbh.number_tuples()<=0) throw SeisppError(base_error
+			+ "hypocentroid->cluster->catalogdata"
+			+ "view has no data");
 		if(SEISPP_verbose) cout << "hypocentroid->cluster->catalogdata "
 			<< "view size="<<dbh.number_tuples()<<endl;
 		DatascopeHandle ljhandle(dbh);
 		ljhandle.lookup("wfprocess");
 		ljhandle.natural_join("sclink");
 		ljhandle.natural_join("evlink");
+		if(ljhandle.number_tuples()<=0) throw SeisppError(base_error
+			+ "wfprocess->sclink->evlink join has no data");
 		if(SEISPP_verbose) cout << "waveform view size="
 					<< ljhandle.number_tuples()<<endl;
 		list<string> jk;
@@ -103,9 +109,13 @@ DatascopeHandle BuildWaveformView(DatascopeHandle& dbhin,string phase)
 		viewjkeys.push_back("sta");
 		viewjkeys.push_back("wfprocess.time");
 		dbh.join("site",viewjkeys,sitejoinkeys);
+		if(dbh.number_tuples()<=0) throw SeisppError(base_error
+			+ "join of left and right db tables has no data");
 		if(SEISPP_verbose) cout << "Full working waveform view size="
 					<< dbh.number_tuples()<<endl;
 		dbh.subset("datatype=~/3c/ || datatype=~/c3/");
+		if(dbh.number_tuples()<=0) throw SeisppError(base_error
+			+ "subset for 3c bundle data failed.  Check wfprocess table");
 		if(SEISPP_verbose) cout << "View size of 3c data="
 					<< dbh.number_tuples()<<endl;
 		list<string> sortkeys;
@@ -276,7 +286,7 @@ StackStatistics ComputeCoherence(TimeSeriesEnsemble& d1in, TimeSeriesEnsemble& d
 }
 void usage()
 {
-	cerr << "RFeventstacker dbin dbout [-pf pfname]" << endl
+	cerr << "RFeventstacker dbin dbout [-v -pf pfname]" << endl
 		<< "dbout must be empty"<<endl;;
 	exit(-1);
 }
@@ -290,7 +300,7 @@ int main(int argc, char **argv)
 	string dboutname(argv[2]);
         for(int i=3;i<argc;++i)
         {
-                if(!strcmp(argv[i],"-V"))
+                if(!strcmp(argv[i],"-v"))
 		{
                         SEISPP_verbose=true;
 		}
