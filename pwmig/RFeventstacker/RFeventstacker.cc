@@ -1,4 +1,5 @@
 #include <exception>
+#include <algorithm>
 #include "seispp.h"
 #include "stack.h"
 #include "Hypocenter.h"
@@ -7,8 +8,36 @@
 #include "Metadata.h"
 #include "dbpp.h"
 #include "VectorStatistics.h"
+#ifdef MATLABPLOTTING
+#include "MatlabPlotter.h"
+#include "SeisppKeywords.h"
+#endif
 using namespace std;
 using namespace SEISPP;
+/* This is a simplified version of a template in XcorProcessingEngine.  Simpler
+is cleaner in this case*/
+template<class T> struct less_stackweight
+                : public binary_function<T,T,bool> {
+	bool operator()(T x, T y)
+        {
+		string keyword=SEISPP::stack_weight_keyword;
+               double valx,valy;
+               try {
+			valx=x.get_double(keyword);
+		}catch(...){return true;};
+		try{
+                        valy=y.get_double(keyword);
+                }catch(...) {return false;};
+
+		if(valx<valy)
+	                return true;
+	        else
+	                return false;
+	 }
+};
+
+
+
 /* This procedure does not actually seem to be necessary.  Think we
 can just build a view containing the hypocentroid and we should be fine.  
 Will retain this, however, until I'm sure that is so */
@@ -279,14 +308,48 @@ StackStatistics ComputeCoherence(TimeSeriesEnsemble& d1in, TimeSeriesEnsemble& d
 			}
 		}
 	}
+cerr << "data ssq="<<ssd<<endl;
 	StackStatistics result;
 	result.coherence=coherence(ssr,ssd);
 	result.semblance=ssqstack*static_cast<double>(n)/ssd;
 	return(result);
 }
+StackType GetStackType(Metadata& control)
+{
+    StackType result;
+    try {
+	string name=control.get_string("stack_type");
+	if((name=="simple") || (name=="average") || (name=="straight_stack"))
+	{
+		result=BasicStack;
+	}
+	else if(name=="median")
+	{
+		result=MedianStack;
+	}
+	else if((name=="robust") || (name=="RobustSNR"))
+	{
+		result=RobustSNR;
+	}
+	else
+	{
+		cerr<<"WARNING:  Unrecognized tag for parameter stack_type="
+			<< name<<endl
+			<<"Defaulting to standard stack (mean)"<<endl;
+		result=BasicStack;
+	}
+    } catch (MetadataGetError mderr)
+    {
+    	cerr << "Parameter stack_type is missing from input parameter file"
+		<<endl
+		<<"Defaulting to standard (mean) stack"<<endl;
+	result=BasicStack;
+    }
+    return(result);
+}
 void usage()
 {
-	cerr << "RFeventstacker dbin dbout [-v -pf pfname]" << endl
+	cerr << "RFeventstacker dbin dbout [-noplots -v -pf pfname]" << endl
 		<< "dbout must be empty"<<endl;;
 	exit(-1);
 }
@@ -298,6 +361,7 @@ int main(int argc, char **argv)
 	string pfin(argv[0]);
 	string dbinname(argv[1]);
 	string dboutname(argv[2]);
+	bool plotdata(true);
         for(int i=3;i<argc;++i)
         {
                 if(!strcmp(argv[i],"-v"))
@@ -310,6 +374,10 @@ int main(int argc, char **argv)
                         if(i>=argc) usage();
                         pfin = string(argv[i]);
                 }
+                else if(!strcmp(argv[i],"-noplots"))
+		{
+			plotdata=false;
+		}
                 else
                         usage();
         }
@@ -324,6 +392,13 @@ int main(int argc, char **argv)
 	MetadataList mdwfprocess=pfget_mdlist(pf,"wfprocess_mdlist");
 	MetadataList mdwfdisc=pfget_mdlist(pf,"wfdisc_mdlist");
 	try {
+#ifdef MATLABPLOTTING
+		MatlabPlotter *mphandle;
+		if(plotdata) 
+			mphandle=new MatlabPlotter();
+		else
+			mphandle=NULL;
+#endif
 		Metadata control(pf);
 		/* This perhaps should be a parameter, but frozen for now*/
 		const string atkey("arrival.time");
@@ -331,9 +406,15 @@ int main(int argc, char **argv)
 		ts=control.get_double("stack_starttime");
 		te=control.get_double("stack_endtime");
 		TimeWindow twin(ts,te);
+		StackType stacktype=GetStackType(control);
+		double rts,rte;
+		rts=control.get_double("robust_window_starttime");
+		rte=control.get_double("robust_window_endtime");
+		TimeWindow rtwin(rts,rte);
 		string phase=control.get_string("phase_for_alignment");
 		string arrivalchan=control.get_string("arrival_chan");
 		bool ignore_vertical=control.get_bool("ignore_vertical");
+		int PlotSizeCutoff=control.get_int("plot_size_cutoff");
 		/* All data will be written to this directory and to 
 		one file set by dfile.  Intentional to improve performance
 		in hpc systems*/
@@ -393,12 +474,6 @@ int main(int argc, char **argv)
 		ttmodel=control.get_string("ttmodel");
 		double lat,lon,depth,otime;
 		otime=str2epoch(const_cast<char *>(firstotime.c_str()));
-		/*
-		EventCatalog hypocentroids;
-		hypocentroids=LoadHypocentroids(dbh,gridname,
-			firstotime,otoffset,ttmethod,ttmodel);
-		*/
-		ThreeComponentEnsemble *pwdataraw;
 		auto_ptr<TimeSeriesEnsemble> x1,x2,x3;  // hold components
 		vector<string> chanmap;
 		chanmap.push_back("E"); 
@@ -407,26 +482,19 @@ int main(int argc, char **argv)
 		vector<TimeSeries> stack3c;
 		stack3c.reserve(3);
 		int nrec=dbhwf.number_tuples();
+//DEBUG
+cout << "Number of record to process="<<nrec<<endl;
 		int evid,orid,arid;
 		int record;
 		int gridid,lastgridid;
 		Hypocenter hcen;
+		ThreeComponentEnsemble *pwdataraw;
 		cout << "Station gridid fold coherence semblance"<<endl;
 		for(record=0,evid=1,orid=1;record<nrec;++record,++dbhwf)
 		{
+			int fold;
 			pwdataraw=new ThreeComponentEnsemble(dynamic_cast<DatabaseHandle&>(dbhwf),
 				mdlin,mdens,am);
-//DEBUG
-/*
-cout << "Raw 3C data read "<<endl;
-for(int ii=0;ii<pwdataraw->member.size();++ii)
-{
-	cout << dynamic_cast<Metadata&>(pwdataraw->member[ii])<<endl;
-	cout << dynamic_cast<BasicTimeSeries&>(pwdataraw->member[ii])<<endl;
-	cout << "atime-t0="<<pwdataraw->member[ii].get_double("arrival.time")
-				- pwdataraw->member[ii].t0 <<endl;
-}
-*/
 			gridid=pwdataraw->get_int("gridid");
 			if(record==0) 
 			{
@@ -457,63 +525,58 @@ for(int ii=0;ii<pwdataraw->member.size();++ii)
 			string sta=pwdataraw->get_string("sta");
 			auto_ptr<ThreeComponentEnsemble> 
 			  pwdata = ArrivalTimeReference(*pwdataraw,atkey,twin);
-/*
-cout << "Windowed data"<<endl;
-for(int ii=0;ii<pwdata->member.size();++ii)
-{
-	cout << dynamic_cast<BasicTimeSeries&>(pwdata->member[ii])<<endl;
-	cout << dynamic_cast<Metadata&>(pwdata->member[ii])<<endl;
-	cout << "atime-metadata->time="<<pwdata->member[ii].get_double("arrival.time")
-				- pwdata->member[ii].get_double("time") <<endl;
-}
-*/
 			delete pwdataraw;
 			/* This appears to be necessary */
 			for(int im=0;im<pwdata->member.size();++im)
 				pwdata->member[im].put(moveout_keyword,0.0);
 			x1=ExtractComponent(*pwdata,0);
-/*
-cout << "x1 component from ensemble"<<endl;
-for(int ii=0;ii<pwdata->member.size();++ii)
-{
-	cout << dynamic_cast<BasicTimeSeries&>(x1->member[ii])<<endl;
-	cout << dynamic_cast<Metadata&>(x1->member[ii])<<endl;
-}
-*/
 			x2=ExtractComponent(*pwdata,1);
 			x3=ExtractComponent(*pwdata,2);
+			Stack *s1=NULL,*s2=NULL,*s3=NULL;
 			try {
-				Stack s1(*x1,twin);
-				Stack s2(*x2,twin);
-				Stack s3(*x3,twin);
+				/* This branching is not strictly necessary
+				but is more efficient. */
+				if(stacktype==BasicStack)
+				{
+					s1 = new Stack(*x1,twin);
+					s2 = new Stack(*x2,twin);
+					s3 = new Stack(*x3,twin);
+				}
+				else
+				{
+					s1=new Stack(*x1,twin,rtwin,stacktype);
+					s2=new Stack(*x2,twin,rtwin,stacktype);
+					s3=new Stack(*x3,twin,rtwin,stacktype);
+				}
 				StackStatistics stackstat
 					=ComputeCoherence(*x1,*x2,*x3,
-					  s1,s2,s3,twin,ignore_vertical);
-				if(fold<=1 && SEISPP_verbose)
+					  *s1,*s2,*s3,twin,ignore_vertical);
+				fold=s1->fold;
+				if(fold<=1)
 				{
-					cout << sta << " "
+					if(SEISPP_verbose)cout << sta << " "
 					  << gridid <<" is single fold"<<endl;
 				}
 				else
 				{
 					cout << sta << " "
 						<< gridid <<" "
-						<< s1.fold <<" "
+						<< fold <<" "
 						<< stackstat.coherence<<" "
 						<< stackstat.semblance<<endl;
 					dbstackstats.append();
 					dbstackstats.put("gridid",gridid);
 					dbstackstats.put("coherence",stackstat.coherence);
 					dbstackstats.put("semblance",stackstat.semblance);
-					dbstackstats.put("fold",s1.fold);
+					dbstackstats.put("fold",fold);
 					dbstackstats.put("sta",sta);
 					dbstackstats.put("pchan","3c");
 					dbstackstats.put("phase","P");
 				}
 				stack3c.clear();
-				stack3c.push_back(s1.stack);
-				stack3c.push_back(s2.stack);
-				stack3c.push_back(s3.stack);
+				stack3c.push_back(s1->stack);
+				stack3c.push_back(s2->stack);
+				stack3c.push_back(s3->stack);
 				load_hang_vang(stack3c);
 			}
 			catch (SeisppError serr)
@@ -525,6 +588,30 @@ for(int ii=0;ii<pwdata->member.size();++ii)
 				continue;
 			} 
 			ThreeComponentSeismogram result(stack3c);
+			if(s1!=NULL) delete s1;
+			if(s2!=NULL) delete s2;
+			if(s3!=NULL) delete s3;
+#ifdef MATLABPLOTTING
+			if(pwdata->member.size()>PlotSizeCutoff) 
+			{
+				string channames[3];
+				channames[0]="E";  
+				channames[1]="N";  
+				channames[2]="Z";
+				ThreeComponentEnsemble plotdata(*pwdata);
+				sort(plotdata.member.begin(),
+				    plotdata.member.end(),
+				    less_stackweight<ThreeComponentSeismogram>());
+				// Push two copies of the stack.  Clear the first so
+				// it appears as a spacer.
+				plotdata.member.push_back(result);
+				int currentsize=plotdata.member.size();
+				for(int k=0;k<result.ns;++k)
+					for(int ic=0;ic<3;++ic) plotdata.member[currentsize-1].u(ic,k)=0.0;
+				plotdata.member.push_back(result);
+				mphandle->wigbplot(plotdata,channames,false);
+			}
+#endif
 			double stalat=result.get_double("site.lat");
 			double stalon=result.get_double("site.lon");
 			double staelev=result.get_double("site.elev");
@@ -541,12 +628,14 @@ for(int ii=0;ii<pwdata->member.size();++ii)
 			/* This program writes fake, absolute times */
 			result.put("timetype","a");
 			result.put("wfprocess.algorithm","RFeventstacker");
-/*
-cout << "3c stack Metadata"<<endl;
-cout << dynamic_cast<Metadata&>(result);
-cout << dynamic_cast<BasicTimeSeries&>(result);
-cout << "atime-t0"<<result.get_double("arrival.time")-result.t0<<endl;
-*/
+#ifdef MATLABPLOTTING
+			if(pwdata->member.size()>PlotSizeCutoff) 
+			{
+				mphandle->plot(result);
+				cout << "Push any key to continue:";
+				int ans=cin.get();
+			}
+#endif
 			/* Save data to both wfdisc and wfprocess */
 			int irec;
 			irec=dbsave(result,dbwfdisc.db,string("wfdisc"),
@@ -556,7 +645,7 @@ cout << "atime-t0"<<result.get_double("arrival.time")-result.t0<<endl;
 
 			dbwfprocess.db.record=irec;
 			int pwfid=dbwfprocess.get_int("pwfid");
-			dbstackstats.put("pwfid",pwfid);
+			if(fold>1)dbstackstats.put("pwfid",pwfid);
 			dbevlink.append();
 			dbevlink.put("evid",evid);
 			dbevlink.put("pwfid",pwfid);
@@ -571,6 +660,9 @@ cout << "atime-t0"<<result.get_double("arrival.time")-result.t0<<endl;
 			save_assoc(dbassoc,result,orid,arid,phase,hcen);
 
 		}
+#ifdef MATLABPLOTTING
+		delete mphandle;
+#endif
 	}
 	catch (SeisppError serr)
 	{

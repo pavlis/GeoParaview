@@ -1,5 +1,10 @@
 stack_starttime -5.0
 stack_endtime 60.0
+robust_window_starttime 2.0
+robust_window_endtime 30.0
+stack_type robust
+ignore_vertical true
+plot_size_cutoff 10
 ttmodel iasp91
 ttmethod tttaup
 first_fake_origin_time 2020001:00:00:00.0

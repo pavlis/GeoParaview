@@ -1,7 +1,5 @@
 BIN=RFeventstacker
 PF=RFeventstacker.pf
-DATADIR=schemas/css3.0.ext
-DATA=stackstats
 
 cflags=-g
 # Use the following for Solaris
