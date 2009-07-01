@@ -368,8 +368,8 @@ void SaveResults(DatascopeHandle& dbh,
 	int i,imember,ns;
 	/* These are used only when miniseed is the output format */
 	int *idptr=0;
-	int nints=0;
-	int nbytes=0;
+	long int nints=0;
+	long int nbytes=0;
 	Wftype *wftype=trwftype((char *)"sd");
 	// This is special for this program.  Normally couldn't expect
 	// this to be available.
@@ -486,7 +486,7 @@ void SaveResults(DatascopeHandle& dbh,
 					for(i=0;i<ns;++i)
 						itrd[i]=static_cast<int>
 						          ((x->s[i])/calib);
-					problem=itr2ext(itrd,ns,wftype,(void **)(&idptr),
+					problem=itr2ext(itrd,(long)ns,wftype,(void **)(&idptr),
 						&nints,&nbytes);
 					if(problem & TR_TRUNCATED)
 					{
