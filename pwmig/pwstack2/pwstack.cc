@@ -17,7 +17,7 @@ bool Verbose;
 
 void usage()
 {
-    cbanner((char *)"$Revision: 1.12 $ $Date: 2009/07/03 13:28:44 $",
+    cbanner((char *)"$Revision: 1.13 $ $Date: 2009/07/03 14:03:05 $",
         (char *)"dbin [-np np -rank rank -v -V -pf pfname]",
         (char *)"Gary Pavlis",
         (char *)"Indiana University",
@@ -212,20 +212,31 @@ int main(int argc, char **argv)
 	{
 		dbh.lookup("arrival");
 		list<string> j1,j2;
+		j1.push_back("sta");
 		j1.push_back("wfdisc.time::wfdisc.endtime");
+		j2.push_back("sta");
 		j2.push_back("arrival.time");
 		dbh.leftjoin("wfdisc",j1,j2);
+cout << "wfdisc join view rows="
+<<dbh.number_tuples()<<endl;
 		dbh.natural_join("assoc");
 		dbh.natural_join("origin");
 		dbh.natural_join("event");
 		dbh.subset("orid==prefor");
+cout << "join of catalog data rows="
+<<dbh.number_tuples()<<endl;
 		dbh.natural_join("sitechan");
 		dbh.natural_join("site");
+cout << "working view size="
+<<dbh.number_tuples()<<endl;
 		list<string> sortkeys;
 		sortkeys.push_back("evid");
 		sortkeys.push_back("sta");
 		sortkeys.push_back("chan");
 		dbh.sort(sortkeys);
+		list<string> gkey;
+		gkey.push_back("evid");
+		gkey.push_back("sta");
 	}
 	else if(dbviewmode=="use_wfprocess")
 	{
