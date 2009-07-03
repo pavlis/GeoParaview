@@ -17,6 +17,7 @@ Stack_Top_Mute	&Arr{
     time_reference_type	relative
     zero_end_time	1.0
 }
+stack_count_cutoff 1
 data_time_window_end	70.0
 data_time_window_start	-25.0
 dbprocess_commands	&Tbl{

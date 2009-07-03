@@ -110,6 +110,7 @@ int pwstack_ensemble(ThreeComponentEnsemble& indata,
 RectangularSlownessGrid& ugrid,
 TopMute& mute,
 TopMute& stackmute,
+int stack_count_cutoff,
 double tstart,
 double tend,
 DepthDependentAperture& aperture,
@@ -275,7 +276,7 @@ vector<double>::iterator idbg;
     // an exception.  It is a case that has to be handled gracefully.
     // it will happen often at the edges of arrays
     //
-    if(stack_count<=0) return(-1);
+    if(stack_count<stack_count_cutoff) return(-1);
     cout << "Processing data for node ("<<ix1<<", "<<ix2<<") with fold="<<stack_count<<endl;
     vector <double>moveout(nsta);
     dmatrix stack(3,nsout);

@@ -17,8 +17,8 @@ bool Verbose;
 
 void usage()
 {
-    cbanner((char *)"$Revision: 1.11 $ $Date: 2008/10/21 19:41:48 $",
-        (char *)"dbin [-v -V -pf pfname]",
+    cbanner((char *)"$Revision: 1.12 $ $Date: 2009/07/03 13:28:44 $",
+        (char *)"dbin [-np np -rank rank -v -V -pf pfname]",
         (char *)"Gary Pavlis",
         (char *)"Indiana University",
         (char *)"pavlis@indiana.edu") ;
@@ -69,25 +69,77 @@ int main(int argc, char **argv)
     /* usual cracking of command line */
     if(argc < 2) usage();
     dbname_in = argv[1];
+    int rank(0);
+    int np(1);
 
     for(i=2;i<argc;++i)
     {
-        if(!strcmp(argv[i],"-V"))
+	string sarg(argv[i]);
+	if(sarg=="-V")
             usage();
-        else if(!strcmp(argv[i],"-v"))
+	else if(sarg=="-v")
         {
             Verbose=true;
             SEISPP::SEISPP_verbose=true;
         }
-        else if(!strcmp(argv[i],"-pf"))
+	else if(sarg=="-pf")
         {
             ++i;
             if(i>=argc) usage();
             pfin = argv[i];
         }
+        else if(sarg=="-rank")
+        {
+            ++i;
+            if(i>=argc) usage();
+            rank=atoi(argv[i]);
+	    if(rank<0) 
+	    {
+		cerr << "Illegal value for -r argument ="
+			<< rank<<endl
+			<< "Must be nonnegative integer"<<endl;
+		usage();
+	    }
+        }
+	else if(sarg=="-np")
+	{
+	    ++i;
+	    if(i>=argc) usage();
+	    np=atoi(argv[i]);
+	    if(np<=0) 
+	    {
+		cerr << "Illegal value for -np argument ="
+			<< np<<endl
+			<< "Must be positive integer"<<endl;
+		usage();
+            }
+	}
         else
             usage();
     }
+	/* sanity checks on manual parallel variables */
+	if( (np>0) || (rank>=0) )
+	{
+		if( (np<0) || (rank<0) )
+		{
+			cerr << "Illegal argument combination.  "
+				<< "-rank and -np must both be set if either is set"
+				<< endl;
+			usage();
+		}
+		else if(rank>(np-1))
+		{
+			cerr << "Illegal argument combination.  "
+				<< "Value for -rank must be >= -np"<<endl;
+			usage();
+		}
+	}
+	else
+	{
+		/* single processor mode set if we end up here.*/
+		np=1;
+		rank=0;
+	}
     /* this sets defaults */
     if(pfin == NULL) pfin = strdup("pwstack");
 
@@ -102,6 +154,7 @@ int main(int argc, char **argv)
         double ts,te;
         ts = pfget_double(pf,(char *)"stack_time_start");
         te = pfget_double(pf,(char *)"stack_time_end");
+	int stack_count_cutoff=pfget_int(pf,(char *)"stack_count_cutoff");
         // the data are windowed around arrivals to this interval
         // normally should be ts:te with sufficient allowance for moveout
         double tsfull, tefull;                    // normally longer than ts and te to allow
@@ -236,6 +289,7 @@ int main(int argc, char **argv)
         */
         for(rec=0,dbh.rewind();rec<dbh.number_tuples();++rec,++dbh)
         {
+	    if(rec%np != rank)continue;
             int iret;
             int evid;
             double olat,olon,odepth,otime;
@@ -328,6 +382,7 @@ int main(int argc, char **argv)
                         ugrid,
                         mute,
                         stackmute,
+			stack_count_cutoff,
                         ts,
                         te,
                         aperture,
