@@ -83,6 +83,7 @@ int main(int argc, char **argv)
 	string remapgridname(nodef);
 	bool saveagcfield(false);
 	string outfieldname;
+	bool remap(false);
 	for(i=3;i<argc;++i)
 	{
 		argstr=string(argv[i]);
@@ -117,6 +118,7 @@ int main(int argc, char **argv)
 			++i;
 			if(i>=argc)usage();
 			remapgridname=string(argv[i]);
+			remap=true;
 		}
 		else if(argstr=="-odbf")
 		{
@@ -149,7 +151,10 @@ int main(int argc, char **argv)
 		cout << "Converting field = "<<fieldname
 			<< " associated with gridname="<<gridname<<endl;
 		cout << "Assuming grid type is "<<fieldtype<<endl;
-		bool remap=control.get_bool("remap_grid");
+		/* Slightly odd logic here, but this allows remap off
+		to be the default.  pf switch is ignored this way if
+		the -r flag was used */
+		if(!remap) remap=control.get_bool("remap_grid");
 		BasicGCLgrid *rgptr;
 		if(remap)
 		{
