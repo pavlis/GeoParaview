@@ -299,6 +299,28 @@ PPWDeconProcessor::PPWDeconProcessor(const PPWDeconProcessor& parent)
 }
 PPWDeconProcessor& PPWDeconProcessor::operator=(const PPWDeconProcessor& parent)
 {
+    if(this!=&parent)
+    {
+	u0=parent.u0;
+	maxiteration=parent.maxiteration;
+	nd=parent.nd;
+	nu=parent.nu;
+	ns_stack=parent.ns_stack;
+	t0_stack=parent.t0_stack;
+	dt_stack=parent.dt_stack;
+	aperture=parent.aperture;
+	cutoff=parent.cutoff;
+	stalat=parent.stalat;
+	stalon=parent.stalon;
+	start_offset=parent.start_offset;
+	stacksize=parent.stacksize;
+	d=parent.d;
+	parent_data=parent.parent_data;
+	wavelet=parent.wavelet;
+	slow=parent.slow;
+	current_stack=parent.current_stack;
+    }
+    return *this;
 }
 double PPWDeconProcessor::pseudostation_weight(double lat,double lon,
 	double pslat, double pslon, double aperture, double cutoff)
