@@ -10,9 +10,10 @@ using namespace std;
 using namespace SEISPP;
 /*! \brief Data structure for PPWDeconProcessor.
 
-This is a data structure that is an extension of a ThreeComponentSeismogram. 
-The main use is efficiency and to simplify rebuilding a weighted gather for 
-a new pseudostation. */
+This is a data object used for ensemble members in the plane wave 
+deconvolution processing object.  It is an extension of a ThreeComponentSeismogram.
+It is used to avoid excessive metadata fetches to improve efficiency.
+*/
 class PWDataMember: public ThreeComponentSeismogram
 {
 public:
@@ -45,12 +46,25 @@ public:
 	internal bounds.*/
 	int remove(int iu, int lag0,double *a);
 };
+/*! Stacked trace used in iterative, plane wave method.
+
+For efficiency the iterative plane wave deconvolution processing
+object uses a container of these data objects to hold the current
+suite of plane wave stacks.  This is a useful object as it 
+contains embedded methods that simplify the plane wave algorithm. */
 class PWStackMember : public ThreeComponentSeismogram
 {
 public:
+	/*! Slowness vector of this stack. */
 	SlownessVector slow;
+	/*! Primary constructor. 
+
+	\param din parent 3c seismogram
+	\param sv slowness vector of this stack member. */
 	PWStackMember(ThreeComponentSeismogram& din,SlownessVector& sv);
+	/*! Standard copy constructor. */
 	PWStackMember(const PWStackMember& parent);
+	/*! Standard assignment operator. */
 	PWStackMember& operator=(const PWStackMember& parent);
 
 	/*! Return the maximum amplitude of this member.
@@ -64,6 +78,8 @@ public:
 	recalculation of the amplitude while lag_at_max simply 
 	returns a value. */
 	double maxamp();
+	/*! Returns the lag in samples of the maximum amplitude in
+	the 3c data attached to this object. */
 	int lag_at_max(){return lagmax;};
 private:
 	double ampmax;
@@ -89,6 +105,21 @@ class PPWDeconProcessor
 public:
 	/*! Slowness vector of incident wavefield */
 	SlownessVector u0;
+	/*! Construct from a single gather.
+
+	Use this constructor for a single event gather from a single
+	source.  In that case we can assume the actual output wavelet
+	is the same for every data member. 
+
+	\param threecd is the input event gather.
+	\param u0in is the incident wave slowness vector.
+	\param w is the actual output used in the iterative method.
+	\param md is a Metadata object used as a back door way to 
+		pass an indeterminate set of control parameters.  This
+		is not especially elegant, but useful for an experimental
+		algorithm to avoid constantly changing the argument list. 
+	\exception will throw a SeisppError object if there are problems.
+	*/
 	PPWDeconProcessor(ThreeComponentEnsemble& threecd,
 		SlownessVector& u0in,
 			vector<SlownessVector>& ulist, 
@@ -96,15 +127,27 @@ public:
 					Metadata& md);
 	/*! Constructor for common region gathers.
 
-	Expect that it will be useful to run this on composites from
-	common source area (program telecluster).  In this case we take
+	This constructor is designed to allow this algorithm to work
+	on ensembles constructed by stacking data from a common source area.
+	(telecluser or equivalent).  In that case we take
 	a vector of ensembles, stack them without moveouts, stack the
 	actual outputs, and result looks just like a single event gather.
-	BIG complication of this is that it makes the actual output dependent
+	The BIG complication of this is that it makes the actual output dependent
 	on each station.  As a result the PWmember function has an actual
-	output member.  (see above).  For single events  these are all 
-	the same. Need to decide how the input gather should be organized.  
-	May just need to require evid and sta to defined in trace metadata*/
+	output member.  (see above).  For single events these are all 
+	the same. Use this constructor for composites and the single
+	event constructor otherwise.
+	\param threecd is the input event gather.
+	\param u0in is the incident wave slowness vector.
+	\param w a vector of actual output wavelets for each ensemble
+		member.  This MUST be a parallel vector to the member
+		vector container of threecd or chaos will result.
+	\param md is a Metadata object used as a back door way to 
+		pass an indeterminate set of control parameters.  This
+		is not especially elegant, but useful for an experimental
+		algorithm to avoid constantly changing the argument list. 
+	\exception will throw a SeisppError object if there are problems.
+	*/
 	PPWDeconProcessor(ThreeComponentEnsemble& threecd,
 		SlownessVector& u0in,
 			vector<SlownessVector>& ulist,
@@ -117,16 +160,21 @@ public:
 				
 	/*! Compute method.
 
-	NOTES FOR INITIAL:  convert to documentation when finished.
-	
-	This method does all the work. It shuld compute a vector of 
-	3c seismograms stored in the ensemble.  Each member is one 
-	plane wave component for the pseudostation at plat,plon.  
-	Note to provide a clean interface into the PwmigFileHandle 
-	each member needs each of the following metadata elements set:
-	gridid, ix1, ix2, ux0, uy0, ux, uy, elev.  Further ns, dt, and t0
-	will be extracted from the BasicTimeSeries attributes.  The
-	use of the auto_ptr is a bit painful, but necessary for efficiency.*/
+	This is the primary method for this object.  It runs the
+	plane wave, iterative, deconvolution algorithm and returns
+	the result as a  ThreeComponentEnsemble of deconvolved data.  
+	This method does all the work and can run for a lon time. 
+	Each output member has key parameters stored in it's Metadata 
+	area including:  gridd, ix1, ix2, ux0, uy0, ux, uy, and elev.  
+
+	\return auto_ptr to the deconvolved data.  
+	\param pslat pseudostation latitude of point to construct this
+		deconvolution (radians).
+	\param pslon pseudostation longitude of point to construct 
+		deconvolution (radians).  
+	\exception can throw a SeisppError if there are unreconciable 
+		errors.
+	*/
 	auto_ptr<ThreeComponentEnsemble> compute(double pslat, double pslon);
 private:
 	int maxiteration;  /* Limit on number of iterative cycles. */
