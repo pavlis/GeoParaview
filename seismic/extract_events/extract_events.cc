@@ -559,7 +559,7 @@ void map_to_wfprocess(ThreeComponentSeismogram& d)
 }
 void usage()
 {
-	cerr << "extract_events dbin dbout [-e eventdb -s eventsubset -pf pfname]" << endl;
+	cerr << "extract_events dbin dbout [-e eventdb -s eventsubset -v -V -pf pfname]" << endl;
 	exit(-1);
 }
 bool SEISPP::SEISPP_verbose=false;
@@ -575,6 +575,11 @@ int main(int argc, char **argv)
 	string pfin("extract_events");
 	string dbin(argv[1]);
 	string dbout(argv[2]);
+	if(dbin==dbout) 
+	{
+		cerr << "Input and output databases must be different"<<endl;
+		usage();
+	}
 	string eventdb=dbin;
 	bool eventsubset=false;
 	string event_subset_expression("NONE");
@@ -633,8 +638,8 @@ int main(int argc, char **argv)
 		te=control.get_double("processing_window_end");
 		TimeWindow processing_twin(ts,te);
 		StationChannelMap stachanmap(pf);
-		string schemain=control.get_string("InputAttributeMap");
-		string schemaout=control.get_string("OutputAttributeMap");
+		string schemain("css3.0");
+		string schemaout("css3.0");
 		double target_dt=control.get_double("target_sample_interval");
 		string method=control.get_string("method");
 		string model=control.get_string("model");

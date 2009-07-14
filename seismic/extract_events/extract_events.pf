@@ -37,8 +37,6 @@ data_window_end 800.0
 data_time_pad 100.0
 processing_window_start -50.0
 processing_window_end 550.0
-InputAttributeMap css3.0
-OutputAttributeMap xcor1.2
 target_sample_interval 0.1
 # When true only data for stations with times marked in
 # the arrival table are extracted.  When false all data 
