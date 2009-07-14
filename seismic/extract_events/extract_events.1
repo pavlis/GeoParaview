@@ -140,12 +140,14 @@ parameters with string values:  \fBX1_channel_name, X2_channel_name\fR, and \fBX
 These are tags given to three-component bundles assigned to the X1, X2, and X3 axes.  
 The default is simplified cardinal direction codes of "E", "N", and "Z".  
 .LP
-Finally, a few ancillanry parameters.  \fBnetname\fR is used as a name to tag the station
+Finally, a few ancillary parameters.  \fBnetname\fR is used as a name to tag the station
 geometry read internally. It should not normally need to be changed by the user.  \fBmethod\fR and
 \fBmodel\fR specify a travel time method and model used with the ttcalc(3) interface to compute
 theoretical travel times.  This is ignored if the data are being accessed by actual arrivals, but 
 are important for defining time segments otherwise.  \fBfilter\fR can be used to specify a string
-that defines a filter using the BRTT filter library.  The default is DEMEAN.  Finally, the
+that defines a filter using the BRTT filter library.  If this is NONE no filtering is done.  Otherwise
+the data window (with the tpad applied) is prefiltered with this filter before being cut to the
+final length.  The default is DEMEAN.  Finally, the
 parameter \fBStationChannelMap\fR defines a complicated Arr used to resolve ambiguities in 
 what channel to use for stations with multiple channel or loc codes.  For more details see 
 man dbxcor(1) which explains this in detail.
