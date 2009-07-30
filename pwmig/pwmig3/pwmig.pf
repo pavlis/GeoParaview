@@ -13,6 +13,8 @@ maximum_depth	600.0
 maximum_time_lag	100.0
 fixed_u_mode	false
 slowness_grid_deltau	0.01
+# Make this parameter less than slowness_grid_deltau to get a CCP stack
+delta_slowness_cutoff 1.0
 ray_trace_depth_increment	1.0
 data_sample_interval 0.2
 # new Jan 25,2007 for weighting function fundamental problem
@@ -26,12 +28,19 @@ use_grt_weights false
 # decimation of the coherence grid relative to image grid.
 #
 coherence_grid_name cohgrid
-coherenece_smoother_length 5
+coherence_smoother_length 5
 coherence_raygrid_decimation 5
 #
 # elevation static parameters.  velocity should be a surface value
-# for 1(us-up) where us and up are s and p slowness
+# for (us-up) where us and up are s and p slowness
 #
 apply_elevation_statics false
 elevation_static_correction_velocity 8.4
+Incident_TTgrid_zdecfac 1
+#
+# This is a multiplier applied to maximum depth for rays as a fudge factor.
+# It is somewhat analagous to border_pad, but used in a different way.
+# It must be greater than 1.0 and less than 1.5 or pwmig will abort.
+#
+depth_padding_multiplier 1.2
 pf_revision_time	1098359696

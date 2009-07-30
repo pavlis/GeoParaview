@@ -87,9 +87,14 @@ dmatrix Ray_Transformation_Operator::apply(dmatrix& in)
 		work[2]=in(2,i);
 		// Note this is computing U^T u(t) for each sample
 		p=U[i].get_address(0,0);
+		/* This seems wrong. retained till verified wrong
 		out(0,i)=p[0]*work[0]+p[1]*work[1]+p[2]*work[2];
 		out(1,i)=p[3]*work[0]+p[4]*work[1]+p[5]*work[2];
 		out(2,i)=p[6]*work[0]+p[7]*work[1]+p[8]*work[2];
+		*/
+		out(0,i)=p[0]*work[0]+p[3]*work[1]+p[6]*work[2];
+		out(1,i)=p[1]*work[0]+p[4]*work[1]+p[7]*work[2];
+		out(2,i)=p[2]*work[0]+p[5]*work[1]+p[8]*work[2];
 	}
 	return(out);
 }
