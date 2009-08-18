@@ -373,8 +373,6 @@ Ray_Transformation_Operator::Ray_Transformation_Operator(GCLgrid& g,
 		work(2,1) = 0.0;
 		work(2,2) = 1.0;
 		U.push_back(work*Raytrans0.U[i]);
-
-
 	}
 	npoints=U.size();
 

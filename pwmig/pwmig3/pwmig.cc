@@ -31,7 +31,7 @@ MatlabProcessor mp(stdout);
 #endif
 void usage()
 {
-        cbanner((char *)"$Revision: 1.13 $ $Date: 2009/07/30 11:12:51 $",
+        cbanner((char *)"$Revision: 1.14 $ $Date: 2009/08/18 11:22:10 $",
                 (char *)"db  listfile [-np np -rank r -V -v -pf pfname]",
                 (char *)"Gary Pavlis",
                 (char *)"Indiana University",
@@ -1837,13 +1837,6 @@ mp.process(string("plot3c(gradtp);pause(1)"));
 				linear_vector_regular_to_irregular(t0,dt,pwdata->member[is].u,
 					&(SPtime[0]),work);
 
-//DEBUG
-/*
-cout <<"dendtime="<<pwdata->member[is].endtime()
- << " SPtime_max="<<SPtime[SPtime.size()-1]
- << "Max depth="<<raygrid.depth(i,j,0)<<endl;
-*/
-
 #ifdef MATLABDEBUG
 //DEBUG
 cout << "Input data number of samples="<<pwdata->member[is].ns<<endl;
@@ -1926,13 +1919,6 @@ mp.process(string("plot6c(de,sptime,di);pause(1.0);"));
 //mp.process(string("plot3c(work);"));
 				Ray_Transformation_Operator& trans_operator=*troptr;
 				work=trans_operator.apply(work);
-/*
-mp.load(work,string("work2"));
-cerr << "work matrix loaded as work2.  After ray transformaton"<endl;
-//mp.process(string("figure; plot3c(work);"));
-//mp.run_interactive();
-mp.process(string("plot3c6(work,work2)"));
-*/
 				// done with these now
 				delete pathptr;
 				delete troptr;
@@ -1998,16 +1984,10 @@ mp.process(string("plotow;title 'after smoother';"));
 					{
 						pwdgrid.val[i][j][k][l]=work(l,kk)
 							*dweight_ij[kk]*domega_ij[kk];
-//cout << work(l,kk)<<", ";
-						// DEBUG
 					}
 					pwdgrid.val[i][j][k][3]=domega_ij[kk];
 					pwdgrid.val[i][j][k][4]=dweight_ij[kk];
 				}
-//x1test.clear();
-/*
-tpxtmp.clear();
-*/
 #ifdef MATLABDEBUG
 //DEBUG
 dmatrix dproj(3,n3);
