@@ -17,7 +17,7 @@ bool Verbose;
 
 void usage()
 {
-    cbanner((char *)"$Revision: 1.13 $ $Date: 2009/07/03 14:03:05 $",
+    cbanner((char *)"$Revision: 1.14 $ $Date: 2009/08/20 17:34:17 $",
         (char *)"dbin [-np np -rank rank -v -V -pf pfname]",
         (char *)"Gary Pavlis",
         (char *)"Indiana University",
@@ -237,6 +237,7 @@ cout << "working view size="
 		list<string> gkey;
 		gkey.push_back("evid");
 		gkey.push_back("sta");
+		dbh.group(gkey);
 	}
 	else if(dbviewmode=="use_wfprocess")
 	{
