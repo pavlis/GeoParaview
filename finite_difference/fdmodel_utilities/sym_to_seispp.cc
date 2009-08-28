@@ -6,6 +6,7 @@
 #include "db.h"
 #include "gclgrid.h"
 #include "Hypocenter.h"
+#include "seispp.h"
 using namespace std;
 using namespace SEISPP;
 string virtual_station_name(int ix1, int ix2)
@@ -15,6 +16,7 @@ string virtual_station_name(int ix1, int ix2)
         return(string(name));
 }
 
+bool SEISPP::SEISPP_verbose(true);
 int main(int argc, char **argv)
 {
 	ios::sync_with_stdio();
