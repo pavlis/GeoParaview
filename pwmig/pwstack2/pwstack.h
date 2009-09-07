@@ -24,22 +24,53 @@ public:
 	double *cutoff;
 	DepthDependentAperture()
 		{npoints=0;t=NULL;aperture=NULL;cutoff=NULL;};
+        /*! Construct using linear segments specified by parallel vectors*/
 	DepthDependentAperture(int npt){
 		npoints=npt;
 		t=new double[npt];
 		aperture=new double[npt];
 		cutoff=new double[npt];
 	};
+        /*! Use Fresnel zone formula to construct.  
+          *
+          * A useful depth dependent aperture formula is to use the
+          * Fresnel zone size for vertical incident S in a constant
+          * velocity medium.  This constructor implements that formula.
+          * The aperture is parameterized internally by two parallel 
+          * vectors just like the manual constructors.  The dtau and ntau
+          * variable set the uniform grid interval and number of points
+          * respectively.
+          *
+          *\param vs is S wave velocity.
+          *\param vp is P wave velocity.
+          *\param period is wave period to compute the Fresnel zone size.
+          *     Be aware this is effectively a width parameter because at
+          *     zero lag the width becomes this value and increases with 
+          *     lag.
+          *\param dtau is lag sample interval for formula
+          *\param ntau is the number of lags to compute (Note that the 
+          *      interpolation method continues the value of (ntau-1)*dtau 
+          *      to infinity.
+          *\param cutoffmultiplier is a scale factor used to compute cutoff
+          *     parameter.  For this constructor cutoff is computed as this
+          *     number times the aperture.
+          *\param echoresult if set true will print computed aperture sizes
+          *     using cout. 
+         */
+        DepthDependentAperture(double vs, double vp,double period,
+            double dtau, int ntau,double cutoff_multiplier,bool echoresult);
+	// pf constructor.  tag is keyword to hold list of values
+	DepthDependentAperture(Pf *pf,string tag) throw(string);
+        /*! Copy constructor. */
 	DepthDependentAperture(const DepthDependentAperture& parent);
 	~DepthDependentAperture(){
 		if(t!=NULL)delete [] t; 
 		if(aperture!=NULL)delete [] aperture;
 		if(cutoff!=NULL)delete [] cutoff;
 	};
-	// pf constructor.  tag is keyword to hold list of values
-	DepthDependentAperture(Pf *pf,string tag) throw(string);
 	double get_aperture(double tnow);
 	double get_cutoff(double tnow);
+        DepthDependentAperture& operator=(const DepthDependentAperture& parent);
 };
 
 /* Special internal object for this program used to return
@@ -85,6 +116,8 @@ int pwstack_ensemble(ThreeComponentEnsemble& indata,
 	double tstart,
 	double tend,
 	DepthDependentAperture& aperture,
+	double aperture_taper_length,
+	double centroid_cutoff,
 	double dtcoh,
 	double cohtwin,
 	MetadataList& mdlcopy,

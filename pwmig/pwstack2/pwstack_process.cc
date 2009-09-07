@@ -48,6 +48,41 @@ string MakeDfileName(int evid, int x1, int x2)
     return(sbuf.str());
 }
 
+/* Applies a simple ramp taper to any weights component that starts
+at zero and then becomes nonzero.  This happens only when the 
+pseudostation aperture is depth variable.  */
+void taper_weights_array(dmatrix& weights, double dt, double aperture_taper_length)
+{
+	int nsta=weights.rows();
+	int nsamp=weights.columns();
+	int i,j,jstart;
+	for(i=0;i<nsta;++i)
+	{
+		if(weights(i,0)>0.0)
+		{
+			jstart=-1;
+			for(j=0;j<nsamp;++j)
+			{
+				if(weights(i,j)>0.0)
+				{
+					jstart=j;
+					break;
+				}
+			}
+			if(jstart>0)
+			{
+				double dwpersample;
+				dwpersample=dt/aperture_taper_length;
+				double scale;
+				for(j=jstart,scale=0.0;j<nsamp,scale<1.0;
+					++j,scale+=dwpersample)
+				{
+					weights(i,j)*=scale;
+				}
+			}
+		}
+	}
+}
 
 /*
 Main processing function for this program.  Takes an input
@@ -55,9 +90,12 @@ data ensemble and produce a complete suite of plane-wave stacks
 defined by the Rectangualr_Slowness_Grid object.
 This function uses and enhancement from the original Neal and Pavlis
 and Poppeliers and Pavlis papers.  It allows the aperture to
-be tim variable.  This is generalized, but the normal expectation
+be time variable.  This is generalized, but the normal expectation
 is that the apeture would grow wider with time to compensate
-somewhat for diffraction.
+somewhat for diffraction.  The aperture widths should increase with lag
+or ugly artifacts can appear when traces come in and out of the stack
+at variable lag.  This is compensated if a trace appears moving forward 
+in time lag by a linear taper method.  
 
 Arguments
 indata - input raw data ensemble (see object definition
@@ -90,9 +128,9 @@ external namespace (invariant between calls)
 dir and dfile - define file name where output written (dir/dfile)
 dbh - DatabaseHandle object for output
 
-Normal return is 0.  Returns nonzero if stack was null.
-(This is not an exception as it will happen outside the boundaries
-of an array and this case needs to be handled cleanly.
+Normal return is stack count.  Returns a negative number for different errors.
+A zero return is normal, but means there is no data within a the aperture of 
+the cutoff circle around this pseudostation point.
 
 Changed July 1, 2008
 Now returns count of fold for this grid point.  negative or 0
@@ -105,6 +143,14 @@ to produce a handler.
 Change Jan 15,2004
 Used to pass lat0, lon0 by arg list, now passed through the
 ensemble metadata.
+Change August,2009
+Added two parameters to make variable depth aperture work correctly:
+centroid_cutoff is used with a centroid calculation.  If the centroid
+of the stations retained for a pseudostation fall outside this distance from
+the pseudostation point, return -2 and do nothing.  The other is
+aperture_taper_length.  A linear taper like a top mute of this length
+(in seconds) is applied to weights whenever the first nonzero value is
+not at zero lag.  
 */
 int pwstack_ensemble(ThreeComponentEnsemble& indata,
 RectangularSlownessGrid& ugrid,
@@ -114,6 +160,8 @@ int stack_count_cutoff,
 double tstart,
 double tend,
 DepthDependentAperture& aperture,
+double aperture_taper_length,
+double centroid_cutoff,
 double dtcoh,
 double cohwinlen,
 MetadataList& mdlcopy,
@@ -132,11 +180,6 @@ PwmigFileHandle& cohfh)
     int evid;
     string dfile;
     const double WEIGHT_MINIMUM=1.0e-2;
-//DEBUG remove this fixed array buffer when completed
-/*
-double DEBUGBUFFER[10000];
-vector<double>::iterator idbg;
-*/
     try
     {
         lat0=indata.get_double("lat0");
@@ -197,7 +240,8 @@ vector<double>::iterator idbg;
     vector <double> deast;
     vector <double> elev;
     dnorth.resize(nsta);   deast.resize(nsta);  elev.resize(nsta);
-    for(i=0,iv=indata.member.begin();iv!=indata.member.end();++iv,++i)
+    for(i=0,iv=indata.member.begin();
+		iv!=indata.member.end();++iv,++i)
     {
         double lat,lon;
         int ierr;
@@ -210,16 +254,6 @@ vector<double>::iterator idbg;
             lon = rad(lon);
             geographic_to_dne(lat0, lon0, lat, lon, &(dnorth[i]),&(deast[i]));
             elev[i]=(*iv).get_double("site.elev");
-            //DEBUG
-            /*  This found no problems.  Working correctly and using radians consistently.
-            January 6, 2007
-            cerr << lat << " "
-                << lat0 << " "
-                << dnorth[i] << " "
-                << lon << " "
-                << lon0 << " "
-                << deast[i] << endl;
-            */
         } catch (MetadataError& merr)
         {
             throw merr;
@@ -248,9 +282,8 @@ vector<double>::iterator idbg;
     {
         int nused;
 
-        // Assume compute_pseudostation sets weights to zero outside
-        // cutoff and not just skip them.  Otherwise we need an
-        // intializer here.
+	// This procedure sets weights to zero outside the cutoff and we depend 
+	// on this here to build the full weights matrix
         nused=compute_pseudostation_weights(nsta, &(dnorth[0]),&(deast[0]),
             aperture.get_aperture(tstart+dt*(double)i),
             aperture.get_cutoff(tstart+dt*(double)i),&(work[0]));
@@ -264,12 +297,24 @@ vector<double>::iterator idbg;
             else
                 weights(j,i)=0.0;
         }
-        //stack_count=max(nused,stack_count);
     }
-    //cerr<< "stack_count from nused="<<stack_count<<endl;
-    for(i=0,stack_count=0;i<nsta;++i)
-        if(use_this_sta[i])++stack_count;
-    //cerr<< "stack count from new boolean vector="<<stack_count<<endl;
+    double dncen,decen;  // Centroid of live sta in x,y coord
+    double avg_elev,sum_wgt;                      // computed now as weighted sum of station elevations
+    dncen=0.0;  decen=0.0;
+    for(i=0,stack_count=0,avg_elev=0.0,sum_wgt=0.0;
+            i<nsta;++i)
+    {
+        double w;
+        if(use_this_sta[i])
+	{
+		++stack_count;
+                w=weights(i,0);
+		dncen+=w*dnorth[i];
+		decen+=w*deast[i];
+        	avg_elev += w*elev[i];
+        	sum_wgt += w;
+	}
+    }
     ///
     // ERROR RETURN THAT NEEDS TO BE HANDLED GRACEFULLY
     // I don't throw an exception because this should not be viewed as
@@ -277,22 +322,38 @@ vector<double>::iterator idbg;
     // it will happen often at the edges of arrays
     //
     if(stack_count<stack_count_cutoff) return(-1);
-    cout << "Processing data for node ("<<ix1<<", "<<ix2<<") with fold="<<stack_count<<endl;
+    /* Failsafe to avoid possible divide by zero.  If the 
+   sum_wgt value is too small, just compute avg_elev as a mean.
+   Odds are if this is the situation this pseudostation is likely
+   to get tossed anyway, but this makes the code more robust. 
+   Perhaps should post a warning in verbose mode, but odds are small
+   this will ever recover if this block is entered.*/
+    if(sum_wgt<WEIGHT_MINIMUM) 
+    {
+        dncen=0.0;
+        decen=0.0;
+        for(i=0,avg_elev=0.0,sum_wgt=0.0;i<nsta;++i)
+        {
+    	    if(use_this_sta[i])
+    	    {
+            	avg_elev += elev[i];
+                dncen+=dnorth[i];
+                decen+=deast[i];
+            	sum_wgt += 1.0;
+    	    }
+	}
+   }
+    dncen/=sum_wgt;
+    decen/=sum_wgt;
+    avg_elev/=sum_wgt;
+    if(hypot(dncen,decen)>centroid_cutoff) return(-2);
+    if(SEISPP_verbose) 
+        cout << "Processing data for node ("<<ix1
+            <<", "<<ix2<<") with fold="<<stack_count<<endl;
     vector <double>moveout(nsta);
     dmatrix stack(3,nsout);
     vector<double>stack_weight(nsout);
     vector<double>twork(nsout);
-
-    double avg_elev,sum_wgt;                      // computed now as weighted sum of station elevations
-    for(i=0,avg_elev=0.0,sum_wgt=0.0;i<nsta;++i)
-    {
-        avg_elev += weights(i,0)*elev[i];
-        sum_wgt += weights(i,0);
-    }
-    if(sum_wgt<WEIGHT_MINIMUM) sum_wgt=WEIGHT_MINIMUM;
-    //DEBUG
-    //cerr << "sum_wgt="<<sum_wgt<<endl;
-    avg_elev /= sum_wgt;
     // New March 2007:  these matrices hold stack members
     // and associated weights for each sample.
     // They are used for coherence calculations
@@ -324,19 +385,18 @@ vector<double>::iterator idbg;
 		break;
 	}
     }
-    /* no reason to continue if all the weights are tiny as that means
-    all coverage is at the fringe of the aperture.  Normally best to drop
-    such points.  Return 0 in this case instead of -1 as above. */
-    if(stack_start>=nsout) return(0);
-    /* Apply the top mute to the start the data to taper discontinuties
-    that can happen otherwise when the aperture gets wider with time. */
-    TopMute smuteused(stackmute);
-    if(stack_start>=0)
-    {
-	double tshift=dt*static_cast<double>(stack_start);
-	smuteused.t0e+=tshift;;
-	smuteused.t1+=tshift;
-    }
+    /* Return -3 to signal to not use this pseudostation if the 
+    first sample that satisfied the above test is after the 
+    stack mute zone.  If running in verbose mode issue a diagnostic
+    as a user can get into trouble with variable apertures 
+    and this necessary detail. */
+    if((stack_start*dt)>stackmute.t1)
+	return(-3);
+    /* One last step to clean up the weights array.  If the aperture 
+    width increases with depth we need to taper the leading edge to 
+    avoid transients.   This rather inelegant procedure does this.  
+    It will do nothing if the aperture is constant for all lags */
+    taper_weights_array(weights,dt,aperture_taper_length);
 
     /* Create the working gather build as 3 matrices, one for each channel,
     with stack_count columns per member.   More logical than a 3d array 
@@ -462,21 +522,7 @@ vector<double>::iterator idbg;
                                 gather[j](jj,icol)=twork[jj];
                             }
 
-//DEBUG
-/*
-dcopy(nsout,&(twork[0]),1,DEBUGBUFFER,1);
-idbg=max_element(twork.begin(),twork.end());
-cout << "Max before weighting="<<*idbg<<endl;
-*/
-                            //mp.load(twork,string("d0"));
                             vscal(nsout,weights.get_address(i,0),nsta,&(twork[0]),1);
-                            //mp.load(twork,string("ds"));
-//DEBUG
-/*
-dcopy(nsout,&(twork[0]),1,DEBUGBUFFER,1);
-idbg=max_element(twork.begin(),twork.end());
-cout << "Max after weighting="<<*idbg<<endl;
-*/
                             vadd(nsout,&(twork[0]),1,stack.get_address(j,0),3);
                             //mp.load(stack,string("stack"));
 			    /* We accumulate the stack_weight vector only on the first component. */
@@ -505,7 +551,7 @@ cout << "Max after weighting="<<*idbg<<endl;
                 }
                 else
                 {
-                    for(j=0;j<3;++j) stack(j,i)=0.0;
+                    for(j=0;j<3;++j) stack(j,i)/=WEIGHT_MINIMUM;
                 }
             }
 
@@ -539,7 +585,7 @@ cout << "Max of stack="<<*idbg<<endl;
             // just keep a good estimate of elevation and deal with this in the
             // migration algorithm.
             stackout->put("elev",avg_elev);
-            ApplyTopMute(*stackout,smuteused);
+            ApplyTopMute(*stackout,stackmute);
 //DEBUG
 /*
 dcopy(nsout*3,stackout->u.get_address(0,0),1,DEBUGBUFFER,1);
@@ -555,7 +601,7 @@ cout << "Max of stackout="<<*idbg<<endl;
 #endif
             // new March 2007: compute stack coherence
             Coharray coh=compute_stack_coherence(gather,gathwgt,*stackout,
-                dtcoh,cohwinlen,smuteused);
+                dtcoh,cohwinlen,stackmute);
             stacklist.push_back(*stackout);
             delete stackout;
             coharraylist.push_back(coh);

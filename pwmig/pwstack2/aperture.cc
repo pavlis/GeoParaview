@@ -42,7 +42,34 @@ throw (string)
         instr >> cutoff[i];
     }
 }
-
+/* Fresnel zone constructor.  See include file for parameter definitions. */
+DepthDependentAperture::DepthDependentAperture(double vs, 
+        double vp,
+            double period,
+                double dtau, 
+                    int ntau,
+                        double cutoff_multiplier,
+                            bool echoresult)
+{
+    npoints = ntau;
+    t=new double[npoints];
+    aperture=new double[npoints];
+    cutoff=new double[npoints];
+    int i;
+    for(i=0;i<npoints;++i) t[i]=static_cast<double>(i)*dtau;
+    double lagtots=vp/(vp-vs);  // multiplier from S-P time to S time
+    double ts;
+    if(echoresult) cout << "Fresnel zone aperture calculation used"<<endl
+                        << "lag   aperture(km)    cutoff(km)"<<endl;
+    for(i=0;i<npoints;++i)
+    {
+        ts=lagtots*t[i];
+        double term1=ts+period/2.0;
+        aperture[i]=vs*sqrt(term1*term1 - ts*ts);
+        cutoff[i]=cutoff_multiplier*aperture[i];
+        if(echoresult)cout<<t[i]<<"  "<<aperture[i]<<"  "<<cutoff[i]<<endl;
+    }
+}
 
 DepthDependentAperture::DepthDependentAperture(const DepthDependentAperture& a)
 {
@@ -111,4 +138,48 @@ double DepthDependentAperture::get_aperture(double t0)
 double DepthDependentAperture::get_cutoff(double t0)
 {
     return(linear_interpolate_irregular(npoints,t,cutoff,t0));
+}
+DepthDependentAperture& DepthDependentAperture::operator=(const DepthDependentAperture& parent)
+{
+    if(this!=&parent)
+    {
+        npoints=parent.npoints;
+        if(npoints>0)
+        {
+            if(parent.t == NULL)
+            {
+                t=NULL;
+            }
+            else
+            {
+                t=new double[npoints];
+                dcopy(npoints,parent.t,1,t,1);
+            }
+            if(parent.aperture == NULL)
+            {
+                aperture=NULL;
+            }
+            else
+            {
+                aperture=new double[npoints];
+                dcopy(npoints,parent.aperture,1,aperture,1);
+            }
+            if(parent.cutoff == NULL)
+            {
+                cutoff=NULL;
+            }
+            else
+            {
+                cutoff=new double[npoints];
+                dcopy(npoints,parent.cutoff,1,cutoff,1);
+            }
+        }
+        else
+        {
+            t=NULL;
+            aperture=NULL;
+            cutoff=NULL;
+        }
+    }
+    return(*this);
 }

@@ -17,7 +17,7 @@ bool Verbose;
 
 void usage()
 {
-    cbanner((char *)"$Revision: 1.14 $ $Date: 2009/08/20 17:34:17 $",
+    cbanner((char *)"$Revision: 1.15 $ $Date: 2009/09/07 12:26:00 $",
         (char *)"dbin [-np np -rank rank -v -V -pf pfname]",
         (char *)"Gary Pavlis",
         (char *)"Indiana University",
@@ -52,7 +52,6 @@ int main(int argc, char **argv)
     Pf *pf;
     Pf *pfnext;
     char *ensemble_tag;
-    char *dir;
 
     // This is the input data ensemble
     ThreeComponentEnsemble *din;
@@ -147,29 +146,33 @@ int main(int argc, char **argv)
     if(i != 0) die(1,(char *)"Pfread error\n");
     try
     {
-
+	Metadata control(pf);
         // This builds the grid of plane wave components
         RectangularSlownessGrid ugrid(pf,"Slowness_Grid_Definition");
         // control parameters on stack process
         double ts,te;
-        ts = pfget_double(pf,(char *)"stack_time_start");
-        te = pfget_double(pf,(char *)"stack_time_end");
-	int stack_count_cutoff=pfget_int(pf,(char *)"stack_count_cutoff");
+	ts=control.get_double("stack_time_start");
+	te=control.get_double("stack_time_end");
+	int stack_count_cutoff=control.get_int("stack_count_cutoff");
+	double aperture_taper_length=control.get_double("aperture_taper_length");
+	double centroid_cutoff=control.get_double("centroid_cutoff");
         // the data are windowed around arrivals to this interval
         // normally should be ts:te with sufficient allowance for moveout
         double tsfull, tefull;                    // normally longer than ts and te to allow
-        tsfull = pfget_double(pf,"data_time_window_start");
-        tefull = pfget_double(pf,"data_time_window_end");
+        tsfull = control.get_double("data_time_window_start");
+        tefull = control.get_double("data_time_window_end");
         TimeWindow data_window(tsfull,tefull);
-        dir = pfget_string(pf,"waveform_directory");
-        if(dir==NULL)
+        string dir = control.get_string("waveform_directory");
+        if(dir.size()<=0)
             dir=strdup("./pwstack");
-        if(makedir(dir))
-            elog_die(0,"Cannot create directory %s\n",dir);
-	char *dfilebase=pfget_string(pf,"output_data_file_base_name");
-
-	char *fielddir=pfget_string(pf,"field_file_directory");
-	char *fieldnamebase=pfget_string(pf,"field_base_name");
+        if(makedir(const_cast<char *>(dir.c_str())))
+	{
+	    cerr << "Cannot create directory ="<<dir<<endl;
+            exit(-1);
+	}
+	string dfilebase=control.get_string("output_data_file_base_name");
+	string fielddir=control.get_string("field_file_directory");
+	string fieldnamebase=control.get_string("field_base_name");
         //
         // station_mdl defines database attributes copied to
         // metadata space of data object.  ensemble_mdl are
@@ -178,26 +181,53 @@ int main(int argc, char **argv)
         MetadataList station_mdl=pfget_mdlist(pf,"station_metadata");
         MetadataList ensemble_mdl=pfget_mdlist(pf,"ensemble_metadata");
         AttributeMap InputAM("css3.0");
-        DepthDependentAperture aperture(pf,aperture_tag);
+        bool use_fresnel_aperture=control.get_bool("use_fresnel_aperture");
+        DepthDependentAperture aperture;
+        if(use_fresnel_aperture)
+        {
+            cout << "Using Fresnel zone aperture widths for stacks"<<endl;
+            double fvs,fvp,fcm,fperiod,fdt;
+            int fnt;
+            fvs=control.get_double("fresnel_vs");
+            fvp=control.get_double("fresnel_vp");
+            fcm=control.get_double("fresnel_cutoff_multiplier");
+            fperiod=control.get_double("fresnel_period");
+            fdt=control.get_double("fresnel_lag_time_sampling_interval");
+            fnt=control.get_int("fresnel_number_lag_samples");
+            cout << "Fresnel zone parameters:  Vs="<<fvs
+                << ", Vp="<<fvp
+                << ", period="<<fperiod
+                << ", cutoff multiplier="<<fcm
+                << "Aperture parameters will be specified by "<<fnt
+                << " points sampled at intervals of " <<fdt
+                << " for total depth of "<< fdt*static_cast<double>(fnt)
+                <<endl;
+            aperture=DepthDependentAperture(fvs,fvp,fperiod,fdt,fnt,
+                    fcm,true);
+        }
+        else 
+        {
+            aperture=DepthDependentAperture(pf,aperture_tag);
+        }
 	/* These will throw an exception if not defined.  
 	We use a parameter to turn these off if desired.
 	Not very elegant, but functional. */
         TopMute mute(pf,string("Data_Top_Mute"));
-	bool enable_data_mute=pfget_boolean(pf,"enable_data_mute");
+	bool enable_data_mute=control.get_bool("enable_data_mute");
 	if(enable_data_mute)
 		mute.enabled=true;
 	else
 		mute.enabled=false;
         TopMute stackmute(pf,string("Stack_Top_Mute"));
-	bool enable_stack_mute=pfget_boolean(pf,"enable_stack_mute");
+	bool enable_stack_mute=control.get_bool("enable_stack_mute");
 	if(enable_stack_mute)
 		stackmute.enabled=true;
 	else
 		stackmute.enabled=false;
         /* new parameters April 2007 for coherence attribute calculator*/
         double dtcoh,cohwinlen;
-        dtcoh=pfget_double(pf,"coherence_sample_interval");
-        cohwinlen=pfget_double(pf,"coherence_average_length");
+        dtcoh=control.get_double("coherence_sample_interval");
+        cohwinlen=control.get_double("coherence_average_length");
         /* This database open must create a doubly grouped view to
         // correctly define a three component ensemble grouping
         // normally this will be done by a hidden dbprocess list
@@ -205,7 +235,7 @@ int main(int argc, char **argv)
         */
         string dbnmi(dbname_in);                  // this temporary seems necessary for g++
         DatascopeHandle dbh(dbnmi,false);
-	string dbviewmode(pfget_string(pf,"database_view_mode"));
+	string dbviewmode(control.get_string("database_view_mode"));
 	if(dbviewmode=="dbprocess")
         	dbh=DatascopeHandle(dbh,pf,string("dbprocess_commands"));
 	else if(dbviewmode=="use_wfdisc")
@@ -217,18 +247,14 @@ int main(int argc, char **argv)
 		j2.push_back("sta");
 		j2.push_back("arrival.time");
 		dbh.leftjoin("wfdisc",j1,j2);
-cout << "wfdisc join view rows="
-<<dbh.number_tuples()<<endl;
 		dbh.natural_join("assoc");
 		dbh.natural_join("origin");
 		dbh.natural_join("event");
 		dbh.subset("orid==prefor");
-cout << "join of catalog data rows="
-<<dbh.number_tuples()<<endl;
 		dbh.natural_join("sitechan");
 		dbh.natural_join("site");
-cout << "working view size="
-<<dbh.number_tuples()<<endl;
+		if(SEISPP_verbose) cout << "working view size="
+			<<dbh.number_tuples()<<endl;
 		list<string> sortkeys;
 		sortkeys.push_back("evid");
 		sortkeys.push_back("sta");
@@ -267,7 +293,7 @@ cout << "working view size="
 	}
 	cout << "Processing begins on database " 
 		<<  dbname_in << endl
-		<<"Working database has "<<dbh.number_tuples() <<" rows."<<endl;
+		<<"Number of events to process= "<<dbh.number_tuples() <<endl;
         list<string> group_keys;
         group_keys.push_back("evid");
         dbh.group(group_keys);
@@ -282,10 +308,8 @@ cout << "working view size="
         // produced separately to be useful.  This program should not
         // need this information though.
         //
-        char *stagridname;
-        stagridname=pfget_string(pf,"pseudostation_grid_name");
-        string grdnm(stagridname);
-        GCLgrid stagrid(dbh.db,grdnm);
+        string stagridname=control.get_string("pseudostation_grid_name");
+        GCLgrid stagrid(dbh.db,stagridname);
         cout << "Using pseudostation grid of size "<<stagrid.n1<<" X " <<stagrid.n2<<endl;
 
 	/* This field derived from stagrid is used to hold stack fold
@@ -348,7 +372,7 @@ cout << "working view size="
 	    /* A way to asssure this is cleared.  May not be necessary */
 	    ssbuf[0]='\0';
 	    stringstream ss(ssbuf);
-	    ss << dir << "/" << string(dfilebase) << "_" << evid;
+	    ss << dir << "/" << dfilebase << "_" << evid;
 	    string dfilebase=ss.str();
 	    string dfile=dfilebase+DataFileExtension;
 	    string coh3cf=dfilebase+Coh3CExtension;
@@ -360,7 +384,7 @@ cout << "working view size="
 	    PwmigFileHandle cohfh(cohf,false,true);
 	    load_file_globals(cohfh,evid,olat,olon,odepth,otime,stagridname);
             double lat0,lon0,elev0;
-	    cout << "Beginning process for event id = "<<evid<<endl;
+	    cout << "Beginning processing for event id = "<<evid<<endl;
             for(i=0;i<stagrid.n1;++i)
                 for(j=0;j<stagrid.n2;++j)
             {
@@ -398,6 +422,8 @@ cout << "working view size="
                         ts,
                         te,
                         aperture,
+			aperture_taper_length,
+			centroid_cutoff,
                         dtcoh,
                         cohwinlen,
                         ensemble_mdl,
@@ -413,9 +439,38 @@ cout << "working view size="
 			fold.val[i][j]=static_cast<double>(iret);
 		    }
 		    if(SEISPP_verbose)
-			cout << "Grid point ("<<i<<", "<<j
+                    {
+                        if(iret>0)
+			    cout << "Grid point ("<<i<<", "<<j
 				<<") has stack fold="<<(int)(fold.val[i][j])
 				<<endl;
+                        else
+                        {
+                            cout << "Grid point ("<<i<<", "<<j
+                                <<") was not processed:  ";;
+                            switch(iret)
+                            {
+                            case (-1):
+                                cout << "stack count below threshold."<<endl;
+                                break;
+                            case (-2):
+                                cout << "centroid of stations outside cutoff"<<endl;
+                                break;
+                            case (-3):
+                                cout << "sum of weights at zero lag is "
+                                    << "below threshold (probably 0)"
+                                    <<endl;
+                                break;
+                            default:
+                                cout << endl
+                                    << "ERROR.  Unknown return code returned by "
+                                    << "pwstack_ensemble ="<<iret<<endl
+                                    << "This is a coding error that needs to be fixed"
+                                    << "Check the source code"<<endl;
+                                exit(-1);;
+                            }
+                        }
+                    }
                 } catch (MetadataError& mderr1)
                 {
                     mderr1.log_error();
@@ -423,19 +478,23 @@ cout << "working view size="
                     cerr << "Pseudostation grid point indices (i,j)="
                         << "("<<i<<","<<j<<")"<<endl;
                 }
-                catch (SeisppError serr)
+                catch (SeisppError& serr)
                 {
                     serr.log_error();
                 }
             }
 	    char fsbuf[64];
-	    sprintf(fsbuf,"%s_%d",fieldnamebase,evid);
+	    sprintf(fsbuf,"%s_%d",fieldnamebase.c_str(),evid);
 	    string fieldname(fsbuf);
 	    fold.dbsave(dbh.db,string(""),fielddir,fieldname,fieldname);
         }
     } catch (SeisppError& err)
     {
         err.log_error();
+    }
+    catch (MetadataGetError& mdgerr)
+    {
+	mdgerr.log_error();
     }
     catch (MetadataError& mderr)
     {
