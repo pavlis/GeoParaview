@@ -31,7 +31,7 @@ MatlabProcessor mp(stdout);
 #endif
 void usage()
 {
-        cbanner((char *)"$Revision: 1.14 $ $Date: 2009/08/18 11:22:10 $",
+        cbanner((char *)"$Revision: 1.15 $ $Date: 2009/09/14 20:27:35 $",
                 (char *)"db  listfile [-np np -rank r -V -v -pf pfname]",
                 (char *)"Gary Pavlis",
                 (char *)"Indiana University",
@@ -687,7 +687,7 @@ mp.load(*pathdy1,string("pdy1"));
 mp.load(*pathdy2,string("pdy2"));
 mp.process(string("plotrays(pdx1,pdx2,pdy1,pdy2)"));
 */
-	}  catch (GCLgrid_error err)
+	}  catch (GCLgrid_error& err)
 	{
 		err.log_error();
 		die(0,"Unrecoverable error:  requires a bug fix\n");
@@ -988,7 +988,7 @@ SlownessVector slowness_average(ThreeComponentEnsemble *d)
 			else
 				return(SlownessVector(0.0,0.0,u0.azimuth()));
 			
-		} catch (MetadataGetError mde)
+		} catch (MetadataGetError& mde)
 		{
 			cerr << "Warning: slowness_average. "
 				<< "ux0 and uy0 not defined. using 0"
@@ -2131,35 +2131,18 @@ delete sfptr;
 		skip_this_event=false;
 		} // bottom of event loop
 	}
-	catch (GCLgrid_error gcle)
+	catch (GCLgrid_error& gcle)
 	{
 		gcle.log_error();
-		die(1,"GCLgrid library fatal error\n");
 	}
-	catch (MetadataGetError mde)
-	{
-		mde.log_error();
-		die(1,"Required processing metadata missing from input stream\n");
-	}
-	catch (MetadataError mde)
-	{
-		mde.log_error();
-		die(1,"Required processing metadata missing from input stream\n");
-	}
-	catch (SeisppError seer)
+	catch (SeisppError& seer)
 	{
 		seer.log_error();
-		die(1,"seispp library function error\n");
 	}
 	catch (int ierr)
 	{
-		die(1,"Something threw a simple int exception of %d\n",
-			ierr);
-	}
-	catch (VelocityModel_1d_Error vmoderr)
-	{
-		vmoderr.log_error();
-		die(1,"Problems reading 1D velocity model");
+                cerr << "Something threw a simple int exception of "
+                    << ierr<<endl;
 	}
 	catch (...)
 	{

@@ -21,7 +21,7 @@ SlownessVector get_stack_slowness(ThreeComponentEnsemble& ensemble)
 	try {
 		slow.ux = ensemble.get_double("plane_wave_ux");
 		slow.uy = ensemble.get_double("plane_wave_uy");
-	} catch (MetadataError mde)
+	} catch (MetadataError& mde)
 	{
 		throw(mde);
 	}
@@ -37,7 +37,7 @@ Hypocenter get_event_hypocenter(ThreeComponentEnsemble& ensemble)
 		h.lon = ensemble.get_double("origin.lon");
 		h.z = ensemble.get_double("origin.depth");
 		h.time = ensemble.get_double("origin.time");
-	} catch (MetadataError mde)
+	} catch (MetadataError& mde)
 	{
 		throw mde;
 	}

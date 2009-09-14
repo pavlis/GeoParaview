@@ -199,7 +199,7 @@ Ray_Transformation_Operator::Ray_Transformation_Operator(GCLgrid& g,
         U0(1,2) = -b*d;
         U0(2,2) = c;
 
-	For consistent with rotate method June 29, 2008.
+	For consistenty with rotate method June 29, 2008.
 	Note:  apply method uses U^T of this matrix as does
 	rotate_to_standard.   */
 	U0(0,0) = a*c;
@@ -285,10 +285,13 @@ Ray_Transformation_Operator::Ray_Transformation_Operator(GCLgrid& g,
 	{
 		double Lscatter[3],Tscatter[3],Rscatter[3];
 		double nu0[3];  // unit vector in direction gamma_P
-		// Tp, Rp, and Zp for an orthogonal basis for earth coordinates
-		// at the scattering point that are standard 1D propagator coordinates
-		// That is Zp is local vertical, Rp is Sv director for S ray path,
-		// and Tp is Sh.  
+                /* Tp, Rp, and Zp are a nonorthogonal set of vectors used
+                   to construct the Lsc, Rsc, and Tsc orthogonal basis below.
+                   Zp is local vertical, Tp is tangential in the conventional
+                   mode, and Rp is a radial.  Tp will be perpendicular to Zp
+                   and Rp, BUT Rp is not perpendicular to Zp but nu0 instead.
+                   Kind of a confusing set of symbols, but inherited from
+                   some earlier mixups and I don't want to botch the changes.*/
 		double Zp[3],Rp[3],Tp[3];  // radial and tangential for S ray path 
 		dmatrix work(3,3);
 		// copy the tangent vector Lscatter from the tangent vectors 
@@ -337,7 +340,12 @@ Ray_Transformation_Operator::Ray_Transformation_Operator(GCLgrid& g,
 		// use L,R,T = x,y,z) but I'm deriving too much code from 
 		// multiwavelet code that used this convention.  
 		//
-		dr3cros(Lscatter,nu0,Tscatter);  // Tscatter is x1
+                /* Tscatter is the x1 coordinate.  We do the cross product in
+                   this order to be consistent with Tp, Rp, and nu0 that is the
+                   set of basis vectors rotating to the T,R,L directions in
+                   the conventional way.   An earlier version had this 
+                   incorrectly reversed which produces sign issues. */
+                dr3cros(nu0,Lscatter,Tscatter);
 		// as above, need to handle case when L and T are parallel
 		if(dnrm2(3,Tscatter,1)<PARALLEL_TEST)
 		{

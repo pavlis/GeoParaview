@@ -199,7 +199,7 @@ cerr << "(i,j)="<<i<<","<<j<<" r difference = "
 			    }
 
 			}
-			catch (GCLgrid_error err)
+			catch (GCLgrid_error& err)
 			{
 				err.log_error();
 				cerr << "Cannot continue" <<endl;
