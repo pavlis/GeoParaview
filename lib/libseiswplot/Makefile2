@@ -1,0 +1,20 @@
+LIB=libseisppplot.a
+# DLIB=$(LIB:.a=$(DSUFFIX))
+# BUNDLE=$(LIB:.a=.bundle) 
+INCLUDE=BasicSeisPlot.h SeismicPlot.h
+
+#Needed eventually
+#MAN3=
+
+ccflags=$(XMOTIFINCLUDE)
+
+include $(ANTELOPEMAKE)  
+include $(ANTELOPEMAKE).local 
+
+CXXFLAGS += $(XMOTIFINCLUDE)
+
+OBJS=   SeismicPlot.o Xevent_loop.o
+$(LIB) : $(OBJS)
+	$(RM) $@
+	$(CXXAR) $(CXXARFLAGS) $@ $(OBJS)  
+	$(RANLIB) $@
