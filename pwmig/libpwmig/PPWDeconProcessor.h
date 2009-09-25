@@ -38,13 +38,14 @@ public:
 	PWDataMember(const PWDataMember& parent);
 	/*! Standard assignment operator */
 	PWDataMember& operator=(const PWDataMember& parent);
-	/*! \brief Primary method.  
-	Subtracts a*wavelet shifted b
-	lag0 + lag[iu].  Be warned this method does it's work
-	with NO error checking.  It assumes a is length 3 and
-	more importantly that lag0+lag[iu] will not exceed
-	internal bounds.*/
-	int remove(int iu, int lag0,double *a);
+	/*! \brief Remove an estimated plane wave component 
+
+          Subtracts a*wavelet shifted by lag computed from time t0
+          and plane wave shift lag[iu] from each data member.
+          This is the key recursion of this method.  Be warned
+          this method does not do any erro checking for speed.
+          */
+	int remove(int iu, double t0,double *a);
 };
 /*! Stacked trace used in iterative, plane wave method.
 
@@ -81,6 +82,7 @@ public:
 	/*! Returns the lag in samples of the maximum amplitude in
 	the 3c data attached to this object. */
 	int lag_at_max(){return lagmax;};
+        double time_at_max(){return (this->time(lagmax));};
 private:
 	double ampmax;
 	int lagmax;
@@ -92,12 +94,19 @@ class PWIndexPosition
 {
 public:
 	PWIndexPosition();
-	PWIndexPosition(int iuin, int lag0in, double ampin, double *vin);
+	PWIndexPosition(int iuin, int lag0in, double t0in, 
+                double ampin, double *vin);
 	PWIndexPosition(const PWIndexPosition& parent);
 	PWIndexPosition& operator=(const PWIndexPosition& parent);
+        /*! Index to slowness grid position */
 	int iu;
+        /*! Lag in samples for this plane wave component at origin */
 	int lag0;
+        /*! Relative time corresponding to lag0 */
+        double time0;
+        /*! L2 of amplitude at this point. */
 	double amp;
+        /*! Vector values at this point. */
 	double v[3];
 };
 class PPWDeconProcessor
@@ -207,13 +216,13 @@ private:
 	/* Plane wave stack components (length nu) */
 	vector<PWStackMember> current_stack;
 	/*! workhorse internal method to reform stack in place.  i.e
-	not copying is done, just components of current_stack are updated*/
+	no copying is done, just components of current_stack are updated*/
 	void stack();
 	PWIndexPosition maxamp();
 	double pseudostation_weight(double lat, double lon,
 		double pslat, double pslon, 
 			double aperture, double cutoff);
-	bool converged();
+	bool converged(int itercount);
 };
 }  /* End SEISPP Namespace encapsulation */
 #endif

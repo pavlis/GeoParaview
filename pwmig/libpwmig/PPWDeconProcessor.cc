@@ -2,11 +2,32 @@
 #include "PPWDeconProcessor.h"
 using namespace std;
 using namespace SEISPP;
+/* Added for debugging.  Remove when working */
+double Linf(dmatrix& A) {
+    double *aptr;
+    aptr=A.get_address(0,0);
+    double Ainf=*aptr;
+    ++aptr;
+    int na=A.rows() * A.columns();
+    for(int i=1;i<na;++i,++aptr){
+            if((*aptr)>Ainf) Ainf=(*aptr);
+     }
+     return(Ainf);
+}
+PWIndexPosition::PWIndexPosition()
+{
+    iu=0;
+    lag0=0;
+    time0=0.0;
+    amp=0.0;
+    for(int k=0;k<3;++k) v[k]=0.0;
+}
 PWIndexPosition::PWIndexPosition(int iuin, int lag0in, 
-	double ampin, double *vin)
+	double t0in, double ampin, double *vin)
 {
 	iu=iuin;
 	lag0=lag0in;
+        time0=t0in;
 	amp=ampin;
 	for(int k=0;k<3;++k)v[k]=vin[k];
 }
@@ -14,6 +35,7 @@ PWIndexPosition::PWIndexPosition(const PWIndexPosition& parent)
 {
 	iu=parent.iu;
 	lag0=parent.lag0;
+	time0=parent.time0;
 	amp=parent.amp;
 	for(int k=0;k<3;++k)v[k]=parent.v[k];
 }
@@ -23,6 +45,7 @@ PWIndexPosition& PWIndexPosition::operator=(const PWIndexPosition& parent)
     {
 	iu=parent.iu;
 	lag0=parent.lag0;
+	time0=parent.time0;
 	amp=parent.amp;
 	for(int k=0;k<3;++k)v[k]=parent.v[k];
     }
@@ -47,14 +70,15 @@ PWDataMember::PWDataMember(ThreeComponentSeismogram& draw,
 {
 	weight=wt;
 	try {
-		/* Scale the data vector by weight */
-		dscal(3*ns,weight,u.get_address(0,0),1);
 		/* Note the wavelet is not scaled and assumed to 
 		have a properly normalizd amplitude */
 		wavelet=winp;
 		lat=get_double("sta_lat");
 		lon=get_double("sta_lon");
 		elev=get_double("sta_elev");
+                /* Assume lat,lon stored in Metadata always in degrees */
+                lat=rad(lat);
+                lon=rad(lon);
 		/* Intentionally inline this.  There is a procedure
 		in pwstack that does this, but this calculation is so
 		simple it seems preferable here to just inline it */
@@ -115,23 +139,30 @@ PWDataMember& PWDataMember::operator=(const PWDataMember& parent)
 	return *this;
 }
 
-int PWDataMember::remove(int iu, int lag0, double *a)
+int PWDataMember::remove(int iu, double t0, double *a)
 {
 	/* Note this method intentionally does NOT check for bounds
 	for efficiency.  User must guarantee this to avoid chaos */
-	int rlag0=lag[iu]+lag0;	
-	double *baseptr=u.get_address(rlag0,0);
-	/* could do this with three calls to saxpy, but will inline this
-	calculation instead until it proves to be a performance issue.  
-	Assume the compiler can make this simple loop pretty efficient */
+	int rlag0=this->sample_number(t0)+lag[iu]-wavelet.sample_number(0.0);;	
+	double *baseptr=u.get_address(0,rlag0);
 	int i;
-	double scale[3];
-	for(i=0;i<3;++i) scale[i]= (-1.0)*a[i]*weight;
-	for(i=0;i<wavelet.ns;++i) *(baseptr+3*i) += scale[0]*wavelet[i];
-	++baseptr;
-	for(i=0;i<wavelet.ns;++i) *(baseptr+3*i) += scale[1]*wavelet[i];
-	++baseptr;
-	for(i=0;i<wavelet.ns;++i) *(baseptr+3*i) += scale[2]*wavelet[i];
+        double scale;
+//DEBUG
+dmatrix u0=u;
+        for(i=0;i<3;++i)
+        {
+            scale=(-1.0)*a[i]*weight;
+            daxpy(wavelet.ns,scale,&(wavelet.s[0]),1,baseptr,3);
+            ++baseptr;
+        }
+//DEBUG
+/*
+for(i=0;i<u.columns();++i)
+    cout << i <<" "
+        << u0(0,i)<<" "<<u(0,i)<< " "
+        << u0(1,i)<<" "<<u(1,i) << " "
+        << u0(2,i)<<" "<<u(2,i)<<endl;
+*/
 }
 PWStackMember::PWStackMember(ThreeComponentSeismogram& din,
 	SlownessVector& sv) : ThreeComponentSeismogram(din)
@@ -145,6 +176,15 @@ PWStackMember::PWStackMember(ThreeComponentSeismogram& din,
 		ampmax=0.0;
 		lagmax=0;
 	} catch (...) {throw;};
+}
+PWStackMember::PWStackMember(const PWStackMember& parent) 
+    : ThreeComponentSeismogram(parent)
+{
+	slow=parent.slow;
+	/* These are the private attributes */
+	ampmax=parent.ampmax;
+	lagmax=parent.lagmax;
+	amp=parent.amp;
 }
 /* Use same trick as PWDataMember to copy ThreeComponentSeismogram
 attributes */
@@ -163,26 +203,31 @@ PWStackMember& PWStackMember::operator=(const PWStackMember& parent)
 }
 double PWStackMember::maxamp()
 {
+	double *baseptr=u.get_address(0,0);
 	/* Always recompute the amplitudes before searching for
 	the maximum */
 	for(int i=0;i<ns;++i)
 	{
-		double *baseptr=u.get_address(0,0);
 		/* Intentionally do not use push_back in 
 		setting amp components for efficiency. */
 		amp[i]=0.0;
-		for(int k=0;k<3;++i,baseptr+=3)
+		for(int k=0;k<3;++k,baseptr++)
 				amp[i]+=(*(baseptr))*(*(baseptr));
 		amp[i]=sqrt(amp[i]);
 	}
+//DEBUG
+/*
+if(slow.mag()<0.001) {
+    cout << "Amplitudes for iu=220)"<<endl; 
+    for(int foo=0;foo<ns;++foo) cout <<foo<<" "<< amp[foo]<<endl;
+}
+*/
 	/* This duplicates the PeakAmplitude methods in seispp but
 	differences in the algorithm require duplication of small
 	code fragment */
 	vector<double>::iterator amptr;
 	amptr=max_element(amp.begin(),amp.end());
-	/* I don't think this is the right name for this algorithm.
-	There is an stl algorithm to return the number of elements in
-	a container between two iterators */
+        /* Use the STL distance algorithm to get position of lagmax */
 	lagmax=distance(amp.begin(),amptr);
 	return(*amptr);
 }
@@ -197,14 +242,15 @@ PPWDeconProcessor::PPWDeconProcessor(ThreeComponentEnsemble& threecd,
     try {
     	maxiteration=md.get_int("maximum_iterations");
 	nu=ulist.size();
-	if(nd<=0) throw SeisppError(string("PPWDeconProcessor::constructor:  ")
+        int ndens=threecd.member.size();
+	if(ndens<=0) throw SeisppError(string("PPWDeconProcessor::constructor:  ")
 			+ "ensemble passed has no data.");
 	dt_stack=parent_data.member[0].dt;
 	aperture=md.get_double("pseudostation_array_aperture");
 	cutoff=md.get_double("pseudostation_array_cutoff");
+	stalat.reserve(ndens);
+	stalon.reserve(ndens);
 	vector<ThreeComponentSeismogram>::iterator dptr;
-	stalat.reserve(nd);
-	stalon.reserve(nd);
 	for(dptr=parent_data.member.begin();
 		dptr!=parent_data.member.end();++dptr)
 	{
@@ -243,16 +289,18 @@ PPWDeconProcessor::PPWDeconProcessor(ThreeComponentEnsemble& threecd,
     try {
     	maxiteration=md.get_int("maximum_iterations");
 	nu=ulist.size();
-	if(nd<=0) throw SeisppError(string("PPWDeconProcessor::constructor:  ")
+        int ndens=threecd.member.size();
+	if(ndens<=0) throw SeisppError(string("PPWDeconProcessor::constructor:  ")
 			+ "ensemble passed has no data.");
 	dt_stack=parent_data.member[0].dt;
 	aperture=md.get_double("pseudostation_array_aperture");
 	cutoff=md.get_double("pseudostation_array_cutoff");
+	stalat.reserve(ndens);
+	stalon.reserve(ndens);
 	vector<ThreeComponentSeismogram>::iterator dptr;
-	int npd=parent_data.member.size();
-	stalat.reserve(npd);
-	stalon.reserve(npd);
-	wavelet.reserve(npd);
+	stalat.reserve(ndens);
+	stalon.reserve(ndens);
+	wavelet.reserve(ndens);
 	for(dptr=parent_data.member.begin();
 		dptr!=parent_data.member.end();++dptr)
 	{
@@ -343,18 +391,22 @@ PWIndexPosition PPWDeconProcessor::maxamp()
 	result.lag0=mptr->lag_at_max();
 	result.iu=0;
 	++mptr;
-	for(int i=0;mptr!=current_stack.end();++mptr,++i)
+	for(int i=1;mptr!=current_stack.end();++mptr,++i)
 	{
 		double testval=mptr->maxamp();
+//DEBUG
+//cout << "In PPWDeconProcessor::maxamp:  maxamp for stack"<<i<<"="<<testval<<endl;
 		if(testval>result.amp)
 		{
 			result.amp=testval;
 			result.lag0=mptr->lag_at_max();
+                        result.time0=mptr->time_at_max();
 			result.iu=i;
 		}
 	}
 	for(int k=0;k<3;++k) result.v[k]
 	 		= current_stack[result.iu].u(k,result.lag0);
+        return(result);
 }
 void PPWDeconProcessor::stack()
 {
@@ -362,30 +414,44 @@ void PPWDeconProcessor::stack()
 	vector<PWStackMember>::iterator sptr;
 	vector<SlownessVector>::iterator uptr;
 	vector<int>::iterator tlptr;
-	/* raw pointers passed to saxpy obtained from get_address method */
 	double *drp,*srp;
 	int ntosum,i,j,total_lag;
 	for(i=0,uptr=slow.begin(),sptr=current_stack.begin();
 		sptr!=current_stack.end();++i,++uptr,++sptr)
 	{
 		sptr->u.zero();
-		drp=dptr->u.get_address(0,0);
-		ntosum=3*(dptr->ns);
+		srp=sptr->u.get_address(0,0);
 		
 		for(dptr=d.begin(),tlptr=start_offset.begin();
-			dptr!=d.end();++dptr,tlptr)
+			dptr!=d.end();++dptr,++tlptr)
 		{
 			total_lag=dptr->lag[i]+(*tlptr);
-			srp=sptr->u.get_address(0,total_lag);
+                        srp=sptr->u.get_address(0,total_lag);
+			drp=dptr->u.get_address(0,0);
+                        ntosum=3*(dptr->ns);
+//DEBUG
+/*
+if((total_lag+dptr->ns)>(sptr->ns) ){
+
+  cerr << "Coding error:  "
+    << "ntosum="<<ntosum<<" but stack ns ="<< sptr->ns<<endl;
+  exit(-1);
+}
+*/
 			for(j=0;j<ntosum;++j,srp++,drp++) *srp+=(*drp);
 		}
+//cout << "Stack member number "<<i<<" has peak amplitude="<<Linf(sptr->u)<<endl;
 	}
 }
 /* Private method to appraise if solution has converged.  Intentionally 
 made a method because it is not yet clear how to define convergence.
 Stubbed initally as we'll just go on count for initial testing.*/
-bool PPWDeconProcessor::converged()
+bool PPWDeconProcessor::converged(int current_count)
 {
+    if(current_count<maxiteration)
+        return(false);
+    else
+        return(true);
 }
 auto_ptr<ThreeComponentEnsemble> PPWDeconProcessor::compute(double pslat,
 					double pslon)
@@ -409,9 +475,19 @@ auto_ptr<ThreeComponentEnsemble> PPWDeconProcessor::compute(double pslat,
 			  sumwt += wt;
 			}
 		}
+                nd=d.size();
+                /* We normalize each PWDataMember by wt/sumwt so we do not
+                   need to normalized the stack repeatedly. */
+                for(i=0;i<nd;++i){
+                    double scale=(d[i].weight)/sumwt;
+                    dscal(3*d[i].ns,scale,d[i].u.get_address(0,0),1);
+                    d[i].weight=scale;  // need to store normalized weight too
+                }
+
 		/* This section does two things.  First, it computes a size
 		that allows blind sums without error checking.  Second, it initializes
 		the seismic data in each element of the container to all zeros. */
+
 		int maxnt0;
 		double maxtend;
 		vector<int>::iterator lptr;
@@ -444,7 +520,8 @@ auto_ptr<ThreeComponentEnsemble> PPWDeconProcessor::compute(double pslat,
 		the bounds with computed stack indices.  Do NOT make this too 
 		large as it adds an inefficieny. */
 		const int npad(2);  
-		t0_stack=(maxnt0+npad)*dt_stack;
+		t0_stack=-(maxnt0+npad)*dt_stack;
+//cout << "t0_stack="<<t0_stack<<endl;
 		ns_stack=nint((maxtend-t0_stack)/dt_stack);
 		ns_stack+=npad;
 		current_stack.clear();
@@ -454,7 +531,7 @@ auto_ptr<ThreeComponentEnsemble> PPWDeconProcessor::compute(double pslat,
 		stack_pattern.t0=t0_stack;
 		stack_pattern.dt=dt_stack;
 		stack_pattern.tref=relative;
-		// This is ot necessary because the stack method always 0s before stack
+		// This is not necessary because the stack method always 0s before stack
 		//stack_pattern.zero();
 		vector<SlownessVector>::iterator uptr;
 		for(uptr=slow.begin();uptr!=slow.end();++uptr)
@@ -502,19 +579,29 @@ auto_ptr<ThreeComponentEnsemble> PPWDeconProcessor::compute(double pslat,
 			mptr->put("uy",slow[i].uy);
 		}
 		/* Main processing loop */
-		int itercount;
-		bool ctest;
+		int itercount(0);
 		do {
 			this->stack();
 			PWIndexPosition ip(this->maxamp());
+                            cout << "DEBUG  itercount="<<itercount<<endl
+                                << "lag="<<ip.lag0
+                                <<" or time="<<ip.time0
+                                <<" iu="<<ip.iu
+                                << " which is ux,uy="
+                                << slow[ip.iu].ux <<" "<<slow[ip.iu].uy
+                                << " vector values="
+                                << ip.v[0]<<", "
+                                << ip.v[1]<<", "
+                                << ip.v[2]<<endl;
 			for(int k=0;k<3;++k) 
+                        {
 			    result->member[ip.iu].u(k,ip.lag0)+=ip.v[k];
+                        }
 			for(i=0;i<nd;++i)
 			{
-				d[i].remove(ip.iu,ip.lag0,ip.v);
+				d[i].remove(ip.iu,ip.time0,ip.v);
 			}
 			++itercount;
-			ctest=this->converged();
-		} while((itercount<maxiteration) && !ctest);
+		} while(!converged(itercount));
 	} catch(...) {throw;};
 }

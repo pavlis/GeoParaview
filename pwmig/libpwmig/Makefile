@@ -1,5 +1,5 @@
 LIB=libpwmig.a
-INCLUDE=PwmigFileHandle.h
+INCLUDE=PwmigFileHandle.h PPWDeconProcessor.h
 #MAN3=		# man pages for library routines
 include $(ANTELOPEMAKE)
 CXXFLAGS+=-D_FILE_OFFSET_BITS=64
