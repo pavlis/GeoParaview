@@ -1,4 +1,5 @@
 LIB=libseisppplot.a
+PF=SeismicPlot.pf
 # DLIB=$(LIB:.a=$(DSUFFIX))
 # BUNDLE=$(LIB:.a=.bundle) 
 INCLUDE=BasicSeisPlot.h SeismicPlot.h

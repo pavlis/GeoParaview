@@ -3,54 +3,15 @@
 using namespace std;
 using namespace SEISPP;
 #define APP_CLASS "seismicplot"
-/* The unparameterized constructor uses a rather odd logic in that it is 
-   actually just an interface to the pf constructor with a default pf. 
-   This is odd because the default constructor usually has a rather different
-   meaning, but to me, at least, makes sense in this context. */
-SeismicPlot::SeismicPlot()
-{
-    Pf *pf;
-    const string pfglobal_name("SeismicPlot");
-    if(pfread(const_cast<char *>(pfglobal_name.c_str()),&pf))
-        throw SeisppError("SeismicPlot constructor:  pfread failed for "
-                + pfglobal_name);
-    try {
-        /* Normally main initializes the plot system in Motif.  I'm not
-           sure this is essential, but we fake this hear with an interal
-           argc and argv.  We keep them in the object as well as private 
-           members as I am not sure of the memory status of these*/
-        argc=1;
-        argv[0]=strdup("SeismicPlotWidget");
-        /* Old- does not work 
-        XtSetLanguageProc(NULL, NULL, NULL);
-        shell = XtVaAppInitialize(&AppContext, APP_CLASS,NULL,0,
-                &argc,argv, NULL,NULL);
-        form=XmCreateForm(shell,(char *) APP_CLASS,NULL,0);
-        Arg args[3];
-        int nargs=0;
-        XtSetArg(args[nargs],(char *) ExmNzoomFactor,100); nargs++;
-        XtSetArg(args[nargs],(char *) XmNpaneMaximum,5000); nargs++;
-        XtSetArg(args[nargs],(char *) XmNpaneMinimum,500); nargs++;
-        seisw[0]=ExmCreateSeisw(form,(char *)"Seisw",args,nargs);
-        XtManageChild(seisw[0]);
-        TimeSeriesEnsemble tsestartup(1,100);
-        XtVaSetValues(seisw[0],ExmNseiswMetadata, 
-                ExmNseiswEnsemble,(XtPointer)(&tsestartup),
-                (XtPointer)dynamic_cast<Metadata*>(this),NULL);
-        nwindows=1;
-        XtRealizeWidget(shell);
-        */
-    } catch (...) {throw;}
-}
 /* This crazy function is required as a workaround for a bug in the present
    version of the seisw widget. It appears to fail on startup if it does not 
    have at least an empty ensemble to to plot.  This plots 100 straight line
    traces */
 auto_ptr<TimeSeriesEnsemble> BuildDummyData()
 {
-    auto_ptr<TimeSeriesEnsemble> result(new TimeSeriesEnsemble(10,100));
+    auto_ptr<TimeSeriesEnsemble> result(new TimeSeriesEnsemble(2,100));
     int i,j;
-    for(i=0;i<10;++i)
+    for(i=0;i<2;++i)
     {
         /* Set required data to be valid */
         result->member[i].dt=1.0;
@@ -66,42 +27,25 @@ auto_ptr<TimeSeriesEnsemble> BuildDummyData()
     }
     return(result);
 }
-SeismicPlot::SeismicPlot(Metadata& md) : Metadata(md)
+/* Default constructor gets its parameter information from the
+standard antelope parameter file location under a frozen name 
+(SeismicPlot.pf).  */
+SeismicPlot::SeismicPlot()
 {
+    Pf *pf;
+    const string pfglobal_name("SeismicPlot");
+    if(pfread(const_cast<char *>(pfglobal_name.c_str()),&pf))
+        throw SeisppError("SeismicPlot constructor:  pfread failed for "
+                + pfglobal_name);
     try {
-        /* This is a complete duplicate of above.  There is probably 
-           a tricky way to handle this some other way, but for now we
-           do it this way.  Be careful if changes are made to one to 
-           change the other too. */
+	Metadata md(pf);
+	pffree(pf);
+	*this=Metadata::operator=(md);
+	/* from here down this code is identical to the 
+	constructor with a Metadata argument.  Beware in
+	maintenance */
         argc=1;
         argv[0]=strdup("SeismicPlotWidget");
-        /* Old - does not work 
-        XtSetLanguageProc(NULL, NULL, NULL);
-        if(!XtToolkitThreadInitialize())
-        {
-            cerr << "Warning:  XtToolkitThreadInitialize failed on this platform."
-                <<endl
-                <<"Do not run an application with multiple, concurrent SeismicPlot objects."
-                <<endl;
-        }
-        shell = XtVaAppInitialize(&AppContext, APP_CLASS,NULL,0,
-                &argc,argv, NULL,NULL);
-        form=XmCreateForm(shell,(char *) APP_CLASS,NULL,0);
-        Arg args[3];
-        int nargs=0;
-        XtSetArg(args[nargs],(char *) ExmNzoomFactor,100); nargs++;
-        XtSetArg(args[nargs],(char *) XmNpaneMaximum,5000); nargs++;
-        XtSetArg(args[nargs],(char *) XmNpaneMinimum,500); nargs++;
-        seisw[0]=ExmCreateSeisw(form,(char *)"Seisw",args,nargs);
-        TimeSeriesEnsemble tsestartup(1,100);
-        XtVaSetValues(seisw[0],ExmNseiswMetadata, 
-                ExmNseiswEnsemble,(XtPointer)(&tsestartup),
-                (XtPointer)dynamic_cast<Metadata*>(this),NULL);
-        nwindows=1;
-        XtRealizeWidget(shell);
-        XtManageChild(seisw[0]);
-        this->launch_Xevent_thread_handler();
-        */
         XtSetLanguageProc(NULL, NULL, NULL);
         XtToolkitThreadInitialize();
         toplevel = XtVaAppInitialize(&AppContext, (char *)"seismicplot",NULL,0,
@@ -126,15 +70,52 @@ SeismicPlot::SeismicPlot(Metadata& md) : Metadata(md)
                 ExmNseiswMetadata,(XtPointer)(dynamic_cast<Metadata*>(this)),
                 ExmNseiswEnsemble,(XtPointer)(tse),NULL);
         XtRealizeWidget(toplevel);
-        //XtAppMainLoop(AppContext);
+        this->launch_Xevent_thread_handler();
+    } catch (...) {throw;}
+}
+SeismicPlot::SeismicPlot(Metadata& md) : Metadata(md)
+{
+    try {
+        /* This is a complete duplicate of above.  There is probably 
+           a tricky way to handle this some other way, but for now we
+           do it this way.  Be careful if changes are made to one to 
+           change the other too. */
+        argc=1;
+        argv[0]=strdup("SeismicPlotWidget");
+        XtSetLanguageProc(NULL, NULL, NULL);
+        XtToolkitThreadInitialize();
+        toplevel = XtVaAppInitialize(&AppContext, (char *)"seismicplot",NULL,0,
+                                &argc,argv, NULL,NULL);
+        main_w = XtVaCreateManagedWidget ((char *)"main window",
+                xmMainWindowWidgetClass, toplevel,
+                XmNscrollBarDisplayPolicy, XmAS_NEEDED,
+                XmNscrollingPolicy,        XmAUTOMATIC,
+                XmNwidth,1000,
+                XmNheight,800,
+                NULL);
+
+        
+        Arg args[4];
+        int nargs=0;
+        XtSetArg(args[nargs],(char *) ExmNzoomFactor,100); nargs++;
+        XtSetArg(args[nargs],(char *) ExmNdisplayOnly,1); nargs++;
+        seisw[0]=ExmCreateSeisw(main_w,(char *)"Seisw",args,nargs);
+        auto_ptr<TimeSeriesEnsemble>x1=BuildDummyData();
+        TimeSeriesEnsemble *tse=x1.get();
+        XtVaSetValues(seisw[0],
+                ExmNseiswMetadata,(XtPointer)(dynamic_cast<Metadata*>(this)),
+                ExmNseiswEnsemble,(XtPointer)(tse),NULL);
+        XtRealizeWidget(toplevel);
         this->launch_Xevent_thread_handler();
     } catch(...) {throw;}
 }
 void SeismicPlot::plot(TimeSeriesEnsemble& d)
 {
     try{
+	XtAppLock(AppContext);
         XtVaSetValues(seisw[0],ExmNseiswEnsemble, (XtPointer) (&d),
             ExmNseiswMetadata,(XtPointer)(dynamic_cast<Metadata*>(this)), NULL);
+	XtAppUnlock(AppContext);
     
     }
     catch(...){throw;}
@@ -145,8 +126,10 @@ void SeismicPlot::refresh()
         int i;
         for(i=0;i<nwindows;++i)
         {
+	    XtAppLock(AppContext);
             XtVaSetValues(seisw[i],ExmNseiswMetadata, 
                     (XtPointer)(dynamic_cast<Metadata*>(this)), NULL);
+	    XtAppUnlock(AppContext);
         }
     }catch(...) {throw;}
 }

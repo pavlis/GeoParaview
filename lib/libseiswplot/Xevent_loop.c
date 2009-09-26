@@ -1,4 +1,4 @@
-#include <X11/Intrinsic.h>`
+#include <X11/Intrinsic.h>
 void *Xevent_Loop(void *arg);
 void *Xevent_loop(void *arg)
 {
