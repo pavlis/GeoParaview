@@ -88,6 +88,9 @@ TimeSeries gaussian_wavelet(int n, double dt, double sigma,
 	gwavelet.t0=-tlength/2.0;
 	gwavelet.live=true;
 	gwavelet.tref=relative;
+	gwavelet.put("samprate",1.0/dt);
+	gwavelet.put("time",gwavelet.t0);
+	gwavelet.put("nsamp",n);
 	int i;
 	for(i=0;i<n;++i)
 	{
@@ -121,8 +124,11 @@ TimeSeries ricker_wavelet(int n, double dt, double nu,
 	rwavelet.t0=-tlength/2.0;
 	rwavelet.live=true;
 	rwavelet.tref=relative;
-	int i;
+	rwavelet.put("samprate",1.0/dt);
+	rwavelet.put("time",rwavelet.t0);
+	rwavelet.put("nsamp",n);
 	double pinu2=M_PI*M_PI*nu*nu;
+	int i;
 	for(i=0;i<n;++i)
 	{
 		double t2=rwavelet.time(i);
@@ -306,7 +312,8 @@ int main(int argc, char **argv)
             wavelet=ricker_wavelet(wavelet_length,dt,width_parameter,nm);
         }
         SeismicPlot plotter(control);
-        //plotter.plot(wavelet);
+	//SeismicPlot plotter;
+        plotter.plot(wavelet);
         /* Set assumed incident wave slowness.  Note this is independent
         of Tbl list of slowness vectors used in BuildFakeData below so 
         be aware */
@@ -352,7 +359,7 @@ int main(int argc, char **argv)
 
         /* END temporary test of X stuff */
         auto_ptr<TimeSeriesEnsemble>x1=ExtractComponent(d,0);
-        plotter.plot(*x1);
+        //plotter.plot(*x1);
 /*  DEBUG
 cout << "Dump of fake data"<<endl;
 for(int im=0;im<d.member.size();++im){
