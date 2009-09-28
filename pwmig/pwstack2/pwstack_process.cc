@@ -51,14 +51,15 @@ string MakeDfileName(int evid, int x1, int x2)
 /* Applies a simple ramp taper to any weights component that starts
 at zero and then becomes nonzero.  This happens only when the 
 pseudostation aperture is depth variable.  */
-void taper_weights_array(dmatrix& weights, double dt, double aperture_taper_length)
+void taper_weights_array(dmatrix& weights, vector <bool>& use_this_sta,
+        double dt, double aperture_taper_length)
 {
 	int nsta=weights.rows();
 	int nsamp=weights.columns();
 	int i,j,jstart;
 	for(i=0;i<nsta;++i)
 	{
-		if(weights(i,0)>0.0)
+		if(use_this_sta[i])
 		{
 			jstart=-1;
 			for(j=0;j<nsamp;++j)
@@ -193,12 +194,12 @@ PwmigFileHandle& cohfh)
         ix2=indata.get_int("ix2");
         evid=indata.get_int("evid");
         gridname=indata.get_string("gridname");
-    } catch (MetadataGetError& mderr)
+    } catch (SeisppError& serr)
     {
         // The above are all set by main so this is the
         // correct error message.  Could perhaps be dropped
         // after debugging finished.
-        mderr.log_error();
+        serr.log_error();
         cerr << "Coding error requiring a bug fix"<<endl;
         exit(-1);
     }
@@ -396,7 +397,7 @@ PwmigFileHandle& cohfh)
     width increases with depth we need to taper the leading edge to 
     avoid transients.   This rather inelegant procedure does this.  
     It will do nothing if the aperture is constant for all lags */
-    taper_weights_array(weights,dt,aperture_taper_length);
+    taper_weights_array(weights,use_this_sta,dt,aperture_taper_length);
 
     /* Create the working gather build as 3 matrices, one for each channel,
     with stack_count columns per member.   More logical than a 3d array 

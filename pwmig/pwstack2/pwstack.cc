@@ -17,7 +17,7 @@ bool Verbose;
 
 void usage()
 {
-    cbanner((char *)"$Revision: 1.15 $ $Date: 2009/09/07 12:26:00 $",
+    cbanner((char *)"$Revision: 1.16 $ $Date: 2009/09/28 22:53:15 $",
         (char *)"dbin [-np np -rank rank -v -V -pf pfname]",
         (char *)"Gary Pavlis",
         (char *)"Indiana University",
@@ -471,16 +471,12 @@ int main(int argc, char **argv)
                             }
                         }
                     }
-                } catch (MetadataError& mderr1)
+                } catch (SeisppError& serr)
                 {
-                    mderr1.log_error();
+                    serr.log_error();
                     cerr << "Ensemble " << rec << " data skipped" << endl;
                     cerr << "Pseudostation grid point indices (i,j)="
                         << "("<<i<<","<<j<<")"<<endl;
-                }
-                catch (SeisppError& serr)
-                {
-                    serr.log_error();
                 }
             }
 	    char fsbuf[64];
@@ -491,14 +487,6 @@ int main(int argc, char **argv)
     } catch (SeisppError& err)
     {
         err.log_error();
-    }
-    catch (MetadataGetError& mdgerr)
-    {
-	mdgerr.log_error();
-    }
-    catch (MetadataError& mderr)
-    {
-        mderr.log_error();
     }
     // The GCLgrid library db routines throw simple int exceptions
     // This should only be entered if the GCLgrid constructor fails.
