@@ -4,6 +4,8 @@
 #include "slowness.h"
 #include "TimeSeries.h"
 #include "seispp.h"
+/* This is needed only for debug.  Needs to eventually be removed */
+#include "SeismicPlot.h"
 
 namespace SEISPP {
 using namespace std;
@@ -56,13 +58,21 @@ contains embedded methods that simplify the plane wave algorithm. */
 class PWStackMember : public ThreeComponentSeismogram
 {
 public:
-	/*! Slowness vector of this stack. */
+	/*! Relative slowness vector of this stack. Note this is relative
+         to a base slowness stored in processors as u0*/
 	SlownessVector slow;
+        /*! Contains estimate of noise rms level.
+
+          The iteration sequence is terminated by checking against
+          noise level of the stacks.  This is stored as a public
+          attribute because it has to be altered during procesing. */
+        double noise_rms; 
 	/*! Primary constructor. 
 
 	\param din parent 3c seismogram
 	\param sv slowness vector of this stack member. */
-	PWStackMember(ThreeComponentSeismogram& din,SlownessVector& sv);
+	PWStackMember(ThreeComponentSeismogram& din,SlownessVector& sv,
+                double noise_estimate);
 	/*! Standard copy constructor. */
 	PWStackMember(const PWStackMember& parent);
 	/*! Standard assignment operator. */
@@ -83,6 +93,7 @@ public:
 	the 3c data attached to this object. */
 	int lag_at_max(){return lagmax;};
         double time_at_max(){return (this->time(lagmax));};
+        double SNR(){return(ampmax/noise_rms);};
 private:
 	double ampmax;
 	int lagmax;
@@ -106,6 +117,8 @@ public:
         double time0;
         /*! L2 of amplitude at this point. */
 	double amp;
+        /*! Signal to noise ratio estimate at this point */
+        double SNR;
         /*! Vector values at this point. */
 	double v[3];
 };
@@ -121,6 +134,13 @@ public:
 	is the same for every data member. 
 
 	\param threecd is the input event gather.
+	\param threecn is a similar ensemble to threed but containing 
+            a window of noise data.  The noise data are not
+            expected to be in an arrival time reference frame so 
+            a larger time window is normally needed to handle
+            moveout.   Further is is assumed the noise sample
+            given has been passed through the same spiking filter and
+            any other filters applied to the data ensemble 
 	\param u0in is the incident wave slowness vector.
 	\param w is the actual output used in the iterative method.
 	\param md is a Metadata object used as a back door way to 
@@ -130,7 +150,8 @@ public:
 	\exception will throw a SeisppError object if there are problems.
 	*/
 	PPWDeconProcessor(ThreeComponentEnsemble& threecd,
-		SlownessVector& u0in,
+                ThreeComponentEnsemble& threecn,
+		    SlownessVector& u0in,
 			vector<SlownessVector>& ulist, 
 				TimeSeries& w,
 					Metadata& md);
@@ -147,6 +168,13 @@ public:
 	the same. Use this constructor for composites and the single
 	event constructor otherwise.
 	\param threecd is the input event gather.
+	\param threecn is a similar ensemble to threed but containing 
+            a window of noise data.  The noise data are not
+            expected to be in an arrival time reference frame so 
+            a larger time window is normally needed to handle
+            moveout.   Further is is assumed the noise sample
+            given has been passed through the same spiking filter and
+            any other filters applied to the data ensemble 
 	\param u0in is the incident wave slowness vector.
 	\param w a vector of actual output wavelets for each ensemble
 		member.  This MUST be a parallel vector to the member
@@ -158,6 +186,7 @@ public:
 	\exception will throw a SeisppError object if there are problems.
 	*/
 	PPWDeconProcessor(ThreeComponentEnsemble& threecd,
+            ThreeComponentEnsemble& threecn,
 		SlownessVector& u0in,
 			vector<SlownessVector>& ulist,
 				vector<TimeSeries>& w,
@@ -186,7 +215,10 @@ public:
 	*/
 	auto_ptr<ThreeComponentEnsemble> compute(double pslat, double pslon);
 private:
-	int maxiteration;  /* Limit on number of iterative cycles. */
+        /* DEBUG only */
+        SeismicPlot plot_handle;
+        void plot_current_data();
+        /// end DEBUG additons
 	int nd; /* d.size() cached for efficiency */
 	int nu;  /* slow.size() cached for efficiency */
 	int ns_stack;  /* stack ns */
@@ -213,16 +245,28 @@ private:
 	vector<PWDataMember> d;
 	vector<TimeSeries> wavelet;
 	ThreeComponentEnsemble parent_data;
+        ThreeComponentEnsemble noise_data;
 	/* Plane wave stack components (length nu) */
 	vector<PWStackMember> current_stack;
+        /* cutoff parameter.  Will throw and exception if noise time window is 
+           less than this length when allowing for moveout */
+        double MinimumNoiseWindow; 
+        /* if true use SNR instead of absolute amplitude to find max in
+           each iteration */
+        bool UseSNR;
+        /* This is a critical convergence variable.  Stop when computed max snr
+           falls below this value */
+        double SNRfloor;
+        /* Limit on number of iterative cycles */
+	int maxiteration;  
 	/*! workhorse internal method to reform stack in place.  i.e
 	no copying is done, just components of current_stack are updated*/
 	void stack();
 	PWIndexPosition maxamp();
-	double pseudostation_weight(double lat, double lon,
-		double pslat, double pslon, 
-			double aperture, double cutoff);
-	bool converged(int itercount);
+	bool converged(int itercount,PWIndexPosition& ip);
+        vector<double>  compute_noise_estimates(double pslat, double pslon);
 };
+double pseudostation_weight(double lat, double lon,
+	double pslat, double pslon, double aperture, double cutoff);
 }  /* End SEISPP Namespace encapsulation */
 #endif

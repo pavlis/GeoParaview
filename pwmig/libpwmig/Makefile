@@ -5,6 +5,8 @@ include $(ANTELOPEMAKE)
 CXXFLAGS+=-D_FILE_OFFSET_BITS=64
 CXXFLAGS+=-D_LARGEFILE_SOURCE
 CXXFLAGS+=-D_LARGEFILE64_SOURCE
+#  needed for debug
+CXXFLAGS+=-I/usr/OpenMotif/include
 
 OBJS=PwmigFileHandle.o PPWDeconProcessor.o
 PPWDeconProcessor.o :PPWDeconProcessor.h
