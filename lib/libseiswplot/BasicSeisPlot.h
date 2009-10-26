@@ -13,8 +13,6 @@ class BasicSeisPlot
         virtual void plot(ThreeComponentEnsemble& d)=0;
         virtual void plot(TimeSeries& d)=0;
         virtual void plot(ThreeComponentSeismogram& d)=0;
-        virtual double PickTime()=0;
-        virtual TimeWindow PickWindow()=0;
 };
 }
 #endif

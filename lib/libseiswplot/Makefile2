@@ -12,9 +12,9 @@ ccflags=$(XMOTIFINCLUDE)
 include $(ANTELOPEMAKE)  
 include $(ANTELOPEMAKE).local 
 
-CXXFLAGS += $(XMOTIFINCLUDE)
+CXXFLAGS += $(XMOTIFINCLUDE) $(BOOSTINCLUDE)
 
-OBJS=   SeismicPlot.o Xevent_loop.o
+OBJS=   SeismicPlot.o 
 $(LIB) : $(OBJS)
 	$(RM) $@
 	$(CXXAR) $(CXXARFLAGS) $@ $(OBJS)  
