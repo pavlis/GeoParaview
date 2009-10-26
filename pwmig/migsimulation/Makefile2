@@ -1,0 +1,13 @@
+BIN=migsimulation
+ldlibs=-lseispp -ltrvltm -lbrttutil $(TRLIBS) $(DBLIBS) $(XMOTIFLIB) \
+       $(BOOSTLIB) -lseisppplot -lseisw -lXm -lXt -lperf -lgclgrid -lpwmig $(X11LIBS)
+
+include $(ANTELOPEMAKE)  	
+include $(ANTELOPEMAKE).local
+
+CXXFLAGS += $(XMOTIFINCLUDE)
+CXXFLAGS += $(BOOSTINCLUDE)
+OBJS=migsimulation.o SimplePSPrimarySynthetic.o
+$(BIN) : $(OBJS)
+	$(RM) $@
+	$(CXX) $(CCFLAGS) -o $@ $(OBJS) $(LDFLAGS) $(LDLIBS)
