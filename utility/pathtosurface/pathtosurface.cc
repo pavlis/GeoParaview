@@ -70,6 +70,7 @@ int main(int argc, char **argv)
 		Metadata control(pf);
 		double dip=control.get_double("projection_dip_angle");
 		double az=control.get_double("projection_strike_azimuth");
+                az=rad(az);
 		double dz=control.get_double("projection_depth_increment");
 		int nz=control.get_int("number_depth_increments");
 		string gridname=control.get_string("reference_grid_name");
@@ -99,7 +100,9 @@ int main(int argc, char **argv)
 		Cartesian_point cp;
 		double delta,ddelta,ddz;
 		double lattmp,lontmp;
-		ddelta=dz*cos(rad(dip));
+                /* This is value for equator.  */
+                const double kmperdeg(110.57);
+		ddelta=dz*cos(rad(dip))/kmperdeg;
 		ddz=dz*sin(rad(dip));
 		for(i=0;i<nx;++i)
 		{
@@ -116,8 +119,8 @@ int main(int argc, char **argv)
 				else
 				{
 					gp.r=gp0.r-ddz*static_cast<double>(j);
-					delta=ddelta*static_cast<double>(j);
-					latlon(gp.lat,gp.lon,delta,az,
+					delta=rad(ddelta*static_cast<double>(j));
+					latlon(gp0.lat,gp0.lon,delta,az,
 						&lattmp,&lontmp);
 					gp.lat=lattmp;
 					gp.lon=lontmp;
