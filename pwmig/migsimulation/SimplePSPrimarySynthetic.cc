@@ -101,6 +101,7 @@ ThreeComponentSeismogram SimplePSPrimarySynthetic::Compute3C(
     const string base_error("SimplePSPrimarySynthetic::Compute3C method:  ");
     try {
         ThreeComponentSeismogram result(parent);
+        result.u.zero();
         double delta,azimuth;
         dist(rlat,rlon,hypo.lat,hypo.lon,&delta,&azimuth);
         /* shift to relative time if necessary */

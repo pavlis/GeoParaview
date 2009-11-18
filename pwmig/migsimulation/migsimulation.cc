@@ -1,11 +1,12 @@
+#include <fstream>
 #include <vector>
+#include <set>
 #include "stock.h"
 #include "seispp.h"
 #include "Metadata.h"
 #include "SimplePSPrimarySynthetic.h"
 #include "filter++.h"
 #include "SimpleWavelets.h"
-#include "SeismicPlot.h"
 enum SyntheticType {SIMPLE,POINTSOURCE,EXTERN_LAYERED};
 using namespace std;
 using namespace SEISPP;
@@ -100,9 +101,28 @@ void build_db_view(DatascopeHandle& dbh, Metadata& control,Pf *pf)
     }catch(...) {throw;};
 }
 
+set<int> load_eventset(string fname)
+{
+    ifstream fin;
+    fin.open(fname.c_str(),ios::in);
+    if(fin.fail()) throw SeisppError(string("load_eventset:  ")
+            +"Cannot open file="+fname);
+    int val;
+    set<int> result;
+    if(SEISPP_verbose) cout << "List of Events To Replicate"<<endl;
+    while(fin.good())
+    {
+        fin>>val;
+        result.insert(val);
+        if(SEISPP_verbose)cout << val<<endl;
+    }
+    fin.close();
+    return(result);
+}
+
 void usage()
 {
-    cerr << "migsimulation dbin dbout [-pf pffile -V]"<<endl;
+    cerr << "migsimulation dbin dbout [-evf eventlistfile -pf pffile -V]"<<endl;
     exit(-1);
 }
 int main(int argc, char **argv)
@@ -113,8 +133,10 @@ int main(int argc, char **argv)
     string dbin_name, dbout_name, pfname("migsimulation");
     dbin_name=string(argv[1]);
     dbout_name=string(argv[2]);
+    string evlfile("NONE");
+    bool check_evlist(false);
     int i;
-    for(i=0;i<argc;++i)
+    for(i=3;i<argc;++i)
     {
         string strarg(argv[i]);
         if(strarg=="-pf")
@@ -122,6 +144,13 @@ int main(int argc, char **argv)
             ++i;
             if(i==argc) usage();
             pfname=string(argv[i]);
+        }
+        else if(strarg=="-evf")
+        {
+            ++i;
+            if(i==argc) usage();
+            evlfile=string(argv[i]);
+            check_evlist=true;
         }
         else if(strarg=="-V")
             SEISPP_verbose=true;
@@ -132,8 +161,8 @@ int main(int argc, char **argv)
     try {
         /* For the present freeze this to be css3.0 schema */
         AttributeMap am("css3.0");
-        DatascopeHandle dbhin(dbin_name,false);
-        DatascopeHandle dbhout(dbout_name,true);
+        DatascopeHandle dbhin(dbin_name,true);
+        DatascopeHandle dbhout(dbout_name,false);
         DatascopeHandle dbhsc(dbhout);
         dbhsc.lookup("sclink");
         DatascopeHandle dbhev(dbhout);
@@ -146,10 +175,6 @@ int main(int argc, char **argv)
             usage();
         }
         Metadata control(pf);
-        SeismicPlot *plot_handle;
-        bool PlotResults=control.get_bool("PlotResults");
-        if(PlotResults)
-            plot_handle=new SeismicPlot(control);
         double tsfull = control.get_double("data_time_window_start");
         double tefull = control.get_double("data_time_window_end");
         TimeWindow data_window(tsfull,tefull);
@@ -157,6 +182,12 @@ int main(int argc, char **argv)
         MetadataList station_mdl=pfget_mdlist(pf,"station_metadata");
         MetadataList ensemble_mdl=pfget_mdlist(pf,"ensemble_metadata");
         MetadataList output_mdl=pfget_mdlist(pf,"wfprocess_metadata");
+        MetadataList wfdisc_mdl=pfget_mdlist(pf,"wfdisc_metadata");
+        /* for now we freeze these names for output */
+        vector<string> chanmap;
+        chanmap.push_back("E");
+        chanmap.push_back("N");
+        chanmap.push_back("Z");
         string output_dir=control.get_string("output_directory");
         string dfile_base=control.get_string("output_data_file_base_name");
         /* the next group sets if synthetics are filtered with an
@@ -195,6 +226,12 @@ int main(int argc, char **argv)
                 << "Must be one of:  filter, gaussian, or ricker"<<endl;
             usage();
         }
+        /* build event (evid) list if requested */
+        set<int> eventset;
+        if(check_evlist)
+        {
+            eventset=load_eventset(evlfile);
+        }
 
         /* Construct the synthetic seismogram generator objects */
         switch(syntype){
@@ -211,6 +248,12 @@ int main(int argc, char **argv)
         int rec;
         for(rec=0;rec<nevents;++rec,++dbhin)
         {
+            int evid=dbhin.get_int("evid");
+            if(check_evlist)
+            {
+                if(eventset.find(evid)==eventset.end()) continue;
+            }
+            if(SEISPP_verbose) cout << "Working on evid="<<evid<<endl;
             auto_ptr<ThreeComponentEnsemble> ensemble(
                   new ThreeComponentEnsemble(dynamic_cast<DatabaseHandle&>(dbhin),
                         station_mdl, ensemble_mdl,am));
@@ -223,7 +266,9 @@ int main(int argc, char **argv)
             slon=rad(slon);
             sz=ensemble->get_double("origin.depth");
             otime=ensemble->get_double("origin.time");
-            int evid=ensemble->get_int("evid");
+            //int evid=ensemble->get_int("evid");
+            //For now freeze this as taup calculator iasp91
+            Hypocenter hypo(slat,slon,sz,otime,string("tttaup"),string("iasp91"));
             vector<ThreeComponentSeismogram>::iterator dptr;
             for(dptr=ensemble->member.begin();
                 dptr!=ensemble->member.end();++dptr)
@@ -235,7 +280,7 @@ int main(int argc, char **argv)
                 rlon=rad(rlon);
                 relev=dptr->get_double("site.elev");
                 ThreeComponentSeismogram syndata(synbase->Compute3C(*dptr,
-                            slat,slon,sz,rlat,rlon,-relev,string("")));
+                            hypo,rlat,rlon,-relev,string("")));
                 if(wavelet_type=="filter")
                 {
                     filter->apply(syndata);
@@ -257,6 +302,8 @@ int main(int argc, char **argv)
                    frame.  Done through arrival.time header field */
                 double atime=syndata.get_double("arrival.time");
                 syndata.rtoa(atime);
+                string algorithm("migsimulation");
+                syndata.put("wfprocess.algorithm",algorithm);
                 int wfrec=dbsave(syndata,dbhout.db,string("wfprocess"),
                         output_mdl,am);
                 int pwfid;
@@ -272,13 +319,22 @@ int main(int argc, char **argv)
                 dbhsc.put("sta",sta);
                 dbhsc.put("chan",chan);
                 dbhsc.put("pwfid",pwfid);
-                *dptr=syndata;
+                /* now deal with wfdisc.  This assumes
+                 dbsave does a lookup on dbhout for wfdisc.
+                 Note wfdisc data will be interleaved with wfprocess
+                 data all in one large event file*/
+                wfrec=dbsave(syndata,dbhout.db,string("wfdisc"),
+                        wfdisc_mdl,am,chanmap,true);
             }
-            plot_handle->plot(*ensemble);
         } 
     }catch(SeisppError& serr)
     {
         serr.log_error();
     }
+    catch(dmatrix_error& derr)
+    {
+        derr.log_error();
+    }
+
 }
 

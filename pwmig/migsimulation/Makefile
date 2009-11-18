@@ -1,8 +1,11 @@
+BIN=migsimulation
+PF=migsimulation.pf
+#MAN1=migsimulation.1
+ldlibs=-lseispp -ltrvltm -lbrttutil $(TRLIBS) $(DBLIBS)  \
+               -lperf -lgclgrid -lpwmig 
 
-all clean Include install installMAN pf relink tags uninstall test :: FORCED
-	@-if amakelocal XMOTIFLIB XMOTIFINCLUDE BOOSTLIB BOOSTINCLUDE; then \
-	    $(MAKE) -f Makefile2 $@ ; \
-	fi
-
-FORCED:
-
+include $(ANTELOPEMAKE) 
+OBJS=migsimulation.o SimplePSPrimarySynthetic.o
+$(BIN) : $(OBJS)
+	$(RM) $@
+	$(CXX) $(CCFLAGS) -o $@ $(OBJS) $(LDFLAGS) $(LDLIBS)
