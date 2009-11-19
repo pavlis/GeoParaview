@@ -335,13 +335,9 @@ int main(int argc, char **argv)
 		}
 	
 	}
-	catch (SeisppError serr)
+	catch (SeisppError& serr)
 	{
 		serr.log_error();
-	}
-	catch (MetadataGetError mderr)
-	{
-		mderr.log_error();
 	}
 	catch (...)
 	{
