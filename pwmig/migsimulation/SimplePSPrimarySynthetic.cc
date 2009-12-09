@@ -69,7 +69,7 @@ double SimplePSPrimarySynthetic::delay_time(double deldeg, double sz,
                 pslow(ip+1,layer),tp(ip+1,layer));
         dts=linear_scalar(thispslow,sslow(is,layer),ts(is,layer),
                 sslow(is+1,layer),ts(is+1,layer));
-        double tau=dts-dtp-ptdelta;
+        double tau=dts+ptdelta-dtp;
         return(tau);
     }catch(...){throw;};
 }
@@ -116,7 +116,8 @@ ThreeComponentSeismogram SimplePSPrimarySynthetic::Compute3C(
         {
             double tau=this->delay_time(deldeg,hypo.z,i);
             int it=result.sample_number(tau);
-            result.u(1,it)=sc_amp[i];
+	    if(it>=0 && it<result.ns)
+            	result.u(1,it)=sc_amp[i];
         }
         /* Now we have to set the transformation matrix for TRL coordinates.*/
         double slow0=pphase_slowness(deldeg,hypo.z);  // slightly inefficient to recompute this 
