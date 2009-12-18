@@ -106,7 +106,7 @@ class PWIndexPosition
 public:
 	PWIndexPosition();
 	PWIndexPosition(int iuin, int lag0in, double t0in, 
-                double ampin, double *vin);
+                double ampin, double SNRin, double *vin);
 	PWIndexPosition(const PWIndexPosition& parent);
 	PWIndexPosition& operator=(const PWIndexPosition& parent);
         /*! Index to slowness grid position */

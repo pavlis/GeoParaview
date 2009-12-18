@@ -25,15 +25,17 @@ PWIndexPosition::PWIndexPosition()
     lag0=0;
     time0=0.0;
     amp=0.0;
+    SNR=0.0;
     for(int k=0;k<3;++k) v[k]=0.0;
 }
 PWIndexPosition::PWIndexPosition(int iuin, int lag0in, 
-	double t0in, double ampin, double *vin)
+	double t0in, double ampin, double SNRin, double *vin)
 {
 	iu=iuin;
 	lag0=lag0in;
         time0=t0in;
 	amp=ampin;
+        SNR=SNRin;
 	for(int k=0;k<3;++k)v[k]=vin[k];
 }
 PWIndexPosition::PWIndexPosition(const PWIndexPosition& parent)
@@ -42,6 +44,7 @@ PWIndexPosition::PWIndexPosition(const PWIndexPosition& parent)
 	lag0=parent.lag0;
 	time0=parent.time0;
 	amp=parent.amp;
+        SNR=parent.SNR;
 	for(int k=0;k<3;++k)v[k]=parent.v[k];
 }
 PWIndexPosition& PWIndexPosition::operator=(const PWIndexPosition& parent)
@@ -52,6 +55,7 @@ PWIndexPosition& PWIndexPosition::operator=(const PWIndexPosition& parent)
 	lag0=parent.lag0;
 	time0=parent.time0;
 	amp=parent.amp;
+        SNR=parent.SNR;
 	for(int k=0;k<3;++k)v[k]=parent.v[k];
     }
     return *this;
@@ -241,6 +245,7 @@ if(slow.mag()<0.001) {
 	amptr=max_element(amp.begin(),amp.end());
         /* Use the STL distance algorithm to get position of lagmax */
 	lagmax=distance(amp.begin(),amptr);
+        ampmax=*amptr;
 	return(*amptr);
 }
 
@@ -321,6 +326,7 @@ PPWDeconProcessor::PPWDeconProcessor(ThreeComponentEnsemble& threecd,
         /* First fetch any control parameters */
     	maxiteration=md.get_int("maximum_iterations");
         MinimumNoiseWindow=md.get_double("minimum_noise_window_length");
+        SNRfloor=md.get_double("snr_convergence_floor");
         bool UseSNR=md.get_bool("use_snr");
 	nu=ulist.size();
         int ndens=threecd.member.size();
@@ -419,7 +425,7 @@ PWIndexPosition PPWDeconProcessor::maxamp()
 		testamp=mptr->maxamp();
                 testsnr=mptr->SNR();
 //DEBUG
-//cout << "In PPWDeconProcessor::maxamp:  maxamp for stack"<<i<<"="<<testval<<endl;
+cout << "In PPWDeconProcessor::maxamp:  maxamp for stack"<<i<<"="<<testamp<<endl<<" with SNR="<<testsnr<<endl;
                 if(UseSNR)
                 {
                     if(testsnr>result.SNR)
@@ -564,7 +570,6 @@ auto_ptr<ThreeComponentEnsemble> PPWDeconProcessor::compute(double pslat,
 		large as it adds an inefficieny. */
 		const int npad(2);  
 		t0_stack=-(maxnt0+npad)*dt_stack;
-//cout << "t0_stack="<<t0_stack<<endl;
 		ns_stack=nint((maxtend-t0_stack)/dt_stack);
 		ns_stack+=npad;
 		current_stack.clear();
@@ -647,6 +652,7 @@ auto_ptr<ThreeComponentEnsemble> PPWDeconProcessor::compute(double pslat,
                                 << ip.v[0]<<", "
                                 << ip.v[1]<<", "
                                 << ip.v[2]<<endl
+                                <<"SNR estimate for this point is "<<ip.SNR<<endl
                                 <<"Refreshing plot to remove this component"
                                 <<endl;
 			for(int k=0;k<3;++k) 
@@ -842,8 +848,8 @@ vector<double> PPWDeconProcessor::compute_noise_estimates
                 double *ptr=dnoise_used[i].u.get_address(0,istart);
                 for(int k=0;k<n3c;++k) noise_stack[k]+=(*ptr);
             }
-            result[j]=dnrm2(n3c,noise_stack,1);
-            result[j]/=static_cast<double>(n3c);
+            double nl2=dnrm2(n3c,noise_stack,1);
+            result.push_back(sqrt(nl2*nl2/static_cast<double>(n3c)));
 //DEBUG
 cout << "noise rms for slowness component "<<j<<" is "<<result[j]<<endl;
         }
