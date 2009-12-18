@@ -8,8 +8,10 @@ using namespace SEISPP;
 class SphericalRayPathArray
 {
     public:
-        SphericalRayPathArray(VelocityModel1d& vmod,vector<double>& p,double zmax,
-                double dz);
+        SphericalRayPathArray(VelocityModel1d& vmod,vector<double>& p,
+                double zminin, double zmax, double dz);
+        SphericalRayPathArray(VelocityModel1d& vmod,double p0, double dp, int np,
+                double zminin, double zmax, double dz);
         SphericalRayPathArray(const SphericalRayPathArray& parent);
         pair<double,double> time_and_amp(double delta, double z);
         SphericalRayPathArray& operator=(const SphericalRayPathArray& parent);
@@ -17,9 +19,13 @@ class SphericalRayPathArray
         int nrays;  // size of rays, cached for efficiency
         vector<RayPathSphere> rays;
         vector<double> slow;  // vector of ray parameters (s/km)
+        /* zmin is the minimum depth allowed and a reference depth used for amplitude.
+           That is, the amplitude for a ray from depth zmin to zero offset is given a unit
+           amplitude factor */
+        double zmin;  
         int nz;  // nominal depth steps that can be dependent on
         double dz;  // rays are made in equal depth steps, save here.
-        dmatrix amps;  // nx x nrays matrix of amplitudes derived from rays
+        dmatrix amps;  // nz x nrays matrix of amplitudes derived from rays
         double zfloor;  // actual depth floor = dz*(nz-1) cached for efficiency
 };
 
