@@ -271,7 +271,7 @@ int main(int argc, char **argv)
 		}
 		delete g;
 	}
-	catch (SeisppError serr)
+	catch (SeisppError& serr)
 	{
 		serr.log_error();
 	}
