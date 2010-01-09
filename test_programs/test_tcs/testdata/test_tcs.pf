@@ -1,0 +1,49 @@
+Attribute_Map &Tbl{
+sta sta  wfdisc string
+chan chan  wfdisc string
+starttime time wfdisc real
+endtime endtime wfdisc real
+nsamp nsamp wfdisc int
+samprate samprate wfdisc real
+directory dir wfdisc string
+file	dfile wfdisc string
+hang	hang	sitechan real
+vang	vang	sitechan	real
+}
+metadata_input &Tbl{
+sta string
+chan string
+starttime real
+endtime real
+nsamp int
+samprate real
+file string
+directory string
+hang real
+vang	real
+}
+metadata_output &Tbl{
+sta string
+chan string
+starttime real
+endtime real
+nsamp int
+samprate real
+file string
+directory string
+}
+metadata_copy &Tbl{
+sta string
+starttime real
+endtime real
+nsamp int
+samprate real
+file string
+directory string
+}
+test_tcs_view &Tbl{
+dbopen wfdisc 
+dbjoin sitechan
+dbjoin site
+dbsort time sta chan
+}
