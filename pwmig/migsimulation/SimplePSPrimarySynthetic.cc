@@ -102,8 +102,12 @@ ThreeComponentSeismogram SimplePSPrimarySynthetic::Compute3C(
     try {
         ThreeComponentSeismogram result(parent);
         result.u.zero();
-        double delta,azimuth;
-        dist(rlat,rlon,hypo.lat,hypo.lon,&delta,&azimuth);
+        double delta,backaz,azimuth,phi;
+        dist(rlat,rlon,hypo.lat,hypo.lon,&delta,&backaz);
+	//dist returns backazimuth, convert to propagation azimuth
+	azimuth=backaz+M_PI; 
+	// phi is spherical coordinate angle from x1=E
+	phi=M_PI_2-azimuth;
         /* shift to relative time if necessary */
         if(result.tref == absolute)
         {
@@ -121,23 +125,24 @@ ThreeComponentSeismogram SimplePSPrimarySynthetic::Compute3C(
         }
         /* Now we have to set the transformation matrix for TRL coordinates.*/
         double slow0=pphase_slowness(deldeg,hypo.z);  // slightly inefficient to recompute this 
-        SphericalCoordinate sc=PMHalfspaceModel(vp0,vs0,slow0*sin(azimuth), slow0*cos(azimuth));
-        /* This builds the transpose of the tmatrix used in the rotate procedure method in
-           ThreeComponentSeismogram using ray coordinates.  Since the coordinate system is
-           orthogonal this is effectively setting the inverse */
+        SphericalCoordinate sc=PMHalfspaceModel(vp0,vs0,slow0*cos(phi), slow0*sin(phi));
+        /* In a ThreeComponentSeismogram tmatrix is the matrix used as the
+	forward transform to produce current data.  Data here are as if they
+	were transformed to ray coordinates.  Hence, tmatrix code here 
+	is identical to rotate method in ThreeComponentSeismogram object. */
         double a,b,c,d;
-        a=cos(sc.phi);
-        b=sin(sc.phi);
+	a=cos(azimuth);
+	b=sin(azimuth);
         c=cos(sc.theta);
         d=sin(sc.theta);
-	result.tmatrix[0][0] = a*c;
-	result.tmatrix[0][1] = -b;
-	result.tmatrix[0][2] = a*d;
+	result.tmatrix[0][0] = a;
 	result.tmatrix[1][0] = b*c;
-	result.tmatrix[1][1] = a;
-	result.tmatrix[1][2] = b*d;
-	result.tmatrix[2][0] = -d;
-	result.tmatrix[2][1] = 0.0;
+	result.tmatrix[2][0] = b*d;
+	result.tmatrix[0][1] = -b;
+	result.tmatrix[1][1] = a*c;
+	result.tmatrix[2][1] = a*d;
+	result.tmatrix[0][2] = 0.0;
+	result.tmatrix[1][2] = -d;
 	result.tmatrix[2][2] = c;
         // Perhaps unnecessary, but best to be sure these are set
         result.components_are_cardinal=false;
