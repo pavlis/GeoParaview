@@ -17,7 +17,7 @@ bool Verbose;
 
 void usage()
 {
-    cbanner((char *)"$Revision: 1.16 $ $Date: 2009/09/28 22:53:15 $",
+    cbanner((char *)"$Revision: 1.17 $ $Date: 2010/02/09 11:53:30 $",
         (char *)"dbin [-np np -rank rank -v -V -pf pfname]",
         (char *)"Gary Pavlis",
         (char *)"Indiana University",
@@ -43,7 +43,6 @@ MatlabProcessor mp(stdout);
 bool SEISPP::SEISPP_verbose(false);
 int main(int argc, char **argv)
 {
-    char *dbname_in, *dbname_out;
     Dbptr db;
     int i,j;
     char *pfin=NULL;
@@ -67,7 +66,7 @@ int main(int argc, char **argv)
 
     /* usual cracking of command line */
     if(argc < 2) usage();
-    dbname_in = argv[1];
+    string dbname_in(argv[1]);
     int rank(0);
     int np(1);
 
@@ -233,8 +232,7 @@ int main(int argc, char **argv)
         // normally this will be done by a hidden dbprocess list
         // stored in the master pf directory
         */
-        string dbnmi(dbname_in);                  // this temporary seems necessary for g++
-        DatascopeHandle dbh(dbnmi,false);
+        DatascopeHandle dbh(dbname_in,true);
 	string dbviewmode(control.get_string("database_view_mode"));
 	if(dbviewmode=="dbprocess")
         	dbh=DatascopeHandle(dbh,pf,string("dbprocess_commands"));
@@ -272,15 +270,19 @@ int main(int argc, char **argv)
 		dbh.subset("orid==prefor");
 		dbh.natural_join("assoc");
 		dbh.natural_join("arrival");
+cout << "Catalog view size="<<dbh.number_tuples()<<endl;
 		DatascopeHandle ljhandle(dbh);
 		ljhandle.lookup("wfprocess");
 		ljhandle.natural_join("sclink");
 		ljhandle.natural_join("evlink");
+cout << "Left join table size="<<ljhandle.number_tuples()<<endl;
 		list<string> jk;
 		jk.push_back("evid");
 		jk.push_back("sta");
 		dbh.join(ljhandle,jk,jk);
+cout << "Working table size="<<dbh.number_tuples()<<endl;
 		dbh.natural_join("site");
+cout << "After site join size="<<dbh.number_tuples()<<endl;
 		list<string> sortkeys;
 		sortkeys.push_back("evid");
 		sortkeys.push_back("sta");
@@ -293,7 +295,7 @@ int main(int argc, char **argv)
 	}
 	cout << "Processing begins on database " 
 		<<  dbname_in << endl
-		<<"Number of events to process= "<<dbh.number_tuples() <<endl;
+		<<"Number of rows in working database view== "<<dbh.number_tuples() <<endl;
         list<string> group_keys;
         group_keys.push_back("evid");
         dbh.group(group_keys);
@@ -482,7 +484,15 @@ int main(int argc, char **argv)
 	    char fsbuf[64];
 	    sprintf(fsbuf,"%s_%d",fieldnamebase.c_str(),evid);
 	    string fieldname(fsbuf);
-	    fold.dbsave(dbh.db,string(""),fielddir,fieldname,fieldname);
+	    /* It is necessary on clusters to open and close the
+	    db in write mode to save results.  Without I found this
+	    program would deadlock when multiple processes tried to 
+	    access the database simultaneously in write mode*/
+		/*
+	    DatascopeHandle *dbho=new DatascopeHandle(dbname_in,false);
+	    fold.dbsave(dbho->db,string(""),fielddir,fieldname,fieldname);
+	    delete dbho;  // destroying dbho forces a close
+		*/
         }
     } catch (SeisppError& err)
     {

@@ -75,7 +75,7 @@ void taper_weights_array(dmatrix& weights, vector <bool>& use_this_sta,
 				double dwpersample;
 				dwpersample=dt/aperture_taper_length;
 				double scale;
-				for(j=jstart,scale=0.0;j<nsamp,scale<1.0;
+				for(j=jstart,scale=0.0;(j<nsamp) && (scale<1.0);
 					++j,scale+=dwpersample)
 				{
 					weights(i,j)*=scale;
