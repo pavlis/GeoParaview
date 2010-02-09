@@ -85,13 +85,8 @@ dmatrix Ray_Transformation_Operator::apply(dmatrix& in)
 		work[0]=in(0,i);
 		work[1]=in(1,i);
 		work[2]=in(2,i);
-		// Note this is computing U^T u(t) for each sample
+		// This is a multiply of U*d
 		p=U[i].get_address(0,0);
-		/* This seems wrong. retained till verified wrong
-		out(0,i)=p[0]*work[0]+p[1]*work[1]+p[2]*work[2];
-		out(1,i)=p[3]*work[0]+p[4]*work[1]+p[5]*work[2];
-		out(2,i)=p[6]*work[0]+p[7]*work[1]+p[8]*work[2];
-		*/
 		out(0,i)=p[0]*work[0]+p[3]*work[1]+p[6]*work[2];
 		out(1,i)=p[1]*work[0]+p[4]*work[1]+p[7]*work[2];
 		out(2,i)=p[2]*work[0]+p[5]*work[1]+p[8]*work[2];
@@ -131,7 +126,7 @@ Ray_Transformation_Operator::Ray_Transformation_Operator(GCLgrid& g,
 	Cartesian_point x0_c;
 	double x_vertical[3];  // point to local vertical direction at x_geo
 	const double DR=100.0;
-	double xdotxv,theta,phi;
+	double xdotxv,theta;
 	double a,b,c,d;
 	int i;
 
@@ -160,18 +155,12 @@ Ray_Transformation_Operator::Ray_Transformation_Operator(GCLgrid& g,
 	// need to check for a vertical vector and revert to identity 
 	// to avoid roundoff problems
 	xdotxv = ddot(3,x,1,x_vertical,1);
-	// For the transformation matrix used here we make phi the 
-	// negative of the azimuth where x2 is to point.  This is
-	// the same transformation found in the free_surface_transformation
-	// method of ThreeComponentSeismogram
-	//phi = M_PI_2 - azimuth;
-	phi = -azimuth;
 	/* conservative test for vertical incidence*/
+	a=cos(azimuth);
+	b=sin(azimuth);
 	if((1.0-fabs(xdotxv))<=FLT_EPSILON)
 	{
 		// L vertical means theta=0.0
-		a=cos(phi);
-		b=sin(phi);
 		c=1.0;
 		d=0.0;
 	}
@@ -179,29 +168,11 @@ Ray_Transformation_Operator::Ray_Transformation_Operator(GCLgrid& g,
 	{
 		// dot product is preserved so we can use this here
 		theta = acos(xdotxv);
-		/* The following is copied from the rotate function in rotation.C of libseispp.
-		I did this to allow parallel coding for this and the more general case below.
-		It causes a maintenance problem as if there is an error there it will have
-		been propagated here. */
-	        a = cos(phi);
-	        b = sin(phi);
 	        c = cos(theta);
 	        d = sin(theta);
 	}
-	/* As predicted above, this was wrong. 
-	U0(0,0) = a*c;
-        U0(1,0) = b*c;
-        U0(2,0) = d;
-        U0(0,1) = -b;
-        U0(1,1) = a;
-        U0(2,1) = 0.0;
-        U0(0,2) = -a*d;
-        U0(1,2) = -b*d;
-        U0(2,2) = c;
-
-	For consistenty with rotate method June 29, 2008.
-	Note:  apply method uses U^T of this matrix as does
-	rotate_to_standard.   */
+	/* This was wrong .  Retained temporarily to understand some
+	incorrect older results.
 	U0(0,0) = a*c;
         U0(1,0) = -b;
         U0(2,0) = a*d;
@@ -211,6 +182,17 @@ Ray_Transformation_Operator::Ray_Transformation_Operator(GCLgrid& g,
         U0(0,2) = -d;
         U0(1,2) = 0.0;
         U0(2,2) = c;
+	*/
+	/* new version */
+	U0(0,0) = a;
+        U0(1,0) = b*c;
+        U0(2,0) = b*d;
+        U0(0,1) = -b;
+        U0(1,1) = a*c;
+        U0(2,1) = a*d;
+        U0(0,2) = 0.0;
+        U0(1,2) = -d;
+	U0(2,2) = c;
 	
 	for(int i=0;i<np;++i)
 	{

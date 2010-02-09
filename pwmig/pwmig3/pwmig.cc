@@ -31,7 +31,7 @@ MatlabProcessor mp(stdout);
 #endif
 void usage()
 {
-        cbanner((char *)"$Revision: 1.15 $ $Date: 2009/09/14 20:27:35 $",
+        cbanner((char *)"$Revision: 1.16 $ $Date: 2010/02/09 11:52:47 $",
                 (char *)"db  listfile [-np np -rank r -V -v -pf pfname]",
                 (char *)"Gary Pavlis",
                 (char *)"Indiana University",
@@ -168,16 +168,6 @@ vector<double> compute_gridttime(GCLscalarfield3d& U3d,
 	times=pathintegral(U3d,thispath);
 	// This fills the output vector with 1d values if the path wanders outside
 	// the 3d grid bounds
-//DEBUG
-/*
-cout << times.size()<<" of "<<thispath.columns()<<endl;
-if(times.size()<=1)
-{
-	Geographic_point geo;
-	geo=U3d.ctog(thispath(0,0),thispath(1,0),thispath(2,0));
-	cout << "r-r0_ellipse="<<geo.r - r0_ellipse(geo.lat)<<endl;
-}
-*/
 	if(times.size()!= thispath.columns())
 	{
 		double vel,dt;
@@ -471,13 +461,6 @@ auto_ptr<GCLscalarfield3d> ComputeIncidentWaveRaygrid(GCLgrid& pstagrid,
 // used in function below to flag an error
 // has file scope so pwmig main can do a consistent check
 const double TTERROR=-9999999999.0;
-//DEBUG these globals are for debug only
-/*
-vector<double>x1tmp,x2tmp,x3tmp;
-vector<int> tpix1,tpix2,tpix3;
-vector<double> derrx1,derrx2,derrx3;
-vector<double> dtdiff;
-*/
 double compute_scatter_point_Ptime(GCLgrid3d& raygrid, int ix1, int ix2, int ix3,
 		GCLscalarfield3d& TP)
 {
@@ -493,36 +476,6 @@ double compute_scatter_point_Ptime(GCLgrid3d& raygrid, int ix1, int ix2, int ix3
 	x2=raygrid.x2[ix1][ix2][ix3];
 	x3=raygrid.x3[ix1][ix2][ix3];
 	err=TP.lookup(x1,x2,x3);
-//DEBUG ray path debug 
-/*
-x1tmp.push_back(x1);
-x2tmp.push_back(x2);
-x3tmp.push_back(x3);
-int gindex[3];
-TP.get_index(gindex);
-tpix1.push_back(gindex[0]);
-tpix2.push_back(gindex[1]);
-tpix3.push_back(gindex[2]);
-cout <<"raygrid indices="
-	<<ix1<<", "
-	<<ix2<<", "
-	<<ix3<<"  TP lookup result="
-	<<gindex[0]<<", "
-	<<gindex[1]<<", "
-	<<gindex[2]<<endl;
-double dist;
-dist=x1-TP.x1[gindex[0]][gindex[1]][gindex[2]];
-cout << "Vector between grid points="
-	<< dist <<",";
-derrx1.push_back(dist);
-dist=x2-TP.x2[gindex[0]][gindex[1]][gindex[2]];
-cout << dist << ", ";
-derrx2.push_back(dist);
-dist=x3-TP.x3[gindex[0]][gindex[1]][gindex[2]];
-cout << dist << endl;
-derrx3.push_back(dist);
-*/
-
 
 	switch (err)
 	{
@@ -1430,6 +1383,7 @@ HorizontalSlicer(mp,Us3d);
 		int filecount=0;  /* needed in parallel mode*/
 		char fname_base[128];
 		bool skip_this_event(false);	
+		double totalruntime=now();
 		while(fscanf(flistfp,"%s",fname_base)==1)
 		{
 		/* When using paralle mode this skips files that aren't assigned to this
@@ -1440,6 +1394,7 @@ HorizontalSlicer(mp,Us3d);
 			{
 			string dfname=string(fname_base)+DataFileExtension;
 			PwmigFileHandle datafh(dfname,true,false);
+			cout << "Processing pwstack file base name="<<dfname<<endl;
 			/* Note the use of an auto_ptr allows me to put these
 			inside this conditional in a clean way.  Note the auto_ptr
 			further allows automatic deletion when changed with 
@@ -1447,17 +1402,14 @@ HorizontalSlicer(mp,Us3d);
 			auto_ptr<PwmigFileHandle> cohfh,cohfh3c;
 			string coh3cfname=string(fname_base)+Coh3CExtension;
 			string cohfname=string(fname_base)+CohExtension;
-//DEBUG
-cout << "coh3cfname="<<coh3cfname<<endl
-	<< "cohfname="<<cohfname<<endl;
 			cohfh3c=auto_ptr<PwmigFileHandle>
 						(new PwmigFileHandle(coh3cfname,true,false));
 			cohfh=auto_ptr<PwmigFileHandle>
 						(new PwmigFileHandle(cohfname,true,true));
 		
-double rundtime;
-rundtime=now();
-cout << "Main loop processing begins at time "<<strtime(rundtime)<<endl;
+			double rundtime;
+			rundtime=now();
+			cout << "Main loop processing begins at time "<<strtime(rundtime)<<endl;
 			// First get the hypo for the current event
 			evid=datafh.filehdr.evid;
 			Hypocenter hypo(datafh.filehdr.slat,datafh.filehdr.slon,
@@ -1469,9 +1421,8 @@ cout << "Main loop processing begins at time "<<strtime(rundtime)<<endl;
 			// of the incident rays.  
 			auto_ptr<GCLscalarfield3d> TPptr=ComputeIncidentWaveRaygrid(parent,
 					border_pad,Up3d,Vp1d,hypo,zmax*zpad,tmax,dt,zdecfac);
-cout << "Time to compute Incident P wave grid"<<now()-rundtime<<endl;
-//DEBUG
-cout << "Depth extent of TP grid="<<TPptr->depth(0,0,0)<<endl;
+			cout << "Time to compute Incident P wave grid "
+					<<now()-rundtime<<endl;
 			/* Now loop over plane wave components.  The method in 
 			the PwmigFileHandle used returns a new data ensemble for
 			one plane wave component for each call.  NULL return is
@@ -1488,7 +1439,11 @@ cout << "Depth extent of TP grid="<<TPptr->depth(0,0,0)<<endl;
 			that is not then needed by the second.  */
 			SlownessVector ustack=slowness_average(pwdata);
 			SlownessVector deltaslow=EnsembleDeltaSlow(pwdata);
-			if(deltaslow.mag()>dumax) continue;  // we'll do this silently for now
+			if(deltaslow.mag()>dumax) 
+			{
+				delete pwdata;
+				continue;  
+			}
 			cout << "Working on plane wave component with average slowness vector "
 				<< "ux="<<ustack.ux<<", uy="<<ustack.uy
 				<< ", ur="<<ustack.mag()<<", azimuth="<<deg(ustack.azimuth())<<endl;
@@ -1498,7 +1453,8 @@ cout << "Depth extent of TP grid="<<TPptr->depth(0,0,0)<<endl;
 			for that condition.  May want to change this. */
 			coh3cens=cohfh3c->load_next_3ce();
 			cohens=cohfh->load_next_tse();
-cout << "Elapsed time to finish reading data "<<now()-rundtime<<endl;
+			cout << "Elapsed time to finish reading data "
+				<<now()-rundtime<<endl;
 #ifdef MATLABDEBUG
 /* To examine P travel time volume.  Copied from MatlabGCLgrid*/
 const string volname("F");
@@ -1545,8 +1501,6 @@ mp.run_interactive();
 */
 #endif
 			int gridid=pwdata->member[0].get_int("gridid");
-cout << "DEBUG:  processing ensemble with gridid="<<gridid<<endl;
-cout << "DEBUG: ensemble size="<<pwdata->member.size()<<endl;
 
 			// A necessary bailout
 			if(dt!=pwdata->member[0].dt)
@@ -1586,8 +1540,6 @@ cout << "DEBUG: ensemble size="<<pwdata->member.size()<<endl;
 			// intractable
 			// Below assumes the val arrays in these fields
 			// have been initialized to zero.
-//DEBUG
-cout << "raygrid max depth="<<raygrid.depth(0,0,0)<<endl;
 			GCLvectorfield3d pwdgrid(raygrid,5);
 			GCLgrid3d *gtmp=decimate(raygrid,1,1,cohdecfac);
 			GCLvectorfield3d pwcohgrid(*gtmp,4);
@@ -1720,8 +1672,6 @@ mp.process(string("plot3c(spath);"));
 					Tpx=compute_scatter_point_Ptime(raygrid,i,j,kk,*TPptr);
 					/* This flags an interpolation error.  Break the loop 
 					and post a serious warning if this happens */
-//DEBUG
-//tpxtmp.push_back(Tpx);
 					if(Tpx<TTERROR)
 					{
 						// This is an error only 
@@ -1913,10 +1863,6 @@ mp.process(string("plot6c(de,sptime,di);pause(1.0);"));
 						parent,
 						*pathptr,ustack.azimuth());
 				}
-//DEBUG
-//mp.load(work,string("work"));
-//cerr << "work matrix loaded.  Before ray transformation"<endl;
-//mp.process(string("plot3c(work);"));
 				Ray_Transformation_Operator& trans_operator=*troptr;
 				work=trans_operator.apply(work);
 				// done with these now
@@ -1948,13 +1894,6 @@ mp.process(string("plot6c(de,sptime,di);pause(1.0);"));
 					dweight_ij=compute_weight_for_path(gradTp,gradTs);
 				  else
 					for(k=0;k<n3;++k)dweight_ij[k]=1.0;
-// DEBUG SECTION
-/*
-cout << "Plotting dweight and domega for (i,j)="<<i<<","<<j<<endl;
-mp.load(&(domega_ij[0]),domega_ij.size(),string("domega"));
-mp.load(&(dweight_ij[0]),dweight_ij.size(),string("dweight"));
-mp.process(string("plotow;figure;"));
-*/
 				  if(smooth_wt && (!stack_only))
 				  {
 					domega_ij=running_average(domega_ij,nwtsmooth);
@@ -1962,11 +1901,6 @@ mp.process(string("plotow;figure;"));
 					if(use_grt_weights)
 					  dweight_ij=running_average(dweight_ij,nwtsmooth);
 				  }
-/*
-mp.load(&(domega_ij[0]),domega_ij.size(),string("domega"));
-mp.load(&(dweight_ij[0]),dweight_ij.size(),string("dweight"));
-mp.process(string("plotow;title 'after smoother';"));
-*/
 				  weight_functions_set=true;
 				}
 					
@@ -1975,11 +1909,8 @@ mp.process(string("plotow;title 'after smoother';"));
 				// copy weights and domega at same time
 				//
 
-//DEBUG
-//vector<double> x1test(n3);
 				for(k=0,kk=raygrid.n3-1;k<raygrid.n3;++k,--kk)
 				{
-//cout << "Results for i,j,k="<<i<<", "<<j<<", "<<k<<" = ";
 					for(l=0;l<3;++l)
 					{
 						pwdgrid.val[i][j][k][l]=work(l,kk)
@@ -2082,29 +2013,9 @@ const string merge_command("F=cat(3,F,f);");
 
 
 			delete grdptr;
-//if(debugexit) exit(1);
-// DEBUG reset timing counter
-rundtime=now();
+			rundtime=now();
 
 		} // Bottom of plane wave component loop
-/*
-mp.run_interactive();
-GCLscalarfield3d *sfptr;
-cout << "Display x1 component with matlab"<<endl;
-sfptr=extract_component(migrated_image,0);
-SliceX1(mp,*sfptr);
-delete sfptr;
-cout << "Display x2 component with matlab"<<endl;
-sfptr=extract_component(migrated_image,1);
-SliceX1(mp,*sfptr);
-delete sfptr;
-cout << "Display x3 component with matlab"<<endl;
-sfptr=extract_component(migrated_image,2);
-SliceX1(mp,*sfptr);
-delete sfptr;
-*/
-
-
 		//
 		// Save results
 		// Second arg as empty string causes parent grid 
@@ -2130,6 +2041,10 @@ delete sfptr;
 		++filecount;
 		skip_this_event=false;
 		} // bottom of event loop
+		totalruntime = now() - totalruntime;
+		cout << "Finished normally after processing "<<filecount
+			<< "events."<<endl
+			<< "Elapsed time (sec)="<<totalruntime<<endl;
 	}
 	catch (GCLgrid_error& gcle)
 	{
