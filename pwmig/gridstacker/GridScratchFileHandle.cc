@@ -80,6 +80,13 @@ GridScratchFileHandle::GridScratchFileHandle(GCLvectorfield3d& mastergrid,
 		}
 		if(compare_equal(mastergrid,current))
 		{
+//DEBUG
+vector<double> test;
+int i,j,k,l;
+for(i=0;i<current.n1;++i)
+for(j=0;j<current.n2;++j)
+for(k=0;k<current.n3;++k)
+test.push_back(current.val[i][j][k][2]);
 			if(current.nv==mastergrid.nv)
 				fwrite(current.val[0][0][0],sizeof(double),nval,fp);
 			else

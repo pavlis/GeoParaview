@@ -40,7 +40,7 @@ double GridStackPenaltyFunction::weight(int nd, double *d, GCLvectorfield3d& d0)
 {
 	double sumsqr,sumsqd,r;
 	int i,j,k,l;
-	int ii,ll;
+	int ii;
 	double coh,wt;
 	int ntest=(d0.n1)*(d0.n2)*(d0.n3)*(d0.nv);
 	double ddotd0;  // needed in DBXCOR version
@@ -65,21 +65,25 @@ double GridStackPenaltyFunction::weight(int nd, double *d, GCLvectorfield3d& d0)
 		/* this is assumed to have been set for d when it was created from a grid file */
 		if( (d[ii+4]>0.0) && (d0.val[i][j][k][4]>0.1) )
 		{
-			for(l=0,ll=0;l<3;++l,++ll)
+//DEBUG
+//cout << i <<" "<<j<<" "<<k;
+//cout << "   d[ii+4]="<<d[ii+4]<<" d0.val4="<<d0.val[i][j][k][4]<<endl;
+			for(l=0;l<3;++l)
 			{
 //DEBUG
 /*
 int itest;
 itest=i*d0.n2*d0.n3*d0.nv + j*d0.n3*d0.nv + k*d0.nv + l;
-cout << "itest="<<itest<<" ii+ll="<<ii+ll<<endl;
+cout << "itest="<<itest<<" ii+l="<<ii+l<<endl;
 */
-				r=d[ii+ll]-d0.val[i][j][k][l];
+				r=d[ii+l]-d0.val[i][j][k][l];
+//cout <<"r="<<r<< " = d[ii+1]="<<d[ii+l] <<" - d0val="<<d0.val[i][j][k][l]<<endl;
 				sumsqr+=r*r;
-				sumsqd+=d[ii+ll]*d[ii+ll];
+				sumsqd+=d[ii+l]*d[ii+l];
 				/* This is needed only in dbxcor weight scheme, but easier to cost to 
 				compute it here is tiny compared to overhead (an potential error) 
 				in writing a separate loop */
-				ddotd0+=d[ii+ll]*d0.val[i][j][k][l];
+				ddotd0+=d[ii+l]*d0.val[i][j][k][l];
 			}
 		}
 	    }

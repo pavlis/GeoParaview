@@ -26,7 +26,11 @@ void VectorField3DWeightedStack(GCLvectorfield3d& result,GridScratchFileHandle& 
 	int i,j,k,l,ii;
 	for(i=0;i<result.n1;++i)
 	 for(j=0;j<result.n2;++j)
-	  for(k=0;k<result.n3;++k) counts[i][j][k]=0.0;
+	  for(k=0;k<result.n3;++k) 
+	  {
+		counts[i][j][k]=0.0;
+		sumwt[i][j][k]=0.0;
+	  }
 	for(mptr=mgl.begin();mptr!=mgl.end();++mptr)
 	{
 		if(handle.at_eof())
@@ -262,8 +266,6 @@ void ComputeGridCoherence(GCLvectorfield3d& f,
 	compute coherence in larger boxes.  This is an efficient algorithm as it 
 	allows passing through the scratch file only once. */
 	double weight,sumwt,sumr3sq,sumd3sq,val;
-//DEBUG
-//vector<double> ddbg,rdbg,sdbg;
 	for(i=0;i<f.n1;++i)
 	 for(j=0;j<f.n2;++j)
 	  for(k=0;k<f.n3;++k)
@@ -279,12 +281,6 @@ void ComputeGridCoherence(GCLvectorfield3d& f,
 		nread=gsfh.load_next(buffer[0][0][0]);
 		double totalweight=(mptr->baseweight)*(mptr->reswt);
 		sumwt+=totalweight;
-//DEBUG
-/*
-ddbg.clear();
-rdbg.clear();
-sdbg.clear();
-*/
 		if(mode3c)
 		{
 		    for(i=0;i<f.n1;++i)
@@ -320,17 +316,6 @@ sdbg.clear();
 		    {
 			for(j=0;j<f.n2;++j)
 			{
-//DEBUG
-/*
-if(ddbg.size()>70)
-{
-	cout << i << " "<<j<<endl;
-	cout << "Check me"<<endl;
-}
-ddbg.clear();
-rdbg.clear();
-sdbg.clear();
-*/
 				for(k=0;k<f.n3;++k)
 				{
 				    if( (buffer[i][j][k][4]>0.0)
@@ -338,12 +323,8 @@ sdbg.clear();
 				    {
 					val=buffer[i][j][k][component];
 					sumd3sq=val*val;
-//DEBUG
-//ddbg.push_back(val);
-//sdbg.push_back(f.val[i][j][k][component]);
 					/* subtract stack value */
 					val-=f.val[i][j][k][component];
-//rdbg.push_back(val);
 					sumr3sq=val*val;
 					sumsqr[i][j][k]+=sumr3sq*totalweight*totalweight;
 					sumsqd[i][j][k]+=sumd3sq*totalweight*totalweight;
@@ -450,8 +431,6 @@ sdbg.clear();
 				}
 				else
 					coh.val[ic][jc][kc]=0.0;  // null value
-//DEBUG
-//cout << coh.val[ic][jc][kc]<<endl;
 			}
 		}
 	}
@@ -493,7 +472,8 @@ void compute_reswt(GCLvectorfield3d& stack,GridScratchFileHandle& handle,
 	
 void usage()
 {
-	cerr << "gridstacker db [-i infile -pf pffile -norobust -V] "<<endl
+	cerr << "gridstacker db basefn [-i infile -pf pffile -norobust -v -V] "<<endl
+		<< "db is database and basefn is root grid name or output field" <<endl
 		<< "infile defaults to gridstacker.list"<<endl;
 	exit(-1);
 }
@@ -547,15 +527,19 @@ bool SEISPP::SEISPP_verbose(false);
 
 int main(int argc, char **argv)
 {
+	cout << "Starting gridstacker program"<<endl;
 	ifstream in;
 	string infile("gridstacker.list");
 	string pffile("gridstacker");
-	if(argc<2) usage();
+	if(argc<3) usage();
 	string dbname(argv[1]);
+	string baseofn(argv[2]);
+	cout << "Using database name="<<dbname<<endl
+		<< "Stacked fields will have root name="<<baseofn<<endl;
 	bool robust(true);
 
 	int i;
-	for(i=2;i<argc;++i)
+	for(i=3;i<argc;++i)
 	{
 		string sarg(argv[i]);
 		if(sarg=="-i")
@@ -570,8 +554,10 @@ int main(int argc, char **argv)
 		}
 		else if(sarg=="-norobust")
 			robust=false;
-		else if(sarg=="-V")
+		else if(sarg=="-v")
 			SEISPP_verbose=true;
+		else if(sarg=="-V")
+			usage();
 		else
 			usage();
 	}
@@ -586,30 +572,17 @@ int main(int argc, char **argv)
 		DatascopeHandle dbh(dbname,false);
 		/* Build the list of grid definitions to form stack */
 		list<MemberGrid> mgl;
-		/*`
-		while(in.good())
-		{
-			string g,f;
-			double wgt;
-			in >> g;
-			if(!in.good()) break;
-			in >> f;
-			if(!in.good()) 
-				inreadabort();
-			in >> wgt;
-			if(!in.good()) 
-				inreadabort();
-		*/
 		char *inputline=new char[512];
 		cout << "Gridstacker:  summing the following GCLfield3d objects contained in database:"<<endl;
 		while(in.getline(inputline,512))
 		{
 			stringstream ss(inputline);
 			string g,f;
-			const double wgt(1.0);
+			double wgt;
 			cout << inputline<<endl;
 			ss >> g;
 			ss >> f;
+			ss >> wgt;
 			// Initialize residual weight portion to 1.0 at start
 			mgl.push_back(MemberGrid(g,f,wgt,1.0));
 		}
@@ -624,7 +597,6 @@ int main(int argc, char **argv)
 		Metadata control(pf);
 		string mastergridname=control.get_string("mastergridname");
 		string masterfieldname=control.get_string("masterfieldname");
-		string baseofn=control.get_string("base_output_field_name");
 		string outdir=control.get_string("output_data_directory");
 		int dec1,dec2,dec3;
 		dec1=control.get_int("coherence_x1_decimation_factor");
@@ -670,8 +642,6 @@ int main(int argc, char **argv)
 		result.zero();
 		VectorField3DWeightedStack(result,gsfh,mgl);
 		string avgfname=baseofn + "_avg";
-//DEBUG
-//cout << result;
 		result.dbsave(dbh.db,string(""),outdir,avgfname,avgfname);
 		gsfh.rewind();
 		/* Now compute and save a coherence attribute grid for straight stack.

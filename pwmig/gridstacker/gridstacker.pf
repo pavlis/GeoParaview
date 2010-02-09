@@ -3,7 +3,6 @@ PenaltyFunction coherence_power_function
 cohpow 2.0
 mastergridname bolivar
 masterfieldname migdata
-base_output_field_name test
 output_data_directory stacks
 coherence_x1_decimation_factor 4
 coherence_x2_decimation_factor 4
