@@ -2,6 +2,7 @@
 #include "coords.h"
 #include "TimeWindow.h"
 #include "PPWDeconProcessor.h"
+#include "VectorStatistics.h"
 /* Needed only for debug */
 #include "SeismicPlot.h"
 using namespace std;
@@ -160,7 +161,7 @@ int PWDataMember::remove(int iu, double t0, double *a)
 	int i;
         double scale;
 //DEBUG
-dmatrix u0=u;
+//dmatrix u0=u;
         for(i=0;i<3;++i)
         {
             scale=(-1.0)*a[i]*weight;
@@ -425,7 +426,7 @@ PWIndexPosition PPWDeconProcessor::maxamp()
 		testamp=mptr->maxamp();
                 testsnr=mptr->SNR();
 //DEBUG
-cout << "In PPWDeconProcessor::maxamp:  maxamp for stack"<<i<<"="<<testamp<<endl<<" with SNR="<<testsnr<<endl;
+//cout << "In PPWDeconProcessor::maxamp:  maxamp for stack"<<i<<"="<<testamp<<endl<<" with SNR="<<testsnr<<endl;
                 if(UseSNR)
                 {
                     if(testsnr>result.SNR)
@@ -749,7 +750,9 @@ vector<double> PPWDeconProcessor::compute_noise_estimates
         for(i=0;i<wt.size();++i) wt[i]/=sumwt;
         /* now scale data so weighted sum are normalized */
         for(i=0;i<wt.size();++i)
+        {
             dscal(3*dnoise_used[i].ns,wt[i],dnoise_used[i].u.get_address(0,0),1);
+        }
         /* The noise has to be handled different from the data because
            we require the data are assumed to be in an arrival time 
            reference frame.  For the noise we have to apply the additional
@@ -836,9 +839,10 @@ vector<double> PPWDeconProcessor::compute_noise_estimates
         int ntostack=static_cast<int>(process_window.length()/dt_stack);
         int n3c=3*ntostack;
         vector<double> result;
-        result.reserve(slow.size());
+        int nu=slow.size();
+        result.reserve(nu);
         double *noise_stack=new double[n3c];
-        for(j=0;j<slow.size();++j)
+        for(j=0;j<nu;++j)
         {
             for(i=0;i<n3c;++i) noise_stack[i]=0.0;
             for(i=0;i<dnoise_used.size();++i)
@@ -846,13 +850,34 @@ vector<double> PPWDeconProcessor::compute_noise_estimates
                 double t=process_window.start+noiselags(i,j);
                 int istart=dnoise_used[i].sample_number(t);
                 double *ptr=dnoise_used[i].u.get_address(0,istart);
-                for(int k=0;k<n3c;++k) noise_stack[k]+=(*ptr);
+                for(int k=0;k<n3c;++k,ptr++) noise_stack[k]+=(*ptr);
             }
-            double nl2=dnrm2(n3c,noise_stack,1);
-            result.push_back(sqrt(nl2*nl2/static_cast<double>(n3c)));
+            //double nl2=dnrm2(n3c,noise_stack,1);
+            //result.push_back(sqrt(nl2*nl2/static_cast<double>(n3c)));
+            VectorStatistics<double> stackstats(noise_stack,n3c);
+            double dmed=stackstats.median();
+            result.push_back(stackstats.mad(dmed));
 //DEBUG
-cout << "noise rms for slowness component "<<j<<" is "<<result[j]<<endl;
+cout << "noise mad for slowness component "<<j<<" is "<<result[j]<<endl;
+cout << "median and interquartiles="<<dmed<<" " <<stackstats.interquartile()
+    << " range="<<stackstats.range()<<endl;
         }
+        /* Apply ceiling a floor based on upper and lower quartile.  May eventually
+           want to generalize this to allow using a median and/or apply a multiplier
+           to the quartiles. */
+        VectorStatistics<double> rmstats(result);
+        double rmslow=rmstats.q1_4();
+        double rmshigh=rmstats.q3_4();
+//DEBUG
+cout << "Applying upper and lower bounds="<<rmshigh<<" " <<rmslow<<endl
+    << "Total range of all components="<<rmstats.range()<<endl;;
+        vector<double>::iterator rmsptr;
+        for(rmsptr=result.begin();rmsptr!=result.end();++rmsptr)
+        {
+            if((*rmsptr)>rmshigh) *rmsptr=rmshigh;
+            if((*rmsptr)<rmslow) *rmsptr=rmslow;
+        }
+
         delete [] noise_stack;
         return(result);
     }
