@@ -4,10 +4,12 @@
 #include "coords.h"
 #include "Metadata.h"
 #include "seispp.h"
+#include "interpolator1d.h"
 /* this is used several times here.  Beware if you ever cut and paste from this file */
 const double REARTH(6378.17);
 using namespace std;
 using namespace SEISPP;
+using namespace INTERPOLATOR1D;
 const string prog("slabproject");
 typedef list<Geographic_point> Profile;
 typedef vector<Profile> ProfileEnsemble ;
@@ -79,16 +81,24 @@ ProfileEnsemble LoadProfiles(string fname,double plat, double plon,
 {
     FILE *fp;
     const string base_error("LoadProfiles procedure:  ");
-    fp=fopen(fname.c_str(),"r");
-    if(fp==NULL)
-        throw SeisppError(base_error + "Open file on file="+fname);
+    if(fname=="stdin")
+    	fp=stdin;
+    else
+    {
+        fp=fopen(fname.c_str(),"r");
+        if(fp==NULL)
+            throw SeisppError(base_error + "Open file on file="+fname);
+    }
     ProfileEnsemble result;
     Profile member;
     int npoints;
     double olat,olon;
     double dist,depth,odepth;
+    int pfnumber(1);
     while(fscanf(fp,"%d %lf %lf %lf",&npoints,&olat,&olon,&odepth)!=EOF)
     {
+	cout << "Profile number "<<pfnumber<<" distance, depth pairs (km)"<<endl;
+	++pfnumber;
         olat=rad(olat);  olon=rad(olon);
         PlateBoundaryProjector projector(plat,plon,olat,olon);
         member.clear();
@@ -96,10 +106,9 @@ ProfileEnsemble LoadProfiles(string fname,double plat, double plon,
         Geographic_point nextpoint=projector.position(0.0);;
         nextpoint.r -= odepth;
         member.push_back(nextpoint);
-        double lastdepth=odepth;
-        double lastdist=0.0;
-        double currentdist=0.0;
-        double currentdepth=odepth;
+	vector<double> dist_irregular, depth_irregular;
+	dist_irregular.reserve(npoints);
+	depth_irregular.reserve(npoints);
         for(int i=0;i<npoints;++i)
         {
             if(fscanf(fp,"%lf%lf",&dist,&depth)==EOF) throw SeisppError(base_error
@@ -108,19 +117,47 @@ ProfileEnsemble LoadProfiles(string fname,double plat, double plon,
             if(dist*dsi<0.0) throw SeisppError(base_error
                     + "Sign inconsistency of profile sample interval and profile distance data\n"
                     + string("Both must be of same sign"));
-            double dzdx=(depth-lastdepth)/fabs(lastdist-dist);
-            double ddz=dzdx*dsi;
-            double ddx=sqrt(dsi*dsi-ddz*ddz);
+	    dist_irregular.push_back(dist);
+	    depth_irregular.push_back(depth);
+	}
+	double *depth_regular;
+	/* Found needed to oversample in distance/depth to allow large distance output 
+	sampling to not have irregular depths not matching target points */
+	double distance_multiplier(50.0);
+	double ddfine=dsi/50.0;
+	int nfine=static_cast<int>(dist_irregular[npoints-1]/ddfine);
+	depth_regular=new double[nfine];
+	linear_scalar_irregular_to_regular(npoints,&(dist_irregular[0]),&(depth_irregular[0]),
+		nfine,0.0,ddfine,depth_regular);
+	/* depth_regular now contains depths resampled at fixed distances of ddfine.  Now build
+	grid lines at fixed radial distance intervals honoring the original irregular points
+	within a tolerance less than ddfine */
+        double lastdepth=odepth;
+        double lastdist=0.0;
+        double currentdist=0.0;
+        double currentdepth=odepth;
+	double anchordepth,anchordist;  //last point read, not computed
+	anchordepth=odepth;  anchordist=0.0;
+        for(int i=0;i<npoints;++i)
+        {
+	    dist=dist_irregular[i];
+	    depth=depth_irregular[i];
+	    double theta=atan2((depth-anchordepth),(dist-anchordist));
+	    anchordepth=depth;
+	    anchordist=dist;
+	    double ddz=dsi*sin(theta);
+	    double ddx=dsi*cos(theta);
             do {
                 currentdist+=ddx;
                 double ddist=fabs(currentdist-lastdist);
-                currentdepth=lastdepth+ddist*dzdx;
+                currentdepth+=ddz;
                 nextpoint=projector.position(currentdist);
                 nextpoint.r -= currentdepth;
+		cout << currentdist <<"   "<<currentdepth<<endl;
                 member.push_back(nextpoint);
             }while(fabs(currentdist)<fabs(dist));
-            lastdist=dist;
-            lastdepth=depth;
+            lastdist=currentdist;
+            lastdepth=currentdepth;
         }
         result.push_back(member);
     }
@@ -153,6 +190,7 @@ int MinProfileLength(ProfileEnsemble& profs)
     }
     return(result);
 }
+
 /* Returns a 3xsize(p) matrix of Cartesian points in the coordinates
    of g computed from the geographic points stored in p.  
    */
@@ -209,24 +247,51 @@ double *ConvertPoint(GCLgrid& g, Geographic_point gp)
     result[2]=cp.x3;
     return(result);
 }
-
-dmatrix RemoveStrain(GCLgrid& grid, dmatrix& anchor, dmatrix& path)
+/* Helper for RemoveStrain. Strips row 3(4) used to hold
+computed longitudinal strain */
+dmatrix copy_profile(dmatrix& old)
 {
+	int np=old.columns();
+	if(old.rows()!=4) throw SeisppError(
+		string("copy_profile:  coding error.  old nrows not 4"));
+	dmatrix result(3,np);
+	int i,j;
+	for(j=0;j<np;++j)
+		for(i=0;i<3;++i) result(i,j)=old(i,j);
+	return result;
+}
+
+/* grid is GCLgrid used for coordiante conversion, 
+anchor is reference path and path is the path to be deformed.
+maxdip is the maximum allowed dip (in radians).
+
+Return has coordinates in 0,1,2 and longitudinal strain in 3. */
+dmatrix RemoveStrain(GCLgrid& grid, dmatrix& anchor, dmatrix& path,
+	double maxdip)
+{
+//DEBUG
+//cout << "anchor path"<<endl<<anchor<<endl;
+//cout << "path to deform"<<endl<<path<<endl;
    int np=grid.n2;
    if((path.columns()<np) || (anchor.columns()<np)) 
        throw SeisppError(string("RemoveStrain:  ")
            + "size mismatch on pair of paths to process.  Coding error");
-   dmatrix result(3,np);
+   dmatrix result(4,np);
+   double tanmaxdip(tan(fabs(maxdip)));
    double v[3];
    dcopy(3,path.get_address(0,0),1,v,1);
    daxpy(3,-1.0,anchor.get_address(0,0),1,v,1);
    /* v now contains vector between first point in each path.
       Preserve that length */
    double r=dnrm2(3,v,1);
+cout << "r="<<r<<endl;
    /* These hold geographic point equivalents of anchor and path points
       respectively */
    Geographic_point gpa, gpp;
+   /* copy the first point directly with no change */
    int j;
+   for(j=0;j<3;++j) result(j,0)=path(j,0);
+   /* main loop */
    for(j=1;j<np;++j)
    {
        double delta,azimuth;
@@ -236,10 +301,22 @@ dmatrix RemoveStrain(GCLgrid& grid, dmatrix& anchor, dmatrix& path)
        double distkm=delta2km(delta);
        double az=r0_ellipse(gpa.lat)-gpa.r;
        double pz=r0_ellipse(gpp.lat)-gpp.r;
-       double dz=pz-az;
-       if(dz>r) throw SeisppError(string("RemoveStrain:  ")
-               + "data or coding error.  dz is larger than r");
-       double newdist=sqrt(r*r-dz*dz);
+       double dz=fabs(pz-az);
+       double newdist,lstrain;
+       double dip=atan2(dz,distkm);
+cout << "Computed dip="<<deg(dip)<<endl;
+       if(fabs(dip)>maxdip)
+       {
+       	    newdist=dz/tanmaxdip;
+	    lstrain=(sqrt(newdist*newdist+dz*dz)-r)/r;
+cout << "In high dip block. strain="<<lstrain<<endl;
+	    result(3,j)=lstrain;
+	}
+	else
+	{
+	    newdist=sqrt(r*r-dz*dz);
+	    result(3,j)=0.0;
+	}
        double newdelta=km2delta(newdist);
        latlon(gpa.lat,gpa.lon,newdelta,azimuth,&(gpp.lat),&(gpp.lon));
        double *vptr;
@@ -247,6 +324,8 @@ dmatrix RemoveStrain(GCLgrid& grid, dmatrix& anchor, dmatrix& path)
        dcopy(3,vptr,1,result.get_address(0,j),1);
        delete [] vptr;
    }
+//DEBUG
+cout << "deformed path="<<endl<<result<<endl;
    return result;
 }
 
@@ -261,13 +340,16 @@ dmatrix RemoveStrain(GCLgrid& grid, dmatrix& anchor, dmatrix& path)
    profiles - profile data interpolated to uniform grid in 
     downdip paths.
 */
-void BuildNoStrainGrid(GCLgrid& grid, int master, ProfileEnsemble& profiles)
+void BuildNoStrainGrid(GCLscalarfield& grid, int master, ProfileEnsemble& profiles,
+	double maxdip)
 {
   try {
     /* get local copies of these for readability*/
     int n1,n2;
     n1=grid.n1;
     n2=grid.n2;
+    /* get reference to grid used below.  Relic of earlier version
+    that used only a grid instead o a field holding longitudinal strain */
     /* It is convenient to store cartesian coordinates of a profile in
        these 3xn2 matrices */
     dmatrix masterprofile,lastprofile,rawprofile;
@@ -280,17 +362,18 @@ void BuildNoStrainGrid(GCLgrid& grid, int master, ProfileEnsemble& profiles)
     for(j=master+1;j<n1;++j)
     {
         rawprofile=ConvertProfile(profiles[j],grid);
-        dmatrix newprofile=RemoveStrain(grid,lastprofile,rawprofile);
+        dmatrix newprofile=RemoveStrain(grid,lastprofile,rawprofile,maxdip);
         copy_gridline(grid,newprofile,j);
-        lastprofile=newprofile;
+	/* Need this to strip row 3(4) */
+	lastprofile=copy_profile(newprofile);
     }
     /* Now do the same working down from master */
     for(j=master-1;j>=0;--j)
     {
         rawprofile=ConvertProfile(profiles[j],grid);
-        dmatrix newprofile=RemoveStrain(grid,lastprofile,rawprofile);
+        dmatrix newprofile=RemoveStrain(grid,lastprofile,rawprofile,maxdip);
         copy_gridline(grid,newprofile,j);
-        lastprofile=newprofile;
+	lastprofile=copy_profile(newprofile);
     }
   } catch (...){throw;};
 }
@@ -336,7 +419,7 @@ int main(int argc, char **argv)
         if(argc<3) usage();
         string dbname(argv[1]);
         string gridname(argv[2]);
-	for(i=2;i<argc;++i)
+	for(i=3;i<argc;++i)
 	{
 		string sarg(argv[i]);
 		if(sarg=="-pf")
@@ -393,6 +476,12 @@ int main(int argc, char **argv)
                     <<RawProfiles.size()<<" profiles defined"<<endl;
                 exit(-2);
             }
+	    /* critical parameter.  When dip exceeds this longitudinal
+	    strain will be allowed and computed.  Ignored unless using
+	    no strain option */
+	    double maxdip=control.get_double("maximum_allowed_dip");
+	    maxdip=rad(maxdip);
+	    string outfieldname=control.get_string("output_strain_fieldname");
             if(SEISPP_verbose)
             {
                 cout << "Parameter file input"<<endl
@@ -419,11 +508,20 @@ int main(int argc, char **argv)
                     mgptr->lat,mgptr->lon,mgptr->r,0.0,profsi,profsi,
                     mastergridline,0);
             if(remove_strain)
-                BuildNoStrainGrid(grid,mastergridline,RawProfiles);
+	    {
+		GCLscalarfield straingrid(grid);
+                BuildNoStrainGrid(straingrid,mastergridline,RawProfiles,
+			maxdip);
+		straingrid.compute_extents();
+		/* always put field and grid data in same dir */
+		//straingrid.dbsave(db,savedir,savedir,outfieldname,outfieldname);
+	    }
             else
+	    {
                 BuildPlainGrid(grid,RawProfiles);
-            grid.compute_extents();
-            grid.dbsave(db,savedir);
+                grid.compute_extents();
+                grid.dbsave(db,savedir);
+	    }
 	}
         catch (SeisppError& serr)
         {
