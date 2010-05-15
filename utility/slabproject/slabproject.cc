@@ -98,6 +98,7 @@ ProfileEnsemble LoadProfiles(string fname,double plat, double plon,
     while(fscanf(fp,"%d %lf %lf %lf",&npoints,&olat,&olon,&odepth)!=EOF)
     {
 	cout << "Profile number "<<pfnumber<<" distance, depth pairs (km)"<<endl;
+	cout << "Origin latitude="<<olat<<" Origin longitude="<<olon<<endl;
 	++pfnumber;
         olat=rad(olat);  olon=rad(olon);
         PlateBoundaryProjector projector(plat,plon,olat,olon);
@@ -114,6 +115,8 @@ ProfileEnsemble LoadProfiles(string fname,double plat, double plon,
             if(fscanf(fp,"%lf%lf",&dist,&depth)==EOF) throw SeisppError(base_error
                     + "Read error.  EOF encountered prematurely.\n"
                     +string("Probably formatting error in file=")+fname);
+//DEBUG
+cout << "dist,depth read="<<dist<<" "<<depth<<endl;
             if(dist*dsi<0.0) throw SeisppError(base_error
                     + "Sign inconsistency of profile sample interval and profile distance data\n"
                     + string("Both must be of same sign"));
@@ -153,7 +156,7 @@ ProfileEnsemble LoadProfiles(string fname,double plat, double plon,
                 currentdepth+=ddz;
                 nextpoint=projector.position(currentdist);
                 nextpoint.r -= currentdepth;
-		cout << currentdist <<"   "<<currentdepth<<endl;
+		//cout << currentdist <<"   "<<currentdepth<<endl;
                 member.push_back(nextpoint);
             }while(fabs(currentdist)<fabs(dist));
             lastdist=currentdist;
