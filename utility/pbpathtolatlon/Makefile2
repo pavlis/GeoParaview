@@ -1,0 +1,12 @@
+BIN=pbpathtolatlon
+ldlibs=-lgclgrid -lseispp $(DBLIBS) $(BOOSTLIB) -lperf 
+
+include $(ANTELOPEMAKE)  	
+include $(ANTELOPEMAKE).local
+
+CXXFLAGS += $(BOOSTINCLUDE)
+OBJS=pbpathtolatlon.o   PlateBoundaryPath.o 
+
+$(BIN) : $(OBJS)
+	$(RM) $@
+	$(CXX) $(CCFLAGS) -o $@ $(OBJS) $(LDFLAGS) $(LDLIBS)
