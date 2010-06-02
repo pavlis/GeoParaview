@@ -208,7 +208,8 @@ int main(int argc, char **argv)
 			GCLscalarfield3d field(db,gridname,fieldname);
 			if(remap)
 			{
-				if(field!=(*rgptr))
+				// Used to make this optional.  force
+				//if(field!=(*rgptr))
 					remap_grid(dynamic_cast<GCLgrid3d&>(field),
 						*rgptr);
 			}
@@ -237,7 +238,7 @@ int main(int argc, char **argv)
 			GCLscalarfield3d *sfptr;
 			if(remap)
 			{
-				if(vfield!=(*rgptr))
+				//if(vfield!=(*rgptr))
 					remap_grid(dynamic_cast<GCLgrid3d&>(vfield),
 						*rgptr);
 			}
@@ -272,7 +273,7 @@ int main(int argc, char **argv)
 			GCLgrid g(db,gridname);
 			if(remap)
 			{
-				if(g!=(*rgptr))
+				//if(g!=(*rgptr))
 					remap_grid(g,*rgptr);
 			}
 			npoly=vtk_output_GCLgrid(g,outfile);
@@ -286,7 +287,7 @@ int main(int argc, char **argv)
 			GCLscalarfield field(db,gridname,fieldname);
 			if(remap)
 			{
-				if(field!=(*rgptr))
+				//if(field!=(*rgptr))
 					remap_grid(dynamic_cast<GCLgrid&>(field),
 						*rgptr);
 			}
