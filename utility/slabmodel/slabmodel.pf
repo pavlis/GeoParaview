@@ -1,0 +1,11 @@
+# These are for Juan de Fuca and North America from NUVEL-1
+pole_latitude 20.7
+pole_longitude -112.2
+# This number needs to be double checked.  Computed radians/yr
+slab_angular_velocity 0.0000000125
+time_sample_interval 1000000
+model_elapsed_time  40000000
+trench_line_filename testdata/trench.dat
+slabdata_filename testdata/allpoints.dat
+# units of this are km
+trench_path_sample_interval 100.0
