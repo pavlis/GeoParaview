@@ -1,5 +1,10 @@
-all clean Include install installMAN pf relink tags uninstall test :: FORCED
-	@-if amakelocal XMOTIFLIB XMOTIFINCLUDE BOOSTLIB BOOSTINCLUDE; then \
-           $(MAKE) -f Makefile2 $@ ; \
-	fi
-FORCED:
+BIN=pbpathtolatlon
+ldlibs=-lgclgrid -lseispp $(DBLIBS) -lperf 
+
+include $(ANTELOPEMAKE)  	
+
+OBJS=pbpathtolatlon.o   PlateBoundaryPath.o 
+
+$(BIN) : $(OBJS)
+	$(RM) $@
+	$(CXX) $(CCFLAGS) -o $@ $(OBJS) $(LDFLAGS) $(LDLIBS)
