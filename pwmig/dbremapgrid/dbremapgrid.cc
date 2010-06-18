@@ -40,7 +40,7 @@ int main(int argc, char **argv)
 		twodmode=control.get_bool("2Dmode");
 		griddir=control.get_string("grid_directory");
 		newgridname=control.get_string("new_grid_name");
-	} catch (MetadataError mderr)
+	} catch (MetadataError& mderr)
 	{
 		mderr.log_error();
 		exit(-1);
@@ -216,9 +216,17 @@ int main(int argc, char **argv)
 			// into the scratch record
 			dbget(dbss,0);
 			dbgrd.record=dbSCRATCH;
-			dbputv(dbgrd,0,"gridname",newgridname.c_str(),0);
+			dbputv(dbgrd,0,"gridname",newgridname.c_str(),
+				"dimensions",3,
+				"nv", 1, 
+				"fieldname",fieldname.c_str(),
+				0);
 			dbadd(dbgrd,0);
 			dynamic_cast<GCLgrid3d&>(g).dbsave(db,griddir);
+			cerr << "Warning:  this is a hack program.  "<<endl
+				<< "You will need to manually set dir and dfile"
+				<< " in gclfield directory for "
+				<< "fieldname="<<fieldname<<endl;
 		}
 	    }
 	}
@@ -226,6 +234,10 @@ int main(int argc, char **argv)
 	{
 		cerr << "GCLgrid library function threw error code="
 			<< ierr << endl;
+	}
+	catch (SeisppError& serr)
+	{
+		serr.log_error();
 	}
 	catch (...)
 	{
