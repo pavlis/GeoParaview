@@ -9,3 +9,4 @@ depth_sample_interval 1.0
 maximum_depth 250
 minimum_depth 0
 component_number 2
+use_points_directly false

@@ -1,4 +1,4 @@
-.TH EXTRACT_SECTION 1 "$Date: 2008/04/09 20:10:36 $"
+.TH EXTRACT_SECTION 1 "$Date: 2010/06/19 14:41:38 $"
 .SH NAME
 extract_section - extract a cross-section from a 3D object
 .SH SYNOPSIS
@@ -44,11 +44,17 @@ be a vector field.  By default it assumes the field holds only
 scalar data.
 .SH PARAMETER FILE
 .LP
-\fIoutput_format\fR must be one of two options:  (1) dmatrix
-or (2) GMT (gmt is also accepted).  The former writes the results
+\fIoutput_format\fR must be one of three options:  (1) dmatrix;
+(3) SEISMICUNIX; 
+or (2) GMT (gmt is also accepted).  The dmatrix format writes the results
 as a ascii numbers in a table with spaces separating the fields.  
 This matrix can, for example, be read into matlab with the 
-dlmread command.  The later (GMT) writes the results suitable
+dlmread command.  The SEISMICUNIX format writes the results as a 
+SEISMICUNIX (SU) SEGY file.  SU format is a simplified SEGY.  
+The file contains no "reel" headers (SEGY has two file headers not
+written here) and the data samples are always written in host floating
+point format. The GMT format 
+writes the results in a format suitable
 as input to the GMT command pswiggle.  
 .LP
 \fIgeographic_output\fR is a boolean used to control the 
@@ -97,10 +103,16 @@ points, but paths with points closer than the horizontal sample
 interval are almost certainly trouble.  Corners are also rounded
 by a simple nearest integer formula so complex paths are subject
 to serious rounding problems. 
+.LP
+\fIuse_points_directly\fR is a boolean that controls how the section_points
+values are handled.  Normally the program interpolates between the section
+points to produce an equally spaced sequence of points.  When this 
+boolean is set true (the default is false) the section_points are used
+directly to define the output points.  
 .SH FILES
 .LP
-The output can be in one of two formats depending on the setting
-of the \fIoutput_format\fR parameter in the parameter file.  
+The output format depends on the setting 
+of the \fIoutput_format\fR parameter.
 .LP
 \fIdmatrix\fR format is a simple ascii table output of the
 section matrix.  i.e. each line is one row of the section
@@ -114,22 +126,37 @@ geographic_output should be viewed as recommended only
 for advanced users who know both gmt and the ins and outs
 of awk.  See the man page for pswiggle to learn more about
 this format.
+.LP
+\fISEISMICUNIX\fR creates a binary seismic unix format file as output.
+A fixed set of header values are set.  Run surange to see what is
+set.  SU has a way to flag samples as depth samples, but this has
+not been implemented.  Instead the scaling is really odd because 
+segy writes the sample interval as an int16_t header value with units
+of microseconds.  This makes rational units difficult since 1 km, 
+for example, would overflow an int16_t if used for dt.  To get
+something close to normal scales for seismic currently dz is scale
+by 1000.  Thus, for example, if dz is 1 km, the output will look
+like seismic data with a sample interval of 1 ms.  
 .SH DIAGNOSTICS
 .LP
 The program will die with a hopefully explanatory message with
 inconsistent input or reading problems.
 .SH "BUGS AND CAVEATS"
-.LP
+.LP (1)
 The algorithm used to pass through a corner of a section 
 path is not very sophisticated.  Roundoff errors should be
 expected at each corner.  i.e. the x coordinate after a
 corner can be off by a significant fraction of the horizontal
 sampling interval because the jump across the segments is 
 controlled only by a nearest integer scheme. 
+.IP (2)
+The way dt is handled is really ugly.  Ultimately, I need to figure
+out how SU handles the switch from time to depth scaling.  This uses
+a special field in the extra part of the standard header.
 .SH AUTHOR
 .nf
 Gary L. Pavlis
 Indiana University
 pavlis@indiana.edu
 .fi
-.\" $Id: extract_section.1,v 1.1 2008/04/09 20:10:36 pavlis Exp $
+.\" $Id: extract_section.1,v 1.2 2010/06/19 14:41:38 pavlis Exp $
