@@ -1,3 +1,4 @@
+PF=slabmodel.pf
 BIN=slabmodel
 ldlibs=-lcgeom -lgclgrid -lseispp $(DBLIBS) $(BOOSTLIB) -lperf 
 
@@ -10,4 +11,4 @@ OBJS=slabmodel.o GeoTriMeshSurface.o PLGeoPath.o PlateBoundaryPath.o \
 
 $(BIN) : $(OBJS)
 	$(RM) $@
-	$(CXX) $(CCFLAGS) -o $@ $(OBJS) $(LDFLAGS) $(LDLIBS)
+	$(CXX) $(CXXFLAGS) -o $@ $(OBJS) $(LDFLAGS) $(LDLIBS)

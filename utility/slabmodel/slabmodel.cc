@@ -26,8 +26,12 @@ vector<Geographic_point> load_geopointdata(string fname)
     Geographic_point gp;
     vector<Geographic_point> points;
     double dlat,dlon,depth;
-    while(fscanf(fp,"%lf%lf%lf",&dlat,&dlon,&depth)!=EOF)
+    char line[128];
+    //while(fscanf(fp,"%lf%lf%lf",&dlat,&dlon,&depth)!=EOF)
+    while(fgets(line,128,fp)!=NULL)
     {
+        if(line[0]=='#') continue;
+        sscanf(line,"%lf%lf%lf",&dlon,&dlat,&depth);
         if(dlat<-90.0 || dlat>90.0) throw SeisppError(base_error
                 + "Inconsistent latitude value must be -90 to 90");
         if(dlon<-180.0 || dlon>360.0) throw SeisppError(base_error
@@ -163,11 +167,19 @@ int main(int argc, char **argv)
                     }
                     oversampledpath.push_back(gp);
                 }
+                if(j>1)
+                {
                 PLGeoPath plop(oversampledpath,0);
                 double sampleintervalkm=Reffective*timesampleinterval*angularvelocity;
                 PLGeoPath finalpath=resample_PLGeoPath(plop,sampleintervalkm);
                 cout << finalpath;
                 cout <<">"<<endl;
+                }
+                else
+                {
+                    cerr << "Warning:  Path has zero length "
+                        <<"for path point number "<<i<<endl;
+                }
                 oversampledpath.clear();
             }
         }

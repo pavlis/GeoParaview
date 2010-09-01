@@ -139,12 +139,16 @@ ostream& operator<<(ostream& os,PLGeoPath& path)
     int i;
     /* assume here all the vectors are the same length */
     int npts=path.lat.size();
-    for(i=0;i<npts;++i)
+    // silently do nothing if npts is le 1
+    if(npts>1)
     {
-        cout << deg(path.lon[i])<<" "
-            << deg(path.lat[i])<<" "
-            << r0_ellipse(path.lat[i])-path.r[i]<<" "
-            << path.r[i] << endl;
+	    for(i=0;i<npts;++i)
+	    {
+	        cout << deg(path.lon[i])<<" "
+	            << deg(path.lat[i])<<" "
+	            << r0_ellipse(path.lat[i])-path.r[i]<<" "
+	            << path.r[i] << endl;
+	    }
     }
 }
 
