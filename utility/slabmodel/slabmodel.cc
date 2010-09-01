@@ -2,10 +2,10 @@
 #include <fstream>
 #include <string>
 #include "coords.h"
+#include "GeoTriMeshSurface.h"
 #include "Metadata.h"
 #include "seispp.h"
 #include "interpolator1d.h"
-#include "GeoTriMeshSurface.h"
 #include "PLGeoPath.h"
 #include "PlateBoundaryPath.h"
 /* this is used several times here.  Beware if you ever cut and paste from this file */

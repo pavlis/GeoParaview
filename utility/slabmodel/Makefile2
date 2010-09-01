@@ -1,11 +1,12 @@
 PF=slabmodel.pf
 BIN=slabmodel
-ldlibs=-lcgeom -lgclgrid -lseispp $(DBLIBS) $(BOOSTLIB) -lperf 
+#ldlibs=-lcgeom -lgclgrid -lseispp $(DBLIBS) $(BOOSTLIB) $(TRLIBS) -lperf 
+ldlibs=-lcgeom -lgclgrid -lseispp $(DBLIBS) $(TRLIBS) -lperf 
 
 include $(ANTELOPEMAKE)  	
 include $(ANTELOPEMAKE).local
 
-CXXFLAGS += $(BOOSTINCLUDE)
+CXXFLAGS += -I$(BOOSTINCLUDE)
 OBJS=slabmodel.o GeoTriMeshSurface.o PLGeoPath.o PlateBoundaryPath.o \
      RegionalCoordinates.o
 
