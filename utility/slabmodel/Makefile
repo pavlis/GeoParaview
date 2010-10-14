@@ -1,5 +1,5 @@
 all clean Include install installMAN pf relink tags uninstall test :: FORCED
-	@-if amakelocal XMOTIFLIB XMOTIFINCLUDE BOOSTINCLUDE; then \
+	@-if localmake_config xmotif  boost; then \
            $(MAKE) -f Makefile2 $@ ; \
 	fi
 FORCED:

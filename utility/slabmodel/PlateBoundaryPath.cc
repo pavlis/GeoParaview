@@ -1,6 +1,8 @@
 #include <math.h>
 #include "PlateBoundaryPath.h"
 #include "SeisppError.h"
+using namespace std;
+using namespace SEISPP;
 PlateBoundaryPath::PlateBoundaryPath(double pla, double plo,
         double ola, double olo,double avel)
 {
@@ -73,5 +75,175 @@ Geographic_point PlateBoundaryPath::origin()
     result.lat=olat;
     result.lon=olon;
     result.r=r0_ellipse(olat);
+    return(result);
+}
+double PlateBoundaryPath::distance(double t)
+{
+    double phi=angular_velocity*t;
+    return(phi*ssdelta);
+}
+double PlateBoundaryPath::time(double s)
+{
+    double phi=s/ssdelta;
+    return(phi/angular_velocity);
+}
+/*  Now begin section on TimeVariablePlateBoundary object */
+TimeVariablePlateBoundaryPath::TimeVariablePlateBoundaryPath(
+        vector<double>spla, vector<double> splo,
+            vector<double> times, vector<double> ang, double ola, double olo)
+        : splat(spla), splon(splo), dt(times)
+{
+    string base_error("TimeVariablePlateBoundaryPath constructor:  ");
+    if( (spla.size()!=splo.size()) || (splo.size()!=times.size())
+            || (times.size() != ang.size()) )throw SeisppError(
+                base_error+" input vector size mismatch");
+    /* Push the origin as 0 point of this interval vector */
+    olat.push_back(ola);
+    olon.push_back(olo);
+    int i,npoints;
+    npoints=splat.size();
+    for(i=0;i<npoints;++i)
+        omegadot.push_back(ang[i]/dt[i]);
+    for(i=0;i<npoints;++i)
+    {
+        double lat,lon,r;
+        double rto0;  // distance in radians to origin for this segment
+        double az;  // temporary azimuth output of dist function
+        dist(splat[i],splon[i],olat[i],olon[i],&rto0,&az);
+        ssdelta.push_back(rto0);
+        azimuth0.push_back(az);
+        // Now compute the lat lon of the next segment
+        double nextaz,daz;
+        daz=dt[i]*omegadot[i];
+        ss.push_back(daz);
+        nextaz=az+daz;
+        latlon(splat[i],splon[i],rto0,nextaz,&lat,&lon);
+        olat.push_back(lat);
+        olon.push_back(lon);
+    }
+    /* Clearer to just compute these now.  Note carefully t0 will 
+    have one more point than dt.  This is the classic interval
+    versus points problem. */
+    t0.push_back(0.0);
+    double t;
+    for(i=0;i<npoints;++i)
+    {
+        t+=dt[i];
+        t0.push_back(t);
+    }
+}
+TimeVariablePlateBoundaryPath::TimeVariablePlateBoundaryPath(const
+        TimeVariablePlateBoundaryPath& parent)
+{
+    splat=parent.splat;
+    splon=parent.splon;
+    dt=parent.dt;
+    olat=parent.olat;
+    olon=parent.olon;
+    ss=parent.ss;
+    ssdelta=parent.ssdelta;
+    azimuth0=parent.azimuth0;
+    omegadot=parent.omegadot;
+    t0=parent.t0;
+}
+TimeVariablePlateBoundaryPath& TimeVariablePlateBoundaryPath::operator=(
+        const TimeVariablePlateBoundaryPath& parent)
+{
+    if(this!=&parent)
+    {
+        splat=parent.splat;
+        splon=parent.splon;
+        dt=parent.dt;
+        olat=parent.olat;
+        olon=parent.olon;
+        ss=parent.ss;
+        ssdelta=parent.ssdelta;
+        azimuth0=parent.azimuth0;
+        omegadot=parent.omegadot;
+        t0=parent.t0;
+    }
+    return(*this);
+}
+Geographic_point TimeVariablePlateBoundaryPath::position(double t)
+{
+    const string base_error("TimeVariablePlateBoundaryPath::position:  ");
+    Geographic_point result;
+    if(t<0) throw SeisppError(base_error
+                + "illegal negative time parameter. Must be nonnegative");
+    /* Linear search for first position */
+    int npoints=splat.size();
+    int i;
+    /* Intentionally start at 1 since we will decrement this at end */
+    for(i=1;i<npoints;++i)
+        if(t0[i]>t) break;
+    --i;  
+    double dt=t-t0[i];
+    double daz=dt*omegadot[i];
+    latlon(splat[i],splon[i],ssdelta[i],azimuth0[i]+daz,
+            &(result.lat),&(result.lon));
+    result.r=r0_ellipse(result.lon);
+    return result;
+}
+double TimeVariablePlateBoundaryPath::latitude(double s)
+{
+    Geographic_point gp=this->position(s);
+    return(gp.lat);
+}
+double TimeVariablePlateBoundaryPath::longitude(double s)
+{
+    Geographic_point gp=this->position(s);
+    return(gp.lon);
+}
+Geographic_point TimeVariablePlateBoundaryPath::origin()
+{
+    Geographic_point result;
+    result.lat=olat[0];
+    result.lon=olon[0];
+    result.r=r0_ellipse(olat[0]);
+    return(result);
+}
+double TimeVariablePlateBoundaryPath::distance(double t)
+{
+    const string base_error("TimeVariablePlateBoundaryPath::distance:  ");
+    if(t<0) throw SeisppError(base_error
+                + "illegal negative time parameter. Must be nonnegative");
+    /* parallel code to position method */
+    int npoints=splat.size();
+    int i;
+    /* Intentionally start at 1 since we will decrement this at end */
+    for(i=1;i<npoints;++i)
+        if(t0[i]>t) break;
+    --i;  
+    double dt=t-t0[i];
+    double daz=dt*omegadot[i];
+    double result;
+    int k;
+    for(k=0,result=0.0;k<i;++k)
+        result+=ss[k]*ssdelta[k];
+    result += daz*ssdelta[i];
+    return(result);
+}
+double TimeVariablePlateBoundaryPath::time(double s)
+{
+    const string base_error("TimeVariablePlateBoundaryPath::time:  ");
+    if(s<0) throw SeisppError(base_error
+                + "illegal negative distance parameter. Must be nonnegative");
+    /* parallel code to position method */
+    int npoints=splat.size();
+    double s0,ds;
+    int i;
+    for(i=0,s0=0.0;i<npoints;++i)
+    {
+        ds=ss[i]*ssdelta[i];
+        if((s0+ds)>2) break;
+        s0+=ds;
+    }
+    double result;
+    if(i==0)
+        result=0.0;
+    else
+        result=t0[i-1];
+    double dtds=(t0[i]-t0[i-1])/ds;
+    result += dtds*(s-s0);
     return(result);
 }

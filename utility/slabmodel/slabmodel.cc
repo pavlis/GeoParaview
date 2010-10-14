@@ -2,10 +2,10 @@
 #include <fstream>
 #include <string>
 #include "coords.h"
-#include "GeoTriMeshSurface.h"
 #include "Metadata.h"
 #include "seispp.h"
 #include "interpolator1d.h"
+#include "GeoTriMeshSurface.h"
 #include "PLGeoPath.h"
 #include "PlateBoundaryPath.h"
 /* this is used several times here.  Beware if you ever cut and paste from this file */
@@ -45,6 +45,39 @@ vector<Geographic_point> load_geopointdata(string fname)
        force it to first point in list.  Allow azimuth to default to 0 */
     return(points);
 }
+PLGeoPath timesample_PLGeoPath(PLGeoPath& raw, 
+        vector<double>t,vector<double> s,double dt)
+{
+    if(t.size()!=s.size()) throw SeisppError(string("timesample_PLGeoPath:  ")
+            + "time and distance vector sizes do not match");
+    double s0=raw.sbegin();
+    double smax=raw.send();
+    Geographic_point gp;
+    vector<Geographic_point> newpts;
+    int nt=t.size();
+    if(nt<=1) throw SeisppError(string("timesample_PLGeoPath:  ")
+            + "empty vectors for time and distance for path");
+    double t0,tmax;
+    tmax=t[nt-1];
+    //Assume first point is time t=0;
+    gp=raw.origin();
+    newpts.push_back(gp);
+    t0=dt;
+    while(t0<tmax)
+    {
+        // A hideously inefficient linear search, but don't expect
+        // nt to ever be huge
+        int i;
+        for(i=1;i<nt;++i)
+            if(t[i]>t0) break;
+        double dsdt=(s[i]-s[i-1])/(t[i]-t[i-1]);
+        double sp=s[i-1]+(t0-t[i-1])*dsdt;
+        gp=raw.position(sp);
+        newpts.push_back(gp);
+        t0+=dt;
+    }
+    return(PLGeoPath(newpts,0));
+}
 PLGeoPath resample_PLGeoPath(PLGeoPath& raw,double ds)
 {
     if(ds<=0.0) 
@@ -65,7 +98,89 @@ PLGeoPath resample_PLGeoPath(PLGeoPath& raw,double ds)
     }
     return(PLGeoPath(newpts,0));
 }
+GeoPath *BuildPBPObject(double olat, double olon, Pf *pf)
+{
+    Tbl *t;
+    string tname("pole_data");
+    t=pfget_tbl(pf,const_cast<char *>(tname.c_str()));
+    vector<double>spla,splo,dt,ang;
+    int i;
+    double lasttime,lastphi;
+    for(i=0,lasttime=0.0,lastphi=0.0;i<maxtbl(t);++i)
+    {
+        char *line;
+        line=(char *)gettbl(t,i);
+        stringstream ss(line);
+        double lat,lon,time,phi;
+        ss>>time;
+        ss>>lat;
+        ss>>lon;
+        ss>>phi;
+        lat=rad(lat);
+        lon=rad(lon);
+        phi=rad(phi);
+        spla.push_back(lat);
+        splo.push_back(lon);
+        /* time and phi in paper used to build this program 
+           tabulate accumulative time and accumulated rotation
+           angle. Deltas are preferable here. Also convert from
+           million years to years*/
+        dt.push_back((time-lasttime)*1000000.0);
+        //ang.push_back(phi-lastphi);
+        ang.push_back(phi);
+        lasttime=time;
+        lastphi=phi;
+    }
+    int npoles=spla.size();
+    if(npoles==1)
+    {
+        PlateBoundaryPath *pbpath=new PlateBoundaryPath(spla[0],splo[0],
+                olat,olon,ang[0]/dt[0]);
+        return pbpath;
+    }
+    else
+    {
+        TimeVariablePlateBoundaryPath *pbpath=new TimeVariablePlateBoundaryPath(
+                spla,splo,dt,ang,olat,olon);
+        return pbpath;
+    }
+}
+/*  Compute and return great circle distance between two points
+    defined by two Geographic_point objects. Returned distance 
+    is in radians. */
+double GeoDistance(Geographic_point gp0, Geographic_point gp1)
+{
+    double delta,az;
+    dist(gp0.lat,gp0.lon,gp1.lat,gp1.lon,&delta,&az);
+    return(delta);
+}
 
+/* This pair of functions are used to computed 3d distance and 
+   a corrected time increment for paths.  There is duplication of
+   the distance calculation, which is not very efficient, but 
+   acceptable as long as as this isn't used enormous numbers
+   of times.
+
+In both procedures gp0 is first point and gp1 is second.  Significant
+only in how horizontal distance is computed as r*delta.  */
+double distance_increment(Geographic_point gp0, Geographic_point gp1, 
+        double dt)
+{
+    double delta;
+    delta=GeoDistance(gp0,gp1);
+    delta*=gp0.r;
+    double ds=hypot(delta,fabs(gp1.r-gp0.r));
+    return(ds);
+}
+double adjustedtime(Geographic_point gp0, Geographic_point gp1, 
+        double dt)
+{
+    double delta;
+    delta=GeoDistance(gp0,gp1);
+    delta*=r0_ellipse(gp0.lat);
+    double ds=hypot(delta,fabs(gp1.r-gp0.r));
+    return(dt*ds/delta);
+}
 void usage()
 {
 	cerr << prog <<" [-pf pffile -V]"<<endl
@@ -102,17 +217,17 @@ int main(int argc, char **argv)
 	}
 	try {
 	    Metadata control(pf);
-	    double plat=control.get_double("pole_latitude");
-	    double plon=control.get_double("pole_longitude");
+	    //double plat=control.get_double("pole_latitude");
+	    //double plon=control.get_double("pole_longitude");
             /* This must have units of radians/year*/
-            double angularvelocity=control.get_double("slab_angular_velocity");
+            //double angularvelocity=control.get_double("slab_angular_velocity");
             /* The next two  must have time in Mya*/
             double timesampleinterval=control.get_double("time_sample_interval");
             /* Time to run slab motion */
             double modeltime=control.get_double("model_elapsed_time");
 
-	    plat=rad(plat);
-	    plon=rad(plon);
+	    //plat=rad(plat);
+	    //plon=rad(plon);
             string trenchlinefile=control.get_string("trench_line_filename");
             /* This loads the raw digitized trench position data.  
                could be deleted after resampling, but assume this a 
@@ -134,23 +249,40 @@ int main(int argc, char **argv)
             /* Now create one path for each point on resampled trench path.*/
             int npoints=SEISPP::nint(modeltime/timesampleinterval)+1;
             int npaths=trenchposition.number_points();
-            double Reffective;  // distance in km between pole and origin point 
+            //double Reffective;  // distance in km between pole and origin point 
+            GeoPath *pbpath;
             for(i=0;i<npaths;++i)
             {
                 double s=trench_path_sample_interval*static_cast<double>(i);
                 Geographic_point gp=trenchposition.position(s);
+                pbpath=BuildPBPObject(gp.lat,gp.lon, pf);
+                /*
                 PlateBoundaryPath pbpath(plat,plon,gp.lat,gp.lon,
                         angularvelocity);
                 double aztmp;
                 dist(plat,plon,gp.lat,gp.lon,&Reffective,&aztmp);
                 Reffective=deg2km(deg(Reffective));
+                        */
                 const int oversampling(50);
                 double sdt=timesampleinterval/static_cast<double>(oversampling);
                 int j;
                 vector<Geographic_point> oversampledpath;
-                for(j=0;j<(npoints*oversampling+1);++j)
+                /* These are needed if we have to extrapolate the last valid point */
+                Geographic_point lastgp;
+                /* This vector holds path times corrected for radial distance.
+                   This is necessary to create a time grid.*/
+                vector<double> corrected_time;
+                /* Parallel vector of arc distances */
+                vector<double> path_s;
+                // set a zero for first of each of these 
+                path_s.push_back(0.0);
+                corrected_time.push_back(0.0);
+                double current_time,current_s;
+                double dzdx;
+                for(j=0,current_time=0.0,current_s=0.0;
+                        j<(npoints*oversampling+1);++j)
                 {
-                    gp=pbpath.position(static_cast<double>(j)*sdt);
+                    gp=pbpath->position(static_cast<double>(j)*sdt);
                     gp.r=slabtrisurf.radius(gp.lat,gp.lon);
                     // Allow the first point to be skipped but issue warning
                     if(is_nan(gp.r)) 
@@ -162,18 +294,65 @@ int main(int argc, char **argv)
                                 << " of the time sampling rate will be present"<<endl;
                             continue;
                         }
-                        else
+                        else if(j==1)
                             break;
+                        else
+                        {
+                            // This computes change in depth (sign switch)
+                            dzdx=oversampledpath[j-2].r
+                                        - oversampledpath[j-1].r;
+                            /* compute distance between j-1 and j-2 to compute dip */
+                            double ddelta=GeoDistance(oversampledpath[j-2],oversampledpath[j-1]);
+                            dzdx/= ddelta;  // note mixed units.  dz in km, ddelta in radians
+                            // now extend the path to npoints
+                            int jlast=j-1;
+                            int jj;
+                            double s0=path_s[jlast];
+                            double r0=oversampledpath[jlast].r;
+                            for(jj=j;jj<(npoints*oversampling+1);++jj)
+                            {
+                                double s;
+                                s=static_cast<double>(jj)*sdt;
+                                gp=pbpath->position(static_cast<double>(jj)*sdt);
+                                // recycle ddelta for same context here
+                                ddelta=GeoDistance(lastgp,gp);
+                                gp.r=r0-dzdx*ddelta;
+                                oversampledpath.push_back(gp);
+                                current_time += adjustedtime(lastgp,gp,sdt);
+                                current_s += distance_increment(lastgp,gp,sdt);
+                                corrected_time.push_back(current_time);
+                                path_s.push_back(current_s);
+                                lastgp=gp;
+                            }
+                            break;
+                        }
                     }
+                    if(j>0)
+                    {
+                        current_time += adjustedtime(lastgp,gp,sdt);
+                        current_s += distance_increment(lastgp,gp,sdt);
+                    }
+                    corrected_time.push_back(current_time);
+                    path_s.push_back(current_s);
                     oversampledpath.push_back(gp);
+                    lastgp=gp;
                 }
                 if(j>1)
                 {
-                PLGeoPath plop(oversampledpath,0);
-                double sampleintervalkm=Reffective*timesampleinterval*angularvelocity;
-                PLGeoPath finalpath=resample_PLGeoPath(plop,sampleintervalkm);
-                cout << finalpath;
-                cout <<">"<<endl;
+                    //DEBUG
+                    /*
+                    for(int kd=0;kd<oversampledpath.size();++kd)
+                        cout << path_s[kd]<<" "
+                            << corrected_time[kd]<<" "
+                            << deg(oversampledpath[kd].lat)<<" "
+                            << deg(oversampledpath[kd].lon)<<" "
+                            << oversampledpath[kd].r<<endl;
+                            */
+                    PLGeoPath plop(oversampledpath,0);
+                    PLGeoPath finalpath=timesample_PLGeoPath(plop,
+                            corrected_time,path_s,timesampleinterval);
+                    cout << finalpath;
+                    cout <<">"<<endl;
                 }
                 else
                 {
@@ -181,6 +360,9 @@ int main(int argc, char **argv)
                         <<"for path point number "<<i<<endl;
                 }
                 oversampledpath.clear();
+                corrected_time.clear();
+                path_s.clear();
+                delete pbpath;
             }
         }
 
