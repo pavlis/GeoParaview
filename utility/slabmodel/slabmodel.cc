@@ -104,32 +104,30 @@ GeoPath *BuildPBPObject(double olat, double olon, Pf *pf)
     string tname("pole_data");
     t=pfget_tbl(pf,const_cast<char *>(tname.c_str()));
     vector<double>spla,splo,dt,ang;
-    int i;
-    double lasttime,lastphi;
-    for(i=0,lasttime=0.0,lastphi=0.0;i<maxtbl(t);++i)
+    /* Read data in gmt rotconverter and backtracker format for stage pole
+       data.  (This program requires stage pole input).  That format requires
+       stage poles in reverse time order.  Hence we have to read the stage pole
+       data in and then reverse the order to produce a path oriented from
+       time 0 to some time in the past. */
+    for(int i=0;i<maxtbl(t);++i)
     {
         char *line;
         line=(char *)gettbl(t,i);
         stringstream ss(line);
-        double lat,lon,time,phi;
-        ss>>time;
-        ss>>lat;
+        double lat,lon,timestart,timeend,phi;
         ss>>lon;
+        ss>>lat;
+        ss>>timeend;
+        ss>>timestart;
         ss>>phi;
         lat=rad(lat);
         lon=rad(lon);
         phi=rad(phi);
-        spla.push_back(lat);
-        splo.push_back(lon);
-        /* time and phi in paper used to build this program 
-           tabulate accumulative time and accumulated rotation
-           angle. Deltas are preferable here. Also convert from
-           million years to years*/
-        dt.push_back((time-lasttime)*1000000.0);
-        //ang.push_back(phi-lastphi);
-        ang.push_back(phi);
-        lasttime=time;
-        lastphi=phi;
+        spla.insert(spla.begin(),lat);
+        splo.insert(splo.begin(),lon);
+        dt.insert(dt.begin(),(timeend-timestart)*1000000.0);
+        /* These are stage pole rotation angles */
+        ang.insert(ang.begin(),phi);
     }
     int npoles=spla.size();
     if(npoles==1)
