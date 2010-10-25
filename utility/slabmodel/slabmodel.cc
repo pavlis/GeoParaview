@@ -249,6 +249,7 @@ int main(int argc, char **argv)
             /* Now create one path for each point on resampled trench path.*/
             int npoints=SEISPP::nint(modeltime/timesampleinterval)+1;
             int npaths=trenchposition.number_points();
+            if(SEISPP_verbose) cerr << "Output grid npaths="<<npaths<<endl;
             //double Reffective;  // distance in km between pole and origin point 
             GeoPath *pbpath;
             for(i=0;i<npaths;++i)
@@ -279,6 +280,8 @@ int main(int argc, char **argv)
                 corrected_time.push_back(0.0);
                 double current_time,current_s;
                 double dzdx;
+                if(SEISPP_verbose) cerr <<"Oversample path length="
+                    <<npoints*oversampling<<endl;
                 for(j=0,current_time=0.0,current_s=0.0;
                         j<(npoints*oversampling+1);++j)
                 {
@@ -294,7 +297,7 @@ int main(int argc, char **argv)
                                 << " of the time sampling rate will be present"<<endl;
                             continue;
                         }
-                        else if(j==1)
+                        else if(j<2)
                             break;
                         else
                         {
@@ -304,6 +307,8 @@ int main(int argc, char **argv)
                             /* compute distance between j-1 and j-2 to compute dip */
                             double ddelta=GeoDistance(oversampledpath[j-2],oversampledpath[j-1]);
                             dzdx/= ddelta;  // note mixed units.  dz in km, ddelta in radians
+                            if(SEISPP_verbose) cerr << "Extending path with dip "
+                                <<dzdx<<" from point number "<<j<<endl;
                             // now extend the path to npoints
                             int jlast=j-1;
                             int jj;
@@ -316,7 +321,7 @@ int main(int argc, char **argv)
                                 gp=pbpath->position(static_cast<double>(jj)*sdt);
                                 // recycle ddelta for same context here
                                 ddelta=GeoDistance(lastgp,gp);
-                                gp.r=r0-dzdx*ddelta;
+                                gp.r=lastgp.r-dzdx*ddelta;
                                 oversampledpath.push_back(gp);
                                 current_time += adjustedtime(lastgp,gp,sdt);
                                 current_s += distance_increment(lastgp,gp,sdt);

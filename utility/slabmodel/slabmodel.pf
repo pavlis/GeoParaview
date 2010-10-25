@@ -4,23 +4,18 @@
 pole_data &Tbl{
 #time    lat     lon     rotation
 6.03    -28.1    66.102     -5.164
-9.78    66.025  168.278     -2.765 
-16.72   42.198  125.533     -3.712
-25.73   39.944  107.670     -4.365
-33.50   61.805  180.784     -10.073
-39.46   56.052  194.630     -8.763
-46.29   56.276  184.131     -6.366
-56.92   48.582  159.022     -11.598
-61.82   33.405  116.806     -5.190
-66.78   1.594   126.093     -5.174
-72.93   35.241  119.677     -6.438
-84.00   40.643  115.754     -9.458
+9.78    -70.48  -11.725     2.7654
+16.72   -45.35  -57.354     3.7117
+25.73   -41.152 -75.198   4.3645
+33.5    -71.628   3.4836    10.073
+39.46   -66.955 25.967      8.7642
+46.29   -65.659 11.755      6.3658
 }
 # This number needs to be double checked.  Computed radians/yr
 #slab_angular_velocity 0.0000000125
 time_sample_interval 1000000
 model_elapsed_time  40000000
 trench_line_filename testdata/trench.dat
-slabdata_filename testdata/allpoints.dat
+slabdata_filename testdata/flatsurface.dat
 # units of this are km
 trench_path_sample_interval 100.0

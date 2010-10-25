@@ -55,7 +55,7 @@ Geographic_point PlateBoundaryPath::position(double s)
 
         daz += azimuth0;
         latlon(plat,plon,ssdelta,daz,&(result.lat),&(result.lon));
-        result.r=r0_ellipse(result.lon);
+        result.r=r0_ellipse(result.lat);
     }
     return result;
 }
@@ -181,7 +181,7 @@ Geographic_point TimeVariablePlateBoundaryPath::position(double t)
     double daz=dt*omegadot[i];
     latlon(splat[i],splon[i],ssdelta[i],azimuth0[i]+daz,
             &(result.lat),&(result.lon));
-    result.r=r0_ellipse(result.lon);
+    result.r=r0_ellipse(result.lat);
     return result;
 }
 double TimeVariablePlateBoundaryPath::latitude(double s)
