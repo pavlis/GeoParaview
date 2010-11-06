@@ -335,9 +335,13 @@ int main(int argc, char **argv)
 					p.lat,p.lon,gridname,gridid);
 			}
 		    }
-	} catch (SeisppError serr)
+	} catch (SeisppError& serr)
 	{
 		serr.log_error();
 		usage();
 	}
+        catch (...)
+        {
+            cerr << "Unknown exception thrown"<<endl;
+        }
 }
