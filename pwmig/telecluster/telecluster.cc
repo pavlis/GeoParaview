@@ -1,4 +1,5 @@
 #include <vector>
+#include <memory>
 #include "stock.h"
 #include "pf.h"
 #include "seispp.h"
@@ -127,8 +128,8 @@ Geographic_point RadialGrid::grid_point(int ir, int id)
 		stringstream ss;
 		ss << "RadialGrid:  requested index (az,del)=("
 			<<ir<<", "<<id<<") out of range"<<endl
-			<<"Allowed: distance=(0,"<<nazbins
-			<<") azimuth=(0,"<<ndelbins<<")"<<endl;
+			<<"Allowed: distance=(0,"<<ndelbins
+			<<") azimuth=(0,"<<nazbins<<")"<<endl;
 		throw SeisppError(ss.str());
 	}
 	double plat,plon,pr;
@@ -166,10 +167,10 @@ private:
 SectorTest::SectorTest(RadialGrid& g, int ia, int id)
 {
 	const string base_error("SectorTest constructor:  ");
-	if( (ia<0) || (ia>g.nazbins) ) 
+	if( (ia<0) || (ia>=g.nazbins) ) 
 		throw SeisppError(base_error
 		 + "Requested azimuth index outside allowed range");
-	if( (id<0) || (id>g.ndelbins) ) 
+	if( (id<0) || (id>=g.ndelbins) ) 
 		throw SeisppError(base_error
 		 + "Requested distance index outside allowed range");
 	lat0=g.lat0;
@@ -312,11 +313,14 @@ int main(int argc, char **argv)
 		AttributeMap am("css3.0");
 		EventCatalog catalog(dynamic_cast<DatabaseHandle&>(dbh),
 			mdl,am,ttmethod,ttmodel);
+		if(SEISPP_verbose) cout << "Loaded event catalog with "
+				<< catalog.size()
+				<< " events"<<endl;
 		int gridid;
 		double latp,lonp;
 		/* Main loop  over azimuth and delta segments */
-		for(int ia=0;ia<(grid->naz);++ia)
-		    for(int id=0;id<(grid->ndelta);++id)
+		for(int ia=0;ia<(grid->naz)-1;++ia)
+		    for(int id=0;id<(grid->ndelta)-1;++id)
 		    {
 		    	SectorTest thissector(*grid,ia,id);
 		    	auto_ptr<EventCatalog> evsubset=catalog.subset<SectorTest>(thissector);
