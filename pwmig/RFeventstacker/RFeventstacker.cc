@@ -205,8 +205,8 @@ long int save_arrival(DatascopeHandle& dbh, ThreeComponentSeismogram& d,
 	dbh.put("time",atime);
 	long arid;
 	arid = dbnextid(dbh.db,"arid");
-	dbh.put("arid",(int)arid);
-	dbh.put("jdate",(int)jday);
+	dbh.put("arid",arid);
+	dbh.put("jdate",jday);
 	dbh.put("chan",arrivalchan);
 	dbh.put("iphase",phase);
 	return(arid);
