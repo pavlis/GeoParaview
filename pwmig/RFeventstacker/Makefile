@@ -11,6 +11,6 @@ ldlibs= -lpwmig -lseispp -lgclgrid -ltrvltm -lpfstream -lbrttutil $(TRLIBS) $(DB
 
 
 include $(ANTELOPEMAKE) 
-OBJS=RFeventstacker.o 
+OBJS=RFeventstacker.o  resample.o
 $(BIN) : $(OBJS)
 	$(CXX) $(CXXFLAGS) -o $@ $(OBJS) $(LDFLAGS) $(LDLIBS)

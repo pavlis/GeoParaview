@@ -8,12 +8,17 @@
 #include "Metadata.h"
 #include "dbpp.h"
 #include "VectorStatistics.h"
+#include "resample.h"
 #ifdef MATLABPLOTTING
 #include "MatlabPlotter.h"
 #include "SeisppKeywords.h"
 #endif
 using namespace std;
 using namespace SEISPP;
+/* This procedure will eventually be in libseispp under resample.h but for 
+   testing need the prototype here.*/
+auto_ptr<ThreeComponentEnsemble> Resample(ThreeComponentEnsemble& d, 
+        ResamplingDefinitions& rd, double dtout, bool trim);
 /* This is a simplified version of a template in XcorProcessingEngine.  Simpler
 is cleaner in this case*/
 template<class T> struct less_stackweight
@@ -347,10 +352,18 @@ StackType GetStackType(Metadata& control)
     }
     return(result);
 }
+bool need_to_resample(ThreeComponentEnsemble& d,double targetdt)
+{
+    const double tolerance(0.001);  //allows soft equality test
+    vector<ThreeComponentSeismogram>::iterator dptr;
+    for(dptr=d.member.begin();dptr!=d.member.end();++dptr)
+        if(fabs( ((dptr->dt)-targetdt)/targetdt)>tolerance) return true;
+    return false;
+}
 void usage()
 {
 	cerr << "RFeventstacker dbin dbout [-noplots -v -pf pfname]" << endl
-		<< "dbout must be empty"<<endl;;
+		<< "dbout must be empty"<<endl;
 	exit(-1);
 }
 bool SEISPP::SEISPP_verbose(false);
@@ -392,6 +405,7 @@ int main(int argc, char **argv)
 	MetadataList mdwfprocess=pfget_mdlist(pf,"wfprocess_mdlist");
 	MetadataList mdwfdisc=pfget_mdlist(pf,"wfdisc_mdlist");
 	try {
+
 #ifdef MATLABPLOTTING
 		MatlabPlotter *mphandle;
 		if(plotdata) 
@@ -399,7 +413,10 @@ int main(int argc, char **argv)
 		else
 			mphandle=NULL;
 #endif
+                ResamplingDefinitions rd(pf);
 		Metadata control(pf);
+                /* The data will all be resampled to this sample interval */
+                double dt0=control.get_double("target_sample_interval");
 		/* This perhaps should be a parameter, but frozen for now*/
 		const string atkey("arrival.time");
 		double ts,te;
@@ -493,8 +510,26 @@ cout << "Number of record to process="<<nrec<<endl;
 		for(record=0,evid=1,orid=1;record<nrec;++record,++dbhwf)
 		{
 			int fold;
+                        /*
 			pwdataraw=new ThreeComponentEnsemble(dynamic_cast<DatabaseHandle&>(dbhwf),
 				mdlin,mdens,am);
+                                */
+                        auto_ptr<ThreeComponentEnsemble> pwdataraw =
+                            auto_ptr<ThreeComponentEnsemble>(new
+                                    ThreeComponentEnsemble(dbhwf,mdlin,mdens,am));
+                        /*Scan for irregular sampling for efficiency.  Note always call
+                          resampler with trim off assuming deconvolved data have no issue
+                          with dc offset*/
+                        if(need_to_resample(*pwdataraw,dt0))
+                            pwdataraw=Resample(*pwdataraw,rd,dt0,false);
+                        else
+                        {
+                            /* When we don't resample it is prudent to force dt of
+                               all the data to the same exact value */
+                            vector<ThreeComponentSeismogram>::iterator dptr;
+                            for(dptr=pwdataraw->member.begin();
+                                    dptr!=pwdataraw->member.end();++dptr) dptr->dt=dt0;
+                        }
 			gridid=pwdataraw->get_int("gridid");
 			if(record==0) 
 			{
@@ -525,7 +560,7 @@ cout << "Number of record to process="<<nrec<<endl;
 			string sta=pwdataraw->get_string("sta");
 			auto_ptr<ThreeComponentEnsemble> 
 			  pwdata = ArrivalTimeReference(*pwdataraw,atkey,twin);
-			delete pwdataraw;
+			//delete pwdataraw;
 			/* This appears to be necessary */
 			for(int im=0;im<pwdata->member.size();++im)
 				pwdata->member[im].put(moveout_keyword,0.0);
@@ -579,7 +614,7 @@ cout << "Number of record to process="<<nrec<<endl;
 				stack3c.push_back(s3->stack);
 				load_hang_vang(stack3c);
 			}
-			catch (SeisppError serr)
+			catch (SeisppError& serr)
 			{
 				cerr << "Stack constructor failed for sta="<<sta<<" and gridid="<<gridid<<endl
 					<<"Stack returned this error message:"<<endl;
@@ -664,13 +699,9 @@ cout << "Number of record to process="<<nrec<<endl;
 		delete mphandle;
 #endif
 	}
-	catch (SeisppError serr)
+	catch (SeisppError& serr)
 	{
 		serr.log_error();
-	}
-	catch (MetadataGetError mgerr)
-	{
-		mgerr.log_error();
 	}
 	catch (exception& e)
 	{
