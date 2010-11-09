@@ -1,5 +1,5 @@
 stack_starttime -5.0
-stack_endtime 60.0
+stack_endtime 120.0
 robust_window_starttime 2.0
 robust_window_endtime 30.0
 stack_type robust
@@ -60,4 +60,54 @@ chan
 dir
 dfile
 foff
+}
+#
+# Resample related parameter
+#
+target_sample_interval 0.05
+resample_definitions	&Arr{
+    100	&Arr{
+        Decimator_response_files	&Tbl{
+            5	response/RT72A_5_f
+        }
+        high_limit	101
+        low_limit	99
+    }
+    50	&Arr{
+        Decimator_response_files	&Tbl{
+            0.5    resample
+            5       response/RT72A_5_f
+        }
+        high_limit	51
+        low_limit	49
+    }
+    40	&Arr{
+        Decimator_response_files	&Tbl{
+            2       response/RT72A_2_f
+        }
+        high_limit	41
+        low_limit	39
+    }
+    20	&Arr{
+        Decimator_response_files	&Tbl{
+            1 none
+        }
+        high_limit	21
+        low_limit	19
+    }
+    25	&Arr{
+        Decimator_response_files	&Tbl{
+            0.25    resample
+            5       response/RT72A_5_f
+        }
+        high_limit	26
+        low_limit	24
+    }
+    10 &Arr{
+        Decimator_response_files &Tbl{
+            0.5     resample
+        }
+        high_limit 11
+        low_limit 9
+    }
 }

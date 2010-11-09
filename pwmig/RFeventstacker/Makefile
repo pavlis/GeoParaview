@@ -3,7 +3,7 @@ PF=RFeventstacker.pf
 DATADIR=schemas/css3.0.ext
 DATA=stackstats
 
-cflags=-g
+cxxflags=-g
 # Use the following for Solaris
 ldlibs= -lpwmig -lseispp -lgclgrid -ltrvltm -lpfstream -lbrttutil $(TRLIBS) $(DBLIBS) -lperf -lgclgrid -lseispp
 # Following is required to work with g++ 3.2.3
