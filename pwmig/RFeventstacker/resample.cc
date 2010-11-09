@@ -11,9 +11,35 @@ ThreeComponentSeismogram Resample(ThreeComponentSeismogram& d,
     try{
         vector<TimeSeries> x;
         int i;
+        /* ExtractComponent currently has no method to tell us orientation
+           information.  To make this workable we have to always force
+           data to standard coordinates.  Result will thus also always
+           be in standard coordinates. */
+        d.rotate_to_standard();
         for(i=0;i<3;++i)
         {
             xi=ExtractComponent(d,i);
+            switch(i)
+            {
+                /* Note seispp always uses radians */
+                case 0:
+                    // East-west
+                    xi->put("hang",M_PI_2);
+                    xi->put("vang",M_PI_2);
+                    break;
+                case 1:
+                    // North-south
+                    xi->put("hang",0.0);
+                    xi->put("vang",M_PI_2);
+                    break;
+                case 2:
+                default:
+                    // vertical
+                    xi->put("hang",0.0);
+                    xi->put("vang",0.0);
+                    break;
+            }
+
             x.push_back(ResampleTimeSeries(*xi,rd,dtout,trim));
             delete xi;
         }

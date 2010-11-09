@@ -313,7 +313,11 @@ StackStatistics ComputeCoherence(TimeSeriesEnsemble& d1in, TimeSeriesEnsemble& d
 			}
 		}
 	}
-cerr << "data ssq="<<ssd<<endl;
+        /* Throw an exception if ssq of the data vector is zero.  Will get nan
+           if this happens so is an exception.  Such data need to be dropped as it 
+           indicates an empty data ensemble*/
+        if(ssd<=0.0) throw SeisppError (string("ComputeCoherence:  ")
+                + "ensemble in data window is all zero so cannot computer statistics");
 	StackStatistics result;
 	result.coherence=coherence(ssr,ssd);
 	result.semblance=ssqstack*static_cast<double>(n)/ssd;
@@ -583,31 +587,39 @@ cout << "Number of record to process="<<nrec<<endl;
 					s2=new Stack(*x2,twin,rtwin,stacktype);
 					s3=new Stack(*x3,twin,rtwin,stacktype);
 				}
-				StackStatistics stackstat
-					=ComputeCoherence(*x1,*x2,*x3,
-					  *s1,*s2,*s3,twin,ignore_vertical);
 				fold=s1->fold;
+                                StackStatistics stackstat;
 				if(fold<=1)
 				{
-					if(SEISPP_verbose)cout << sta << " "
-					  << gridid <<" is single fold"<<endl;
+                                    stackstat.coherence=1.0;
+                                    stackstat.semblance=1.0;
 				}
 				else
 				{
-					cout << sta << " "
-						<< gridid <<" "
-						<< fold <<" "
-						<< stackstat.coherence<<" "
-						<< stackstat.semblance<<endl;
-					dbstackstats.append();
-					dbstackstats.put("gridid",gridid);
-					dbstackstats.put("coherence",stackstat.coherence);
-					dbstackstats.put("semblance",stackstat.semblance);
-					dbstackstats.put("fold",fold);
-					dbstackstats.put("sta",sta);
-					dbstackstats.put("pchan","3c");
-					dbstackstats.put("phase","P");
-				}
+                                    try {
+				        stackstat=ComputeCoherence(*x1,*x2,*x3,
+					        *s1,*s2,*s3,twin,ignore_vertical);
+                                     } catch(SeisppError& serr)
+                                     {
+                                            cerr << "Error:  Station="<<sta<<" and gridid="<<gridid<<endl;
+                                            serr.log_error();
+                                            cerr << "Skipping these data."<<endl;
+                                            continue;
+                                     }
+                                }
+				cout << sta << " "
+					<< gridid <<" "
+					<< fold <<" "
+					<< stackstat.coherence<<" "
+					<< stackstat.semblance<<endl;
+				dbstackstats.append();
+				dbstackstats.put("gridid",gridid);
+				dbstackstats.put("coherence",stackstat.coherence);
+				dbstackstats.put("semblance",stackstat.semblance);
+				dbstackstats.put("fold",fold);
+				dbstackstats.put("sta",sta);
+				dbstackstats.put("pchan","3c");
+				dbstackstats.put("phase","P");
 				stack3c.clear();
 				stack3c.push_back(s1->stack);
 				stack3c.push_back(s2->stack);
