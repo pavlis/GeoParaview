@@ -440,7 +440,8 @@ int main(int argc, char **argv)
 		one file set by dfile.  Intentional to improve performance
 		in hpc systems*/
 		string dir=control.get_string("output_dir");
-		string dfile=control.get_string("output_dfile");
+		string dfile_base=control.get_string("output_dfile_base");
+                string dfile;
 		DatascopeHandle dbh(string(dbinname),true);
 		DatascopeHandle dbhwf=BuildWaveformView(dbh,phase);
 		if(dbhwf.number_tuples()<1)
@@ -514,6 +515,9 @@ cout << "Number of record to process="<<nrec<<endl;
 		for(record=0,evid=1,orid=1;record<nrec;++record,++dbhwf)
 		{
 			int fold;
+                        char evidstr[10];
+                        stringstream ss(evidstr);
+                        ss << evid;
                         /*
 			pwdataraw=new ThreeComponentEnsemble(dynamic_cast<DatabaseHandle&>(dbhwf),
 				mdlin,mdens,am);
@@ -665,6 +669,8 @@ cout << "Number of record to process="<<nrec<<endl;
 			double ttime=hcen.phasetime(rad(stalat),rad(stalon),
 				staelev,phase);
 			result.put("dir",dir);
+                        dfile=dfile_base+ss.str()+".w";
+                        cout << "Writing to dfile="<<dfile<<endl;
 			result.put("dfile",dfile);
 			/* result is in relative time.  This makes 
 			result arrival time reference = predicted time  for
