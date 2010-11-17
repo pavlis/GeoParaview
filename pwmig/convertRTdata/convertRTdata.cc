@@ -13,6 +13,14 @@ for more info. */
 #include "ArrivalUpdater.h"
 using namespace std;
 using namespace SEISPP;
+/* debug routine*/
+bool has_nan(ThreeComponentSeismogram& d)
+{
+    for(int i=0;i<d.ns;++i)
+        for(int j=0;j<3;++j) 
+            if(isnan(d.u(j,i))) return(true);
+    return false;
+}
 void usage()
 {
 	cerr << "convertRTdata dbin dbout [-pf pffile -V]"<<endl;
@@ -261,7 +269,20 @@ int main(int argc, char **argv)
 				}
 				// always mark data live
 				d3c.live=true;
+//DEBUG
+if(has_nan(d3c)) 
+{
+    cerr << "The following trace has an nan before calling rotate_to_standard"<<endl;
+    cerr << dynamic_cast<Metadata&>(d3c)<<endl;
+    for(int ll=0;ll<d3c.ns;++ll) cout << d3c.u(2,ll)<<endl;
+}
 				d3c.rotate_to_standard();
+if(has_nan(d3c)) 
+{
+    cerr << "The following trace has an nan after calling rotate_to_standard"<<endl;
+    cerr << dynamic_cast<Metadata&>(d3c)<<endl;
+    for(int ll=0;ll<d3c.ns;++ll) cout << d3c.u(2,ll)<<endl;
+}
 				/* We need to post these things or we're screwed */
 				d3c.put("dir",outdir);
 				char buf[128];
