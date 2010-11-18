@@ -693,6 +693,10 @@ cout << "Number of record to process="<<nrec<<endl;
 			int irec;
 			irec=dbsave(result,dbwfdisc.db,string("wfdisc"),
 				mdwfdisc,am,chanmap,true);
+                        // Change dfile name to split the wfdisc and wfprocess
+                        // files
+                        dfile=dfile+"3c";
+                        result.put("dfile",dfile);
 			irec=dbsave(result,dbwfprocess.db,string("wfprocess"),
 				mdwfprocess,am);
 
