@@ -9,7 +9,7 @@ using namespace SEISPP;
 enum ObjectType{POINTS,LINES,POLYGONS};
 void usage()
 {
-	cerr << "gcl_vtk_converter db gridname [ [-lines|polygons] -2d -noz -clip] < infile "<<endl
+	cerr << "vtk_gcl_converter db gridname [ [-lines|polygons] -2d -noz -clip] < infile "<<endl
 		<< "Converted data written to stdout.  Default format points"<<endl;
 	exit(-1);
 }
