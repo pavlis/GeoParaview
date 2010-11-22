@@ -6,9 +6,10 @@
 #include "seispp.h"
 using namespace std;
 using namespace SEISPP;
+enum ObjectType{POINTS,LINES,POLYGONS};
 void usage()
 {
-	cerr << "gcl_vtk_converter db gridname [-lines -2d -noz -clip] < infile "<<endl
+	cerr << "gcl_vtk_converter db gridname [ [-lines|polygons] -2d -noz -clip] < infile "<<endl
 		<< "Converted data written to stdout.  Default format points"<<endl;
 	exit(-1);
 }
@@ -33,7 +34,7 @@ int main(int argc, char **argv)
 	GCLgrid3d *g3d;
 	BasicGCLgrid *grid;
 	bool use2dgrid(false);
-	bool linemode(false);
+        ObjectType objtype(POINTS);
 	bool noz(false);
 	bool clip(false);
 	int i;
@@ -41,7 +42,9 @@ int main(int argc, char **argv)
 	{
 		string testarg(argv[i]);
 		if(testarg=="-lines")
-			linemode=true;
+			objtype=LINES;
+                else if(testarg=="-polygons")
+                        objtype=POLYGONS;
 		else if(testarg=="-2d")
 			use2dgrid=true;
 		else if(testarg=="-noz")
@@ -77,9 +80,11 @@ int main(int argc, char **argv)
 		LineLinks thissegment;
 		list<LineLinks> segments;
 		char line[256];
-		if(linemode)
-		{
-			int i=0;
+		int i=0;
+                switch(objtype)
+                {
+                case LINES:
+                case POLYGONS:
 			while(!cin.eof())
 			{
 				cin.getline(line,256);
@@ -154,10 +159,9 @@ int main(int argc, char **argv)
 					}
 				}
 			} 
-					
-		}
-		else
-		{
+                        break;
+                case POINTS:
+                default:
 		    while(cin.getline(line,256))
 		    {
 		    	if(noz)
@@ -180,7 +184,7 @@ int main(int argc, char **argv)
 			}
 			else
 				cplist.push_back(cp);
-		    }
+                    }
 		}
 
 		cout << "POINTS " << cplist.size() << " float"<<endl;
@@ -191,22 +195,34 @@ int main(int argc, char **argv)
 				<< cpptr->x2<<" "
 				<< cpptr->x3<<" "<<endl;
 		}
-		if(linemode)
+		int sizepar;
+		list<LineLinks>::iterator llptr;
+		LineLinks::iterator lineptr;
+                switch(objtype)
 		{
+                case POLYGONS:
+                case LINES:
+                default:
 			/* For this stupid format we have to count the total number
 			of items in segments and number of points for the "size" parameter
 			of the LINES keyword line. */
-			int sizepar;
 			sizepar=0;
-			list<LineLinks>::iterator llptr;
-			LineLinks::iterator lineptr;
 			for(llptr=segments.begin();llptr!=segments.end();++llptr)
 			{
 				for(lineptr=llptr->begin();lineptr!=llptr->end();++lineptr)
 					++sizepar;
 			}
 			sizepar+=segments.size();
-			cout <<  "LINES " << segments.size() << " " <<sizepar<<endl;
+                        switch(objtype)
+                        {
+                            case POLYGONS:
+                                cout << "POLYGONS ";
+                                break;
+                            case LINES:
+                            default:
+			        cout <<  "LINES "; 
+                        }
+                        cout << segments.size() << " " <<sizepar<<endl;
 			for(llptr=segments.begin();llptr!=segments.end();++llptr)
 			{
 				cout << llptr->size() << " ";
