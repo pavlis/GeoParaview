@@ -14,7 +14,7 @@ class vtkStructuredGrid; 	// forward reference
 //
 // @}
 void	output_gcl3d_to_vtksg(GCLscalarfield3d &g, const string filename, bool use_xml = false,
-							  bool swap_xz = true);
+						 bool use_binary=true);
 
 // @{
 // Convert a GCLscalarafield3d object to a vtkStructuredGrid object

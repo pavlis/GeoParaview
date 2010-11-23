@@ -62,7 +62,8 @@ void agc_scalar_field(GCLscalarfield3d& g, int iwagc)
 
 void usage()
 {
-	cerr << "gclfield2vtk db outfile [-g gridname -f fieldname -r remapgridname -odbf outfieldname -pf pffile] -V" << endl;
+	cerr << "gclfield2vtk db outfile [-g gridname -f fieldname -r remapgridname "
+		<< "-odbf outfieldname -xml -binary -pf pffile] -V" << endl;
 	exit(-1);
 }
 bool SEISPP::SEISPP_verbose(true);
@@ -84,6 +85,8 @@ int main(int argc, char **argv)
 	bool saveagcfield(false);
 	string outfieldname;
 	bool remap(false);
+	bool xmloutput(false);
+	bool binaryout(false);
 	for(i=3;i<argc;++i)
 	{
 		argstr=string(argv[i]);
@@ -126,6 +129,14 @@ int main(int argc, char **argv)
 			if(i>=argc)usage();
 			saveagcfield=true;
 			outfieldname=string(argv[i]);
+		}
+		else if(argstr=="-xml")
+		{
+			xmloutput=true;
+		}
+		else if(argstr=="-binary")
+		{
+			binaryout=true;
 		}
 		else
 		{
@@ -215,7 +226,7 @@ int main(int argc, char **argv)
 			}
 			if(rmeanx3) remove_mean_x3(field);
 			if(apply_agc) agc_scalar_field(field,iwagc);
-			output_gcl3d_to_vtksg(field,outfile,false,true);
+			output_gcl3d_to_vtksg(field,outfile,xmloutput,binaryout);
 			if(saveagcfield) 
 				field.dbsave(db,string(""),fielddir,
 				  outfieldname,outfieldname);
@@ -247,9 +258,13 @@ int main(int argc, char **argv)
 				sfptr = extract_component(vfield,i);
 				if(apply_agc) agc_scalar_field(*sfptr,iwagc);
 				stringstream ss;
-				ss << outfile <<"_"<<i<<".vtk";
+				ss << outfile <<"_"<<i;
+				if(xmloutput) 
+					ss<<".vts";
+				else
+					ss<<".vtk";
 				output_gcl3d_to_vtksg(*sfptr,
-					ss.str(),false,false);
+					ss.str(),xmloutput,binaryout);
 				/*This is not ideal, but will do this now
 				for expedience.  This creates a series of 
 				scalar fields when saveagcfield is enabled
