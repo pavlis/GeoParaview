@@ -65,3 +65,59 @@ surface_P_velocity 5.8
 surface_S_velocity 3.5
 SimplePSPrimarySynthetic::ddelta 1.0
 SimplePSPrimarySynthetic::ndelta 1500
+Synthetic_method POINTSOURCE
+
+# parameters below are solely for PointSourcePSSynthetics
+zmin 0.2
+zmax 750
+dz 1
+distance_cutoff 380 
+Velocity_Model_DB db/vmodel
+Velocity_Model northak 
+vmodel_datasource text
+#text: 1d velocity model constructed from text file
+#database:1d velocity model constructed from Antelope database
+Vmodel_text_file db/ak135_Vmodel
+VModel_paraname  Svelocity
+rotation_type 1
+# 1 indicates curvilinear paths
+# 0 indicates linear paths
+
+ray_parameter_grid &Tbl{
+0.000
+0.001
+0.002
+0.003
+0.004
+0.005
+0.006
+0.007
+0.008
+0.009
+0.010
+0.012
+0.014
+0.016
+0.018
+0.02
+0.03
+0.04
+0.05
+0.06
+0.07
+0.08
+0.09
+0.10
+0.11
+0.12
+0.13
+0.14
+0.15
+0.16
+0.17
+0.18
+0.19
+}
+pointsrcfile  pointsourcelocs.dat
+num_point_scatterers 4140
+

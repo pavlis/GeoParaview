@@ -1,38 +1,20 @@
 #ifndef _POINTSOURCEPSYNTHETIC_H_
 #define _POINTSOURCEPSYNTHETIC_H_
 #include "SyntheticSeismogram.h"
+#include <vector>
+#include <VelocityModel_1d.h>
+#include <ray1d.h>
+#include "vectorcls.h"
+#include "SphericalRayPathArray.h"
 
 namespace SEISPP {
 using namespace std;
 using namespace SEISPP;
-class SphericalRayPathArray
-{
-    public:
-        SphericalRayPathArray(VelocityModel1d& vmod,vector<double>& p,
-                double zminin, double zmax, double dz);
-        SphericalRayPathArray(VelocityModel1d& vmod,double p0, double dp, int np,
-                double zminin, double zmax, double dz);
-        SphericalRayPathArray(const SphericalRayPathArray& parent);
-        pair<double,double> time_and_amp(double delta, double z);
-        SphericalRayPathArray& operator=(const SphericalRayPathArray& parent);
-    private:
-        int nrays;  // size of rays, cached for efficiency
-        vector<RayPathSphere> rays;
-        vector<double> slow;  // vector of ray parameters (s/km)
-        /* zmin is the minimum depth allowed and a reference depth used for amplitude.
-           That is, the amplitude for a ray from depth zmin to zero offset is given a unit
-           amplitude factor */
-        double zmin;  
-        int nz;  // nominal depth steps that can be dependent on
-        double dz;  // rays are made in equal depth steps, save here.
-        dmatrix amps;  // nz x nrays matrix of amplitudes derived from rays
-        double zfloor;  // actual depth floor = dz*(nz-1) cached for efficiency
-};
 
 class PointSourcePSSynthetic : public SyntheticSeismogram
 {
     public:
-        PointSourcePSSynthetic(VelocityModel_1d& vmod,Pf *pf);
+        PointSourcePSSynthetic(VelocityModel_1d& vsmods, VelocityModel_1d& vpmods, Pf *pf);
         //~PointSourcePSSynthetic();
         TimeSeries ComputeScalar(Hypocenter& hypo,
                             double rlat, double rlon, double relev,string type);
@@ -41,9 +23,12 @@ class PointSourcePSSynthetic : public SyntheticSeismogram
                             double rlat, double rlon, double relev,string type);
         ThreeComponentSeismogram Compute3C(Hypocenter& hypo,
                  double rlat, double rlon, double relev,string units);
-        ThreeComponentSeismogram Compute3C(const ThreeComponentSeismogram& parent,
-                 Hypocenter& hypo,
-                 double rlat, double rlon, double relev,string units);
+        ThreeComponentSeismogram Compute3C(const ThreeComponentSeismogram& parent,Hypocenter& hypo, double rlat, double rlon, double relev,string units);
+	void P_scatter(double pointdepth, double plat, double hypodepth, double delta , double& Pinc_time, double& Pinc_theta);
+	// Pinc_* are return values of P_scatter()
+	double getlocalAZ(Hypocenter& hypo, Geographic_point& point, const double& rlat, const double& rlon);
+	vectorcls getENZ(Hypocenter& hypo, Geographic_point& point, const double& rlat, const double& rlon, const double& relev, const double& Pinc_theta, const double& razimuth);
+	int initPtime4event(Hypocenter& hypo);
     private:
         SphericalRayPathArray rays;
         /* purists might want this to be a single object, but here
@@ -51,13 +36,26 @@ class PointSourcePSSynthetic : public SyntheticSeismogram
            complexity for a private variable.   Could easily change
            implementation of that proved essential */
         vector<Geographic_point> points;
-        vector<double> amp;
-        /* If a station is located beyond this cutoff distance (radians)
+        vector<double> amp, Ptimearray, Panglearray;
+        //for Ptimearray and Panglearray, the initialization should be done
+        //in the constructor.
+	VelocityModel_1d vsmodel, vpmodel;
+        /* If a station is located beyond this t cutoff distance (radians)
            will not try to compute the point source response.  This is
            essential because we don't handle turning rays and for
            the for which I wrote this is links with the concept of 
            cutoff aperture in pwstack and (in progress) pwdecon*/
         double distance_cutoff;
+	double vp0, vs0;// P and S velocity at free surface
+	int rotationtype;
 };
+//now declare the functions in SEISPP namespace (contributed by xinliu)
+double triangularsolve(dmatrix& dm);
+vectorcls sphere2cardinal(const double& lat, const double& lon, const double& radius);
+double get_SSlowness(double degdelta, double depth);
+double phi_deltaS(const double& degdelta, const  double& ds, const double& sourcez, const double& pointz);
+dmatrix& vec2mat( vectorcls& vec, dmatrix& mat, int row0, int col0, int roworcol);
+vectorcls& mat2vec(dmatrix& mat, vectorcls& vec, int row0, int col0, int roworcol);
+//vectorcls mat2vec(dmatrix& mat, int row0, int col0, int roworcol);
 }  // End SEISPP namespace encapsulation
 #endif

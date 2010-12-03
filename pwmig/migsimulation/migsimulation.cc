@@ -5,8 +5,12 @@
 #include "seispp.h"
 #include "Metadata.h"
 #include "SimplePSPrimarySynthetic.h"
+#include "PointSourcePSSynthetic.h"
 #include "filter++.h"
 #include "SimpleWavelets.h"
+#include "VelocityModel_1d.h"
+#include "vectorcls.h"
+
 enum SyntheticType {SIMPLE,POINTSOURCE,EXTERN_LAYERED};
 using namespace std;
 using namespace SEISPP;
@@ -30,6 +34,49 @@ SyntheticSeismogram *CreateSimpleGenerator(Metadata& control, Pf *pf)
         SimplePSPrimarySynthetic *result = new SimplePSPrimarySynthetic(control,d,a);
         return result;
     } catch (...) {throw;};
+}
+
+SyntheticSeismogram* CreatePointsourceGenerator(Metadata& control,Pf *pf){
+//ToDo: implement an interface to initiate an object of Class PointSourcePSSynthetic
+//to initiate PointSource obj, a 1D velocity model has to be loaded from the database
+//so which velocity model to choose?
+int dberror;
+try{
+Dbptr dbvmodel;
+string wavetype;//Svelocity or Pvelocity
+string vmodelname;
+string fname,txtvmodel;
+fname=control.get_string("Velocity_Model_DB");
+vmodelname=control.get_string("Velocity_Model");
+//wavetype=control.get_string("VModel_paraname");
+char *pdbv=new char[fname.size()];
+strcpy(pdbv, fname.c_str());
+string vmodel_datasource=control.get_string("vmodel_datasource");
+txtvmodel=control.get_string("Vmodel_text_file");
+if(vmodel_datasource=="database"){
+ dberror=dbopen(pdbv, "r", &dbvmodel);
+ //dberror=dbopen(&fname[0], "r", &dbvmodel);
+ VelocityModel_1d vs1d(dbvmodel, vmodelname, "Svelocity");
+ VelocityModel_1d vp1d(dbvmodel, vmodelname, "Pvelocity");
+ PointSourcePSSynthetic *result=new PointSourcePSSynthetic(vs1d, vp1d, pf);
+ return result;
+
+}
+else{
+ VelocityModel_1d vs1d(txtvmodel, "plain", "S");
+ VelocityModel_1d vp1d(txtvmodel, "plain", "P");
+ PointSourcePSSynthetic *result=new PointSourcePSSynthetic(vs1d, vp1d, pf);
+ return result;
+
+}
+
+//PointSourcePSSynthetic *result=new PointSourcePSSynthetic(vs1d, vp1d, pf);
+//return result;
+}
+catch(...) {
+throw ;
+//die(0, "Unable to open the database file. Please verify the file name")
+};
 }
 void build_db_view(DatascopeHandle& dbh, Metadata& control,Pf *pf)
 {
@@ -123,12 +170,42 @@ set<int> load_eventset(string fname)
 void usage()
 {
     cerr << "migsimulation dbin dbout [-evf eventlistfile -pf pffile -V]"<<endl;
+    vectorcls n1(1,2,3),n2(2,3.6,5);
+    cout<<"n1="<<n1<<"    n2="<<n2<<endl;
+    cout<<"n1Xn2="<<n1*n2<<"   n1.*n2="<<dotproduct(n1,n2)<<"   n1+n2="<<n1+n2<<endl;
     exit(-1);
 }
-int main(int argc, char **argv)
-{
+SyntheticType parse_syntype(Metadata& type){
+string strtype;
+
+strtype=type.get_string("Synthetic_method");
+/*switch(strtype){
+	case "SIMPLE":
+	  return SIMPLE;
+	case "POINTSOURCE":
+	  return POINTSOURCE;
+	default:
+	  return SIMPLE; 
+}*/
+
+if(strtype=="SIMPLE")
+	return SIMPLE;
+else 
+if(strtype=="POINTSOURCE")
+	 return POINTSOURCE;
+else
+	return SIMPLE;	
+
+
+}
+
+
+
+
+int main(int argc, char **argv){
+
     //WARNING WARNING:  frozen for now.  Change when a new synthetic generator is added 
-    SyntheticType syntype(SIMPLE);
+    SyntheticType syntype;//(SIMPLE);
     if(argc<3) usage();
     string dbin_name, dbout_name, pfname("migsimulation");
     dbin_name=string(argv[1]);
@@ -175,6 +252,8 @@ int main(int argc, char **argv)
             usage();
         }
         Metadata control(pf);
+	syntype=parse_syntype(control);// check the parameter file
+        //to decide which simulation method to use
         double tsfull = control.get_double("data_time_window_start");
         double tefull = control.get_double("data_time_window_end");
         TimeWindow data_window(tsfull,tefull);
@@ -236,8 +315,13 @@ int main(int argc, char **argv)
         /* Construct the synthetic seismogram generator objects */
         switch(syntype){
             /* For now only one option and it is also default */
-        case SIMPLE:
-        default:
+         case SIMPLE:
+            synbase=CreateSimpleGenerator(control,pf);	
+	    break;
+         case POINTSOURCE:
+	    synbase=CreatePointsourceGenerator(control,pf);
+	    break;
+	 default:
             // Necessary because I wanted to not use a pf for this object 
             synbase=CreateSimpleGenerator(control,pf);
         };
@@ -269,6 +353,7 @@ int main(int argc, char **argv)
             //int evid=ensemble->get_int("evid");
             //For now freeze this as taup calculator iasp91
             Hypocenter hypo(slat,slon,sz,otime,string("tttaup"),string("iasp91"));
+	    ((PointSourcePSSynthetic*) synbase)->initPtime4event(hypo);
             vector<ThreeComponentSeismogram>::iterator dptr;
             for(dptr=ensemble->member.begin();
                 dptr!=ensemble->member.end();++dptr)

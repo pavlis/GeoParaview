@@ -1,204 +1,27 @@
 /* This object is the core of the implementation of this synthetic generator */
-SphericalRayPathArray::SphericalRayPathArray(VelocityModel1d& vmod, vector<double> rayp,
-        double zminin, double zmax,  double dzin)
-{
-    const string base_error("SphericalRayPathArray constructor:  ");
-    vector<double>::iterator rayptr;
-    int nrays=rayp.size();
-    if(nrays<=1) throw SeisppError(base_error
-                +"input ray parameter vector is empty");
-    for(rayptr=rayp.begin()+1;rayptr!=rayp.end();++rayptr)
-        if((*rayptr)-(*(rayptr-1))<0.0) throw SeisppError(base_error
-                + "ray parameter vector must be an increasing sequence");
-    /* rayp vector must be an increasing sequence from 0 */
-    if(fabs(ray[0])>FLT_EPSILON) throw SeisppError(base_error
-                + "First point in ray parameter vector must be 0");
-    zmin=zminin;
-    dz=dzin;
-    rays.reserve(nrays);
-    try {
-        const string mode("z");
-        const vfortmax(2.0);  // needs to be smaller than anything realistic 
-        tmax=zmax/vfortmax;
-        slow=rayp;
-        for(rayptr=rayp.begin();rayptr!=rayp.end();++rayptr)
-        {
-            rays.push_back(RayPathSphere(vmod,*rayptr,zmax,tmax,dz,mode));
-        }
-        /* Next need to calculate ray theory amplitudes -- need to consult references.
-        first step is to determine nz as the minimum depth found for all rays */
-        vector<RayPathSphere>::iterator raypaths,nextpath;
-        raypaths=rays.begin();
-        nz=raypaths->npts;
-        ++raypaths;
-        for(;raypaths!=rays.end();++raypaths)
-        {
-            if( (raypaths->npts)<nz) nz=raypaths->npts;
-        }
-        zfloor=dz*static_cast<double>(nz-1);
-        if(SEISPP_verbose) cout << "SphericalRayPathArray:  using grid of "
-                            << nz << " points spaced at "<<dz
-                                <<" for total depth of "<<zfloor<<endl;
-        /* Now set the amplitudes using ray geometric spreading */
-        amps=dmatrix(nz,nrays);
-        amps.zero();
-        int i,j;
-        double z,tani0,dx,dpdx;
-        const double nullamp(-99999.);
-        /* nrays -1 is the loop range because we use a forward 
-        difference formula for amplitude calculation.  Last two
-        columns will be identical.  Not ideal, but adequate
-        for planned use of this */
-        for(j=0,raypaths.begin();j<(nrays-1);++j,++raypaths)
-        {
-            for(i=0;i<nz;++i)
-            {
-                z=raypaths->depth(i);
-                /* flag amp values above zmin with a negative value */
-                if(z<zmin)
-                    amp(i,j)=nullamp;
-                else
-                {
-                    nextpath=raypath;
-                    ++nextpath;
-                    dpdx=(nextpath->p) - (raypath->p);
-                    // here dx is delta increment
-                    dx=(nextpath->delta[i])-(raypaths->delta[i]);
-                    dx*=raypaths->r[0];
-                    if(dx<=0.0) throw SeisppError(base_error
-                            + "Ray grid error.  incremental delta .le. 0.0");
-                    dpdx/=dx;
-                    // now dx is used for local tangent computation 
-                    if(i==(nz-1))
-                        dx=raypaths->delta[nz-1]-raypaths->delta[nz-2];
-                    else
-                        dx=raypaths->delta[i+1]-raypaths->delta[i];
-                    dx*=raypaths->r[0];
-                    if(j==0)
-                        amp(i,j)=dpdx;
-                    else
-                    {
-                        tani0=dz/dx;
-                        amp(i,j)=tani0*dpdx/(raypaths->delta[i]*raypaths->r[0]);
-                    }
-                }
-            }
-        }
-        /* copy last column amplitude */
-        for(i=0;i<nz;++i) amps(i,nrays-1)=amps(i,nrays-2);
-        /* Amplitude right now is energy.  Normalize to p=0 value at first
-           valid value and convert to amplitude by square root factor */
-        double ampnormalizer;
-        for(int i=0;i<nz;++i)
-            if(amps(i,0)>0.0)
-            {
-                ampnormalizer=amps(i,0);
-                break;
-            }
-        for(j=0;j<nrays;++j)
-            for(i=0;i<nz;++i)
-                if(amps(i,j)>0.0)
-                    amps(i,j)=sqrt(amps(i,j)/ampnormalizer);
+#include <iostream>
+#include <fstream>
+#include <cmath>
+#include "coords.h"
+#include "tt.h"
+#include "stock.h"
+#include "db.h"
+#include "interpolator1d.h"
+#include "seispp.h"
+#include "PointSourcePSSynthetic.h" 
+#include "vectorcls.h"
+#include "SphericalRayPathArray.h"
+//#include <Hypocenter.h>
+namespace SEISPP {
+using namespace std;
+using namespace SEISPP;
+const double FLT_EPSILON=1e-19;
 
-    } catch(...){throw;};
-}
-SphericalRayPathArray::SphericalRayPathArray(VelocityModel1d& vmod, 
-        double p0, double dp, int np, 
-        double zminin, double zmax,  double dzin)
-{
-    vector<double> pvector;
-    pvector.reserve(np);
-    double p;
-    int i;
-    for(i=0,p=0.0;i<np;++i,p+=dp)pvector.push_back(p);
-    *this=SphericalRayPathArray(vmod,pvector,zminin,zmax,dzin);
-}
+//PointSourcePSSynthetic::PointSourcePSSynthetic(VelocityModel_1d& vmod,Pf *pf)
 
-pair<double,double> SphericalRayPathArray::time_and_amp(double delta, double z);
+PointSourcePSSynthetic::PointSourcePSSynthetic(VelocityModel_1d& vsmods, VelocityModel_1d& vpmods, Pf *pf)
 {
-    const string base_error("SphericalRayPathArray::time_and_amp method:  ");
-    if(z<zmin) throw SeisppError(base_error
-            + "Requested point source depth is smaller than zmin.\n"
-          + "Edit pf file.");
-    if(z>zfloor) throw SeisppError(base_error
-            + "Requested depth is below depth floor for this ray grid ");
-    double time,amp;
-    // scan the constant z position immediately above z to bracket the delta requested
-    vector<RayPathSphere>::iterator raypaths,rayupper,raylower;
-    int iupper,ilower;
-    int iz=static_cast<int>(z/dz);
-    for(iupper=0,raypaths=rays.begin();raypaths!=rays.end();++raypaths,++iupper)
-        if(raypaths->delta[iz]>delta) break;
-    rayupper=raypaths-1;
-    for(ilower=0,raypaths=rays.begin();raypaths!=rays.end();++raypaths,++ilower)
-        if(raypaths->delta[iz+1]>delta) break;
-    raylower=raypaths-1;
-    double wt[2][2];
-    double a,dx,adx;
-    a=1.0/(((rayupper+1)->delta[iz]-rayupper->delta[iz]));
-    dx=delta-(rayupper->delta[iz]);
-    adx=a*dx;
-    wt[0][0]=1.0-adx;
-    wt[0][1]=adx;
-    a=1.0/(((raylower+1)->delta[iz+1]-raylower->delta[iz+1]));
-    dx=delta-(raylower->delta[iz+1]);
-    adx=a*dx;
-    wt[1][0]=1.0-adx;
-    wt[1][1]=adx;
-    a=1.0/dz;
-    dx=z-static_cast<double>(iz-1)*dz;
-    adx=a*dx;
-    wt[0][0]*=(1.0-adx);
-    wt[0][1]*=(1.0-adx);
-    wt[1][0]*=adx;
-    wt[1][1]*=adx;
-    double sumwt(0.0);
-    for(int=0;i<2;++i)
-       for(int j=0;j<2;++j) sumwt+=wt[i][j];
-    time=0.0;
-    time+=wt[0][0]*rayupper->t[iz];
-    time+=wt[0][1]*(rayupper+1)->t[iz];
-    time+=wt[1][0]*raylower->t[iz+1];
-    time+=wt[1][1]*(raylower+1)->t[iz+1];
-    amp=0.0;
-    amp+=wt[0][0]*amp(iupper,iz);
-    amp+=wt[0][1]*amp(iupper,iz);
-    amp+=wt[1][0]*amp(ilower,iz+1);
-    amp+=wt[1][1]*amp(ilower,iz+1);
-    return(pair<double,double>(time,amp));
-}
-SphericalRayPathArray::SphericalRayPathArray(const SphericalRayPathArray& parent)
-{
-    nrays=parent.nrays;
-    rays=parent.rays;
-    slow=parent.slow;
-    zmin=parent.zmin;
-    nz=parent.nz;
-    dz=parent.dz;
-    amps=parent.amps;
-    zfloor=parent.zfloor;
-}
-SphericalRayPathArray& SphericalRayPathArray::operator=(
-        const SphericalRayPathArray& parent)
-{
-    if(this!=parent)
-    {
-	    nrays=parent.nrays;
-	    rays=parent.rays;
-	    slow=parent.slow;
-            zmin=parent.zmin;
-	    nz=parent.nz;
-	    dz=parent.dz;
-	    amps=parent.amps;
-	    zfloor=parent.zfloor;
-    }
-    return(*this);
-}
-
-PointSourcePSSynthetic::PointSourcePSSynthetic(VelocityModel_1d& vmod,
-        Pf *pf)
-{
-    const base_error("PointSourcePSSynthetic constructor:  ");
+    const string base_error("PointSourcePSSynthetic constructor:  ");
     try{
         Tbl *t;
         t=pfget_tbl(pf,"ray_parameter_grid");
@@ -219,16 +42,30 @@ PointSourcePSSynthetic::PointSourcePSSynthetic(VelocityModel_1d& vmod,
         double zmin=control.get_double("zmin");
         double zmax=control.get_double("zmax");
         double dz=control.get_double("dz");
-        rays=SphericalRayPathArray(vmod,raypvector,zmax,dz);
-        distance_cutoff=control.get_double("distance_cutoff");
-        t=pfget_tbl(pf,"point_sources");
-        if(t==NULL) throw SeisppError(base_error
-                + "Missing required parameter point_sources");
-        points.reserve(maxtbl(t));
-        amp.reserve(maxtbl(t));
-        for(i=0;i<maxtbl(t);++i)
+        vp0=control.get_double("surface_P_velocity");
+        vs0=control.get_double("surface_S_velocity");
+        rotationtype=control.get_int("rotation_type");//1: curve; 0: line
+	rays=SphericalRayPathArray(vsmods,raypvector,zmin,zmax,dz);
+        vsmodel=vsmods;
+	vpmodel=vpmods;
+	//vmodel is a private member in this class
+	//use the member function VelocityModel_1d::getv(double zin)
+	distance_cutoff=control.get_double("distance_cutoff");
+        //t=pfget_tbl(pf,"point_sources");
+        //if(t==NULL) throw SeisppError(base_error + "Missing required parameter point_sources");
+	string pointsrcf=control.get_string("pointsrcfile");
+        int numpts=control.get_int("num_point_scatterers");
+	points.reserve(numpts);
+        amp.reserve(numpts);
+        double r0;
+	ifstream poisrcf(pointsrcf.c_str());
+	//if((fp=fopen(pointsrcf.c_str(), "r"))){
+	//	cout<<"The point source loc file doesn't exist!i\n";
+	//}
+	string line;
+	while(getline(poisrcf, line))
         {
-            char *line=(char *)gettbl(t,i);
+            //char *line=(char *)gettbl(t,i);
             double lat,lon,depth,r,ampin;
             Geographic_point gp;
             istringstream ss(line);
@@ -242,29 +79,573 @@ PointSourcePSSynthetic::PointSourcePSSynthetic(VelocityModel_1d& vmod,
             gp.r=r0-depth;
             points.push_back(gp);
             amp.push_back(ampin);
+   
+            
         }
+	//fclose(poisrcf);
     } catch(...){throw;};
 }
 
-TimeSeries ComputeScalar(Hypocenter& hypo,
+TimeSeries PointSourcePSSynthetic::ComputeScalar(Hypocenter& hypo,
          double rlat, double rlon, double rz,string type)
 {
     throw SeisppError(string("ComputeScalar method not implemented"));
 }
-TimeSeries ComputeScalar(const TimeSeries& parent,
+TimeSeries PointSourcePSSynthetic::ComputeScalar(const TimeSeries& parent,
          Hypocenter& hypo,double rlat, double rlon, double rz,string type)
 {
     throw SeisppError(string("ComputeScalar method not implemented"));
 }
-ThreeComponentSeismogram Compute3C(Hypocenter& hypo,
+ThreeComponentSeismogram PointSourcePSSynthetic::Compute3C(Hypocenter& hypo,
          double rlat, double rlon, double rz,string units)
 {
     throw SeisppError(string("Compute3C plain method not implemented"));
 }
-ThreeComponentSeismogram Compute3C(const ThreeComponentSeismogram& parent,
-         Hypocenter& hypo,double rlat, double rlon, double rz,string units)
+double triangularsolve(dmatrix& dm){
+
+int i,j,k;
+int nrows, ncols,tmp;//ncol is the number of columns
+int *piv;
+nrows=dm.rows();
+ncols=dm.columns();
+piv=new int[nrows];
+for(i=0;i<nrows;i++){
+	piv[i]=i;
+}
+double* colmem=0;
+int maxind=0;
+int sign_cosntheta=1;// the sign of cos<n, theta>
+for(i=0;i<nrows-1;i++){
+	colmem=dm.get_address(0,i);
+	maxind=i;
+	for(j=i+1;j<nrows;j++){
+		//maxind=i; start from dm(i,i)
+		if(colmem[piv[j]]>colmem[piv[maxind]]) 
+			maxind=j;
+		
+	//	tmp=piv[i];piv[i]=piv[j];piv[j]=tmp;
+			//swap(piv[i],piv[j]);
+	}
+	//swap (maxind+i).th and i.th row
+	if(maxind!=i){
+		tmp=piv[maxind];piv[maxind]=piv[i];piv[i]=tmp;
+		sign_cosntheta= -sign_cosntheta;
+		//when swap rows, determinant*(-1)
+	}
+	double ratio;
+	for(j=i+1;j<nrows;j++){ //j is set to relative value of i.
+		colmem=dm.get_address(0,i);
+		ratio=-colmem[piv[j]]/colmem[piv[i]];
+		//j-i is the j.th row, while 0 is the i.th row.
+		for(k=0;k<ncols-i;k++){
+			colmem[piv[j]+k*nrows]+=ratio*colmem[piv[i]+k*nrows];
+		}
+	}
+	
+}
+//colmem=dm.get_address(piv[nrows-1],nrows-1);
+//double tannm=colmem[nrows]/colmem[0];//tan(Az-pi/2)
+colmem=dm.get_address(0,0);
+double detA=colmem[piv[0]];
+for(i=1;i<nrows;i++){
+	detA*=colmem[piv[i]+i*nrows];
+
+}
+detA*=sign_cosntheta;
+colmem=dm.get_address(piv[nrows-1],nrows-1);
+delete[] piv;
+if(fabs(detA)<10e-8){
+ if(colmem[nrows]>0)
+	return M_PI/2;
+ else
+	return M_PI*1.5;
+	
+}
+else{
+ double deg1=0;	
+ double tannm=colmem[nrows]/colmem[0];
+ if(detA>0)
+	deg1=atan(tannm);
+ else
+	deg1=atan(tannm)+M_PI;
+ cout<<"This is detA: "<<detA<<endl;
+ return deg1+M_PI/2;// this is the azimuth of S wave polarization.
+}
+//delete[] piv;
+//return colmem[nrows]/colmem[0];//return Xn
+
+/*if(fabs(colmem[0])<10e-8)
+	
+	return 0;//failed in calculating the 
+else{
+	for(k=nrows-nrows;k<ncols-nrows;k++)
+		colmem[nrows*k]/=colmem[0];
+	//colmem[nrows+nrows]/=colmem[0];
+	return 1;
+    }
+*/
+//delete[] piv;
+}
+
+double PointSourcePSSynthetic::getlocalAZ(Hypocenter& hypo, Geographic_point& point, const double& rlat, const double& rlon){
+//az is the local azimuth of P-to-S converted wave ray path
+double az=0;
+dmatrix Aext=dmatrix(3,4);
+Aext(0,0)=cos(hypo.lat)*cos(hypo.lon);
+Aext(1,0)=cos(hypo.lat)*sin(hypo.lon);
+Aext(2,0)=sin(hypo.lat);
+Aext(0,1)=cos(point.lat)*cos(point.lon);
+Aext(1,1)=cos(point.lat)*sin(point.lon);
+Aext(2,1)=sin(point.lat);
+Aext(0,2)=-sin(rlat)*cos(rlon);
+Aext(1,2)=-sin(rlat)*sin(rlon);
+Aext(2,2)=cos(rlat);
+//Aext(1,5)=cos(rlat)*cos(rlon);
+//Aext(2,5)=cos(rlat)*sin(rlon);
+//Aext(3,5)=sin(rlat);
+Aext(0,3)= -sin(rlon);
+Aext(1,3)=cos(rlon);
+Aext(2,3)=0;
+
+//Matrix [A b] is constructed!
+double X3;
+//1=new double[3];
+az=triangularsolve(Aext);
+
+cout<<"The Azimuth of converted S polarization is:"<<deg(az)<<endl;
+//Aext(1,1)=sin()*cos();
+//az=X1[2];
+
+return az;
+}
+
+vectorcls sphere2cardinal(const double& lat, const double& lon, const double& radius){
+//lat==theta, lon==phi
+
+return vectorcls(radius*cos(lat)*cos(lon),radius*cos(lat)*sin(lon),radius*sin(lat));
+}
+// vec2mat() and mat2vec() are two functions implemented in SEISPP namespace
+// to convert between dmatrix and vectorcls objects.
+dmatrix& vec2mat( vectorcls& vec, dmatrix& mat, int row0, int col0, int roworcol){
+int i;
+double* mt=mat.get_address(row0, col0);
+double* vt=vec.get_address();
+if(roworcol){//col priority
+	for(i=0;i<3;i++){
+	  mt[i]=vt[i];
+	}
+	
+}
+else{
+	int nrows=mat.rows();
+        for(i=0;i<3;i++){
+          mt[i*nrows]=vt[i];
+        }
+
+}
+	
+return mat;
+
+}
+
+vectorcls& mat2vec(dmatrix& mat, vectorcls& vec, int row0, int col0, int roworcol){
+// this function convert a row or a column of a dmatrix obj to 
+// a vectorcls obj.
+// either row0 or col0 should start from 0.
+// roworcol==1: col;
+// roworcol==0: row;
+int i;
+double* mt=mat.get_address(row0, col0);
+//vectorcls vec;
+double* vt=vec.get_address();
+if(roworcol){ // col priority
+	//vectorcls vec(mt[0],mt[1],mt[2]);
+	vt[0]=mt[0];vt[1]=mt[1];vt[2]=mt[2];
+	return vec;
+
+}
+else{	
+	int nrows=mat.rows();
+	//vectorcls vec(mt[0],mt[nrows],mt[nrows*2]);
+	vt[0]=mt[0];vt[1]=mt[nrows];vt[2]=mt[nrows*2];
+	return vec;
+}
+//return vec;
+}
+
+void getlocalcardinalbase(dmatrix& mat, const double& lat, const double& lon){
+// produce the local cardinal coordinate system
+double* dm=mat.get_address(0,0);
+dm[0]= -sin(lon);
+dm[1]= cos(lon);
+dm[2]= 0;
+dm[3]= -sin(lat)*cos(lon);
+dm[4]= -sin(lat)*sin(lon);
+dm[5]= cos(lat);
+dm[6]= cos(lat)*cos(lon);
+dm[7]= cos(lat)*sin(lon);
+dm[8]= sin(lat);
+
+
+
+}
+double get_SSlowness(double degdelta, double depth){
+//notice that degdelta in in degrees, depth in km.
+extern char    *optarg;
+extern int      optind;
+void           *library ;
+int             c, errflg = 0;
+const int maxsize=8;
+char method[maxsize]="tttaup\0";
+char model[maxsize]="iasp91\0";
+char phase[maxsize]="S\0";
+TTGeometry geometry;
+Tbl *slow=0;
+Hook *hook=0;
+int mode=2;
+geometry.source.lat=0.0;
+geometry.source.lon=0.0;
+geometry.source.z=depth;
+geometry.source.time = 0.0 ;
+strcpy(geometry.source.name, "SOURCE" ) ;
+
+geometry.receiver.lat=0.0;
+geometry.receiver.lon=0+degdelta;
+geometry.receiver.z=0.0;
+geometry.receiver.time = 0.0 ;
+strcpy(geometry.receiver.name, "RECEIVER" ) ;
+
+//now all initial values & parameters are defined.
+int result=ucalc(method, model, phase, mode, &geometry, &slow, &hook);
+
+if(result==-1) cout<<"result=-1, no solutions found\n";
+TTSlow *u;
+u=(TTSlow *) gettbl(slow, 0);
+//cout<<"phase="<<u->phase<<endl;
+
+double u_horizontal=sqrt((u->ux*u->ux)+(u->uy)*(u->uy));
+//cout<<"S wave slowness="<<u_horizontal<<endl;
+freetbl(slow,0);
+//delete u;
+free_hook(&hook);
+//freetbl(slow,0);
+//free(u);
+return  u_horizontal;
+}
+
+vectorcls PointSourcePSSynthetic::getENZ(Hypocenter& hypo, Geographic_point& point, const double& rlat, const double& rlon, const double& relev, const double& Pinc_theta, const double& razimuth){
+// basically, this function calculate the direction of S wave polarization
+// in the local geographic coordinate system at receiver;
+// the amplitude of S polar is normalized to 1
+double pazimuth, delta;
+//dist(rlat,rlon,points[i].lat,points[i].lon,&delta,&azimuth);
+dist(point.lat,point.lon,rlat,rlon,&delta,&pazimuth);//actually, this is the azimuth of converted S wave @ the point scatterer
+//reverse source & receiver to get the azimuth @ the point source.
+double deldeg=deg(delta);
+double pointdepth=r0_ellipse(deg(point.lat))-point.r;//r0_ellipse(degree)
+//double slow0=pphase_slowness(deldeg,pointdepth);//
+double slow0=get_SSlowness(deldeg,pointdepth);
+cout<<"slow0="<< slow0<<endl;
+//double slow0=sphase_slowness(10,pointdepth/10);
+
+//P phase slowness or S phase slowness?? assume P polarization is perpendicular to S?
+/*double slow0=pphase_slowness(deldeg,r0_ellipse(point.lat)-point.r);
+SphericalCoordinate sc=PMHalfspaceModel(vp0,vs0,slow0*sin(azimuth), slow0*cos(azimuth));  */
+
+double vs=vsmodel.getv(pointdepth);//get S velocity from 1D velocitymodel
+double vp=vpmodel.getv(pointdepth);
+double theta,theta1;
+if(slow0==-1 || deldeg==0){//the distance (deldeg) is tooooo small, treat the path as vertical
+	theta=theta1=0;
+}
+else{
+	theta=asin(slow0*vs0);//slow0/(1/v0)
+	theta1=asin(point.r*vs*sin(theta)/(vs0*r0_ellipse(deg(rlat))));//S scattered
+// theta1 is the elevation angle of scattered S wave at depth of the point
+	cout<<"theta of S wave @ surface is "<< deg(theta)<<endl;
+	cout<<"while delta=  degree " <<deldeg<<endl;
+}
+/*SlownessVector pslowvector=hypo.pslow(point.lat, point.lon, pointdepth);
+double azPin=pslowvector.azimuth();
+double thetap=asin(pslowvector.mag()*vp);*/
+double azPin;
+dist(point.lat,point.lon,hypo.lat,hypo.lon,&delta,&azPin);
+azPin-=M_PI;
+vectorcls Pin=sphere2cardinal(M_PI/2-Pinc_theta, M_PI/2-azPin, 1);
+//Pin expressed in local geographical coordinate system
+vectorcls Lp=sphere2cardinal(M_PI/2-theta1,M_PI/2-pazimuth,1);
+//expressed in local geographical coordinate system
+dvector dv(3);//3 component vector derived from dmatrix class
+vec2mat(Lp, dv, 0, 0, 1);
+//first two 0s indicate the starting row and col number
+//the last parameter 1 indicates column major
+dmatrix Atrans(3,3);
+getlocalcardinalbase(Atrans, point.lat, point.lon);
+dv=Atrans*dv;
+mat2vec(dv, Lp, 0, 0, 1);
+//-----------------rotate Pin to World coordinate system---------
+vec2mat(Pin, dv, 0, 0, 1);
+dv=Atrans*dv;
+	//the same transform matrix Atrans
+mat2vec(dv, Pin, 0, 0, 1);
+//-----------------get Rsc from Pin and Lp----------------
+vectorcls Rsc=Lp*(Pin*Lp); // Rsc: S wave polarization@point
+Rsc/=modul(Rsc);
+
+if(deldeg==0){
+	return sphere2cardinal(0, M_PI/2-azPin, 1);
+	
+}
+//vectorcls focal=sphere2cardinal(hypo.lat, hypo.lon, 1);
+//vectorcls n1=sphere2cardinal(hypo.lat, hypo.lon, 1)*sphere2cardinal(point.lat, point.lon,1);// this is a cross product of 2 vectors
+//n1=fXp/|fXp|
+//n1/=modul(n1);//scale to a modulus of one
+//vectorcls Rsc=n1*Lp;//also cross product, Lp==Lsc
+//Rsc/=modul(Rsc);//scale to a modulus of one
+vectorcls Tp=sphere2cardinal(point.lat, point.lon,1)*Lp;
+Tp/=modul(Tp);
+vectorcls Rp=Lp*Tp;
+Rp/=modul(Rp);
+double* ptr=dv.get_address(0,0);
+ptr[0]=dotproduct(Rsc, Tp);// minus because the transform is in Left handed 
+ptr[1]=dotproduct(Rsc, Rp);// coords. now I drop this minus sign...
+ptr[2]=0;
+
+getlocalcardinalbase(Atrans, M_PI/2-theta, M_PI/2-razimuth);
+/*
+dmatrix Btrans(3,3);//local cardinal coordinate system @ receiver
+getlocalcardinalbase(Btrans, rlat, rlon);
+Btrans=tr(Btrans);
+//here you should define Rpnew and Lpnew, which 
+//correspond to the ray path bases at the receiver.
+vec2mat(Tp, Atrans, 0, 0, 1);
+vec2mat(Rpnew, Atrans, 0, 1, 1);
+vec2mat(Lpnew, Atrans, 0, 2, 1);
+
+dv=Btrans*Atrans*dv;
+*/
+dv=Atrans*dv;
+vectorcls Spolar;
+return mat2vec(dv, Spolar, 0, 0, 1);
+//return vectorcls(1,2,3);//	
+}
+
+double phi_deltaS(const double& degdelta, const  double& ds, const double& sourcez, const double& pointz){
+// note that delta and ds should be in degree
+		
+	return pphase_slowness(degdelta+ds, sourcez)-pphase_slowness(ds, pointz);
+} 
+
+void PointSourcePSSynthetic::P_scatter(double pointdepth, double plat, double hypodepth, double delta , double& Pinc_time, double& Pinc_theta){
+//return the last two parameters
+// basically, this function compute the travel time and incident angle
+// for teleseismic P wave at the point scatterer. All angles are in radians.
+int i;// iteration variable
+int maxn=22;// number of maximum iterations
+const double converge_eps=1e-8, epsi=1e-5;//previously, converge_eps was set to 1e-9, which is too small.
+delta=deg(delta);//this delta is a copy of the one in parent funciton
+//delta is converted to degree
+/*if(delta<30 || delta>99){
+        cout<<"no converted phases! degdelta="<<delta<<", depth="<<pointdepth <<endl;
+        Pinc_time=1e6;
+        Pinc_theta=0;
+
+}*/
+
+//set up the initial value of deltaS (ds)
+double r0=r0_ellipse(deg(plat));
+//double dipping=(20-12)/(30-100)*(delta-30)+20;//
+double dipping=(10-1.0)/(30.0-100.0)*(delta-30)+10;
+dipping=rad(dipping);
+const double x0=deg(pointdepth*(dipping)/r0_ellipse(0));
+//const double x0=deg(pointdepth*(M_PI)/9/2/r0_ellipse(0));
+//assume the incident angle is not more than 20 degrees
+double xk=x0;
+double phi_xk;
+for(i=0;i<maxn;i++){
+	phi_xk=phi_deltaS(delta,xk,hypodepth,pointdepth);
+	xk-=phi_xk*epsi/(phi_deltaS(delta,xk+epsi,hypodepth,pointdepth)-phi_xk);
+	if(fabs(phi_xk)<converge_eps) break;
+}
+if(i==maxn) {
+	cout<<"Not converged! degdelta="
+		<<delta<<", xk="<<xk 
+		<<",phi_xk"<<phi_xk<<", dipping"<<deg(dipping)<<endl;
+	
+	Pinc_time=1e6;
+	Pinc_theta=0;
+}
+else{
+	//now we've got xk (in degree), or the approximation of deltaS
+	double t1=pphasetime(delta+xk,hypodepth);
+	double t2=pphasetime(xk,pointdepth);
+	Pinc_time=t1-t2;
+	double vp=vpmodel.getv(pointdepth);
+	//double r0=r0_ellipse(plat);
+	double sinetheta=pphase_slowness(delta+xk,hypodepth)*vp0;
+	Pinc_theta=asin(r0*vp*sinetheta/(vp0*(r0-pointdepth)));
+}
+//incorrect now
+}
+
+int PointSourcePSSynthetic::initPtime4event(Hypocenter& hypo){
+	//initialize P time and angle arrays for a specific event.
+	Ptimearray.clear(); Panglearray.clear();
+	int npoints=points.size();
+	for(int i=0;i<npoints;i++){
+		double p_2scatter_time;
+		double pointidepth=r0_ellipse(deg(points[i].lat))-points[i].r;
+		double azPin,deltap, Pinc_theta;
+		dist(points[i].lat,points[i].lon,hypo.lat,hypo.lon,&deltap,&azPin);
+		azPin-=M_PI;
+		if(deltap<rad(30)){
+ 	         cout<<"no converted phases! degdelta="<<deg(deltap)<<", depth="<<pointidepth <<endl;
+        	 p_2scatter_time=1e6;
+	         Pinc_theta=0;
+	 	}
+		else{		
+		 P_scatter(pointidepth, points[i].lat, hypo.z, deltap , p_2scatter_time, Pinc_theta);
+		 cout<<"P to scatterer time:"<<p_2scatter_time<<", point i:"
+			<<i<<endl;
+		}
+		Ptimearray.push_back(p_2scatter_time);
+		Panglearray.push_back(Pinc_theta);
+		
+	}
+	return 0;
+
+}
+ThreeComponentSeismogram PointSourcePSSynthetic::Compute3C(const ThreeComponentSeismogram& parent, Hypocenter& hypo,double rlat, double rlon, double relev,string units)
 {
+	//before calling this function, you should initialize the Ptimearray
+	//and Panglearray vectors by calling PointSourcePSSynthetic::initPtime4event().
     try{
+	 
+        ThreeComponentSeismogram result(parent);
+        result.u.zero();
+        double delta,azimuth;
+        //dist(rlat,rlon,hypo.lat,hypo.lon,&delta,&azimuth);
+        int npoints=points.size(); //get the size of vector points
+	//the following line gets the P arrival time at receiver
+	double patime=hypo.ptime(rlat,rlon,relev);
+        if(result.tref == absolute)
+        {
+            double patime=hypo.ptime(rlat,rlon,relev);
+            result.ator(patime);
+        }
+        
+        	
+	//this loop calculate the amplitude & relative time for 
+	// each scattering point
+	for(int i=0;i<npoints;i++){
+		//hook=0;
+		double  s_time;
+		double tau,amplitude;
+		double pointidepth=r0_ellipse(deg(points[i].lat))-points[i].r;
+		//using this dist() to get delta between scattering point and receiver
+		dist(rlat,rlon,points[i].lat,points[i].lon,&delta,&azimuth);
+		azimuth-=M_PI;//convert backazimuth to azimuth @ receiver
+		// the return values are put into a std::pair struct;
+		// note that rays is a SphericalRayPathArray object;
+		//convert elevation of points[i] to depth.
+	try{
+		pair<double,double> tnamp=rays.time_and_amp(delta, pointidepth);
+		s_time=tnamp.first;//delta is in radians?
+		//if(s_time==0) throw SeisppError("distance exceeds cut off limit");
+		if(s_time==0) continue;
+		tau=Ptimearray[i]+s_time-patime;
+		amplitude=tnamp.second;
+		int it=result.sample_number(tau);
+            	if(it>=0 && it<result.ns){
+            	 	if(rotationtype){
+            	 		vectorcls spolar=getENZ(hypo, points[i], rlat, rlon, relev, Panglearray[i], azimuth);//the converted S wave azimuth@receiver
+            	 		spolar*=amplitude;
+				//get_SSlowness(10 , pointidepth);
+            	 //cout<<"S slow:"<<sphase_slowness(10, pointidepth)<<endl;
+				vec2mat(spolar, result.u, 0, it, 1);
+            	 		//vec2mat effectively copies spolar to the 
+            	 		//it.th column of matrix result.u 		
+            	 	}   	 
+            		else{
+            	 
+            	 	 double a,b;
+	        	 double PolarAz=getlocalAZ(hypo,points[i],rlat,rlon);
+		         a=cos(PolarAz);
+		         b=sin(PolarAz);
+			 result.u(0,it)=amplitude*b;
+                	 result.u(1,it)=amplitude*a;
+		 	}
+		
+		}	//result.u(1,it)+=amplitude;//I don't know if it works this way.
+	   }
+	   catch(SeisppError& serr){
+			serr.log_error();
+			cout<<"an error just occurred!"<<endl;
+			continue;
+		}						    // It shouble be superposition of each waveform
+						    // scattered from a single point.
+
+	}
+//	dist(rlat,rlon,hypo.lat,hypo.lon,&delta,&azimuth);
+//	double deldeg=deg(delta);//get delta between receiver and hypocenter in degree
+        /* Now we have to set the transformation matrix for TRL coordinates.*/
+//        double slow0=pphase_slowness(deldeg,hypo.z);  // should deldeg be in a unit of degree?
+//        SphericalCoordinate sc=PMHalfspaceModel(vp0,vs0,slow0*sin(azimuth), slow0*cos(azimuth));
+        /* This builds the transpose of the tmatrix used in the rotate procedure method in
+           ThreeComponentSeismogram using ray coordinates.  Since the coordinate system is
+           orthogonal this is effectively setting the inverse */
+ /*       double a,b,c,d;
+        a=cos(sc.phi);
+        b=sin(sc.phi);
+        c=cos(sc.theta);
+        d=sin(sc.theta);
+        result.tmatrix[0][0] = a*c;
+        result.tmatrix[0][1] = -b;
+        result.tmatrix[0][2] = a*d;
+        result.tmatrix[1][0] = b*c;
+        result.tmatrix[1][1] = a;
+        result.tmatrix[1][2] = b*d;
+        result.tmatrix[2][0] = -d;
+        result.tmatrix[2][1] = 0.0;
+        result.tmatrix[2][2] = c;
+        // Perhaps unnecessary, but best to be sure these are set
+*/
+/*	double a,b;
+	double PolarAz=getlocalAZ(hypo,points[i],rlat,rlon);
+	a=cos(PolarAz);
+	b=sin(PolarAz);
+	//	result.tmatrix.zero();
+        result.tmatrix[0][0] = a;
+        result.tmatrix[0][1] = -b;
+        result.tmatrix[0][2] = 0;
+        result.tmatrix[1][0] = b;
+        result.tmatrix[1][1] = a;
+        result.tmatrix[1][2] = 0;
+        result.tmatrix[2][0] = 0;
+        result.tmatrix[2][1] = 0;
+        result.tmatrix[2][2] = 0;
+*/
+        result.components_are_cardinal=true;//already rotated!--Xin
+        result.components_are_orthogonal=true;
+//      result.rotate_to_standard();
+        return(result);
+
+
+	/* shift to relative time if necessary */
+        /*if(result.tref == absolute)
+        {
+            double patime=hypo.ptime(rlat,rlon,relev);
+            result.ator(patime);
+        } */
+         /*for(i=0;i<nlayers;++i)
+        {
+            double tau=this->delay_time(deldeg,hypo.z,i);
+            int it=result.sample_number(tau);
+            if(it>=0 && it<result.ns)
+                result.u(1,it)=sc_amp[i];
+        }*/
+
     } catch(...){throw;};
 }
 
+}//end of namespace SEISPP
