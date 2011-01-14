@@ -1,0 +1,39 @@
+pole_data &Tbl{
+#lon lat tend tstart angle
+# weber et al 2001 eight site caribbean (Table 2)
+# rate in deg/my=0.272.  Here use angle in 30 My = 30*0.272=8.16
+    -65.7   51.5    30.0    0.0 8.16
+}
+# This number needs to be double checked.  Computed radians/yr
+#slab_angular_velocity 0.0000000125
+time_sample_interval 1000000
+model_elapsed_time  50000000
+trench_line_filename simplified_trenchboundary.dat
+slabdata_filename alliumodel.dat
+# units of this are km
+trench_path_sample_interval 50.0
+# enable spline fitting if true.  If false use Delaunay triangularization
+use_bicubic_spline false
+# This set of parameters are accessed only if use_bicubic_spline is true
+# They are ignored when using triangularization
+grid_longitude_minimum -75
+grid_longitude_maximum -55
+grid_latitude_minimum 9
+grid_latitude_maximum 20.0
+grid_longitude_spacing 0.5
+grid_latitude_spacing 0.5
+lower_bound_depth -3.0
+upper_bound_depth 2000.0
+# This set of parameters should not normally require a change
+tension_interior 0.4
+tension_boundary 1.0
+aspect_ratio 1.0
+overrelaxation 1.4
+convergence 0.001
+max_iterations 250
+
+maximum_extension_dip 60.0
+minimum_extension_dip 10.0
+triple_junction_mode false
+master_curve_file mastercurve.dat
+pf_revision_time 1290954478
