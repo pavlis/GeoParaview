@@ -1,79 +1,112 @@
 #include <iostream>
 #include <vector>
 #include <list>
-#include "gclgrid.h"
-#include "dbpp.h"
 #include "seispp.h"
+#include "gclgrid.h"
+#include "RegionalCoordinates.h"
+class BoundingBox
+{
+public:
+    BoundingBox(double x1l,double x1h,double x2l,double x2h,
+            double x3l,double x3h);
+    bool inside(Cartesian_point cp);
+private:
+    double x1low,x1high;
+    double x2low,x2high;
+    double x3low,x3high;
+};
+BoundingBox::BoundingBox(double x1l, double x1h,
+        double x2l,double x2h,double x3l,double x3h)
+{
+    x1low=x1l;
+    x1high=x1h;
+    x2low=x2l;
+    x2high=x2h;
+    x3low=x3l;
+    x3high=x3h;
+}
+bool BoundingBox::inside(Cartesian_point cp)
+{
+	if(cp.x1>x1high) return(false);
+	if(cp.x1<x1low) return(false);
+	if(cp.x2>x2high) return(false);
+	if(cp.x2<x2low) return(false);
+	if(cp.x3>x3high) return(false);
+	if(cp.x3<x3low) return(false);
+	return(true);
+}
+
 using namespace std;
 using namespace SEISPP;
 enum ObjectType{POINTS,LINES,POLYGONS};
 void usage()
 {
-	cerr << "vtk_gcl_converter db gridname [ [-lines|polygons] -2d -noz -clip] < infile "<<endl
+	cerr << "vtk_gcl_converter [ [-lines|polygons] -2d -noz -clip -pf pffile] < infile "<<endl
 		<< "Converted data written to stdout.  Default format points"<<endl;
 	exit(-1);
-}
-bool in_bounding_box(BasicGCLgrid& g,Cartesian_point cp)
-{
-	if(cp.x1>g.x1high) return(false);
-	if(cp.x1<g.x1low) return(false);
-	if(cp.x2>g.x2high) return(false);
-	if(cp.x2<g.x2low) return(false);
-	if(cp.x3>g.x3high) return(false);
-	if(cp.x3<g.x3low) return(false);
-	return(true);
 }
 
 bool SEISPP::SEISPP_verbose(false);
 int main(int argc, char **argv)
 {
-	if(argc<3) usage();
-	string dbname(argv[1]);
-	string gridname(argv[2]);
-	GCLgrid *g2d;
-	GCLgrid3d *g3d;
-	BasicGCLgrid *grid;
-	bool use2dgrid(false);
         ObjectType objtype(POINTS);
 	bool noz(false);
 	bool clip(false);
 	int i;
-	for(i=3;i<argc;++i)
+        string pffile("vtk_gcl_converter");
+	for(i=1;i<argc;++i)
 	{
 		string testarg(argv[i]);
 		if(testarg=="-lines")
 			objtype=LINES;
                 else if(testarg=="-polygons")
                         objtype=POLYGONS;
-		else if(testarg=="-2d")
-			use2dgrid=true;
 		else if(testarg=="-noz")
 			noz=true;
 		else if(testarg=="-clip")
 			clip=true;
+		else if(testarg=="-pf")
+                {
+                    ++i;
+                    if(i>=argc) usage();
+                    pffile=string(argv[i]);
+                }
 		else
 			usage();
 	}
 	try {
-		DatascopeHandle dbh(dbname,true);
-		dbh.lookup("gclgdisk");
-		if(use2dgrid)
-		{
-			g2d=new GCLgrid(dbh.db,gridname);
-			grid=dynamic_cast<BasicGCLgrid *>(g2d);
-		}
-		else
-		{
-			g3d=new GCLgrid3d(dbh.db,gridname);
-			grid=dynamic_cast<BasicGCLgrid *>(g3d);
-		}
+                Pf *pf;
+                if(pfread(const_cast<char *>(pffile.c_str()),&pf))
+                {
+                    cerr << "pfread failed on file="<<pffile<<endl
+                        << "Cannot continue"<<endl;
+                    exit(-1);
+                }
+                Metadata control(pf);
+                double olat,olon,oradius,azimuth_y;
+                olat=control.get_double("origin_latitude");
+                olon=control.get_double("origin_longitude");
+                oradius=control.get_double("origin_radius");
+                azimuth_y=control.get_double("azimuth_y_axis");
+                olat=rad(olat);
+                olon=rad(olon);
+                azimuth_y=rad(azimuth_y);
+                RegionalCoordinates coords(olat,olon,oradius,azimuth_y);
+                /* Construct a bounding box from parameter file data */
+                double x1l=control.get_double("x1low");
+                double x1h=control.get_double("x1high");
+                double x2l=control.get_double("x2low");
+                double x2h=control.get_double("x2high");
+                double x3l=control.get_double("x3low");
+                double x3h=control.get_double("x3high");
+                BoundingBox bb(x1l,x1h,x2l,x2h,x3l,x3h);
 		vector<Cartesian_point> cplist;
 		Geographic_point gp;
 		Cartesian_point cp;
 		double lat,lon,depth,radius;
 		/* First write common data for either points or lines for file head */
 		cout << "# vtk DataFile Version 2.0"<<endl
-                  << argv[0] << " conversion using grid="<<grid->name <<endl
+                  << argv[0] << " conversion"  <<endl
                   << "ASCII" <<endl
                   << "DATASET POLYDATA"<<endl;
 		typedef list<int> LineLinks;
@@ -131,10 +164,10 @@ int main(int argc, char **argv)
 					gp.lat=rad(lat);
 					gp.lon=rad(lon);
 					gp.r=r0_ellipse(gp.lat)-depth;
-					cp=grid->gtoc(gp);
+                                        cp=coords.cartesian(gp);
 					if(clip)
 					{
-						if(in_bounding_box(*grid,cp))
+						if(bb.inside(cp))
 						{
 							cplist.push_back(cp);
 							thissegment.push_back(i);
@@ -176,10 +209,10 @@ int main(int argc, char **argv)
 			gp.lat=rad(lat);
 			gp.lon=rad(lon);
 			gp.r=r0_ellipse(gp.lat)-depth;
-			cp=grid->gtoc(gp);
+                        cp=coords.cartesian(gp);
 			if(clip)
 			{
-				if(in_bounding_box(*grid,cp))
+				if(bb.inside(cp))
 					cplist.push_back(cp);
 			}
 			else
@@ -233,14 +266,9 @@ int main(int argc, char **argv)
 				cout << endl;
 			}
 		}
-	} catch (SeisppError serr)
+	} catch (SeisppError& serr)
 	{
 		serr.log_error();
-		exit(-1);
-	}
-	catch (int ierr)
-	{
-		cerr << "GCLgrid error.  Something threw error code="<<ierr<<endl;
 		exit(-1);
 	}
 }

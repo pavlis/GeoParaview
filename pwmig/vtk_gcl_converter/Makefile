@@ -1,6 +1,7 @@
 BIN=vtk_gcl_converter
 
-ldlibs=-lm -lgclgrid -lseispp -lperf $(DBLIBS) 
+PF=vtk_gcl_converter.pf
+ldlibs=-lm -lgeocoords -lseispp -lgclgrid -lperf $(DBLIBS) 
 
 include $(ANTELOPEMAKE)
 OBJS=vtk_gcl_converter.o
