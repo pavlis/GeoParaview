@@ -1,6 +1,6 @@
 BIN=traceditor
 ldlibs=-lseispp -ltrvltm -lbrttutil $(TRLIBS) $(DBLIBS) -L$(XMOTIFLIB) \
-       -L$(BOOSTLIB) -lboost_thread -lseisppplot -lseisw -lXm -lXt -lperf -lgclgrid -lpwmig $(X11LIBS)
+       -L$(BOOSTLIB) -lboost_thread -lseisppplot -lseisw -lXm -lXt -lperf -lgclgrid -lpwmig $(X11LIBS) -lseispp
 
 ANTELOPEMAKELOCAL = $(ANTELOPE)/local/include/antelopemake.local
 include $(ANTELOPEMAKE)  	
