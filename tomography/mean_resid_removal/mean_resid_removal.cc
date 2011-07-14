@@ -6,6 +6,7 @@
 #include "dbpp.h"
 using namespace std;
 using namespace SEISPP;
+bool SEISPP::SEISPP_verbose(true);
 int main(int argc, char **argv)
 {
 	if(argc!=2) 
