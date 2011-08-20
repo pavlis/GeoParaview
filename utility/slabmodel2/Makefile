@@ -1,0 +1,13 @@
+PF=slabmodel.pf
+BIN=slabmodel
+ldlibs=-lgeocoords -lcgeom -lgclgrid -lseispp $(DBLIBS) -lperf 
+
+#ANTELOPEMAKELOCAL = $(ANTELOPE)/local/include/antelopemake.local
+include $(ANTELOPEMAKE)  	
+#include $(ANTELOPEMAKELOCAL)
+
+OBJS=slabmodel.o 
+
+$(BIN) : $(OBJS)
+	$(RM) $@
+	$(CXX) $(CXXFLAGS) -o $@ $(OBJS) $(LDFLAGS) $(LDLIBS)
