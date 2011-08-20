@@ -138,8 +138,42 @@ public:
       Nontrivial destructor has to free grid data.
       */
     ~GeoSplineSurface();
+    /*! Return radius of surface.
+
+      This method returns the spherical coordinate radius (in km) of the surface
+      being interpolated.  
+      \param lat is the latitude (in radian) of the point of interest.
+      \param lon is the longitude (in radians) of the point of interest.
+
+      \returns radius in km at the point of interest. 
+      \exception GeoCoordError is thrown if the requested point is not within the 
+        area of support.  For this reason caller should use the is_defined method 
+        before using this method to avoid the overhead of catching many exceptions.
+     */
     double radius(double lat, double lon);
+    /*! Return depth of surface.
+
+      This method returns the depth to the surface being interpolated (in km)
+      at a point of interest.  Depth is relative to the reference ellipsoid.
+      \param lat is the latitude (in radian) of the point of interest.
+      \param lon is the longitude (in radians) of the point of interest.
+
+      \returns depth in km at the point of interest. 
+      \exception GeoCoordError is thrown if the requested point is not within the 
+        area of support.  For this reason caller should use the is_defined method 
+        before using this method to avoid the overhead of catching many exceptions.
+     */
     double depth(double lat, double lon);
+    /*! Used to ask if a point is inside a defined surface.
+
+      The interpolation method used in this object does not work outside the area
+      of support of data used to defined the surface.  This method should be called
+      before any interpolation attempt to effectively ask if the point is known.  
+      In this implementation this is necessary to avoid a try/catch block handler,
+      which is a far less elegant and far slower solution.
+      \param lat is the latitude (in radian) of the point of interest.
+      \param lon is the longitude (in radians) of the point of interest.
+      */
     bool is_defined(double lat,double lon);
     /*! Standard assignment operator */
     GeoSplineSurface& operator=(const GeoSplineSurface& parent);

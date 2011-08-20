@@ -29,12 +29,12 @@ convention used for wrapping the angles.  Latitude is rarely an issue,
 but longitude is commonly specified either 0 to 360 degrees or 
 -180 to 180 degrees.  Do NOT mix these conventions.   The 
 triangularization will still work fine, but the geometry you get
-will by crazy.  Finally, you have define what he coordinate units
+will by crazy.  Finally, you have define what the coordinate units
 are when the object is constructed, BUT constructors have a default
 that assumes radians.   Finally, because this is based on spherical
 coordinates there is the usual warning that it won't work across the 
 pole.  Be careful as well if the points cross the longitude wrap 
-point.  (i.e. thet date line (-180 to 180 convention) or the prime
+point.  (i.e. the date line (-180 to 180 convention) or the prime
 meridian (0 to 360 convention)).
 
 This is implemented with Kent Lindquist's Computational Geometry library 
@@ -51,7 +51,7 @@ class GeoTriMeshSurface : public GeoSurface
             surface.  
          \param units sets units of lat and lon values (default "radians").  
            If set to ANYTHING else will assume degrees. 
-         \exception SeisppError is thrown if number of points is less than 3.
+         \exception GeoCoordError is thrown if number of points is less than 3.
            This is done since we use triangularization, which is clearly meaningless
            if we have fewer than 3 points 
          */
@@ -66,7 +66,7 @@ class GeoTriMeshSurface : public GeoSurface
          \param d is a vector of depth values.
          \param units sets units of lat and lon values (default "radians"). 
            If set to ANYTHING else will assume degrees. 
-         \exception SeisppError object is thrown if three vectors are not the same 
+         \exception GeoCoordError object is thrown if three vectors are not the same 
             length.
          */
         GeoTriMeshSurface(vector<double> lat, vector<double> lon, 

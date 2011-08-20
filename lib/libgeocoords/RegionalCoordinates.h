@@ -7,7 +7,7 @@
    At local and regional scales in the earth it is normally more convenient
 to define a set of local, Cartesian coordinates than constantly deal with 
 spherical geometry.  This object provides a general solution to this problem
-to a set of local coordinates that can implicitly be switched at any time
+using a set of local coordinates that can implicitly be switched at any time
 to geographic coordinates.  The coordinates and the underlying algorithms
 are identical to that used in the GCLgrid library. 
 
@@ -17,8 +17,8 @@ origin, and (2) an orientation angle.  This works because the x1-x2 plane is
 always made to be the local horizontal at the origin.  An angle is used to 
 define how the standard x1=+East and x2=+North axes are rotated to define the
 local coordinate frame.  Many applications will not want to rotate the 
-axes, but this is convenient, or example, in the GCLgrid library to define
-a volume not oriented by the cardinal directions. 
+axes, but this is convenient, for example, in the GCLgrid library to define
+a volume not oriented to the cardinal directions. 
 */
 class RegionalCoordinates
 {
@@ -46,23 +46,68 @@ public:
     RegionalCoordinates(const RegionalCoordinates& parent);
     /*! Standard assignment operator. */
     RegionalCoordinates& operator=(const RegionalCoordinates& parent);
-    /* Return cartesian coordinates of a geographic point.
+    /*! Return cartesian coordinates of a geographic point.
        \param lat is latitude in radians
        \param lon is longitude in radians
        \param r is radius in km.
        */
     Cartesian_point  cartesian(double lat,double lon, double r);
     /* Return cartesian coordinates of a geographic point.
-       Point is specified by Geographic_point object. (radian and km units)*/
+       Point is specified by Geographic_point object. (radian and km units).
+       Cartesian coordinates always have units of km.*/
     Cartesian_point  cartesian(Geographic_point gp);
-    /* Return cartesian coordinates of a geographic point.
-       Point is passed as a 3 vector with the following content:
-       x[0]=lat, x[1]=lon, x[2]=r (units radians and km). */
+    /*! \brief Return cartesian coordinates of a geographic point.
+
+      This routine is an overloaded version of using a 3 vector to
+      pass the geographic points.
+      \param x - is a 3 vector holding Geographic point data to 
+        be converted. Must be this order: t, x[1]=lon, x[2]=r.
+        Angle must be in radians and r must be radius vector in km.
+        */
     Cartesian_point cartesian(double x[3]);
+    /* \brief Return geographic point description of cartesian input.
+
+       This routine is one of several overloaded methods that convert
+    a cartesian coordinate 3 vector to standard earth coordinates.  
+    This and its siblings are the inverse of the cartesian methods. 
+    This version passes the point as 3 distinct scalar arguments.
+
+    \param x1 is the x1 coordinate of the point to convert.
+    \param x2 is the x2 coordinate of the point to convert.
+    \param x3 is the x3 coordinate of the point to convert.
+
+    \return converted point in Geographic_point struct (radians and km units)
+    */
     Geographic_point geographic(double x1,double x2, double x3);
+    /* \brief Return geographic point description of cartesian input.
+
+       This routine is one of several overloaded methods that convert
+    a cartesian coordinate 3 vector to standard earth coordinates.  
+    This and its siblings are the inverse of the cartesian methods. 
+    This version passes the point as a standard C vector.
+
+    \param x is a 3-vector containing Cartesian coordinates to convert.
+    \return converted point in Geographic_point struct (radians and km units)
+    */
     Geographic_point geographic(double x[3]);
+    /* \brief Return geographic point description of cartesian input.
+
+       This routine is one of several overloaded methods that convert
+    a cartesian coordinate 3 vector to standard earth coordinates.  
+    This and its siblings are the inverse of the cartesian methods. 
+    This version uses a struct input through the Cartesian_point object.
+
+    \param cp contains Cartesian coordinates to be converted.
+    \return converted point in Geographic_point struct (radians and km units)
+    */
     Geographic_point geographic(Cartesian_point cp);
+    /*! Return the origin of the coordinate system. */
     Geographic_point origin();
+    /*! Return the azimuth of the coordinate system which is the angle
+      (in radians) of the azimuth (geographic NOT the spherical coordinate
+      azimuth convention) where the y axis points at the origin.  (0 
+      means the y (x2) axis points north at the origin)
+      */
     double aznorth_angle(){return(azimuth_y);};
 private:
     double gtoc_rmatrix[3][3];

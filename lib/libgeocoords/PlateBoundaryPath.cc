@@ -80,12 +80,14 @@ Geographic_point PlateBoundaryPath::origin()
 }
 double PlateBoundaryPath::distance(double t)
 {
+    const double EarthRadius(6378.164);
     double phi=angular_velocity*t;
-    return(phi*ssdelta);
+    return(phi*ssdelta*EarthRadius);
 }
 double PlateBoundaryPath::time(double s)
 {
-    double phi=s/ssdelta;
+    const double EarthRadius(6378.164);
+    double phi=s/(ssdelta*EarthRadius);
     return(phi/angular_velocity);
 }
 /*  Now begin section on TimeVariablePlateBoundary object */
@@ -258,6 +260,7 @@ Geographic_point TimeVariablePlateBoundaryPath::origin()
 double TimeVariablePlateBoundaryPath::distance(double t)
 {
     const string base_error("TimeVariablePlateBoundaryPath::distance:  ");
+    const double EarthRadius(6378.164);
     if(t<0) throw GeoCoordError(base_error
                 + "illegal negative time parameter. Must be nonnegative");
     /* parallel code to position method */
@@ -272,8 +275,8 @@ double TimeVariablePlateBoundaryPath::distance(double t)
     double result;
     int k;
     for(k=0,result=0.0;k<i;++k)
-        result+=ss[k]*ssdelta[k];
-    result += daz*ssdelta[i];
+        result+=ss[k]*ssdelta[k]*EarthRadius;
+    result += daz*ssdelta[i]*EarthRadius;
     return(result);
 }
 double TimeVariablePlateBoundaryPath::time(double s)

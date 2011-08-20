@@ -16,9 +16,9 @@ at that position.
 class GeoSurface
 {
 public:
-    /*! Return the radius of the surface at point lat,lon.*/`
+    /*! Return the radius of the surface at point lat,lon.*/
     virtual double radius(double lat, double lon)=0;
-    /*! Return the depth of the surface at point lat,lon.*/`
+    /*! Return the depth of the surface at point lat,lon.*/
     virtual double depth(double lat, double lon)=0;
     /*! Test to see if the surface is defined at this point.  Returns 
       true of the surface is defined at the given point. */
