@@ -1,6 +1,6 @@
 #include <math.h>
 #include <fstream>
-#include <sstream>>
+#include <sstream>
 #include "PlateBoundaryPath.h"
 #include "GeoCoordError.h"
 using namespace std;
