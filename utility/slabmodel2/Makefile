@@ -1,6 +1,7 @@
 PF=slabmodel.pf
 BIN=slabmodel
-ldlibs=-lgeocoords -lcgeom -lgclgrid -lseispp $(DBLIBS) -lperf 
+#ldlibs=-lgeocoords -lcgeom -lgclgrid -lseispp $(DBLIBS) -lperf 
+ldlibs=-lgeocoords -lcgeom -lgclgrid -lseispp $(TRLIBS) -lperf 
 
 #ANTELOPEMAKELOCAL = $(ANTELOPE)/local/include/antelopemake.local
 include $(ANTELOPEMAKE)  	
