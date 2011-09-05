@@ -1,6 +1,7 @@
 #ifndef _PPWSDECONPROCESSOR_H_
 #define _PPWSDECONPROCESSOR_H_
 #include <vector>
+#include <list>
 #include "slowness.h"
 #include "TimeSeries.h"
 #include "seispp.h"
@@ -19,7 +20,7 @@ It is used to avoid excessive metadata fetches to improve efficiency.
 class PWDataMember: public ThreeComponentSeismogram
 {
 public:
-	/*! Weighted used to scale original data to produce this object. */
+	/*! Weight used to scale original data to produce this object. */
 	double weight;
 	/*! Location of receiver (extracted from inherited Metadata ) */
 	double lat,lon,elev;
@@ -40,12 +41,23 @@ public:
 	PWDataMember(const PWDataMember& parent);
 	/*! Standard assignment operator */
 	PWDataMember& operator=(const PWDataMember& parent);
+        /*! Return polarization vector at a give lag.
+
+          This is a companion to remove and the arguments are similar.
+          This method results a 3 vector of particle motion at a 
+          specified lag using a dot product of the wavelet with each 
+          three component seismograms. Lag is computed by this formula:
+            rlag0=this->sample_number(t0)-lag[iu]-wavelet.sample_number(0.0);
+          \param iu integer of slowness component to use to enter lag array.
+          \param t0 is time reference to which the lag is applied.
+          */
+        dvector polarization(int iu,double t0);
 	/*! \brief Remove an estimated plane wave component 
 
           Subtracts a*wavelet shifted by lag computed from time t0
           and plane wave shift lag[iu] from each data member.
           This is the key recursion of this method.  Be warned
-          this method does not do any erro checking for speed.
+          this method does not do any error checking for speed.
           */
 	int remove(int iu, double t0,double *a);
 };
@@ -81,7 +93,7 @@ public:
 	/*! Return the maximum amplitude of this member.
 
 	This is a core method for the iterative method.  Returns
-	the maximum amplitude of this 3d (stack) eismogram.  This ALWAYS 
+	the maximum amplitude of this 3d (stack) seismogram.  This ALWAYS 
 	initiates a recalculation of the amplitudes from the current
 	data.  Calls to this method must ALWAY precede calls to 
 	the lag_at_max method or the return of that method will 
@@ -248,7 +260,7 @@ private:
         ThreeComponentEnsemble noise_data;
 	/* Plane wave stack components (length nu) */
 	vector<PWStackMember> current_stack;
-        /* cutoff parameter.  Will throw and exception if noise time window is 
+        /* cutoff parameter.  Will throw an exception if noise time window is 
            less than this length when allowing for moveout */
         double MinimumNoiseWindow; 
         /* if true use SNR instead of absolute amplitude to find max in
@@ -259,6 +271,12 @@ private:
         double SNRfloor;
         /* Limit on number of iterative cycles */
 	int maxiteration;  
+        /* Used to compute a running average of snr values over past 
+           queuesize iterations*/
+        int snravgsize;
+        list<double> recent_snr;
+        /*previous average snr computed from recent_snr*/
+        double last_snravg;
 	/*! workhorse internal method to reform stack in place.  i.e
 	no copying is done, just components of current_stack are updated*/
 	void stack();

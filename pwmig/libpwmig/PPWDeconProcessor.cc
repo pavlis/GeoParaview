@@ -8,18 +8,6 @@
 using namespace std;
 using namespace SEISPP;
 namespace SEISPP{
-/* Added for debugging.  Remove when working */
-double Linf(dmatrix& A) {
-    double *aptr;
-    aptr=A.get_address(0,0);
-    double Ainf=*aptr;
-    ++aptr;
-    int na=A.rows() * A.columns();
-    for(int i=1;i<na;++i,++aptr){
-            if((*aptr)>Ainf) Ainf=(*aptr);
-     }
-     return(Ainf);
-}
 PWIndexPosition::PWIndexPosition()
 {
     iu=0;
@@ -76,13 +64,11 @@ PWDataMember::PWDataMember(ThreeComponentSeismogram& draw,
 	    SlownessVector& u0in,
 	        vector<SlownessVector>& rayp,
 		    double wt, double lat0, double lon0)
-		: ThreeComponentSeismogram(draw), u0(u0in)
+		: ThreeComponentSeismogram(draw), u0(u0in), wavelet(winp)
 {
 	weight=wt;
 	try {
-		/* Note the wavelet is not scaled and assumed to 
-		have a properly normalizd amplitude */
-		wavelet=winp;
+                /* We need these to compute moveout */
 		lat=get_double("sta_lat");
 		lon=get_double("sta_lon");
 		elev=get_double("sta_elev");
@@ -151,31 +137,52 @@ PWDataMember& PWDataMember::operator=(const PWDataMember& parent)
 	}
 	return *this;
 }
+dvector PWDataMember::polarization(int iu,double t0)
+{
+    /* compute lag formula.  Intentionally do not check index errors for speed */
+	int rlag0=this->sample_number(t0)-lag[iu]-wavelet.sample_number(0.0);	
+        //DEBUG
+        cout << "In polarization:  sn(t0)="<<this->sample_number(t0)
+            <<" lag[iu]="<<lag[iu]
+            <<" wavelet.sample_number(0.0)="<<wavelet.sample_number(0.0)<<endl;
+        cout << "neighbors"<<endl;
+        int id0=this->sample_number(t0)-lag[iu];
+        for(int idbg=id0-10;idbg<=(id0+10); ++idbg)
+        {
+            cout << idbg <<" ";
+            for(int k=0;k<3;++k) cout << u(k,idbg)<<" ";
+            cout <<endl;
+        }
+	double *baseptr=u.get_address(0,rlag0);
+	int i;
+        dvector result(3);
+        result.zero();
+        for(i=0;i<3;++i,baseptr++)
+        {
+            /* Note 3 interval on baseptr because data are in component order */
+            result(i)=ddot(wavelet.ns,&(wavelet.s[0]),1,baseptr,3);
+        }
+        return(result);
+}
 
+/* remove algorithm has evolved. This version takes the 3vector
+   data a as input and computes a scale factor using dot products
+   with the wavelet stored internally.  The method assumes the
+   wavelet has been normalized to have L2 norm of unity or this
+   will have the amplitude really messsed up */
 int PWDataMember::remove(int iu, double t0, double *a)
 {
 	/* Note this method intentionally does NOT check for bounds
 	for efficiency.  User must guarantee this to avoid chaos */
-	int rlag0=this->sample_number(t0)-lag[iu]-wavelet.sample_number(0.0);;	
+	int rlag0=this->sample_number(t0)-lag[iu]-wavelet.sample_number(0.0);	
 	double *baseptr=u.get_address(0,rlag0);
-	int i;
-        double scale;
-//DEBUG
-//dmatrix u0=u;
-        for(i=0;i<3;++i)
+        for(int i=0;i<3;++i,baseptr++)
         {
-            scale=(-1.0)*a[i]*weight;
-            daxpy(wavelet.ns,scale,&(wavelet.s[0]),1,baseptr,3);
-            ++baseptr;
+            double sclthis;
+            sclthis=-(this->weight)*a[i]; // Each data member is weighted by weight
+            daxpy(wavelet.ns,sclthis,&(wavelet.s[0]),1,baseptr,3);
         }
-//DEBUG
-/*
-for(i=0;i<u.columns();++i)
-    cout << i <<" "
-        << u0(0,i)<<" "<<u(0,i)<< " "
-        << u0(1,i)<<" "<<u(1,i) << " "
-        << u0(2,i)<<" "<<u(2,i)<<endl;
-*/
+        return(rlag0);
 }
 PWStackMember::PWStackMember(ThreeComponentSeismogram& din,
 	SlownessVector& sv, double noise_estimate) 
@@ -232,13 +239,6 @@ double PWStackMember::maxamp()
 				amp[i]+=(*(baseptr))*(*(baseptr));
 		amp[i]=sqrt(amp[i]);
 	}
-//DEBUG
-/*
-if(slow.mag()<0.001) {
-    cout << "Amplitudes for iu=220)"<<endl; 
-    for(int foo=0;foo<ns;++foo) cout <<foo<<" "<< amp[foo]<<endl;
-}
-*/
 	/* This duplicates the PeakAmplitude methods in seispp but
 	differences in the algorithm require duplication of small
 	code fragment */
@@ -265,7 +265,7 @@ PPWDeconProcessor::PPWDeconProcessor(ThreeComponentEnsemble& threecd,
     	maxiteration=md.get_int("maximum_iterations");
         MinimumNoiseWindow=md.get_double("minimum_noise_window_length");
         SNRfloor=md.get_double("snr_convergence_floor");
-        bool UseSNR=md.get_bool("use_snr");
+        UseSNR=md.get_bool("use_snr");
         if(parent_data.member.size() != noise_data.member.size())
         {
             cerr << "PPWDeconProcessor::constructor: "
@@ -282,6 +282,16 @@ PPWDeconProcessor::PPWDeconProcessor(ThreeComponentEnsemble& threecd,
 	dt_stack=parent_data.member[0].dt;
 	aperture=md.get_double("pseudostation_array_aperture");
 	cutoff=md.get_double("pseudostation_array_cutoff");
+        snravgsize=md.get_int("snr_averaging_length");
+        // We need to normalize the wavelets to have unit L2 norm
+        vector<TimeSeries>::iterator wptr;
+        for(wptr=wavelet.begin();wptr!=wavelet.end();++wptr)
+        {
+            double scale=dnrm2(wptr->ns,&(wptr->s[0]),1);
+            dscal(wptr->ns,1.0/scale,&(wptr->s[0]),1);
+            //DEBUG
+            cout << "Variable bandwidth constructor debug:  scale="<<scale<<endl;
+        }
 	stalat.reserve(ndens);
 	stalon.reserve(ndens);
 	vector<ThreeComponentSeismogram>::iterator dptr;
@@ -304,7 +314,6 @@ PPWDeconProcessor::PPWDeconProcessor(ThreeComponentEnsemble& threecd,
 	d.clear();
 	nd=-1;
     } catch (...) {throw;};
-	
 }
 /* This is a near duplicate of the above.  There is, no doubt, a clever
 way to utilize the above constructor as part of this one, but in my 
@@ -328,7 +337,7 @@ PPWDeconProcessor::PPWDeconProcessor(ThreeComponentEnsemble& threecd,
     	maxiteration=md.get_int("maximum_iterations");
         MinimumNoiseWindow=md.get_double("minimum_noise_window_length");
         SNRfloor=md.get_double("snr_convergence_floor");
-        bool UseSNR=md.get_bool("use_snr");
+        UseSNR=md.get_bool("use_snr");
 	nu=ulist.size();
         int ndens=threecd.member.size();
 	if(ndens<=0) throw SeisppError(string("PPWDeconProcessor::constructor:  ")
@@ -336,6 +345,12 @@ PPWDeconProcessor::PPWDeconProcessor(ThreeComponentEnsemble& threecd,
 	dt_stack=parent_data.member[0].dt;
 	aperture=md.get_double("pseudostation_array_aperture");
 	cutoff=md.get_double("pseudostation_array_cutoff");
+        snravgsize=md.get_int("snr_averaging_length");
+        // We need to normalize the wavelets to have unit L2 norm
+        // Since w is passed by reference have to make copy
+        TimeSeries wtmp(w);
+        double wscale=dnrm2(wtmp.ns,&(wtmp.s[0]),1);
+        dscal(wtmp.ns,1.0/wscale,&(wtmp.s[0]),1);
 	stalat.reserve(ndens);
 	stalon.reserve(ndens);
 	vector<ThreeComponentSeismogram>::iterator dptr;
@@ -351,7 +366,7 @@ PPWDeconProcessor::PPWDeconProcessor(ThreeComponentEnsemble& threecd,
 		stalat.push_back(rad(lat));
 		stalon.push_back(rad(lon));
 		/* This sets all wavelet members to a single waveform*/
-		wavelet.push_back(w);
+		wavelet.push_back(wtmp);
 	}
 	/* These are initialized to useless values.  They are set when
 	the compute method is called */
@@ -384,6 +399,7 @@ PPWDeconProcessor::PPWDeconProcessor(const PPWDeconProcessor& parent)
 	wavelet=parent.wavelet;
 	slow=parent.slow;
 	current_stack=parent.current_stack;
+	snravgsize=parent.snravgsize;
 }
 PPWDeconProcessor& PPWDeconProcessor::operator=(const PPWDeconProcessor& parent)
 {
@@ -407,6 +423,7 @@ PPWDeconProcessor& PPWDeconProcessor::operator=(const PPWDeconProcessor& parent)
 	wavelet=parent.wavelet;
 	slow=parent.slow;
 	current_stack=parent.current_stack;
+	snravgsize=parent.snravgsize;
     }
     return *this;
 }
@@ -421,6 +438,8 @@ PWIndexPosition PPWDeconProcessor::maxamp()
 	result.iu=0;
 	++mptr;
         double testamp,testsnr;
+        /* Warning:  this loop assumes current_stack vector has more than
+           one element */
 	for(int i=1;mptr!=current_stack.end();++mptr,++i)
 	{
 		testamp=mptr->maxamp();
@@ -496,8 +515,28 @@ bool PPWDeconProcessor::converged(int current_count,
         return(true);
     else if((ip.SNR)<SNRfloor)
         return(true);
+    /* This is a test to stop when snr reaches a floor.  Tests show this
+       is essential when the noise is colored by significant low velocity
+       components */
+    recent_snr.push_back(ip.SNR);
+    if(current_count>=snravgsize)
+    {
+        recent_snr.pop_front();
+        list<double>::iterator qptr;
+        double snravg;
+        for(snravg=0.0,qptr=recent_snr.begin();qptr!=recent_snr.end();++qptr)
+        {
+            snravg+=(*qptr);
+        }
+        snravg /= static_cast<double>(snravgsize);
+        if(current_count==snravgsize) last_snravg=snravg;
+        if(snravg>last_snravg) return(true);
+        last_snravg=snravg;
+    }
     return(false);
 }
+/* Note caller must test for empty ensemble indicating no data for
+   this pseudostation point */
 auto_ptr<ThreeComponentEnsemble> PPWDeconProcessor::compute(double pslat,
 					double pslon)
 {
@@ -507,7 +546,7 @@ auto_ptr<ThreeComponentEnsemble> PPWDeconProcessor::compute(double pslat,
 		d.clear();
 		double sumwt;
 		int npd=parent_data.member.size();
-		for(i=0;i<npd;++i)
+		for(i=0,sumwt=0.0;i<npd;++i)
 		{
 			double wt;
 			double lat,lon;
@@ -521,12 +560,23 @@ auto_ptr<ThreeComponentEnsemble> PPWDeconProcessor::compute(double pslat,
 			}
 		}
                 nd=d.size();
-                /* We normalize each PWDataMember by wt/sumwt so we do not
-                   need to normalized the stack repeatedly. */
+                if(nd==0)
+                {
+                    auto_ptr<ThreeComponentEnsemble> 
+                            nodata(new ThreeComponentEnsemble());
+                    return(nodata);
+                }
+
+                /* First normalize the weights so sum of wt is 1 */
+                for(i=0;i<nd;++i)
+                {
+                    d[i].weight/=sumwt;
+                }
+
+                /* We normalize each PWDataMember by weights so we do not have 
+                   to normalized the stack repeatedly. */
                 for(i=0;i<nd;++i){
-                    double scale=(d[i].weight)/sumwt;
-                    dscal(3*d[i].ns,scale,d[i].u.get_address(0,0),1);
-                    d[i].weight=scale;  // need to store normalized weight too
+                    dscal(3*d[i].ns,d[i].weight,d[i].u.get_address(0,0),1);
                 }
 
 		/* This section does two things.  First, it computes a size
@@ -587,6 +637,8 @@ auto_ptr<ThreeComponentEnsemble> PPWDeconProcessor::compute(double pslat,
 		{
 			current_stack.push_back(PWStackMember(stack_pattern,
 				*uptr,noise_levels[i]));
+                        //DEBUG
+                        //cout << "slowness "<<i<<" t0="<<current_stack[i].t0<<endl;
 		}
 		/* Compute lags in a parallel vector for efficiency */
 		start_offset.clear();
@@ -637,6 +689,26 @@ auto_ptr<ThreeComponentEnsemble> PPWDeconProcessor::compute(double pslat,
 			this->stack();
 			ip=this->maxamp();
                         PWStackMember tmp(current_stack[ip.iu]);
+                        /* Peak amplitude is an unstable measurement.  Use average
+                           computed from dot product with individual wavelets.  
+                           This sum works because weights are normalized */
+                        //DEBUG
+                        cout << "Polarization vectors"<<endl;
+                        dvector l2amp(3);
+			for(i=0;i<nd;++i)
+			{
+                            dvector l2this;
+                            l2this=d[i].polarization(ip.iu,ip.time0);
+                            l2amp+=l2this;
+                            cout <<d[i].weight<<" "<< l2this(0)<<" "
+                            << l2this(1)<<" "
+                            << l2this(2)<<endl
+                            << "Corrected"  
+                            << l2this(0)/d[i].weight<<" "
+                            << l2this(1)/d[i].weight<<" "
+                            << l2this(2)/d[i].weight<<endl;
+			}
+
                         /* This is needed only to make plotting work.  Remove it when
                            plotting is removed */
                         tmp.put("samprate",1.0/tmp.dt);
@@ -649,13 +721,18 @@ auto_ptr<ThreeComponentEnsemble> PPWDeconProcessor::compute(double pslat,
                                 <<" iu="<<ip.iu
                                 << " which is ux,uy="
                                 << slow[ip.iu].ux <<" "<<slow[ip.iu].uy
-                                << " vector values="
+                                << " peak vector values="
                                 << ip.v[0]<<", "
                                 << ip.v[1]<<", "
-                                << ip.v[2]<<endl
+                                << ip.v[2]
+                                << " L2 vector values="
+                                << l2amp(0)<<", "
+                                << l2amp(1)<<", "
+                                << l2amp(2)<<endl
                                 <<"SNR estimate for this point is "<<ip.SNR<<endl
                                 <<"Refreshing plot to remove this component"
                                 <<endl;
+			for(int k=0;k<3;++k) ip.v[k]=l2amp(k);
 			for(int k=0;k<3;++k) 
                         {
 			    result->member[ip.iu].u(k,ip.lag0)+=ip.v[k];
@@ -684,6 +761,9 @@ void PPWDeconProcessor::plot_current_data()
     }
     plot_handle.plot(dtoplot);
 }
+/* Private method to compute noise estimates.  Algorithm uses assumes noise
+   on each component is a zero mean process.  Returned estimate uses median
+   absolute three-component amplitude. */
 vector<double> PPWDeconProcessor::compute_noise_estimates
         (double pslat, double pslon)
 {
@@ -745,6 +825,13 @@ vector<double> PPWDeconProcessor::compute_noise_estimates
                 <<"data ensemble has size="<<nd
                 <<" but noise ensemble has size="<<dnoise_used.size()<<endl;
         }
+        if(sumwt<=0.0)
+        {
+            stringstream errss;
+            errss<< base_error
+                << "sum of pseudostations weight is 0.0"<<endl;
+            throw SeisppError(errss.str());
+        }
         /* normalize weights.  Although it looks different this is the 
            same as what is used in the compute method */
         for(i=0;i<wt.size();++i) wt[i]/=sumwt;
@@ -761,8 +848,9 @@ vector<double> PPWDeconProcessor::compute_noise_estimates
            any subsequent post-filtering or the estimates made by
            this method will be very misleading to just plain wrong */
         vector<double> t0values;  // hold t0 values 
-        vector<double> tendvalues;  // hold t0 values 
+        vector<double> tendvalues;  // hold end time values
         t0values.reserve(dnoise_used.size()); 
+        tendvalues.reserve(dnoise_used.size()); 
         /* Intentionally use subscripting for clarity.  Assume this is
            not a performance bottleneck here */
         double moveout,uxt,uyt;;
@@ -821,8 +909,7 @@ vector<double> PPWDeconProcessor::compute_noise_estimates
         bool noise_data_have_gaps(false);
         for(i=0;i<dnoise_used.size();++i)
         {
-            if(dynamic_cast<BasicTimeSeries&>
-                    (dnoise_used[i]).is_gap(process_window))
+            if(dnoise_used[i].is_gap(process_window))
             {
                 noise_data_have_gaps=true;
                 dnoise_used[i].zero_gaps();
@@ -842,6 +929,10 @@ vector<double> PPWDeconProcessor::compute_noise_estimates
         int nu=slow.size();
         result.reserve(nu);
         double *noise_stack=new double[n3c];
+        vector<double> work; // holds vector amplitudes 
+        work.reserve(ntostack);
+        /* This factor times the mad is sigma for a normal distribution */
+        const double mad_normal_multiplier(1.4826);
         for(j=0;j<nu;++j)
         {
             for(i=0;i<n3c;++i) noise_stack[i]=0.0;
@@ -849,18 +940,27 @@ vector<double> PPWDeconProcessor::compute_noise_estimates
             {
                 double t=process_window.start+noiselags(i,j);
                 int istart=dnoise_used[i].sample_number(t);
+                if(istart<0) 
+                {
+                    delete [] noise_stack;
+                    throw SeisppError(base_error
+                        + "Coding error - computed sample number of noise segment lt 0");
+                }
                 double *ptr=dnoise_used[i].u.get_address(0,istart);
                 for(int k=0;k<n3c;++k,ptr++) noise_stack[k]+=(*ptr);
             }
-            //double nl2=dnrm2(n3c,noise_stack,1);
-            //result.push_back(sqrt(nl2*nl2/static_cast<double>(n3c)));
-            VectorStatistics<double> stackstats(noise_stack,n3c);
-            double dmed=stackstats.median();
-            result.push_back(stackstats.mad(dmed));
-//DEBUG
-cout << "noise mad for slowness component "<<j<<" is "<<result[j]<<endl;
-cout << "median and interquartiles="<<dmed<<" " <<stackstats.interquartile()
-    << " range="<<stackstats.range()<<endl;
+            /* compute vector amplitudes and store these in the work vector */
+            work.clear();
+            double atmp;
+            for(i=0;i<n3c;i+=3)
+            {
+                atmp=0.0;
+                for(int k=0;k<3;++k)atmp+=noise_stack[i+k]*noise_stack[i+k];
+                atmp=sqrt(atmp);
+                work.push_back(atmp);
+            }
+            VectorStatistics<double> stackstats(work);
+            result.push_back(mad_normal_multiplier*stackstats.median());
         }
         /* Apply ceiling a floor based on upper and lower quartile.  May eventually
            want to generalize this to allow using a median and/or apply a multiplier
