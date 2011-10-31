@@ -8,7 +8,7 @@
 #include "PLGeoPath.h"
 #include "PlateBoundaryPath.h"
 /* this is used several times here.  Beware if you ever cut and paste from this file */
-const double REARTH(6378.17);
+const double REARTH(6378.17);  //This is a constant earth radius used for distance estimates`
 using namespace std;
 using namespace SEISPP;
 using namespace INTERPOLATOR1D;
