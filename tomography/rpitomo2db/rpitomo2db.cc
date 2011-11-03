@@ -181,7 +181,7 @@ int main(int argc, char **argv)
 			double ztrue, vtrue,vflattened;
 			x = x_lowerleft + ((double)i)*dxutm;
 			y = y_lowerleft + ((double)j)*dyutm;
-			z = dz*(static_cast<double>(kk));
+			z = dz*(static_cast<double>(k));
 			z -= dzshift;
 			utmtoll_(&ReferenceEllipsoid,&y,&x,utmzone,&lat,&lon,
 				&zonenumber,strlen(utmzone));
@@ -201,9 +201,9 @@ int main(int argc, char **argv)
 			// the gclgrid library if we do it this way.
 			geo.r=r0_ellipse(rad(lat))-ztrue;
 			cart=vel.gtoc(geo);
-			vel.x1[i][j][k]=cart.x1;
-			vel.x2[i][j][k]=cart.x2;
-			vel.x3[i][j][k]=cart.x3;
+			vel.x1[i][j][kk]=cart.x1;
+			vel.x2[i][j][kk]=cart.x2;
+			vel.x3[i][j][kk]=cart.x3;
 		}
 		// save field to database
 		string modelname;
