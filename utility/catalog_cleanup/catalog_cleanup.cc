@@ -1,8 +1,9 @@
 #include <stdlib.h>
 #include <string.h>
+#include <list>
 #include "coords.h"
 #include "dbpp.h"
-#include "Hypocenter.h"
+#include "HypocenterCSS30.h"
 using namespace std;
 using namespace SEISPP;
 void usage()
@@ -18,7 +19,7 @@ Hypocenter load_hypo(Dbptr db)
 	dbgetv(db,0,"lat",&lat,
 		"lon",&lon,
 		"depth",&depth,
-		"time",&otime,0);
+		"time",&otime,NULL);
 	return(Hypocenter(rad(lat),rad(lon),depth,otime,method,model));
 }
 
@@ -38,17 +39,18 @@ double space_time_difference(Hypocenter& h1, Hypocenter& h2)
 }
 	
 	
+bool SEISPP::SEISPP_verbose(true);
 int main(int argc, char **argv)
 {
 	Hypocenter currenthypo,previoushypo;
 	char dbrow[256];
-	int orid;
+	long orid;
 	if(argc!=4)usage();
 	string dbin(argv[1]);
 	string dbout(argv[2]);
 	double tolerance=atof(argv[3]);
 	cout << "catalog_clean:  Writing to output db="<<dbout<<endl
-		<<"Using input from origin table of db="<<dbin
+		<<"Using input from origin table of db="<<dbin<<endl
 		<< "Space time tolerance value="<<tolerance<<endl;
 	int nrecin=0,nrecout=0;
 	DatascopeHandle dbhi(dbin,true);
@@ -67,29 +69,57 @@ int main(int argc, char **argv)
 		usage();
 	}
 	dbhi.rewind();
-	Dbptr parent;
 	bool firstpass;
-	for(nrecin=0,firstpass=true;nrecin<dbhi.number_tuples();
+        list<HypocenterCSS30> eventlist;
+        long nrows=dbhi.number_tuples();
+	for(nrecin=0,firstpass=true;nrecin<nrows;
 			++dbhi,++nrecin)
 	{
 		int irec;
 		currenthypo=load_hypo(dbhi.db);
-		if(firstpass || space_time_difference(currenthypo,
-				previoushypo)>tolerance)
+                if(firstpass)
+                {
+                    eventlist.push_back(HypocenterCSS30(dbhi.db,currenthypo));
+                    firstpass=false;
+                }
+                else
 		{
-			/* because dbhi.db is a view we have to fetch
-			the parent table this way to allow cloning with
-			dbget/dbadd */
-			dbgetv(dbhi.db,0,"origin",&parent,0);
-			dbget(parent,dbrow);
-			irec=dbadd(dbho.db,dbrow);
-			dbgetv(dbhi.db,0,"orid",&orid,0);
-			dbaddv(dbhoe.db,0,"evid",orid,"prefor",orid,0);
-			dbho.db.record=irec;
-			dbputv(dbho.db,0,"evid",orid,0);
-			previoushypo=currenthypo;
+                    if((space_time_difference(currenthypo,previoushypo)
+                            > tolerance) || (nrecin==(nrows-1)))
+                    {
+                        list<HypocenterCSS30>::iterator ihptr,keeper;
+                        keeper=eventlist.begin();
+                        if(eventlist.size()>1)
+                        {
+                            /*Odd construct to force iterator to begin+1*/
+                            ihptr=eventlist.begin();
+                            ++ihptr;
+                            for(;ihptr!=eventlist.end();++ihptr)
+                            {
+                                if(ihptr->ndef>keeper->ndef)
+                                    keeper=ihptr;
+                            }
+                        }
+                        dbaddv(dbhoe.db,0,"evid",keeper->evid,"prefor",keeper->orid,NULL);
+                        try{
+			    irec=keeper->dbsave(dbho.db);
+                        }catch (SeisppError& serr)
+                        {
+                            serr.log_error();
+                            cerr << "Error while processing output record "<<nrecout<<endl;
+                        }
+                        previoushypo=currenthypo;
+                        eventlist.clear();
+                        eventlist.push_back(HypocenterCSS30(dbhi.db,currenthypo));
 			++nrecout;
-			if(firstpass) firstpass=false;
+                    }
+                    else
+                    {
+                        /* Fall here when we have a duplicate.  Pushed to 
+                           list */
+                        eventlist.push_back(HypocenterCSS30(dbhi.db,
+                                    currenthypo));
+                    }
 		}
 	}
 	cout << "Input db had "<<nrecin<<" rows"<<endl
