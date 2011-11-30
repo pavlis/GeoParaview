@@ -2,6 +2,7 @@
 #include <string.h>
 #include <list>
 #include "coords.h"
+#include "seispp.h"
 #include "dbpp.h"
 #include "HypocenterCSS30.h"
 using namespace std;
