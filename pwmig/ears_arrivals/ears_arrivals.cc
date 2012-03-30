@@ -1,6 +1,7 @@
 #include <stdlib.h>
 #include <string>
 #include "stock.h"
+#include "seispp.h"
 #include "dbpp.h"
 
 using namespace std;
@@ -18,7 +19,7 @@ int main(int argc, char **argv)
     string dbout(argv[2]);
     double lag0(10.0);
     int i;
-    for(i=0;i<argc;++i)
+    for(i=3;i<argc;++i)
     {
         string sarg(argv[i]);
         if(sarg=="-lag") 
@@ -42,7 +43,7 @@ int main(int argc, char **argv)
         long nrows;
         nrows=dbhi.number_tuples();
         long row;
-        for(row=0;row<nrows;++row,++dbhi)
+        for(dbhi.rewind(),row=0;row<nrows;++row,++dbhi)
         {
             string sta=dbhi.get_string("sta");
             string chan=dbhi.get_string("chan");

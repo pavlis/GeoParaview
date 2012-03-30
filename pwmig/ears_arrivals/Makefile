@@ -2,6 +2,7 @@ BIN=ears_arrivals
 
 cflags=-g
 ldflags=$(DBLIBS) -lseispp
+CXX += -g
 
 include $(ANTELOPEMAKE)  	
 OBJS=ears_arrivals.o
