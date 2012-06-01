@@ -157,6 +157,20 @@ Geographic_point PLGeoPath::node_position(int i)
     result.r=r[i];
     return result;
 }
+Cartesian_point PLGeoPath::node_position_xyz(int i)
+{
+    try {
+    Geographic_point gp=this->node_position(i);
+    return(this->coordxyz.cartesian(gp));
+    } catch(...){throw;};
+}
+double PLGeoPath::node_path_parameter(int i)
+{
+    if(i<0 || i>=(this->number_points()) )
+        throw GeoCoordError(string("PLGeoPath::node_path_parameter method:  ")
+                + "requested point outside range of node points");
+    return(s[i]);
+}
 
 ostream& operator<<(ostream& os,PLGeoPath& path)
 {

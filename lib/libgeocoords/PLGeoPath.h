@@ -14,6 +14,9 @@ great circle path curvature.
 class PLGeoPath : public GeoPath
 {
 public:
+    /* This must be public to allow the Cartesian_point methods to make
+       any sense. */
+     RegionalCoordinates coordxyz;
     /*! Default constructor.  Minimal initialization only. */
     PLGeoPath();
     /*! Construct from a vector of Geographic_point objects.
@@ -65,6 +68,23 @@ public:
        \exception SeisppError will be thrown if i is out of range.
        */
      Geographic_point node_position(int i);
+     /*! Return the Cartesian position of node i.
+
+       Sometimes we need the actual node locations of a path.  This
+       returns the position of node i in the internal Cartesian system.
+
+       \param i is the index position of the requested node.
+       \exception SeisppError will be thrown if i is out of range.
+       */
+     Cartesian_point node_position_xyz(int i);
+     /*! Return path parameter for node i.
+
+       Sometimes we need to know the path parameter matching a particular
+       node point.   
+
+       \param i is the index position of the requested node.
+       \exception SeisppError is throw if i is out of range */
+     double node_path_parameter(int i);
      PLGeoPath& operator=(const PLGeoPath& parent);
      friend ostream& operator<<(ostream& os,PLGeoPath&);
 private:
@@ -73,6 +93,5 @@ private:
      /*! store this point to allow it to be anywhere on the path and not have
        to interpolate to figure it's location */
      Geographic_point s0;  
-     RegionalCoordinates coordxyz;
 };
 #endif
