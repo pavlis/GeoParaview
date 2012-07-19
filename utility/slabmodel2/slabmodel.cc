@@ -17,6 +17,20 @@ using namespace INTERPOLATOR1D;
 const string prog("slabmodel");
 typedef list<Geographic_point> Profile;
 typedef vector<Profile> ProfileEnsemble ;
+bool pointsmatch(Geographic_point p1, Geographic_point p2)
+{
+    /* Roughly float_epsilon.  Very conservative, could cause
+    problems if really close points, but for expected use of
+    this program that would be ridiculous anyway */
+    const double cutoff(0.0000001);
+    double test;
+    test=fabs((p1.lat-p2.lat)/p1.lat);
+    if(test>cutoff) return false;
+    test=fabs((p1.lon-p2.lon)/p1.lon);
+    if(test>cutoff) return false;
+    return true;
+}
+
 vector<Geographic_point> load_geopointdata(string fname)
 {
     const string base_error("load_geopointdata:  ");
@@ -28,7 +42,8 @@ vector<Geographic_point> load_geopointdata(string fname)
     vector<Geographic_point> points;
     double dlat,dlon,depth;
     char line[128];
-    //while(fscanf(fp,"%lf%lf%lf",&dlat,&dlon,&depth)!=EOF)
+    int count=0;
+    Geographic_point lastpoint;
     while(fgets(line,128,fp)!=NULL)
     {
         if(line[0]=='#') continue;
@@ -40,7 +55,25 @@ vector<Geographic_point> load_geopointdata(string fname)
         gp.lat=rad(dlat);
         gp.lon=rad(dlon);
         gp.r=r0_ellipse(gp.lat)-depth;
-        points.push_back(gp);
+        if(count==0)
+            points.push_back(gp);
+        else
+        {
+            /* This is necessary because it causes all the interpolators
+               to fail entering an infinite loop */
+            if(pointsmatch(gp,lastpoint))
+            {
+                cerr << "Warning:  duplicate point at "
+                    << deg(gp.lat) <<" " << deg(gp.lon)
+                    << " at line "<<count<<" dropped"<<endl;
+            }
+            else
+            {
+                points.push_back(gp);
+            }
+        }
+        lastpoint=gp;
+        ++count;
     }
     /* PLGeoPath allows a more general origin but here we intentionally 
        force it to first point in list.  Allow azimuth to default to 0 */
@@ -315,6 +348,7 @@ int main(int argc, char **argv)
             int npaths=zerotimecurve.number_points();
             if(SEISPP_verbose) cerr << "Output grid npaths="<<npaths<<endl;
             //double Reffective;  // distance in km between pole and origin point 
+            bool extendpaths=control.get_bool("extendpaths");
             GeoPath *pbpath;
             for(i=0;i<npaths;++i)
             {
@@ -379,7 +413,7 @@ int main(int argc, char **argv)
                         }
                         else if(j<2)
                             break;
-                        else
+                        else if(extendpaths)
                         {
 
                             // This computes change in depth (sign switch)
@@ -444,6 +478,8 @@ int main(int argc, char **argv)
                             }
                             break;
                         }
+                        else
+                            break;
                     }
                     if(j>0)
                     {

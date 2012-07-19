@@ -44,12 +44,14 @@ overrelaxation 1.4
 convergence 0.001
 max_iterations 250
 #  These parameters determine how control surface is extended.
+#  extendpaths must be set true or paths get trucated at edge of control
 #  max and min bracket a range of allowed extension dips.  Most
 #  commonly used to fix a constant extension dip.
 #  use_local_dip should normally be true.  It means to compute dip 
 #  from local radius.  If false distance is computed as an angle.
 #  That causes a curvature with depth that will cause all dips to 
 #  approach 90 degrees at the center of the earth.  
+extendpaths true
 maximum_extension_dip 80.0
 minimum_extension_dip 0.0
 use_local_tip true
