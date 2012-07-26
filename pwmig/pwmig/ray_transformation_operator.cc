@@ -47,7 +47,7 @@ dmatrix *compute_local_verticals(GCLgrid& g, dmatrix& path)
 
 /* computes depth dependent transformation matrix assuming a scattering
 is specular.  That is, transformation matrices will yield a form of
-L,R,T 
+T,R,L as output.
 */
 
 
@@ -60,11 +60,14 @@ dmatrix Ray_Transformation_Operator::apply(dmatrix& in)
 	// This could be trapped as an exception but since this
 	// is expected to only be used in this program this is
 	// simpler
-	if( (nrow!=3) || (ncol!=npoints) )
+	//Old form:  if( (nrow!=3) || (ncol!=npoints) )
+	if( (nrow!=3) || (ncol>npoints))
 	{
 		cerr << "Coding error:  Ray_Transformation_Operator has "
 			<< npoints << "elements but matrix passed is "
-			<< nrow << "X" << ncol << endl;
+			<< nrow << "X" << ncol << endl
+			<< "Data matrix samples (columns) must be smaller "
+			<< "than number of operator elements"<<endl;
 		exit(-1);
 	}
 	dmatrix out(nrow,ncol);
@@ -82,12 +85,11 @@ dmatrix Ray_Transformation_Operator::apply(dmatrix& in)
 		work[0]=in(0,i);
 		work[1]=in(1,i);
 		work[2]=in(2,i);
-// DEBG:  zeroing vertical for test
-work[2]=0.0;
+		// This is a multiply of U*d
 		p=U[i].get_address(0,0);
-		out(0,i)=p[0]*work[0]+p[1]*work[1]+p[2]*work[2];
-		out(1,i)=p[3]*work[0]+p[4]*work[1]+p[5]*work[2];
-		out(2,i)=p[6]*work[0]+p[7]*work[1]+p[8]*work[2];
+		out(0,i)=p[0]*work[0]+p[3]*work[1]+p[6]*work[2];
+		out(1,i)=p[1]*work[0]+p[4]*work[1]+p[7]*work[2];
+		out(2,i)=p[2]*work[0]+p[5]*work[1]+p[8]*work[2];
 	}
 	return(out);
 }
@@ -124,7 +126,7 @@ Ray_Transformation_Operator::Ray_Transformation_Operator(GCLgrid& g,
 	Cartesian_point x0_c;
 	double x_vertical[3];  // point to local vertical direction at x_geo
 	const double DR=100.0;
-	double xdotxv,theta,phi;
+	double xdotxv,theta;
 	double a,b,c,d;
 	int i;
 
@@ -135,23 +137,30 @@ Ray_Transformation_Operator::Ray_Transformation_Operator(GCLgrid& g,
 	x_vertical[0] = (path(0,0) - x0_c.x1)/DR;
 	x_vertical[1] = (path(1,0) - x0_c.x2)/DR;
 	x_vertical[2] = (path(2,0) - x0_c.x3)/DR;
-	
-	// Get the L direction from the first pair of points in path
-	x[0]= path(0,0) - path(0,1);
-	x[1]= path(1,0) - path(1,1);
-	x[2]= path(2,0) - path(2,1);
-	double nrmx = dnrm2(3,x,1);
+	// Get the L direction.  Loop is used to make sure the
+	// distance is not tiny which could lead to an NaN in
+	// the normalized vector.  Size assumes we are using km
+	// as the distance scale.  
+	const double dxmin(2.0);
+	double nrmx;
+	for(i=0;i<path.columns();++i)
+	{
+		x[0]= path(0,0) - path(0,i);
+		x[1]= path(1,0) - path(1,i);
+		x[2]= path(2,0) - path(2,i);
+		nrmx=dnrm2(3,x,1);
+		if(nrmx>dxmin) break;
+	}
 	dscal(3,1.0/nrmx,x,1);  // normalize to unit vector
 	// need to check for a vertical vector and revert to identity 
 	// to avoid roundoff problems
 	xdotxv = ddot(3,x,1,x_vertical,1);
-	// azimuth is from North while theta in spherical coordinates is measured from x1
-	phi = M_PI_2 - azimuth;
-	if(fabs(xdotxv)<=DBL_EPSILON)
+	/* conservative test for vertical incidence*/
+	a=cos(azimuth);
+	b=sin(azimuth);
+	if((1.0-fabs(xdotxv))<=FLT_EPSILON)
 	{
 		// L vertical means theta=0.0
-		a=cos(phi);
-		b=sin(phi);
 		c=1.0;
 		d=0.0;
 	}
@@ -159,24 +168,32 @@ Ray_Transformation_Operator::Ray_Transformation_Operator(GCLgrid& g,
 	{
 		// dot product is preserved so we can use this here
 		theta = acos(xdotxv);
-		/* The following is copied from the rotate function in rotation.C of libseispp.
-		I did this to allow parallel coding for this and the more general case below.
-		It causes a maintenance problem as if there is an error there it will have
-		been propagated here. */
-	        a = cos(phi);
-	        b = sin(phi);
 	        c = cos(theta);
 	        d = sin(theta);
 	}
+	/* This was wrong .  Retained temporarily to understand some
+	incorrect older results.
 	U0(0,0) = a*c;
-        U0(1,0) = b*c;
-        U0(2,0) = d;
-        U0(0,1) = -b;
+        U0(1,0) = -b;
+        U0(2,0) = a*d;
+        U0(0,1) = b*c;
         U0(1,1) = a;
-        U0(2,1) = 0.0;
-        U0(0,2) = -a*d;
-        U0(1,2) = -b*d;
+        U0(2,1) = b*d;
+        U0(0,2) = -d;
+        U0(1,2) = 0.0;
         U0(2,2) = c;
+	*/
+	/* new version */
+	U0(0,0) = a;
+        U0(1,0) = b*c;
+        U0(2,0) = b*d;
+        U0(0,1) = -b;
+        U0(1,1) = a*c;
+        U0(2,1) = a*d;
+        U0(0,2) = 0.0;
+        U0(1,2) = -d;
+	U0(2,2) = c;
+	
 	for(int i=0;i<np;++i)
 	{
 		// This works because container push_back calls copy constructor on *dtmp
@@ -216,7 +233,7 @@ Arguments:
 		the direction of propagation of the incident wavefield (nominally upward)
 
 The output array of matrices when applied to data will yield output with x1 = generalized
-R, x2= generalized T, and x3=L.  
+T, x2= generalized R, and x3=L.  
 
 */
 Ray_Transformation_Operator::Ray_Transformation_Operator(GCLgrid& g, 
@@ -250,10 +267,13 @@ Ray_Transformation_Operator::Ray_Transformation_Operator(GCLgrid& g,
 	{
 		double Lscatter[3],Tscatter[3],Rscatter[3];
 		double nu0[3];  // unit vector in direction gamma_P
-		// Tp, Rp, and Zp for an orthogonal basis for earth coordinates
-		// at the scattering point that are standard 1D propagator coordinates
-		// That is Zp is local vertical, Rp is Sv director for S ray path,
-		// and Tp is Sh.  
+                /* Tp, Rp, and Zp are a nonorthogonal set of vectors used
+                   to construct the Lsc, Rsc, and Tsc orthogonal basis below.
+                   Zp is local vertical, Tp is tangential in the conventional
+                   mode, and Rp is a radial.  Tp will be perpendicular to Zp
+                   and Rp, BUT Rp is not perpendicular to Zp but nu0 instead.
+                   Kind of a confusing set of symbols, but inherited from
+                   some earlier mixups and I don't want to botch the changes.*/
 		double Zp[3],Rp[3],Tp[3];  // radial and tangential for S ray path 
 		dmatrix work(3,3);
 		// copy the tangent vector Lscatter from the tangent vectors 
@@ -302,7 +322,12 @@ Ray_Transformation_Operator::Ray_Transformation_Operator(GCLgrid& g,
 		// use L,R,T = x,y,z) but I'm deriving too much code from 
 		// multiwavelet code that used this convention.  
 		//
-		dr3cros(Lscatter,nu0,Tscatter);  // Tscatter is x1
+                /* Tscatter is the x1 coordinate.  We do the cross product in
+                   this order to be consistent with Tp, Rp, and nu0 that is the
+                   set of basis vectors rotating to the T,R,L directions in
+                   the conventional way.   An earlier version had this 
+                   incorrectly reversed which produces sign issues. */
+                dr3cros(nu0,Lscatter,Tscatter);
 		// as above, need to handle case when L and T are parallel
 		if(dnrm2(3,Tscatter,1)<PARALLEL_TEST)
 		{
@@ -338,8 +363,6 @@ Ray_Transformation_Operator::Ray_Transformation_Operator(GCLgrid& g,
 		work(2,1) = 0.0;
 		work(2,2) = 1.0;
 		U.push_back(work*Raytrans0.U[i]);
-
-
 	}
 	npoints=U.size();
 

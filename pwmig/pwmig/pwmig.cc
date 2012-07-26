@@ -13,10 +13,12 @@
 #include "ensemble.h"
 #include "seispp.h"
 #include "interpolator1d.h"
-//DEBUG
-//#include "vtk_output.h"
+#include "PwmigFileHandle.h"
 #ifdef MATLABDEBUG
 #include "MatlabProcessor.h"
+#endif
+#ifdef MPI_SET
+	#include <mpi.h>
 #endif
 using namespace std;
 using namespace SEISPP;
@@ -29,8 +31,8 @@ MatlabProcessor mp(stdout);
 #endif
 void usage()
 {
-        cbanner((char *)"$Revision: 1.17 $ $Date: 2007/04/11 19:36:28 $",
-                (char *)"db  [-V -pf pfname]",
+        cbanner((char *)"$Revision: 1.16 $ $Date: 2010/02/09 11:52:47 $",
+                (char *)"db  listfile [-np np -rank r -V -v -pf pfname]",
                 (char *)"Gary Pavlis",
                 (char *)"Indiana University",
                 (char *)"pavlis@indiana.edu") ;
@@ -38,16 +40,90 @@ void usage()
 }
 
 
-// small companion to below blindly computes distance to input index point, (i,j,k), from
-// previous point (-1 of each)
-double raydist(GCLgrid3d *ray,int i0, int j0, int k0)
+/* small companion to below blindly computes distance for ray path (stored in
+ dmatrix ray) to current point (ray(0:2,i0)) from previous point (ray(0:2,i0-1)).
+This is done blindly with pointer arithmetic and assumes i0 is greater than or
+equal to 1.  
+*/
+double pathdist(dmatrix& ray,int i0)
 {
-	double dx1,dx2,dx3;
-	dx1 = ray->x1[i0][j0][k0] - ray->x1[i0][j0][k0-1];
-	dx2 = ray->x2[i0][j0][k0] - ray->x2[i0][j0][k0-1];
-	dx3 = ray->x3[i0][j0][k0] - ray->x3[i0][j0][k0-1];
-	return( sqrt( dx1*dx1 + dx2*dx2 + dx3*dx3));
+	double *ptr;  // Do this with pointer arithmetic for efficiency
+	double dx,r;
+	ptr=ray.get_address(0,i0);
+	dx=(*ptr)-(*(ptr-3));
+	r=dx*dx;
+	++ptr;
+	dx=(*ptr)-(*(ptr-3));
+	r+=dx*dx;
+	++ptr;
+	dx=(*ptr)-(*(ptr-3));
+	r+=dx*dx;
+	return(sqrt(r));
 }
+/* The procedures below using pathintegral can get in trouble
+if the model is slightly below the reference ellipsoid.  This
+procedure aims to repair that potential thorny problem in a 
+systematic way. It uses this algorithm:
+1) scan top surface of model and find the maximum point below
+   the reference ellipsoid.
+2) if the point found in 1 is above the datum or 0, do nothing.
+3) otherwise fudge the model upward by the valued computed 
+  + the input parameter dz.
+
+Returns the amount the model was displaced.*/
+
+double fudge_model_upward(GCLscalarfield3d& model,double dz)
+{
+	// A GCLgrid always has the top surface at n3-1
+	// so we scan that surface for the lowest point relative
+	// to r0_ellipse.
+	int i,j;
+	double lat,r,dr,drmin;
+	int ksurface=model.n3 - 1;
+	double offset;
+	for(i=0;i<model.n1;++i)
+	{
+		for(j=0;j<model.n2;++j)
+		{
+			r=model.r(i,j,ksurface);
+			lat=model.lat(i,j,ksurface);
+			dr=r-r0_ellipse(lat);
+			if((i==0) && (j==0))
+			{
+				drmin=dr;
+			}
+			else
+			{
+				drmin=min(dr,drmin);
+			}
+		}
+	}
+	if(drmin>=0.0) 
+		offset=0.0;
+	else
+	{
+		offset=(-drmin)+dz;
+		Geographic_point geo;
+		Cartesian_point p;
+		int k;
+		for(i=0;i<model.n1;++i)
+			for(j=0;j<model.n2;++j)
+				for(k=0;k<model.n3;++k)
+				{
+					geo.lat=model.lat(i,j,k);
+					geo.lon=model.lon(i,j,k);
+					geo.r=model.r(i,j,k);
+					geo.r+=offset;
+					p=model.gtoc(geo);
+					model.x1[i][j][k]=p.x1;
+					model.x2[i][j][k]=p.x2;
+					model.x3[i][j][k]=p.x3;
+				}
+
+	}
+	return(offset);
+}
+	
 /* computes travel times along a ray path defined by the input dmatrix of Cartesian
 coordinate (path) using a 3D model defined by the GCLsclarfield3d variable U3d.  
 The path is assumed to be congruent with the ray geometry GCLgrid (raygrid)
@@ -84,7 +160,12 @@ vector<double> compute_gridttime(GCLscalarfield3d& U3d,
 	{
 		thispath=remap_path(raygrid,path,U3d);
 	}
-	vector<double> times=pathintegral(U3d,thispath);
+// Discard for subduct model testing. Current 1d model is not consistent
+// with 3d model definition.  Bypass for now and use 1d model only 
+// for initial result.  
+/*  Turned back on for test */
+	vector<double> times;
+	times=pathintegral(U3d,thispath);
 	// This fills the output vector with 1d values if the path wanders outside
 	// the 3d grid bounds
 	if(times.size()!= thispath.columns())
@@ -99,8 +180,15 @@ vector<double> compute_gridttime(GCLscalarfield3d& U3d,
 			kstart=times.size();
 		for(k=kstart;k<thispath.columns();++k)
 		{
-			vel=V1d.getv(raygrid.depth(ix1,ix2,k));
-			dt = raydist(&raygrid,ix1,ix2,k)/vel;
+			Cartesian_point p;
+			double r,z;
+			p.x1=thispath(0,k);
+			p.x2=thispath(1,k);
+			p.x3=thispath(2,k);
+			z=dynamic_cast<BasicGCLgrid&>(raygrid).depth(p);
+			vel=V1d.getv(z);
+			r=pathdist(thispath,k);
+			dt = r/vel;
 			times.push_back(times[k-1]+dt);
 		}
 	}
@@ -262,7 +350,7 @@ vector<double> compute_unit_normal_P(GCLgrid3d& raygrid,double x1, double x2, do
 	return(nu);
 }
 
-//@{
+/*! \brief Computes incident wave travel times in pwmig
 // Computes a GCLgrid defined field (raygrid) for an incident P wavefield.  
 // The result is travel times from a given hypocenter to points inside a GCLgrid3d
 // object.  The times are computed from a 1d refernce model to the base of the model
@@ -271,35 +359,40 @@ vector<double> compute_unit_normal_P(GCLgrid3d& raygrid,double x1, double x2, do
 // to get 3d travel times at points in the grid.  The grid geometry is defined by
 // incident wave rays traced with a 1d reference model.  That is, they are like the
 // S wavefield raygrid used in the main program of pwmig.
+//
+// Modified July 2009:  added zdecfac parameter for efficiency.  Found that for higher
+//   sample rate data this created an unnecessarily huge travel time grid.
 // 
-// @param pstagrid parent pseudostation grid used to build this grid.
-// @param border_pad is defines additional padding used to extend the pseudostation
+// \param pstagrid parent pseudostation grid used to build this grid.
+// \param border_pad is defines additional padding used to extend the pseudostation
 //     grid on which the data are defined.  This is necessary (essential really) because
 //     in pwmig this grid is used for all plane wave components while the S grids are
 //     different for each plane wave component.  This should be made large enough that
 //     it can contain all scattering points connected to S rays from the pseudostationh
 //     grid.  
-// @param UP3d P wave slowness defined with a 3d field object
-// @param vp1d P wave 1d reference model.  Used to trace traces
-// @param h hypocenter of source that created wavefield being imaged
-// @param zmax ray trace parameters passed directly to BuildGCLraygrid
-// @param tmax ray trace parameters passed directly to BuildGCLraygrid
-// @param dt ray trace parameters passed directly to BuildGCLraygrid
+// \param UP3d P wave slowness defined with a 3d field object
+// \param vp1d P wave 1d reference model.  Used to trace traces
+// \param h hypocenter of source that created wavefield being imaged
+// \param zmax ray trace parameters passed directly to BuildGCLraygrid
+// \param tmax ray trace parameters passed directly to BuildGCLraygrid
+// \param dt ray trace parameters passed directly to BuildGCLraygrid
+// \param zdecfac output ray grid is decimated by this amount in z
 //
-//@returns auto_ptr object containing the travel time field
-//@throws catches all exceptions and passes them along.  Several functions
+//\returns auto_ptr object containing the travel time field
+//\exception catches all exceptions and passes them along.  Several functions
 //      called in this procedure could throw several possible exceptions I don't
 //      know well which is the reason for the catch all syntax.
 //
-//@}
-GCLscalarfield3d *ComputeIncidentWaveRaygrid(GCLgrid& pstagrid,
-				int border_pad,
-					GCLscalarfield3d& UP3d,
-						VelocityModel_1d vp1d,
-								Hypocenter h,
-									double zmax,
-									double tmax, 
-									double dt)
+*/
+auto_ptr<GCLscalarfield3d> ComputeIncidentWaveRaygrid(GCLgrid& pstagrid,
+	int border_pad,
+		GCLscalarfield3d& UP3d,
+			VelocityModel_1d vp1d,
+				Hypocenter h,
+					double zmax,
+						double tmax, 
+							double dt,
+								int zdecfac)
 {
 	int i,j,k;
 	// Incident wave slowness vector at grid origin
@@ -321,6 +414,9 @@ GCLscalarfield3d *ComputeIncidentWaveRaygrid(GCLgrid& pstagrid,
 		GCLgrid ng2d(n1new, n2new, string("ng2d"),
 				pstagrid.lat0,pstagrid.lon0,pstagrid.r0,
 				pstagrid.azimuth_y, pstagrid.dx1_nom, pstagrid.dx2_nom, i0new, j0new);
+		// We MUST make force ng2d to be in the same coordinate
+		// system as the velocity model.
+		remap_grid(ng2d,dynamic_cast<BasicGCLgrid&>(UP3d));
 		// Use ng2d to compute a 1d reference model travel time grid
 		// Note we explicitly do no include elevation in this calculation assuming this
 		// will be handled with statics at another point
@@ -333,18 +429,29 @@ GCLscalarfield3d *ComputeIncidentWaveRaygrid(GCLgrid& pstagrid,
 			}
 		}
 		auto_ptr<GCLgrid3d> IncidentRaygrid(Build_GCLraygrid(false, ng2d, u0,h,vp1d,zmax,tmax,dt));
-		GCLscalarfield3d *Tp=new GCLscalarfield3d(*IncidentRaygrid);
-		int kk, kend=Tp->n3 - 1;
+		GCLgrid3d *Pttgrid=decimate(*IncidentRaygrid,1,1,zdecfac);
+		auto_ptr<GCLscalarfield3d> Tp(new GCLscalarfield3d(*Pttgrid));
+		delete Pttgrid;
+		/* this is complicated by reverse order of the two paths used here.
+		Without decimation I used kend=Tp->n3 - 1  This is the form with decimation
+		which should work correctly for any zdecfac */
+		int kend=Tp->n3;
+		int kkend=((Tp->n3)-1)*zdecfac;
+		int kk;
 		for(i=0;i<Tp->n1;++i)
 		{
 			for(j=0;j<Tp->n2;++j)
 			{
 				auto_ptr<dmatrix> path(extract_gridline(*IncidentRaygrid,
-							i,j,kend,3,true));
+							i,j,kkend,3,true));
 				// this is the pwmig function using 1d if path is outside 3d model
-				vector<double>Ptimes=compute_gridttime(UP3d,i,j,vp1d,*IncidentRaygrid,*path);
-				for(k=0,kk=kend;k<=kend;++k,--kk)
+				vector<double>Ptimes;
+				Ptimes=compute_gridttime(UP3d,i,j,vp1d,*IncidentRaygrid,*path);
+				//for(k=0,kk=kend;k<=kend;++k,--kk)
+				for(k=0,kk=kkend;k<kend;++k,kk-=zdecfac)
+				{
 					Tp->val[i][j][k] = Tp0.val[i][j] - Ptimes[kk];
+				}
 			}
 		}
 		return Tp;
@@ -354,18 +461,8 @@ GCLscalarfield3d *ComputeIncidentWaveRaygrid(GCLgrid& pstagrid,
 // used in function below to flag an error
 // has file scope so pwmig main can do a consistent check
 const double TTERROR=-9999999999.0;
-//@{
-// computes lag time for P to S conversions in 3d.
-// @param raygrid S plane wave component ray grid
-// @param ix1 coordinate 1 index position of scattering point where the lag is to be computed
-// @param ix2 coordinate 2 index position of scattering point where the lag is to be computed
-// @param ix3 coordinate 3 index position of scattering point where the lag is to be computed
-// @param TP scalarfield holding P wave travel times from source.  Assumed congruent with raygrid
-// @param h location of source
-//
-//@}
 double compute_scatter_point_Ptime(GCLgrid3d& raygrid, int ix1, int ix2, int ix3,
-		GCLscalarfield3d& TP,Hypocenter& h)
+		GCLscalarfield3d& TP)
 {
 	//This algorithm ASSUMES raygrid and TP are congruent. I avoids the overhead
 	// of constant testing because it will be called a lot.
@@ -379,6 +476,7 @@ double compute_scatter_point_Ptime(GCLgrid3d& raygrid, int ix1, int ix2, int ix3
 	x2=raygrid.x2[ix1][ix2][ix3];
 	x3=raygrid.x3[ix1][ix2][ix3];
 	err=TP.lookup(x1,x2,x3);
+
 	switch (err)
 	{
 		case 0:
@@ -396,6 +494,17 @@ double compute_scatter_point_Ptime(GCLgrid3d& raygrid, int ix1, int ix2, int ix3
 			TP.reset_index();
 			return(2.0*TTERROR);
 	}
+/*
+dtdiff.push_back(Tpx-TP.val[gindex[0]][gindex[1]][gindex[2]]);
+//cout << "Tpx="<<Tpx<<" dtfiff="<<Tpx-TP.val[gindex[0]][gindex[1]][gindex[2]]<<endl;
+if(ix3==(raygrid.n3 - 1)) 
+{
+	x1tmp.clear();  x2tmp.clear(); x3tmp.clear(); tpix1.clear(); tpix2.clear(); tpix3.clear();
+	derrx1.clear(); derrx2.clear(); derrx3.clear();
+	dtdiff.clear();
+}
+*/
+
 	return(Tpx);
 }
 double compute_receiver_Ptime(GCLgrid3d& raygrid, int ix1, int ix2,
@@ -531,7 +640,7 @@ mp.load(*pathdy1,string("pdy1"));
 mp.load(*pathdy2,string("pdy2"));
 mp.process(string("plotrays(pdx1,pdx2,pdy1,pdy2)"));
 */
-	}  catch (GCLgrid_error err)
+	}  catch (GCLgrid_error& err)
 	{
 		err.log_error();
 		die(0,"Unrecoverable error:  requires a bug fix\n");
@@ -715,7 +824,28 @@ vector<double> running_average(vector<double>& x, int ns)
 	}
 	return(result);
 }
-// builds dfile names for migratione output
+/* Overloaded version of same procedure as above for a matrix.  Smoothing
+here is done only along rows.  Used here for coherence grid to handle 
+three-component data */
+dmatrix running_average(dmatrix x, int ns)
+{
+	int nr=x.rows();
+	int nc=x.columns();
+	int i,j;
+	vector<double> row;
+	row.reserve(nc);
+	dmatrix result(nr,nc);
+	for(i=0;i<nr;++i)
+	{
+		for(j=0;j<nc;++j) row.push_back(x(i,j));
+		row=running_average(row,ns);
+		for(j=0;j<nc;++j) result(i,j)=row[j];
+		row.clear();
+	}
+	return(result);
+}
+		
+// builds dfile names for migration output
 string MakeDfileName(string base, int evid)
 {
 	string dfile;
@@ -734,97 +864,171 @@ void VelocityFieldToSlowness(GCLscalarfield3d& g)
 		for(int j=0;j<g.n2;++j)
 			for(int k=0;k<g.n3;++k) g.val[i][j][k]=1.0/g.val[i][j][k];
 }
+/* Returns a 1d velocity model consistent with slowness field
+stored in u.  Algorithm averages node values at each constant x3
+level in u and sets 1d node values to be the same.  It then 
+computes gradients to provide linear interpolator between each
+node point in the 1d model.  This makes the result as close to
+the 3d model as reasonably possible in terms of interpolation method. */
+VelocityModel_1d DeriveVM1Dfrom3D(GCLscalarfield3d& u)
+{
+	VelocityModel_1d result(u.n3);
+	double zavg,uavg;
+	int i,j,k;
+	int nperlayer=(u.n1)*(u.n2);
+	/* We have to count backwards because the grid orientation is
+	from the bottom to the top */
+	for(k=u.n3-1;k>=0;k--)
+	{
+		zavg=0.0;
+		uavg=0.0;
+		for(i=0;i<u.n1;++i)
+		{
+			for(j=0;j<u.n2;++j)
+			{
+				zavg+=u.depth(i,j,k);
+				uavg+=u.val[i][j][k];
+			}
+		}
+		zavg /= nperlayer;
+		uavg /= nperlayer;
+		result.z.push_back(zavg);
+		result.v.push_back(1.0/uavg);
+	}
+	/* Now set gradients */
+	for(k=0;k<result.nlayers-1;++k)
+	{
+		double deriv;
+		deriv=(result.v[k+1] - result.v[k])
+			/ (result.z[k+1]-result.z[k]);
+		result.grad.push_back(deriv);
+	}
+	/* Set the gradient for the final point to 0 */
+	result.grad.push_back(0.0);
+	return(result);
+}
 SlownessVector slowness_average(ThreeComponentEnsemble *d)
 {
 	double ux,uy;
 	int n;
-	n=0;
+	n=d->member.size();
+	if(n<=0) throw SeisppError(string("slowness_average:  ")
+			+"procedure was passed an empty ensemble ");
 	ux=0.0;
 	uy=0.0;
-	for(int i=0;i<d->member.size();++i)
+	for(int i=0;i<n;++i)
 	{
 		if(d->member[i].live)
 		{
 			ux+=d->member[i].get_double("ux");
 			uy+=d->member[i].get_double("uy");
-			++n;
 		}
 	}
 	SlownessVector result;
 	result.ux=ux/static_cast<double>(n);
 	result.uy=uy/static_cast<double>(n);
-	return(result);
-}
-/* Small helper retrieves hypocenter for current event.
-This was made a procedure to isolate the oddities required
-to manipulate the group pointer.  Done using datascope API
-as there is no current way to do this in my generalized C++
-database api.   I don't know enough about alternatives to
-know how to generalize this.
-*/
-Hypocenter GetHypoFromDB(DatascopeHandle& dbh)
-{
-	int ierr;
-	int is,ie;  // used for start and end record in a bundle
-	Hypocenter hypo;
-	Dbptr dbb;  // Bundle result
-	const string base_emess("GetHypoFromDB:  ");
-	// Get bundle pointer for lower level grouping 
-	ierr=dbgetv(dbh.db,0,"bundle",&dbb,0);
-	if(ierr==dbINVALID)
-		throw SeisppError(base_emess
-		  + string("dbgetv failed getting bundle pointer"));
-	dbget_range(dbb,&is,&ie);
-	// Assume one record is as good as another for next step
-	dbb.record=is;
-	ierr=dbgetv(dbb,0,"origin.lat",&(hypo.lat),
-			"origin.lon",&(hypo.lon),
-			"origin.depth",&(hypo.z),
-			"origin.time",&(hypo.time),
-			0);
-	if(ierr==dbINVALID)
-		throw SeisppError(base_emess
-		  + string("dbgetv failed getting hypo parameters"));
-	// db stores these in degrees, but we use radians internally
-	hypo.lat=rad(hypo.lat);
-	hypo.lon=rad(hypo.lon);
-	return(hypo);
-}
-//DEBUG
-// funtion using matlab engine to play a movie of a 3d scalar field
-/*
-void HorizontalSlicer(MatlabProcessor& p,GCLscalarfield3d& grid)
-{
-	dmatrix A(grid.n1,grid.n2);
-	string name("A");
-	string command("imagesc(A);pause(1);");
-	int i,j,k;
-	for(k=0;k<grid.n3;++k)
+	ux /= static_cast<double>(n);
+	uy /= static_cast<double>(n);
+	if(hypot(ux,uy)<FLT_EPSILON)
 	{
-		for(i=0;i<grid.n1;++i)
-			for(j=0;j<grid.n2;++j)
-				A(i,j)=grid.val[i][j][k];
-		p.load(A,name);
-		p.process(command);
+		try {
+			/* assume n!= 0 or we don't get here */
+			ux=d->member[0].get_double("ux0");
+			uy=d->member[0].get_double("uy0");
+			SlownessVector u0(ux,uy);
+			if(u0.mag()<FLT_EPSILON)
+				return(SlownessVector(0.0,0.0,0.0));
+			else
+				return(SlownessVector(0.0,0.0,u0.azimuth()));
+			
+		} catch (MetadataGetError& mde)
+		{
+			cerr << "Warning: slowness_average. "
+				<< "ux0 and uy0 not defined. using 0"
+				<<endl;
+			return(SlownessVector(0.0,0.0,0.0));
+		}
+	}
+	else
+	{
+		return(SlownessVector(ux,uy));
 	}
 }
-void SliceX1(MatlabProcessor& p,GCLscalarfield3d& grid)
-{
-	dmatrix A(grid.n3,grid.n1);
-	string name("A");
-        string command("imagesc(A);pause(1);");
-        int i,j,k;
-	for(j=0;j<grid.n2;++j)
-	{
-		for(i=0;i<grid.n1;++i)
-			for(k=0;k<grid.n3;++k)
-				A(k,i)=grid.val[i][j][k];
-		p.load(A,name);
-		p.process(command);
-	}
-}
+/* Extracts du for this enseble.  This procedure should never to extracted
+from this program without major modification.  REason is it make two 
+extreme assumptions appropriate here, but anything but general.  
+(1)  assume slowness vector attributes extracted from ensemble member 
+objects exist and we don't need an error handler for metdata gets
+(2) all members have the same delta u so result can be extracted from
+member 0.  
+A less obvious assumption is that the ensemble has data or the request for
+member 0 would throw an exception.
 */
+SlownessVector EnsembleDeltaSlow(ThreeComponentEnsemble *d)
+{
+	double ux,uy;
+	ux=d->member[0].get_double("ux");
+	uy=d->member[0].get_double("uy");
+	ux-=d->member[0].get_double("ux0");
+	uy-=d->member[0].get_double("uy0");
+	return(SlownessVector(ux,uy));
+}
 
+/* Trivial function to initialize coherence image to constant negative values */
+void initialize_cohimage(GCLvectorfield3d& f)
+{
+	const double cohundefined(-1.0);
+	for(int i=0;i<f.n1;++i)
+	  for(int j=0;j<f.n2;++j)
+	    for(int k=0;k<f.n3;++k)
+	      for(int l=0;l<f.nv;++l) 
+	      {
+		f.val[i][j][k][l]=cohundefined;
+	      }
+}
+
+
+/* This procedure has similarities to the += operator but instead of adding
+values it updates cells with max values.  This allows accumulation of a 3d grid
+with maximum coherence of stacks moved to proper position in space. */
+void accumulate_cohdata(GCLvectorfield3d& pwcomp, GCLvectorfield3d& cohimage)
+{
+	cohimage.reset_index(); 
+	pwcomp.reset_index();
+	int i,j,k,l;
+	int ierr;
+	double *valnew;
+	/* Here we assume these grids are congruent so we don't need to have
+	to deal with any geographic points */
+	Cartesian_point cx;
+	for(i=0;i<cohimage.n1;++i)
+	  for(j=0;j<cohimage.n2;++j)
+	    for(k=0;k<cohimage.n3;++k)
+	    {
+		cx.x1=cohimage.x1[i][j][k];
+		cx.x2=cohimage.x2[i][j][k];
+		cx.x3=cohimage.x3[i][j][k];
+		ierr=pwcomp.lookup(cx.x1,cx.x2,cx.x3);
+		// In this case silently do nothing unless lookup succeeded.
+		if(ierr==0)
+		{
+			valnew=pwcomp.interpolate(cx.x1,cx.x2,cx.x3);
+			for(l=0;l<cohimage.nv;++l)
+			{
+			    /* We bypass negative interpolated values because they can
+			    * only be interpolation artifacts */
+			    if(valnew[l]>0.0) 
+			    {
+				if(valnew[l]>cohimage.val[i][j][k][l])
+					cohimage.val[i][j][k][l]=valnew[l];
+			    }
+			}
+			delete [] valnew;
+		}
+	    }
+	
+}
+bool SEISPP::SEISPP_verbose(false);
 
 int main(int argc, char **argv)
 {
@@ -832,26 +1036,78 @@ int main(int argc, char **argv)
 	string Pmodel1d_name;
 	const string pvfnm("P"), svfnm("S");
 	ThreeComponentEnsemble *pwdata;
+	ThreeComponentEnsemble *coh3cens;
+	TimeSeriesEnsemble *cohens;
 	int is,i,j,k,l;
 	int kk;
 	string pfin("pwmig");
 	dmatrix gradTs;
 	Pf *pf;
-	const string schema("pwmig1.1");
 	int border_pad;
+	/* This constant controls when premature cutoff of the travel
+	time lag estimates is considered an error.  That is, time are computed
+	by working up a ray path from the ray grid.  The points on that path 
+	are fixed at n3 of the raygrid.  Model inconsistencies can cause a
+	mismatch of the integration along that path compared to other ray
+	segments.  When number of points is less than N3_FRACTION_ERROR*n3 
+	a seismogram will be dropped from projection with an error posted. */
+	const double N3_FRACTION_ERROR(0.9);
 
         ios::sync_with_stdio();
         elog_init(argc,argv);
+	/* Initialize these to invalid numbers as a error check against
+	inconsistent use in parallel environment */
+        int rank(-1), np(-1);
 
-        if(argc < 2) usage();
+
+        if(argc < 3) usage();
 	string dbname(argv[1]);
+	/* We will open this file immediately because if that fails we 
+	should exit right away */
+	FILE *flistfp=fopen(argv[2],"r");
+	if(flistfp==NULL)
+	{
+		cerr << "Cannot open list of pwmig files = "<<argv[2]<<endl;
+		usage();
+	}
 	string dfile;  // used repeatedly below for data file names
 
-        for(i=2;i<argc;++i)
+        for(i=3;i<argc;++i)
         {
-                if(!strcmp(argv[i],"-V"))
+		string sarg(argv[i]);
+		if(sarg=="-V")
                         usage();
-                else if(!strcmp(argv[i],"-pf"))
+		else if(sarg=="-v")
+        	{
+            		SEISPP::SEISPP_verbose=true;
+		}
+                else if(sarg=="-rank")
+                {
+                        ++i;
+                        if(i>=argc) usage();
+                        rank=atoi(argv[i]);
+			if(rank<0) 
+			{
+				cerr << "Illegal value for -r argument ="
+					<< rank<<endl
+					<< "Must be nonnegative integer"<<endl;
+				usage();
+			}
+                }
+                else if(sarg=="-np")
+                {
+                        ++i;
+                        if(i>=argc) usage();
+                        np=atoi(argv[i]);
+			if(np<=0) 
+			{
+				cerr << "Illegal value for -np argument ="
+					<< np<<endl
+					<< "Must be positive integer"<<endl;
+				usage();
+			}
+                }
+                else if(sarg=="-pf")
                 {
                         ++i;
                         if(i>=argc) usage();
@@ -860,15 +1116,62 @@ int main(int argc, char **argv)
 		else
 			usage();
 	}
+
+#ifdef MPI_SET
+/*
+        Initialize the MPI parallel environment, MPI_Init
+        must be called before any other MPI call.
+        rank -- rank of a specific process
+        mp -- the total number of processes. This whole
+                process group is called MPI_COMM_WORLD
+*/
+
+        MPI_Init(&argc, &argv);
+        MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+        MPI_Comm_size(MPI_COMM_WORLD, &np);
+#else
+	/* sanity checks on manual parallel variables */
+	if( (np>0) || (rank>=0) )
+	{
+		if( (np<0) || (rank<0) )
+		{
+			cerr << "Illegal argument combination.  "
+				<< "-rank and -np must both be set if either is set"
+				<< endl;
+			usage();
+		}
+		else if(rank>(np-1))
+		{
+			cerr << "Illegal argument combination.  "
+				<< "Value for -rank must be >= -np"<<endl;
+			usage();
+		}
+	}
+	else
+	{
+		/* single processor mode set if we end up here.*/
+		np=1;
+		rank=0;
+	}
+#endif
         if(pfread(const_cast<char *>(pfin.c_str()),&pf)) die(1,(char *)"pfread error\n");
 	try {
 		Metadata control(pf);
-		string velocity_grid_name=control.get_string("velocity_model_grid");
+		string Pvelocity_grid_name=control.get_string("Pvelocity_model_grid");
+		string Svelocity_grid_name=control.get_string("Svelocity_model_grid");
 		string Pmodel3d_name=control.get_string("P_velocity_model3d_name");
 		string Smodel3d_name=control.get_string("S_velocity_model3d_name");
 		string Pmodel1d_name=control.get_string("P_velocity_model1d_name");
 		string Smodel1d_name=control.get_string("S_velocity_model1d_name");
 		border_pad = control.get_int("border_padding");
+		double zpad = control.get_double("depth_padding_multiplier");
+		if( (zpad>1.5) || (zpad<=1.0) )
+		{
+			cerr << "Riduculous value for depth_padding_multiplier parameter="<<zpad
+				<< endl
+				<< "Must be a number between 1 and 1.5"<<endl;
+			exit(-1);
+		}
 		string parent_grid_name=control.get_string("Parent_GCLgrid_Name");
 		string stack_grid_name=control.get_string("stack_grid_name");
 		string fielddir=control.get_string("output_field_directory");
@@ -879,7 +1182,36 @@ int main(int argc, char **argv)
 				<< fielddir << endl;
 			exit(-1);
 		}
+		/* This is used to make sure name used will not overflow attribute field
+		in db tables.  15 is the current size of the string field in the db.
+		We compute it based on methods used to create unique names here.
+		The 10 comes from size of "_data" and allowing for 5 characters in
+		"_evid".  We warn for +2, abort if dfilebase is larger than this number */
+		const int dfbase_max_size(15-10);
 		string dfilebase=control.get_string("output_filename_base");
+		int dfbsize=dfilebase.length();
+		if(dfbsize>dfbase_max_size)
+		{
+			cerr << "Warning:  output_filename_base name = "
+                                        << dfilebase<<" is too long"<<endl
+                                        << "Recommended maximum length = "
+                                        << dfbase_max_size<<endl
+                                        << "Longer strings can overflow key field in output db"
+                                        <<endl;
+			if(dfbsize>(dfbase_max_size+2))
+			{
+				cerr << "Fatal:  this name is far to long.  It must be changed"
+					<<endl;
+				exit(-1);
+			}
+			else
+			{
+				cerr << "Be warned that data for any evid with more than "
+					<< dfbase_max_size + 5 - dfbsize <<" digits "
+					<< "may generate an error and not be saved"
+					<<endl;
+			}
+		}
 		int evid;  // output file name is build from dfilebase+"_"+evid
 		bool use_depth_variable_transformation
 			=control.get_bool("use_depth_variable_transformation");
@@ -887,7 +1219,9 @@ int main(int argc, char **argv)
 		double tmax=control.get_double("maximum_time_lag");
 		double dux=control.get_double("slowness_grid_deltau");
 		double dt=control.get_double("data_sample_interval");
+		int zdecfac=control.get_int("Incident_TTgrid_zdecfac");
 		double duy=dux;
+		double dumax=control.get_double("delta_slowness_cutoff");
 		double dz=control.get_double("ray_trace_depth_increment");
 		//
 		// added Jan 2007 after recognition dweight and domega
@@ -902,6 +1236,17 @@ int main(int argc, char **argv)
 			smooth_wt=false;
 		else
 			smooth_wt=true;
+		/* Parameters for handling elevation statics. */
+		bool ApplyElevationStatics=control.get_bool("apply_elevation_statics");
+		double static_velocity
+			=control.get_double("elevation_static_correction_velocity");
+		bool use_grt_weights;
+		use_grt_weights=control.get_bool("use_grt_weights");
+		/* When set domega weights are dropped */
+		bool stack_only;
+		stack_only=control.get_bool("stack_only");  
+		bool save_partial_sums;
+		save_partial_sums=control.get_bool("save_partial_sums");
 		// Create a database handle for reading data objects
 		dbopen(const_cast<char *>(dbname.c_str()),"r+",&db);
 		if(db.record == dbINVALID)
@@ -910,8 +1255,22 @@ int main(int argc, char **argv)
 			exit(-1);
 		}
 		// These constructors load a velocity model into a GCLgrid
-		GCLscalarfield3d Up3d(db,velocity_grid_name,Pmodel3d_name);
-		GCLscalarfield3d Us3d(db,velocity_grid_name,Smodel3d_name);
+		GCLscalarfield3d Up3d(db,Pvelocity_grid_name,Pmodel3d_name);
+		GCLscalarfield3d Us3d(db,Svelocity_grid_name,Smodel3d_name);
+		if(SEISPP_verbose)
+		{
+			cout << "P velocity model"<<endl;
+			cout << Up3d;
+			cout << "S velocity model"<<endl;
+			cout << Us3d;
+		}
+		// CHANGE ME:  hack fix for test model.  Units wrong
+/*
+cout << "WARNING:  Using special version for simulation data with velocity "
+ << "scaling problem"<<endl;
+		Up3d *= 0.001;
+		Us3d *= 0.001;
+*/
 		// 
 		// For this program we need to convert velocities to slowness.
 		// This function called on P and S models does this in a procedural
@@ -919,6 +1278,26 @@ int main(int argc, char **argv)
 		//
 		VelocityFieldToSlowness(Up3d);
 		VelocityFieldToSlowness(Us3d);
+		// The travel time calculator using a path integral 
+		// can fail from rounding errors if the velocity model
+		// is not absolutely registered to be at or above the
+		// reference ellipsoid.  Here we force the model to be
+		// properly registered with a fudge factor read from
+		// the parameter file.
+		double dzshift=control.get_double("Velocity_model_surface_tolerance");
+		double dz0;
+		dz0=fudge_model_upward(Up3d,dzshift);
+		if(dz0>0.0)
+			cout << "P wave 3D model shifted upward by "
+				<< dz0 
+				<< " km to avoid travel time calculator errors"
+				<<endl;
+		dz0=fudge_model_upward(Us3d,dzshift);
+		if(dz0>0.0)
+			cout << "S wave 3D model shifted upward by "
+				<< dz0 
+				<< " km to avoid travel time calculator errors"
+				<< endl;
 //DEBUG
 //MatlabProcessor mp(string("zemlya"));
 //MatlabProcessor mp(stdout);
@@ -929,89 +1308,178 @@ cout << "Display S velocity model horizontal slices"<<endl;
 sleep(5);
 HorizontalSlicer(mp,Us3d);
 */
-		VelocityModel_1d Vp1d(db,Pmodel1d_name,pvfnm);
-		VelocityModel_1d Vs1d(db,Smodel1d_name,svfnm);
+		VelocityModel_1d Vp1d,Vs1d;
+		if(Pmodel1d_name=="derive_from_3d")
+			//Caution this procedure assumes Up3d is slowness
+			Vp1d=DeriveVM1Dfrom3D(Up3d);
+		else
+			Vp1d=VelocityModel_1d(db,Pmodel1d_name,pvfnm);
+		if(Smodel1d_name=="derive_from_3d")
+			Vs1d=DeriveVM1Dfrom3D(Us3d);
+		else
+			Vs1d=VelocityModel_1d(db,Smodel1d_name,svfnm);
 		GCLgrid parent(db,const_cast<char*>(parent_grid_name.c_str()) );
 
 		// This loads the image volume assuming this was precomputed with
 		// makegclgrid
+		/* Changed June 2007 for efficiency.  Used to have separate grid
+		for omega and weights.  Now vector data are 0,1,2; omega is 3; and
+		weights are 4 */
 
-		GCLvectorfield3d migrated_image(db,stack_grid_name,"",3);
-		GCLscalarfield3d omega(db,stack_grid_name,"");
-		GCLscalarfield3d weights(db,stack_grid_name,"");
-		// 
+		GCLvectorfield3d migrated_image(db,stack_grid_name,"",5);
+		/* This group of parameters relate to storing coherence values
+                in a separate 4-vector field.  This was derived from an earlier
+                inappropriate approach to put coherence weighting inside this
+                program.  Decided that was a bad idea, but I note that here to
+                remind me or any future maintainers there could be relics of that
+                misguided idea.  Now we require a new grid that is assumed to be
+		heavily decimated relative to the image grid.  For this reason
+		we include a smoothing parameter that reduces errors when the 
+		result is mapped to depth and then decimated. */
+		string cohgridname=control.get_string("coherence_grid_name");
+		GCLvectorfield3d cohimage(db,cohgridname,"",4);
+		initialize_cohimage(cohimage);
+		int cohsl=control.get_int("coherence_smoother_length");
+		int cohdecfac=control.get_int("coherence_raygrid_decimation");
+// DEBUG -- used ONLY for partial sum accumulation.  delete next line otherwise
+/*
+		GCLvectorfield3d psum(migrated_image);
+		remap_grid(dynamic_cast<GCLgrid3d&>(psum),
+			dynamic_cast<BasicGCLgrid&>(parent));
+*/
+		/* Silently remap all grids that are not congruent with
+		the parent.  This speeds execution by avoiding excess
+		call to geographical conversions. */
 		if(dynamic_cast<BasicGCLgrid&>(migrated_image)
 			!= dynamic_cast<BasicGCLgrid&>(parent))
 		{
-			cerr << "pwmig(warning):  image grid and pseudostation grid are not congruent"
-				<< endl
-				<< "  This can increase run time"
-				<< endl;
+			remap_grid(dynamic_cast<GCLgrid3d&>(migrated_image),
+				dynamic_cast<BasicGCLgrid&>(parent));
+		}
+		if(dynamic_cast<BasicGCLgrid&>(Up3d)
+			!= dynamic_cast<BasicGCLgrid&>(parent))
+		{
+			remap_grid(dynamic_cast<GCLgrid3d&>(Up3d),
+				dynamic_cast<BasicGCLgrid&>(parent));
+		}
+		if(dynamic_cast<BasicGCLgrid&>(Us3d)
+			!= dynamic_cast<BasicGCLgrid&>(parent))
+		{
+			remap_grid(dynamic_cast<GCLgrid3d&>(Us3d),
+				dynamic_cast<BasicGCLgrid&>(parent));
+		}
+		if(dynamic_cast<BasicGCLgrid&>(cohimage)
+			!= dynamic_cast<BasicGCLgrid&>(parent))
+		{
+			remap_grid(dynamic_cast<GCLgrid3d&>(cohimage),
+				dynamic_cast<BasicGCLgrid&>(parent));
 		}
 		// Let's make sure these are initialized
 		migrated_image.zero();
-		omega.zero();
-		weights.zero();
-		//
-		// silently remap the velocity model grids if necessary
-		//
-		if(dynamic_cast<BasicGCLgrid&>(Up3d)
-			!= dynamic_cast<BasicGCLgrid&>(parent))
-				remap_grid(dynamic_cast<GCLgrid3d&>(Up3d),
-					dynamic_cast<BasicGCLgrid&>(parent));
-		if(dynamic_cast<BasicGCLgrid&>(Us3d)
-			!= dynamic_cast<BasicGCLgrid&>(parent))
-				remap_grid(dynamic_cast<GCLgrid3d&>(Us3d),
-					dynamic_cast<BasicGCLgrid&>(parent));
 		
-
-//YET ANOTHER NOTE.  HAVE TO DECIDE HOW TO HANDLE ZERO DATUM.  DO WE DO A GEOMETRIC STATIC
-// AS IN REFLECTION PROCESSING?  PROBABLY SHOULD PUT THIS IN PWSTACK.  THAT IS STACK SHOULD
-// SHOULD ALWAYS BE SHIFTED TO DATUM.
-// Solution for now.  Modified pwstack to put an elev estimate for the pseudostation
-// grid point computed as a weighted sum of elevations of contributing stations.  Algorithm
-// below should use a vertical ray approximation to this static to datum or it will get
-// unnecessarily complex.  A p=0 approximation for an elevation correction is pretty
-// good for teleseismic data and is unlikely to be a big problem.
-		// Load the default attribute map
-		AttributeMap am(schema);
-		// Need this set of attributes extraction lists to 
-		// load correct metadata into the ensmble and each member
-		MetadataList mdlin=pfget_mdlist(pf,"Station_mdlist");
-		MetadataList mdens=pfget_mdlist(pf,"Ensemble_mdlist");
-		// Outer loop over events.  This algorithm assumes
-		// dbh is doubly grouped by evid:gridid and then by evid
-		DatascopeHandle dbhens(db,pf,"dbprocess_commands");
-		list<string> groupkey;
-		groupkey.push_back(string("evid"));
-		DatascopeHandle dbh(dbhens);
-		dbh.group(groupkey);
-		dbh.rewind();
-		for(int record=0;record<dbh.number_tuples();++dbh,++record)
+		/* Previous version had a long string of db manipulations here
+		This version uses a special file to access data from pwstack.
+		The main loop is over file names.  */
+		int filecount=0;  /* needed in parallel mode*/
+		char fname_base[128];
+		bool skip_this_event(false);	
+		double totalruntime=now();
+		while(fscanf(flistfp,"%s",fname_base)==1)
 		{
+		/* When using paralle mode this skips files that aren't assigned to this
+		processor.  The mod operator with number of processors (np) is 
+		a simple way to do this. In single processor mode this 
+		does nothing because np=1 and rank=0 */
+			if(filecount%np == rank)
+			{
+			string dfname=string(fname_base)+DataFileExtension;
+			PwmigFileHandle datafh(dfname,true,false);
+			cout << "Processing pwstack file base name="<<dfname<<endl;
+			/* Note the use of an auto_ptr allows me to put these
+			inside this conditional in a clean way.  Note the auto_ptr
+			further allows automatic deletion when changed with 
+			operator = */
+			auto_ptr<PwmigFileHandle> cohfh,cohfh3c;
+			string coh3cfname=string(fname_base)+Coh3CExtension;
+			string cohfname=string(fname_base)+CohExtension;
+			cohfh3c=auto_ptr<PwmigFileHandle>
+						(new PwmigFileHandle(coh3cfname,true,false));
+			cohfh=auto_ptr<PwmigFileHandle>
+						(new PwmigFileHandle(cohfname,true,true));
+		
+			double rundtime;
+			rundtime=now();
+			cout << "Main loop processing begins at time "<<strtime(rundtime)<<endl;
 			// First get the hypo for the current event
-			// Made a procedure to insulate form database api dependence
-			evid=dbh.get_int("evid");
-			// Get the range for this group and set the db pointer
-			// to first record.  This uses Datascope API directory
-			// and hence is a portability issue for future use
-			DBBundle dbb=dbh.get_range();
-			dbhens.db.record=dbb.start_record;
-			Hypocenter hypo=GetHypoFromDB(dbhens);
+			evid=datafh.filehdr.evid;
+			Hypocenter hypo(datafh.filehdr.slat,datafh.filehdr.slon,
+				datafh.filehdr.sdepth,datafh.filehdr.stime,
+				string("tttaup"),string("iasp91"));
 			// We build the P wave travel time field once for each
 			// event as it is constant for all.  The border_pad parameter
 			// is needed because plane waves come from outside the range
 			// of the incident rays.  
-			auto_ptr<GCLscalarfield3d> TPptr(ComputeIncidentWaveRaygrid(parent,
-					border_pad,Up3d,Vp1d,hypo,zmax,tmax,dt));
-			// Now loop over plane wave components
-			for(dbhens.db.record=dbb.start_record;
-				dbhens.db.record<dbb.end_record;++dbhens.db.record)
+			auto_ptr<GCLscalarfield3d> TPptr=ComputeIncidentWaveRaygrid(parent,
+					border_pad,Up3d,Vp1d,hypo,zmax*zpad,tmax,dt,zdecfac);
+			cout << "Time to compute Incident P wave grid "
+					<<now()-rundtime<<endl;
+			/* Now loop over plane wave components.  The method in 
+			the PwmigFileHandle used returns a new data ensemble for
+			one plane wave component for each call.  NULL return is
+			used in that routine to signal no more data available. */
+			while((pwdata=datafh.load_next_3ce())!=NULL)
 			{
-			// first read in the next ensemble
-			pwdata = new ThreeComponentEnsemble(dynamic_cast<DatabaseHandle&>
-					(dbhens),mdlin,mdens,am);
+			// The data are assumed grouped in the ensemble by a common
+			// Values do vary and we compute an average
+			/* Kind of odd to do this at the top, but useful because 
+			ccp stack mode bypasses this loop many times.  There are two procedures
+			here.  slowness_average us needed because with large arrays the slowness
+			vector of each component is variable and we need a representative average.
+			EnsembleDeltaSlow is called second because it the first does error checking
+			that is not then needed by the second.  */
+			SlownessVector ustack=slowness_average(pwdata);
+			SlownessVector deltaslow=EnsembleDeltaSlow(pwdata);
+			if(deltaslow.mag()>dumax) 
+			{
+				delete pwdata;
+				continue;  
+			}
+			cout << "Working on plane wave component with average slowness vector "
+				<< "ux="<<ustack.ux<<", uy="<<ustack.uy
+				<< ", ur="<<ustack.mag()<<", azimuth="<<deg(ustack.azimuth())<<endl;
+			/* This usage requires the coherence and data files contain
+			the same number of entries.  This should always happen unless
+			pwstack fails.  For now we trust this is so and don't test
+			for that condition.  May want to change this. */
+			coh3cens=cohfh3c->load_next_3ce();
+			cohens=cohfh->load_next_tse();
+			cout << "Elapsed time to finish reading data "
+				<<now()-rundtime<<endl;
 #ifdef MATLABDEBUG
+/* To examine P travel time volume.  Copied from MatlabGCLgrid*/
+const string volname("F");
+const string slicename("f");
+const string merge_command("F=cat(3,F,f);");
+               dmatrix slice(TPptr->n1,TPptr->n2);
+               for(k=0,kk=TPptr->n3-1;k<TPptr->n3;++k,--kk)
+                {
+                        for(i=0;i<TPptr->n1;++i)
+                                for(j=0;j<TPptr->n2;++j)
+                                {
+                                                slice(i,j)=TPptr->val[i][j][kk];
+                                }
+                        if(k==0)
+                        {
+                                mp.load(slice,volname);
+                        }
+                        else
+                        {
+                                mp.load(slice,slicename);
+                                mp.process(merge_command);
+                        }
+                }
+		mp.run_interactive();
+
 /*
 string chans[3]={"x1","x2","x3"};
 for(i=0;i<pwdata->member.size();++i)
@@ -1032,12 +1500,9 @@ mp.process(string("figure;wigb(x1);figure;wigb(x2);figure;wigb(x3);"));
 mp.run_interactive();
 */
 #endif
-cout << "DEBUG:  processing ensemble "<<record<<endl;
-cout << "DEBUG: ensemble size="<<pwdata->member.size()<<endl;
-int gridid=pwdata->get_int("gridid");
-cout << "DEBUG:  this data is gridid="<<gridid<<endl;
+			int gridid=pwdata->member[0].get_int("gridid");
 
-			// A useful warning
+			// A necessary bailout
 			if(dt!=pwdata->member[0].dt)
 			{
 				cerr << "pwmig(WARNING):  evid="
@@ -1046,41 +1511,41 @@ cout << "DEBUG:  this data is gridid="<<gridid<<endl;
 					<< "expected dt="<<dt
 					<< "found dt="<<pwdata->member[0].dt
 					<<endl
-					<< "Data dt overrides dt from pf"<<endl;
-				dt=pwdata->member[0].dt;
+					<< "Skipping this event.  Change data_sample_interval parameter"
+					<< " and rerun this event"<<endl;
+				skip_this_event=true;
+				delete pwdata;
+				break;
 			}
 			Ray_Transformation_Operator *troptr;
-			// The data are assumed grouped in the ensemble by a common
-			// Values do vary and we compute an average
-			SlownessVector ustack=slowness_average(pwdata);
-cout << "DEBUG: ux,uy="<<ustack.ux<<","<<ustack.uy<<endl;
-/*
-if(fabs(ustack.uy)>=0.007)
-{
-	cerr << "Skipping this component for debug"<<endl;
-	continue;
-}
-*/
 			string gridname;
 			GCLgrid3d *grdptr;
 			//
 			// This builds a 3d grid using ustack slowness rays with
 			// 2d grid parent as the surface grid array
 			// use first member of ensemble to get dt
+			// VPVS is used to scale tmax to avoid ray truncation
+			// dt scaling could be done differently, but using
+			// VPVS approximately keeps ray sample interval near
+			// data sample interval
+			const double VPVS(1.9);  // higher than normal, but better large here
 			grdptr =  Build_GCLraygrid(true,parent,ustack,hypo,
-				Vs1d,zmax,tmax,dt);
+				Vs1d,zmax,VPVS*tmax,dt*VPVS);
 			GCLgrid3d& raygrid=*grdptr;  // convenient shorthand because we keep changing this
 			int n30;  // convenient since top surface is at n3-1
 			n30 = raygrid.n3 - 1;
-cout << "n3="<<raygrid.n3<<endl;
+			int SPtime_SIZE_MIN=static_cast<int>(N3_FRACTION_ERROR*static_cast<double>(n30));
 			// create work spaces for accumation of this component
 			// This is a large memory model.  I'll use it until it proves
 			// intractable
 			// Below assumes the val arrays in these fields
 			// have been initialized to zero.
-			GCLscalarfield3d dweight(raygrid);
-			GCLscalarfield3d domega(raygrid);
-			GCLvectorfield3d pwdgrid(raygrid,3);
+			GCLvectorfield3d pwdgrid(raygrid,5);
+			GCLgrid3d *gtmp=decimate(raygrid,1,1,cohdecfac);
+			GCLvectorfield3d pwcohgrid(*gtmp,4);
+			pwcohgrid.zero();
+			delete gtmp;
+
 
 			// loop through the ensemble associating each trace with a 
 			// point in the raygrid and interpolating to get time to depth.
@@ -1112,6 +1577,20 @@ cout << "n3="<<raygrid.n3<<endl;
 				// first decide in which grid cell to place this seismogram 
 				i = pwdata->member[is].get_int("ix1");
 				j = pwdata->member[is].get_int("ix2");
+				if(ApplyElevationStatics)
+				{
+					/* We assume elevation has been posted as elev.  This is done
+					by PwmigFileHandle methods on loading, but if data handling method
+					changes this needs to be watched.  Be aware this elevation is produced
+					in pwstack as a weighted average of elevations of summed traces */
+					double pselev=pwdata->member[is].get_double("elev");
+					t0=pwdata->member[is].t0;
+					ApplyGeometricStatic(dynamic_cast<BasicTimeSeries *>(&(pwdata->member[is])),
+						static_velocity,pselev);
+					if(SEISPP_verbose)
+						cout << "Applying static time shift = "
+							<< pwdata->member[is].t0 - t0<<endl;
+				}
 				t0=pwdata->member[is].t0;
 				if( (i<0) || (i>raygrid.n1) || (j<0) || (j>raygrid.n2) )
 				{
@@ -1126,7 +1605,7 @@ cout << "n3="<<raygrid.n3<<endl;
 				// in the integration loop below.  We compute it here to 
 				// avoid constantly recomputing it
 				zmaxray = raygrid.depth(i,j,0);
-				zmaxray *= 1.2;  // Small upward adjustment to avoid rubber banding
+				zmaxray *= zpad;  // Small upward adjustment to avoid rubber banding
 						// problems in 3d media
 				tmaxray=10000.0;  // arbitrary large number.  depend on zmax 
 
@@ -1158,6 +1637,8 @@ mp.process(string("plot3c(spath);"));
 				dmatrix gradTp(3,n3);
 				dmatrix nup(3,n3);
 				vector<double> zP(n3);
+//DEBUG
+//vector<double> tpxtmp;
 
 				// Now loop over each point on this ray computing the 
 				// p wave path and using it to compute the P time and
@@ -1170,38 +1651,82 @@ mp.process(string("plot3c(spath);"));
 				// Only need to compute P time to surface once for 
 				// each ray so we compute it before the loop below
 				double Tpr=compute_receiver_Ptime(raygrid,i,j,*TPptr,hypo);
+				double tlag,Tpx;
+				/* It is a good idea to initialize these before each raty path */
+				TPptr->reset_index();
+				SPtime.clear();
 				for(k=0,kk=raygrid.n3-1;k<raygrid.n3;++k,--kk)
 				{
-					double tlag,Tpx;
 					vector<double>nu;
 					double vp;
 
-					nu = compute_unit_normal_P(*TPptr,raygrid.x1[i][j][k],
-						raygrid.x2[i][j][k], raygrid.x3[i][j][k]);
-					for(l=0;l<3;++l) nup(l,k)=nu[l];
+					nu = compute_unit_normal_P(*TPptr,raygrid.x1[i][j][kk],
+						raygrid.x2[i][j][kk], raygrid.x3[i][j][kk]);
+					for(l=0;l<3;++l) nup(l,kk)=nu[l];
 					// zP and gradTp are computed in reverse order
-					zP[kk]=raygrid.depth(i,j,k);
-					vp=Vp1d.getv(zP[kk]);
-					for(l=0;l<3;++l) gradTp(l,kk)=nu[l]/vp;
-//DEBUG
+					zP[k]=raygrid.depth(i,j,kk);
+					vp=Vp1d.getv(zP[k]);
+					for(l=0;l<3;++l) gradTp(l,k)=nu[l]/vp;
 
 					// Compute time lag between incident P and scattered S
-					Tpx=compute_scatter_point_Ptime(raygrid,i,j,k,*TPptr,hypo);
-					tlag=Tpx+Stime[kk]-Tpr;
-					if(tlag>=0)
-						SPtime[kk]=tlag;
+					Tpx=compute_scatter_point_Ptime(raygrid,i,j,kk,*TPptr);
+					/* This flags an interpolation error.  Break the loop 
+					and post a serious warning if this happens */
+					if(Tpx<TTERROR)
+					{
+						// This is an error only 
+						// if early.  Common to break
+						// loop if hits bottom
+						// Hence the else condition
+						// is to do nothing
+						if(k<SPtime_SIZE_MIN)
+						{
+							tcompute_problem=true;
+							cerr << "Interpolation error computing scatter point time"<<endl;
+							TPptr->reset_index();
+						}
+						break;
+					}
 					else
 					{
-						if(tlag>-dt)
-							SPtime[kk]=0.0;
-						else
+						tlag=Tpx+Stime[k]-Tpr;
+//DEBUG
+/*
+cout << "k, kk, Tpx, Stime[kk], Tpr, tlag="
+  << k <<", "
+  << kk <<":   "
+  << Tpx <<" + "
+  << Stime[kk] <<" -  "
+  << Tpr <<" =  "
+  << tlag <<endl;
+*/
+
+						/*   Remove this for now.  
+						if(tlag<0.0)
 						{
-cout << "tcompute_problem flag raised: tlag="<<tlag<<" at kk="<<kk<<endl;
-							tcompute_problem=true;
-							break;
+							if(k<SPtime_SIZE_MIN)
+							{
+								tcompute_problem=true;
+								cerr << "Raypath integration error.  "
+									<< "Too many points have negative lag"<<endl
+									<< "Computed negative lag "
+									<< k
+									<< " points into a path "
+									<< raygrid.n3
+									<< " points long."<<endl
+									<< "This is probably a serious problem with 3d velocity models."
+									<< "Check for endian mismatch between grid and field files"<<endl;
+								break;
+							}
 						}
+						*/  
+						// Always load result even with negative lags.
+						// Interpolator will just drop negative lag data.
+						SPtime.push_back(tlag);
 					}
 				}
+
+#ifdef MATLABDEBUG
 //DEBUG
 /*
 cout << "SP lag times\n";
@@ -1212,29 +1737,58 @@ cout << "plotting gradTp"<<endl;
 mp.load(gradTp,string("gradTp"));
 mp.process(string("plot3c(gradtp);pause(1)"));
 */
+#endif
 				// skip this ray if there were travel time computation problems
 				if(tcompute_problem)
 				{
-					cerr << "Warning:  ensemble "<< record 
-						<< "grid position index ("
+					cerr << "Warning:  slowness gridid "<< gridid 
+						<< ", grid position index ("
 						<< i << ","
-						<< j << ") Ray project dropped" << endl
-						<< "Failure in computing lag.  "
-						<< "Probably need to increase border_pad"<<endl;
+						<< j << "). Ray project dropped" << endl
+						<< "Computed P to scatter time="<<Tpx
+						<< " computed S travel time="<<Stime[kk]
+						<< " computed P time to receiver="<<Tpr<<endl
+						<< "These yield a lag time ="<<tlag<<endl
+						<< "Failure in computing lag.  "<<endl
+						<< "This may leave ugly holes in the output image."
+						<<endl;
+					delete pathptr;
 					continue;
 
 				}
+				// Pad SPtime if necessary to length raygrid.n3
+				// necessary to complain about this, however, as with
+				// the current logic this really shouldn't happen
+				/* Remove for now.  Not consistent with change above 
+				if(SPtime.size()<raygrid.n3)
+				{
+					cerr << "Warning:  slowness gridid "<<gridid
+						<< ", grid position index ("
+						<< i << ","
+						<< j << "). SPtime array was incorrectly truncated."
+						<< endl
+						<< "Should be "<<raygrid.n3<<" points long."<<endl
+						<< "Actual length = "<<SPtime.size() <<endl
+						<< "Padding and blundering on. "
+						<< "This is not serious unless truncation is extreme."
+						<<endl;
+					// Paranoia could test for k=1 but with current logic this
+					// will not happen as this condition would raise the tcompute_problem
+					// flag.  The 0.001 s pad is arbitrary
+					for(k=SPtime.size();k<raygrid.n3;++k) SPtime[k]=SPtime[k-1]-0.001;
+				}
+				*/
 				// We now interpolate the data with tlag values to map
 				// the data from time to an absolute location in space
 				// Note carefully SPtime and work sense is inverted from
 				// the raygrid.  i.e. they are oriented for a ray from the surface
 				// to the bottom.  Below we have to reverse this
-				dmatrix work(3,SPtime.size());
+				dmatrix work(3,raygrid.n3);
 				linear_vector_regular_to_irregular(t0,dt,pwdata->member[is].u,
 					&(SPtime[0]),work);
+
 #ifdef MATLABDEBUG
 //DEBUG
-/*
 cout << "Input data number of samples="<<pwdata->member[is].ns<<endl;
 cout << "DAta before interpolation" << endl;
 for(int ifoo=0;ifoo<pwdata->member[is].ns;++ifoo)
@@ -1242,20 +1796,57 @@ for(int ifoo=0;ifoo<pwdata->member[is].ns;++ifoo)
 		<< pwdata->member[is].u(0,ifoo) << " "
 		<< pwdata->member[is].u(1,ifoo) << " "
 		<< pwdata->member[is].u(2,ifoo) << endl;
-*/
 mp.load(pwdata->member[is],string("de"));
 mp.load(&(SPtime[0]),SPtime.size(),string("sptime"));
 mp.load(work,string("di"));
 cerr << "Loaded sptime and interpolated data (work matrix)"<<endl;
 mp.process(string("plot6c(de,sptime,di);pause(1.0);"));
 #endif
+				dmatrix raycoh(4,coh3cens->member[is].ns);
+				int ncohcopy=coh3cens->member[i].ns;
+				/* excessively paranoid, but murphy's law */
+				if(cohens->member[is].ns != ncohcopy)
+				{
+					cerr << "Warning:  inconsistent coherence data size"<<endl
+						<< "Three-C data size="<<ncohcopy
+						<< " while all component sum size="
+						<< cohens->member[is].ns<<endl;
+					ncohcopy=min(cohens->member[is].ns,ncohcopy);
+					cerr << "Set to minimum="<<ncohcopy<<endl;
+				}
+				/* This component coherence into first 3 rows and sum in 4 */
+				dcopy(ncohcopy,coh3cens->member[is].u.get_address(0,0),3,
+					raycoh.get_address(0,0),4);
+				dcopy(ncohcopy,coh3cens->member[is].u.get_address(1,0),3,
+					raycoh.get_address(1,0),4);
+				dcopy(ncohcopy,coh3cens->member[is].u.get_address(2,0),3,
+					raycoh.get_address(2,0),4);
+				dcopy(ncohcopy,&(cohens->member[is].s[0]),1,
+					raycoh.get_address(3,0),4);
+				int nout=SPtime.size();
+				dmatrix raycohout(4,nout);
+				/* we assume t0 and dt are consistent or scalar and vector
+				coherence data */
+				linear_vector_regular_to_irregular(cohens->member[is].t0,
+					cohens->member[is].dt, raycoh,&(SPtime[0]),raycohout);
+				/* This nontrivial effort may not be required, but best to 
+				have it available until proven to be a big issue. */
+				raycohout=running_average(raycohout,cohsl);
+				/* Now copy these results to the coherence raygrid.
+				Note carefully the reverse order going from raycohout order
+				to rayrid order and decimation by cohdecfac */
+				for(k=0,kk=pwcohgrid.n3-1;(k<nout) && (kk>=0); 
+							k+=cohdecfac,--kk)
+				{
+				    for(l=0;l<4;++l)
+					pwcohgrid.val[i][j][kk][l]=raycohout(l,k);
+				}
 
+				//
 				// Compute the transformation vector for each 
 				// ray point in space.  This comes in two flavors.
 				// A fast, inexact version and a exact slow version
 				//
-//DEBUG NOTE:  check that this is correctly oriented.  i.e. order of the work array
-// is inverted compared to raygrid 
 				if(use_depth_variable_transformation)
 				{
 					// the slow, exact method
@@ -1272,19 +1863,8 @@ mp.process(string("plot6c(de,sptime,di);pause(1.0);"));
 						parent,
 						*pathptr,ustack.azimuth());
 				}
-//DEBUG
-//mp.load(work,string("work"));
-//cerr << "work matrix loaded.  Before ray transformation"<endl;
-//mp.process(string("plot3c(work);"));
 				Ray_Transformation_Operator& trans_operator=*troptr;
 				work=trans_operator.apply(work);
-/*
-mp.load(work,string("work2"));
-cerr << "work matrix loaded as work2.  After ray transformaton"<endl;
-//mp.process(string("figure; plot3c(work);"));
-//mp.run_interactive();
-mp.process(string("plot3c6(work,work2)"));
-*/
 				// done with these now
 				delete pathptr;
 				delete troptr;
@@ -1295,27 +1875,32 @@ mp.process(string("plot3c6(work,work2)"));
 				//
 				if(rcomp_wt || !weight_functions_set)
 				{
-				  domega_ij=compute_domega_for_path(ustack,dux,duy,
+				  /* This is a gross inefficiency in stack_only but since I only expect it to be
+				  used for CCP stacking equivalent, this should not be a big deal.  Probably should
+				  do it right some day */
+				  if(stack_only)
+				  {
+				    domega_ij.clear();
+				    for(k=0;k<n3;++k) domega_ij.push_back(1.0);
+				  }
+				  else
+				  {
+				    /* This is the normal block for computing solid angles */
+				    domega_ij=compute_domega_for_path(ustack,dux,duy,
 					Vs1d, zmaxray,dz,
 					raygrid, i, j, gradTp,zP);
-				  dweight_ij=compute_weight_for_path(gradTp,gradTs);
-// DEBUG SECTION
-/*
-cout << "Plotting dweight and domega for (i,j)="<<i<<","<<j<<endl;
-mp.load(&(domega_ij[0]),domega_ij.size(),string("domega"));
-mp.load(&(dweight_ij[0]),dweight_ij.size(),string("dweight"));
-mp.process(string("plotow;figure;"));
-*/
-				  if(smooth_wt)
+				  }
+				  if(use_grt_weights && (!stack_only) )
+					dweight_ij=compute_weight_for_path(gradTp,gradTs);
+				  else
+					for(k=0;k<n3;++k)dweight_ij[k]=1.0;
+				  if(smooth_wt && (!stack_only))
 				  {
 					domega_ij=running_average(domega_ij,nwtsmooth);
-					dweight_ij=running_average(dweight_ij,nwtsmooth);
+					// Unnecessary when not using grt weighting
+					if(use_grt_weights)
+					  dweight_ij=running_average(dweight_ij,nwtsmooth);
 				  }
-/*
-mp.load(&(domega_ij[0]),domega_ij.size(),string("domega"));
-mp.load(&(dweight_ij[0]),dweight_ij.size(),string("dweight"));
-mp.process(string("plotow;title 'after smoother';"));
-*/
 				  weight_functions_set=true;
 				}
 					
@@ -1328,23 +1913,19 @@ mp.process(string("plotow;title 'after smoother';"));
 				{
 					for(l=0;l<3;++l)
 					{
-						// DEBUG
-						//pwdgrid.val[i][j][k][l]=work(l,kk);
 						pwdgrid.val[i][j][k][l]=work(l,kk)
 							*dweight_ij[kk]*domega_ij[kk];
 					}
-					dweight.val[i][j][k]=dweight_ij[kk];
-					domega.val[i][j][k]=domega_ij[kk];
+					pwdgrid.val[i][j][k][3]=domega_ij[kk];
+					pwdgrid.val[i][j][k][4]=dweight_ij[kk];
 				}
 #ifdef MATLABDEBUG
 //DEBUG
-/*
 dmatrix dproj(3,n3);
 for(k=0;k<n3;++k)
 	for(l=0;l<3;++l) dproj(l,k)=pwdgrid.val[i][j][k][l];
 mp.load(dproj,string("d"));
 mp.process(string("plot3c(d);pause(0.1);"));
-*/
 #endif
 			}
 			delete pwdata;
@@ -1369,42 +1950,72 @@ delete sfptr;
 */
 			// last but not least, add this component to the stack
 			//
+			cout << "Elapsed time to compute pwdgrid="<<now()-rundtime<<endl;
 			migrated_image += pwdgrid;
-			weights += dweight;
-			omega += domega;
+//cout << pwcohgrid<<endl;
+			accumulate_cohdata(pwcohgrid,cohimage);
+//cout << "image grid after accumulate:"<<endl;
+//cout << cohimage;
+			if(save_partial_sums)
+			{
+				// This will write final result twice 
+				// but for now we'll include this during
+				// the debugging stage
+				dfile=MakeDfileName(dfilebase
+					+string("_psum"),gridid+1000);
+                		migrated_image.dbsave(db,"",fielddir,
+					dfile,dfile);
+			}
+			cout << "Total time for this plane wave component="<<now()-rundtime<<endl;
 //DEBUG  save partial sums
 /*
                 dfile=MakeDfileName(dfilebase+string("_psum"),gridid+1000);
-                migrated_image.dbsave(db,"",fielddir,dfile,dfile);
+		psum.zero();
 */
+/*  DEBUG Scaffold to retain for now.  Loads ramp to test grid summation
+		// test setting pwdgrid values all to zero
+		int id,jd,kd,ld;
+		for(id=0;id<pwdgrid.n1;++id)
+		 for(jd=0;jd<pwdgrid.n2;++jd)
+		  for(kd=0;kd<pwdgrid.n3;++kd)
+		   for(ld=0;ld<3;++ld) pwdgrid.val[id][jd][kd][ld]
+						=static_cast<double>(kd%100);
+*/
+		//psum += pwdgrid;
+#ifdef MATLABDEBUG
+/*
+const string volname("F");
+const string slicename("f");
+const string merge_command("F=cat(3,F,f);");
+               dmatrix slice(psum.n1,psum.n2);
+               for(k=0,kk=psum.n3-1;k<psum.n3;++k,--kk)
+                {
+                        for(i=0;i<psum.n1;++i)
+// Select x1 for display
+                                for(j=0;j<psum.n2;++j)
+                                {
+                                                slice(i,j)=psum.val[i][j][kk][0];
+                                }
+                        if(k==0)
+                        {
+                                mp.load(slice,volname);
+                        }
+                        else
+                        {
+                                mp.load(slice,slicename);
+                                mp.process(merge_command);
+                        }
+                }
+		mp.run_interactive();
+*/
+#endif
+                //psum.dbsave(db,"",fielddir,dfile,dfile);
 
 
 			delete grdptr;
-//if(debugexit) exit(1);
+			rundtime=now();
 
 		} // Bottom of plane wave component loop
-/*
-mp.run_interactive();
-GCLscalarfield3d *sfptr;
-cout << "Display x1 component with matlab"<<endl;
-sfptr=extract_component(migrated_image,0);
-SliceX1(mp,*sfptr);
-delete sfptr;
-cout << "Display x2 component with matlab"<<endl;
-sfptr=extract_component(migrated_image,1);
-SliceX1(mp,*sfptr);
-delete sfptr;
-cout << "Display x3 component with matlab"<<endl;
-sfptr=extract_component(migrated_image,2);
-SliceX1(mp,*sfptr);
-delete sfptr;
-cout << "Display weights with matlab"<<endl;
-SliceX1(mp,weights);
-cout << "Display omega volume with matlab"<<endl;
-SliceX1(mp,omega);
-*/
-
-
 		//
 		// Save results
 		// Second arg as empty string causes parent grid 
@@ -1414,40 +2025,39 @@ SliceX1(mp,omega);
 		// dfile is generated as base+tag+evid
 		//
 
-		dfile=MakeDfileName(dfilebase+string("_data"),evid);
-		migrated_image.dbsave(db,"",fielddir,dfile,dfile);
-		dfile=MakeDfileName(dfilebase+string("_wt"),evid);
-		weights.dbsave(db,"",fielddir,dfile,dfile);
-		dfile=MakeDfileName(dfilebase+string("_omega"),evid);
-		omega.dbsave(db,"",fielddir,dfile,dfile);
-		//
-		// zero field values so when we loop back they can
-		// be reused
-		//
-		migrated_image.zero();
-		weights.zero();
-		omega.zero();
+		if(!skip_this_event)
+		{
+			dfile=MakeDfileName(dfilebase+string("_data"),evid);
+			migrated_image.dbsave(db,"",fielddir,dfile,dfile);
+			//
+			// zero field values so when we loop back they can
+			// be reused
+			//
+			migrated_image.zero();
+			dfile=MakeDfileName(dfilebase+string("_coh"),evid);
+			cohimage.dbsave(db,"",fielddir,dfile,dfile);
+		}
+		} // Bottom of np%rank conditional 
+		++filecount;
+		skip_this_event=false;
 		} // bottom of event loop
+		totalruntime = now() - totalruntime;
+		cout << "Finished normally after processing "<<filecount
+			<< "events."<<endl
+			<< "Elapsed time (sec)="<<totalruntime<<endl;
 	}
-	catch (GCLgrid_error gcle)
+	catch (GCLgrid_error& gcle)
 	{
 		gcle.log_error();
-		die(1,"GCLgrid library fatal error\n");
 	}
-	catch (MetadataError mde)
-	{
-		mde.log_error();
-		die(1,"Required processing metadata missing from input stream\n");
-	}
-	catch (SeisppError seer)
+	catch (SeisppError& seer)
 	{
 		seer.log_error();
-		die(1,"seispp library function error\n");
 	}
 	catch (int ierr)
 	{
-		die(1,"Something threw a simple int exception of %d\n",
-			ierr);
+                cerr << "Something threw a simple int exception of "
+                    << ierr<<endl;
 	}
 	catch (...)
 	{

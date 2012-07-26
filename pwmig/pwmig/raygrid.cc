@@ -67,7 +67,6 @@ int copy_path(dmatrix& ray,GCLgrid3d& raygrid,int i, int j)
 		}
 		for(k=0,kk=raygrid.n3-1;k<raygrid.n3;++k,--kk)
 		{
-			if(k>=path_length) break;
 			raygrid.x1[i][j][kk]=extendedray(0,k);
 			raygrid.x2[i][j][kk]=extendedray(1,k);
 			raygrid.x3[i][j][kk]=extendedray(2,k);
@@ -200,7 +199,7 @@ cerr << "(i,j)="<<i<<","<<j<<" r difference = "
 			    }
 
 			}
-			catch (GCLgrid_error err)
+			catch (GCLgrid_error& err)
 			{
 				err.log_error();
 				cerr << "Cannot continue" <<endl;

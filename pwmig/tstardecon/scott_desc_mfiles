@@ -1,7 +1,0 @@
-Hey Gary - 
-
-Here are the m-files that I was using for the t* decon.  At least as far as I can tell, these are the right ones, if there are any questions or problems let me know ... but I think that these should do the trick.  The tstar2.m file is a little subroutine-like thing that I use to compute the filter coeffecients.  
-
-I'm glad to hear that you're interested in putting this into a production code ... let me know if you need anything else and I'll be happy to help.
-
-Scott
