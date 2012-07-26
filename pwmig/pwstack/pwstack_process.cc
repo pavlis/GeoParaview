@@ -558,11 +558,12 @@ PwmigFileHandle& cohfh)
 
 //DEBUG
 /*
-dcopy(nsout*3,stack.get_address(0,0),1,DEBUGBUFFER,1);
+double *debugptr=stack.get_address(0,0);
 twork.clear();
-for(int kkk=0;kkk<(3*nsout);++kkk) twork.push_back(DEBUGBUFFER[kkk]);
-idbg=max_element(twork.begin(),twork.end());
+for(int kkk=0;kkk<(3*nsout);++kkk,++debugptr) twork.push_back(*debugptr);
+vector<double>::iterator  idbg=max_element(twork.begin(),twork.end());
 cout << "Max of stack="<<*idbg<<endl;
+twork.clear();
 */
             // Create the output stack as a 3c trace object and copy
             // metadata from the input into the output object.

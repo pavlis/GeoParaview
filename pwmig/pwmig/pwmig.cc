@@ -458,55 +458,6 @@ auto_ptr<GCLscalarfield3d> ComputeIncidentWaveRaygrid(GCLgrid& pstagrid,
 	} catch (...) {throw;}
 }
 
-// used in function below to flag an error
-// has file scope so pwmig main can do a consistent check
-const double TTERROR=-9999999999.0;
-double compute_scatter_point_Ptime(GCLgrid3d& raygrid, int ix1, int ix2, int ix3,
-		GCLscalarfield3d& TP)
-{
-	//This algorithm ASSUMES raygrid and TP are congruent. I avoids the overhead
-	// of constant testing because it will be called a lot.
-	// First get the P times to the pseudostation and and image points by 
-	// calling the field lookup and interpolators.  
-	double Tpx, Tpr;
-	int err;
-	double x1,x2,x3;
-	// First compute P time to image point
-	x1=raygrid.x1[ix1][ix2][ix3];
-	x2=raygrid.x2[ix1][ix2][ix3];
-	x3=raygrid.x3[ix1][ix2][ix3];
-	err=TP.lookup(x1,x2,x3);
-
-	switch (err)
-	{
-		case 0:
-		case 2:
-			Tpx=TP.interpolate(x1,x2,x3);
-			break;
-		default:
-		// This condition is difficult to recover from.  The image point
-		// depth can be too deep for many travel time calculators.  
-		// I choose to not throw an exception in this case as exceptions
-		// are a slow mechanism and this could happen often.
-		// REturn a large negative number instead to signal this error.
-		// The factor of 2 allows a direct test below against TTERROR and
-		// is failsafe against small negative lags that could potentially arise.
-			TP.reset_index();
-			return(2.0*TTERROR);
-	}
-/*
-dtdiff.push_back(Tpx-TP.val[gindex[0]][gindex[1]][gindex[2]]);
-//cout << "Tpx="<<Tpx<<" dtfiff="<<Tpx-TP.val[gindex[0]][gindex[1]][gindex[2]]<<endl;
-if(ix3==(raygrid.n3 - 1)) 
-{
-	x1tmp.clear();  x2tmp.clear(); x3tmp.clear(); tpix1.clear(); tpix2.clear(); tpix3.clear();
-	derrx1.clear(); derrx2.clear(); derrx3.clear();
-	dtdiff.clear();
-}
-*/
-
-	return(Tpx);
-}
 double compute_receiver_Ptime(GCLgrid3d& raygrid, int ix1, int ix2,
 		GCLscalarfield3d& TP,Hypocenter& h)
 {
@@ -1637,9 +1588,6 @@ mp.process(string("plot3c(spath);"));
 				dmatrix gradTp(3,n3);
 				dmatrix nup(3,n3);
 				vector<double> zP(n3);
-//DEBUG
-//vector<double> tpxtmp;
-
 				// Now loop over each point on this ray computing the 
 				// p wave path and using it to compute the P time and
 				// fill the vector gradP matrix
@@ -1647,14 +1595,18 @@ mp.process(string("plot3c(spath);"));
 				// a second (kk) running backward.  This complication is
 				// caused by raygrid having upward oriented curves while
 				// the S ray path (pathptr) is oriented downward.  
-				bool tcompute_problem=false;
 				// Only need to compute P time to surface once for 
 				// each ray so we compute it before the loop below
 				double Tpr=compute_receiver_Ptime(raygrid,i,j,*TPptr,hypo);
 				double tlag,Tpx;
+				bool needs_padding;
+				int padmark=raygrid.n3-1;
+				bool tcompute_problem;   // set true if tt calculation fails away from edges 
 				/* It is a good idea to initialize these before each raty path */
 				TPptr->reset_index();
 				SPtime.clear();
+				tcompute_problem=false;
+				needs_padding=false;
 				for(k=0,kk=raygrid.n3-1;k<raygrid.n3;++k,--kk)
 				{
 					vector<double>nu;
@@ -1667,117 +1619,73 @@ mp.process(string("plot3c(spath);"));
 					zP[k]=raygrid.depth(i,j,kk);
 					vp=Vp1d.getv(zP[k]);
 					for(l=0;l<3;++l) gradTp(l,k)=nu[l]/vp;
-
-					// Compute time lag between incident P and scattered S
-					Tpx=compute_scatter_point_Ptime(raygrid,i,j,kk,*TPptr);
-					/* This flags an interpolation error.  Break the loop 
-					and post a serious warning if this happens */
-					if(Tpx<TTERROR)
+					/* This section used to be a procedure.  Inlined for 
+					speed during a cleanup June 2012 */
+					int error_lookup;
+					error_lookup=TPptr->lookup(raygrid.x1[i][j][kk],
+						raygrid.x2[i][j][kk],raygrid.x3[i][j][kk]);
+					switch(error_lookup)
 					{
-						// This is an error only 
-						// if early.  Common to break
-						// loop if hits bottom
-						// Hence the else condition
-						// is to do nothing
-						if(k<SPtime_SIZE_MIN)
-						{
-							tcompute_problem=true;
-							cerr << "Interpolation error computing scatter point time"<<endl;
-							TPptr->reset_index();
-						}
+					case 0:
+						Tpx=TPptr->interpolate(raygrid.x1[i][j][kk],
+                                                   raygrid.x2[i][j][kk],raygrid.x3[i][j][kk]);
 						break;
+					case 1:
+					/* This means the point falls outside the P ray grid.
+					Normally that means we should just break the loop.
+					Issue a warning only if the kk index is small indicating
+					the ray path is very short  */
+						needs_padding=true;
+						padmark=k;
+						break;
+					case -1:
+					default:
+					/* This is a convergence error in lookup and needs to be
+					flagged as an error */
+						tcompute_problem=true;
+						needs_padding=true;
+						padmark=k;
 					}
-					else
-					{
-						tlag=Tpx+Stime[k]-Tpr;
-//DEBUG
-/*
-cout << "k, kk, Tpx, Stime[kk], Tpr, tlag="
-  << k <<", "
-  << kk <<":   "
-  << Tpx <<" + "
-  << Stime[kk] <<" -  "
-  << Tpr <<" =  "
-  << tlag <<endl;
-*/
-
-						/*   Remove this for now.  
-						if(tlag<0.0)
-						{
-							if(k<SPtime_SIZE_MIN)
-							{
-								tcompute_problem=true;
-								cerr << "Raypath integration error.  "
-									<< "Too many points have negative lag"<<endl
-									<< "Computed negative lag "
-									<< k
-									<< " points into a path "
-									<< raygrid.n3
-									<< " points long."<<endl
-									<< "This is probably a serious problem with 3d velocity models."
-									<< "Check for endian mismatch between grid and field files"<<endl;
-								break;
-							}
-						}
-						*/  
-						// Always load result even with negative lags.
-						// Interpolator will just drop negative lag data.
-						SPtime.push_back(tlag);
-					}
+					if(tcompute_problem || needs_padding) break;
+					tlag=Tpx+Stime[k]-Tpr;
+					SPtime.push_back(tlag);
 				}
 
-#ifdef MATLABDEBUG
-//DEBUG
-/*
-cout << "SP lag times\n";
-for(l=0;l<n3;++l) cout << SPtime[l] << endl;
-mp.load(&(SPtime[0]),SPtime.size(),string("sptime"));
-mp.process(string("plot(sptime);"));
-cout << "plotting gradTp"<<endl;
-mp.load(gradTp,string("gradTp"));
-mp.process(string("plot3c(gradtp);pause(1)"));
-*/
-#endif
 				// skip this ray if there were travel time computation problems
 				if(tcompute_problem)
 				{
 					cerr << "Warning:  slowness gridid "<< gridid 
 						<< ", grid position index ("
 						<< i << ","
-						<< j << "). Ray project dropped" << endl
-						<< "Computed P to scatter time="<<Tpx
-						<< " computed S travel time="<<Stime[kk]
-						<< " computed P time to receiver="<<Tpr<<endl
-						<< "These yield a lag time ="<<tlag<<endl
-						<< "Failure in computing lag.  "<<endl
+						<< j << ").  GCLscalarfield3d lookup failed at ray index="
+						<< k <<endl
+						<< "Data from failed ray index downward will be zeroed"<<endl
 						<< "This may leave ugly holes in the output image."
 						<<endl;
-					delete pathptr;
-					continue;
 
 				}
-				// Pad SPtime if necessary to length raygrid.n3
-				// necessary to complain about this, however, as with
-				// the current logic this really shouldn't happen
-				/* Remove for now.  Not consistent with change above 
-				if(SPtime.size()<raygrid.n3)
+				if (needs_padding)
 				{
-					cerr << "Warning:  slowness gridid "<<gridid
-						<< ", grid position index ("
-						<< i << ","
-						<< j << "). SPtime array was incorrectly truncated."
-						<< endl
-						<< "Should be "<<raygrid.n3<<" points long."<<endl
-						<< "Actual length = "<<SPtime.size() <<endl
-						<< "Padding and blundering on. "
-						<< "This is not serious unless truncation is extreme."
-						<<endl;
-					// Paranoia could test for k=1 but with current logic this
-					// will not happen as this condition would raise the tcompute_problem
-					// flag.  The 0.001 s pad is arbitrary
-					for(k=SPtime.size();k<raygrid.n3;++k) SPtime[k]=SPtime[k-1]-0.001;
+					if(padmark==0)
+					{
+						cerr << "Warming:   gridid "<< gridid
+                                                << ", grid position index ("
+                                                << i << ","
+                                                << j << ")." <<endl
+                                                << "P time interpolation failed at earth's surface.  "<<endl
+                                                << "This should not happen and may cause holes in the output."<<endl
+                                                << "This trace will be projected as zeros"<<endl;
+					}
+					else
+					{
+					/* Arbitrarily increment the times by dt intervals.  Will 
+					zero data beyond pad mark below.  Not the most efficient way
+					to do this, but don't expect this to be that common of an issue*/
+						double tpadding0=Stime[padmark-1];
+						for(k=padmark;k<raygrid.n3;++k)
+							Stime.push_back(tpadding0+dt*static_cast<double>(k-padmark+1));
+					}
 				}
-				*/
 				// We now interpolate the data with tlag values to map
 				// the data from time to an absolute location in space
 				// Note carefully SPtime and work sense is inverted from
@@ -1786,6 +1694,18 @@ mp.process(string("plot3c(gradtp);pause(1)"));
 				dmatrix work(3,raygrid.n3);
 				linear_vector_regular_to_irregular(t0,dt,pwdata->member[is].u,
 					&(SPtime[0]),work);
+				/* Zero all data that was padded */
+				if(needs_padding)
+				{
+					for(k=padmark;k<raygrid.n3;++k)
+						for(l=0;l<3;++l)  work(l,k)=0.0;
+					//DEBUG
+/*
+					dmatrix wtr=tr(work);
+					cout << "Padded data vector after interpolation"<<endl
+						<< wtr <<endl;
+*/
+				}
 
 #ifdef MATLABDEBUG
 //DEBUG
@@ -1908,7 +1828,6 @@ mp.process(string("plot6c(de,sptime,di);pause(1.0);"));
 				// copy transformed data to vector field
 				// copy weights and domega at same time
 				//
-
 				for(k=0,kk=raygrid.n3-1;k<raygrid.n3;++k,--kk)
 				{
 					for(l=0;l<3;++l)
