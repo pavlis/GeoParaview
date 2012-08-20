@@ -2,12 +2,12 @@
 # applying a variable high frequency cutoff filter.  Corners are assigned randomly with
 # center frequency variable_bandwidth_corner (in Hz) and a range of variable_bandwidth_corner_range.
 # Note the later has units of db.  
-test_variable_bandwidth false
+test_variable_bandwidth true
 variable_bandwidth_filter_corner 2.0
 variable_bandwidth_corner_range_db 12
 minimum_noise_window_length 4.0
 #station_geometry_file sta.xy
-station_geometry_file crossarray.xy
+station_geometry_file small.xy
 #snr_convergence_floor 10.0
 #snr_convergence_floor 5.0
 # approximately 5 * quantile for standard normal 
@@ -31,7 +31,6 @@ t0 -10.0
 # Order is ux,uy,ampx,ampy,ampz,lag(samples)
 PlaneWaves &Tbl{
  0.00 0.05 1.0 1.0 1.0 200
- 0.0 0.07 -0.25 0.0 0.0 200
  0.02 0.02 0 0 0.3 300
  0.2 0.2 1.0 -0.4 1.0 400
  0.1 0.02 0.0 0.0 1.0 450
@@ -39,12 +38,13 @@ PlaneWaves &Tbl{
 wavelet_type ricker
 width_parameter 1.0
 #wavelet_length 75
-wavelet_length 200
+wavelet_length 201
 ux0 0.0
 uy0 0.0
 noise_sigma 0.005
+#noise_sigma 0.00000001
 # parameters for PWDDeconProcessor
-maximum_iterations 35
+maximum_iterations 8
 pseudostation_array_aperture 10.0;
 pseudostation_array_cutoff 30.0;
 

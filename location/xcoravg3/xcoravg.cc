@@ -108,7 +108,7 @@ int main(int argc, char **argv)
 		int ierr;
 		/* This holds the list of matching record numbers used to find
 		the right row in arrival */
-		list<int> matchlist;
+		list<long> matchlist;
 		vector<double> arrival_times;
 		cout << "evid sta phase db_arrival_time median_dt mean_dt interquartile mad range ndgf nskipped" <<endl;
 		/* Hold keys extracted with dbgetv in loop below for matching to db2 */

@@ -1,4 +1,6 @@
 #include <math.h>
+#include <fstream>
+#include <sstream>>
 #include "PlateBoundaryPath.h"
 #include "SeisppError.h"
 using namespace std;
@@ -132,8 +134,60 @@ TimeVariablePlateBoundaryPath::TimeVariablePlateBoundaryPath(
         t0.push_back(t);
     }
 }
-TimeVariablePlateBoundaryPath::TimeVariablePlateBoundaryPath(const
-        TimeVariablePlateBoundaryPath& parent)
+TimeVariablePlateBoundaryPath::TimeVariablePlateBoundaryPath(string fname,
+        double ola, double olo)
+{
+    const string base_error("TimeVariablePlateBoundaryPath ascii file constructor:  ");
+    ifstream infile;
+    infile.open(fname.c_str(),ifstream::in);
+    if(infile.fail()) throw SeisppError(base_error
+            + "open failed for file name=" + fname);
+    vector<double> ilat,ilon,its,ite,iang;
+    char line[512];
+    while(infile.getline(line,512))
+    {
+        stringstream ss(line);
+        double dval;
+        ss >> dval;
+        ilon.push_back(rad(dval));
+        ss >> dval;
+        ilat.push_back(rad(dval));
+        ss >> dval;
+        ite.push_back(dval);
+        ss >> dval;
+        its.push_back(dval);
+        ss >> dval;
+        iang.push_back(rad(dval));
+    }
+    infile.close();
+    /* Check for input errors.  For first test iang is intentionally tested 
+    to handle one line file without enough data. */
+    if(iang.size()==0) throw SeisppError(base_error
+            + "file "+fname+" seems to be empty or be improperly formatted");
+    if(ilon.size() != iang.size() ) throw SeisppError(base_error
+            + "size mistmatch.  File "+fname
+            + " probably improperly formatted.");
+    for(int i=1;i<ilon.size();++i)
+    {
+        if(fabs(its[i-1]-ite[i])>0.01) throw SeisppError(base_error
+                + "Mismatched start and end time intervals. Require matching time intervals.");
+    }
+    /* We have to reverse the order of the vectors to use the parallel vector constructor
+       and to convert times to positive time intervals.  */
+    vector<double>irlon,irlat,irdt,irang;
+    for(int i=ilon.size()-1;i>0;--i)
+    {
+        irlon.push_back(ilon[i]);
+        irlat.push_back(ilat[i]);
+        irang.push_back(iang[i]);
+        irdt.push_back(ite[i]-its[i]);
+    }
+    *this=TimeVariablePlateBoundaryPath(irlat,irlon,irdt,irang,ola,olo);
+}
+
+
+TimeVariablePlateBoundaryPath::TimeVariablePlateBoundaryPath
+        (const TimeVariablePlateBoundaryPath& parent)
 {
     splat=parent.splat;
     splon=parent.splon;

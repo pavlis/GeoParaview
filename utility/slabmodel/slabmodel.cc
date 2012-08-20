@@ -181,8 +181,10 @@ double adjustedtime(Geographic_point gp0, Geographic_point gp1,
 }
 void usage()
 {
-	cerr << prog <<" [-pf pffile -V]"<<endl
-		<< "outputs grid coordinates to stdout";
+	cerr << prog <<" [-tjp -pf pffile -V]"<<endl
+		<< "outputs grid coordinates to stdout"<<endl
+                << "-tjp option outputs triple junction path"
+                << " (error if triple junction mode off)"<<endl;;
 	exit(-1);
 }
 bool SEISPP::SEISPP_verbose(false);
@@ -191,6 +193,7 @@ int main(int argc, char **argv)
 	int i;
         ios::sync_with_stdio();
 	string pfname(prog);
+        bool output_triple_junction_path(false);
 	for(i=1;i<argc;++i)
 	{
 		string sarg(argv[i]);
@@ -200,9 +203,13 @@ int main(int argc, char **argv)
 			if(i>=argc) usage();
 			pfname=string(argv[i]);
 		}
-                if(sarg=="-V")
+                else if(sarg=="-V")
                 {
                     SEISPP_verbose=true;
+                }
+                else if(sarg=="-tjp")
+                {
+                    output_triple_junction_path=true;
                 }
 		else
 			usage();
@@ -223,21 +230,70 @@ int main(int argc, char **argv)
             double timesampleinterval=control.get_double("time_sample_interval");
             /* Time to run slab motion */
             double modeltime=control.get_double("model_elapsed_time");
-
-	    //plat=rad(plat);
-	    //plon=rad(plon);
-            string trenchlinefile=control.get_string("trench_line_filename");
-            /* This loads the raw digitized trench position data.  
-               could be deleted after resampling, but assume this a 
-               trivial memory issue */
-            vector<Geographic_point> rawtrenchpoints
-                                =load_geopointdata(trenchlinefile);
-            PLGeoPath *rawtrenchpath=new PLGeoPath(rawtrenchpoints,0);
             double trench_path_sample_interval=control.get_double(
-                    "trench_path_sample_interval");
-            PLGeoPath trenchposition(resample_PLGeoPath(*rawtrenchpath,
-                    trench_path_sample_interval));
-            delete rawtrenchpath;
+                        "trench_path_sample_interval");
+            double maxdip,mindip;
+            maxdip=control.get_double("maximum_extension_dip");
+            mindip=control.get_double("minimum_extension_dip");
+            bool triple_mode=control.get_bool("triple_junction_mode");
+            if(!triple_mode && output_triple_junction_path)
+            {
+                cerr << "Illegal option combination.  -tjp option cannot "
+                    << "be used unles triple_junction_mode is true"<<endl;
+                usage();
+            }
+            PLGeoPath zerotimecurve;
+            /* When using triple junction mode derive the zero time line from
+               plate boundary path.  Otherwise interpolate digitized line data.
+               This if block probably should be a procedure from a style standpoint. */
+            if(triple_mode)
+            {
+                string spfile=control.get_string("stage_pole_file");
+                double lat0,lon0;
+                lat0=control.get_double("zero_line_origin_latitude");
+                lon0=control.get_double("zero_line_origin_longitude");
+                lat0=rad(lat0);
+                lon0=rad(lon0);
+                double z0=control.get_double("zero_line_depth");
+                TimeVariablePlateBoundaryPath tvpzp(spfile,lat0,lon0);
+                double zldt=control.get_double("zero_line_time_sample_interval");
+                vector<Geographic_point> zeroraw;
+                double tzl(0.0);
+                double modtimemya=modeltime/1000000.0;
+                while(tzl<modtimemya)
+                {
+                    Geographic_point zgp;
+                    zgp=tvpzp.position(tzl);
+                    /* The path is at the reference ellipsoid.  Subtract the refence
+                       depth from each point */
+                    zgp.r-=z0;
+//DEBUG
+//cerr << deg(zgp.lat)<<" " << deg(zgp.lon) << " " << zgp.r 
+//    <<" "<<tzl <<endl;
+                    zeroraw.push_back(zgp);
+                    tzl+=zldt;
+                }
+                zerotimecurve=PLGeoPath(zeroraw,0);
+                if(output_triple_junction_path)
+                {
+                    cout << zerotimecurve;
+                    exit(1);
+                }
+//DEBUG
+//cerr << "PLGeoPath version of zero time curve"<<endl;
+//cout << zerotimecurve;
+            }
+            else
+            {
+                string trenchlinefile=control.get_string("trench_line_filename");
+                vector<Geographic_point> rawtrenchpoints
+                                    =load_geopointdata(trenchlinefile);
+                PLGeoPath *rawtrenchpath=new PLGeoPath(rawtrenchpoints,0);
+                zerotimecurve=resample_PLGeoPath(*rawtrenchpath,
+                        trench_path_sample_interval);
+                delete rawtrenchpath;
+            }
+
             /* now load and build the surface to be used to build the 
                model.   Note for simplicity assume the trench path data is
                part of the input set of points */
@@ -246,14 +302,25 @@ int main(int argc, char **argv)
             GeoTriMeshSurface slabtrisurf(slabdata);
             /* Now create one path for each point on resampled trench path.*/
             int npoints=SEISPP::nint(modeltime/timesampleinterval)+1;
-            int npaths=trenchposition.number_points();
+            int npaths=zerotimecurve.number_points();
             if(SEISPP_verbose) cerr << "Output grid npaths="<<npaths<<endl;
             //double Reffective;  // distance in km between pole and origin point 
             GeoPath *pbpath;
             for(i=0;i<npaths;++i)
             {
-                double s=trench_path_sample_interval*static_cast<double>(i);
-                Geographic_point gp=trenchposition.position(s);
+                double s;
+                Geographic_point gp;
+                if(triple_mode)
+                {
+                    gp=zerotimecurve.node_position(i);
+                }
+                else
+                {
+                    s=trench_path_sample_interval*static_cast<double>(i);
+                    gp=zerotimecurve.position(s);
+                }
+//DEBUG
+//cerr << "Starting position:  "<<deg(gp.lat)<<" "<<deg(gp.lon)<<endl;
                 pbpath=BuildPBPObject(gp.lat,gp.lon, pf);
                 /*
                 PlateBoundaryPath pbpath(plat,plon,gp.lat,gp.lon,
@@ -299,14 +366,24 @@ int main(int argc, char **argv)
                             break;
                         else
                         {
+
                             // This computes change in depth (sign switch)
                             dzdx=oversampledpath[j-2].r
                                         - oversampledpath[j-1].r;
                             /* compute distance between j-1 and j-2 to compute dip */
                             double ddelta=GeoDistance(oversampledpath[j-2],oversampledpath[j-1]);
                             dzdx/= ddelta;  // note mixed units.  dz in km, ddelta in radians
-                            if(SEISPP_verbose) cerr << "Extending path with dip "
-                                <<dzdx<<" from point number "<<j<<endl;
+                            double dipdeg;
+                            dipdeg=dzdx/6371.0;   // need only a crude radius here
+                            dipdeg=deg(atan(dipdeg));
+                            if(SEISPP_verbose) cerr << "Extending path "<<i<<" with dip "
+                                <<dipdeg<<" from point number "<<j<<endl;
+                            /* These could be  precomputed for efficiency but better to leave
+                               it here for clarity */
+                            if(dipdeg>maxdip)
+                                dzdx=tan(rad(maxdip))*6371.0;
+                            else if(dipdeg<mindip)
+                                dzdx=tan(rad(mindip))*6371.0;
                             // now extend the path to npoints
                             int jlast=j-1;
                             int jj;
@@ -320,6 +397,13 @@ int main(int argc, char **argv)
                                 // recycle ddelta for same context here
                                 ddelta=GeoDistance(lastgp,gp);
                                 gp.r=lastgp.r-dzdx*ddelta;
+                    //DEBUG
+                                /*
+                    cout << "Extended: "
+                        << deg(gp.lon)<<" "
+                        << deg(gp.lat)<<" "
+                        <<r0_ellipse(gp.lat)-gp.r<<endl;
+                        */
                                 oversampledpath.push_back(gp);
                                 current_time += adjustedtime(lastgp,gp,sdt);
                                 current_s += distance_increment(lastgp,gp,sdt);
@@ -337,6 +421,14 @@ int main(int argc, char **argv)
                     }
                     corrected_time.push_back(current_time);
                     path_s.push_back(current_s);
+                    //DEBUG
+                    /*
+                    cout << "Interpolated: "
+                        << deg(gp.lon)<<" "
+                        << deg(gp.lat)<<" "
+                        <<r0_ellipse(gp.lat)-gp.r<<endl;
+                        */
+
                     oversampledpath.push_back(gp);
                     lastgp=gp;
                 }

@@ -6,6 +6,7 @@
 #include "dmatrix.h"
 #include "gclgrid.h"
 
+using namespace std;
 void load_constant(GCLscalarfield3d& g,double c)
 {
 	int i,j,k;
@@ -37,8 +38,10 @@ void fill_pattern(GCLgrid3d *g)
 }
 
 
+bool SEISPP::SEISPP_verbose(true);
 int main(int arc, char **argv)
 {
+    try {
 	cout << "testing constructors with no arguments" << endl;
 	GCLgrid *g2d;
 	GCLgrid3d *g3d;
@@ -91,13 +94,9 @@ int main(int arc, char **argv)
 	delete s3d;
 	delete v3d;
 
-	// dbroutines are tested in makegclgrid so we don't mess with them here
-	// some of the lower level items like lat,lon, gtoc, etc. are not tested
-	// directly as they are used implicitly in some higher level member functions
-	// we test here
 
 	cout << "Creating test grids for summation test" << endl;
-	cout << " test grid 1.  simple exact match test";
+	cout << " test grid 1.  simple exact match test"<<endl;
 
 
 	string name("testgrid1");
@@ -105,7 +104,12 @@ int main(int arc, char **argv)
 		rad(9.0),rad(-63.0),6371.0,
 		rad(100.0),50.0,50.0,30.0,
 		10,10);
-	name="testgrid2";
+        cout << "Testing file save routine for GCgrid3d"<<endl;
+        string outdir("testdir");
+        g3d->save(name,outdir);
+        cout << "Success:  result in file "
+            <<outdir<<"/"<<name<<endl;
+	string name2="testgrid2";
 	GCLgrid3d *grid2=new GCLgrid3d(*g3d);
 	//strcpy(grid2->name,name.c_str());
 	cout << "grids created.  Creating 3d scalar field" << endl;
@@ -122,7 +126,7 @@ int main(int arc, char **argv)
 	cout << "testing += operator" << endl;
 
 	testgrid1 += testgrid2;
-	cout << "Saving results to testgrid1.out" << endl;
+	cout << "testing operator << saving results to testgrid1.out" << endl;
 	ofstream out1;
 	out1.open("testgrid1.out",ios::out);
 
@@ -156,7 +160,8 @@ int main(int arc, char **argv)
 	cout << "testing += operator" << endl;
 
 	testgrid3 += testgrid4;
-
+        cout << "Test scalarfield3d file save  result to "<<name2<<endl;
+        testgrid3.save(name,outdir);
 	cout << testgrid3;
 	cout << "testing assignment operator for scalar field" << endl;
 	GCLscalarfield3d testgrid5=testgrid4;
@@ -167,10 +172,26 @@ int main(int arc, char **argv)
 	else
 		cout << "Test failed.  equal grids resolve no equal"<<endl;
 	cout << "testing remap functions" << endl;
-	GCLgrid3d remaptest=remap_grid(dynamic_cast<GCLgrid3d&>(testgrid3),
-		dynamic_cast<GCLgrid3d&>(testgrid4));
-	GCLscalarfield3d rmapfield(remaptest);
+	GCLscalarfield3d rmapfield(testgrid3);
+	remap_grid(dynamic_cast<GCLgrid3d&>(rmapfield),
+		dynamic_cast<BasicGCLgrid&>(testgrid4));
 	cout << rmapfield << endl;
+        cout << "Testing file based constructor reading file="<<name<<endl;
+        string path=outdir+"/"+name;
+        GCLscalarfield3d testgrid6(path);
+        cout << "Success"<<endl;
+        cout << "Content"<<endl;
+        cout << testgrid6<<endl;
+        if(testgrid3==testgrid6)
+            cout << "Field read is equal to field saved"<<endl;
+        else
+            cout << "Field compare failed."<<endl;
+    }catch(GCLgridError& gerr)
+    {
+        cerr << gerr.what()<<endl;
+    }
+    catch(...)
+    {
+        cerr << "Something threw an unexpected exception"<<endl;
+    }
 }
-	
-

@@ -94,7 +94,7 @@ int main(int argc, char **argv)
 		int ierr;
 		/* This holds the list of matching record numbers used to find
 		the right row in arrival */
-		list<int> matchlist;
+		list<long> matchlist;
 		vector<double> arrival_times;
 		cout << "evid sta phase arrival_time atmean interquartile mad range ndgf " <<endl;
 		for(i=0;i<dbhxcat.number_tuples();++i,++dbhxcat)

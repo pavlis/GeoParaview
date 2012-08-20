@@ -148,7 +148,7 @@ int main(int argc, char **argv)
 		int ierr;
 		/* This holds the list of matching record numbers used to find
 		the right row in arrival */
-		list<int> matchlist;
+		list<long> matchlist;
 		vector<double> arrival_times;
 		cout << "evid sta phase db_arrival_time median_dt mean_dt interquartile mad range ndgf nskipped" <<endl;
 		/* Hold keys extracted with dbgetv in loop below for matching to db2 */
@@ -194,7 +194,7 @@ int main(int argc, char **argv)
 					matchxsaa.put("phase",phase);
 					matchxsaa.put("evid",evid);
 					matchxsaa.put("gridid",gridid);
-					list<int> recs=db2mh.find(matchxsaa,false);
+					list<long> recs=db2mh.find(matchxsaa,false);
 					int nrecs=recs.size();
 					if(nrecs>1)
 					{
@@ -211,7 +211,7 @@ int main(int argc, char **argv)
 					else if(nrecs!=0)
 					{
 						double adt;
-						list<int>::iterator irptr=recs.begin();
+						list<long>::iterator irptr=recs.begin();
 						dbh2.db.record=*irptr;
 						dbgetv(dbh2.db,0,"time",&adt,0);
 						atime += adt;

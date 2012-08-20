@@ -2,12 +2,13 @@
 # applying a variable high frequency cutoff filter.  Corners are assigned randomly with
 # center frequency variable_bandwidth_corner (in Hz) and a range of variable_bandwidth_corner_range.
 # Note the later has units of db.  
-test_variable_bandwidth false
+test_variable_bandwidth true
 variable_bandwidth_filter_corner 2.0
 variable_bandwidth_corner_range_db 12
 minimum_noise_window_length 4.0
 #station_geometry_file sta.xy
-station_geometry_file crossarray.xy
+#station_geometry_file crossarray.xy
+station_geometry_file small.xy
 #snr_convergence_floor 10.0
 #snr_convergence_floor 5.0
 # approximately 5 * quantile for standard normal 

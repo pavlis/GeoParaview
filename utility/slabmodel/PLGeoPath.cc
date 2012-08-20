@@ -2,7 +2,20 @@
 #include "SeisppError.h"
 #include "interpolator1d.h"
 using namespace INTERPOLATOR1D;
+using namespace SEISPP;
+PLGeoPath::PLGeoPath() : coordxyz(0.0,0.0,0.0,0.0)
+{
+    lat.reserve(1);
+    lon.reserve(1);
+    r.reserve(1);
+    s.reserve(1);
+    s0.lat=0.0;
+    s0.lon=0.0;
+    s0.r=6371.0;
+}
+
 PLGeoPath::PLGeoPath(vector<Geographic_point>& pts,int i0,double az0)
+    : coordxyz(pts[i0].lat,pts[i0].lon,pts[i0].r,az0)
 {
     const string base_error("PLGeoPath constructor:  ");
     int npts=pts.size();
@@ -134,6 +147,18 @@ double PLGeoPath::send()
 {
     return(s[lat.size()-1]);
 }
+Geographic_point PLGeoPath::node_position(int i)
+{
+    if(i<0 || i>=(this->number_points()) )
+        throw SeisppError(string("PLGeoPath::node_position method:  ")
+                + "requested point outside range of node points");
+    Geographic_point result;
+    result.lat=lat[i];
+    result.lon=lon[i];
+    result.r=r[i];
+    return result;
+}
+
 ostream& operator<<(ostream& os,PLGeoPath& path)
 {
     int i;
@@ -144,7 +169,7 @@ ostream& operator<<(ostream& os,PLGeoPath& path)
     {
 	    for(i=0;i<npts;++i)
 	    {
-	        cout << deg(path.lon[i])<<" "
+	        os << deg(path.lon[i])<<" "
 	            << deg(path.lat[i])<<" "
 	            << r0_ellipse(path.lat[i])-path.r[i]<<" "
 	            << path.r[i] << endl;
