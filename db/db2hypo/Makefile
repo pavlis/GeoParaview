@@ -1,8 +1,7 @@
 BIN=db2artm
 #MAN1=
-fflags=$(DBLIBS)
+ldlibs=-lseispp -ltrvltm $(DBLIBS) -lperf -lm
 include $(ANTELOPEMAKE)
 OBJS=db2artm.o
 $(BIN) : $(OBJS)
-	$(RM) $@
-	$(FC) $(FFLAGS) -o $@ $(OBJS) $(LDFLAGS) $(LDLIBS)
+	$(CXX) $(CXXFLAGS) -o $@ $(OBJS) $(LDFLAGS) $(LDLIBS)

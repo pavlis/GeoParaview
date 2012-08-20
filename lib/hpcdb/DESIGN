@@ -1,0 +1,48 @@
+This is the design document for this a new simplified database for use on massively 
+parallel machines.  Primary features of this design are:
+1.  Must work in a massively parallel setting.
+2.  Initial design will assume all cpus see the same file system, but api should not
+depend on this assumption.  Initial thought is this will use file locking and
+borrow the processing queue code of DatascopeProcessingQueue, although I may 
+generalize that and alter the API a bit based on lessons learned from the
+Datascope implementation.
+3.  API will center on a handle that is an object that is an implementation of the
+abstract class DatabaseHandle.  
+4.  This will absolutely not be a full relational database.  It will require a simple
+single table that is essentially a general header that is assembled to be the processor's
+input stream.  Absolutely required is a group method to build ensembles.  A sort method
+might be prudent, but suspect it would be better to require that be done by an external 
+program.  i.e. should probably build a hpcdbsort program with usage hpcdbsort dbin dbout
+that would build dbout sorted in a different order.  
+
+Some initial ideas that are more volatile.
+
+1.  I think I will implement this as a binary file assmebled using a variant ofthe FixedFormatTrace object.
+I will need to rework that code a bit to build an object with no waveform data attached, but 
+it provides the right model for this.  That is, the key concept it uses is a pf to define
+the mapping between byte offsets and attributes with name tags.  I would plan the db then to 
+be composed of two files:  file.db and file.pf.  file.db would be the binary data that formed
+the actual db and file.pf would contain the dictionary mapping each attribute to a name.  
+2.  The db will also require a queue file in the model using a file with fixed extension.
+i.e. file.db will have with it a file called file.Q.  
+3.  This will require a separate import program for sure, and probably an export program.
+These should produce ascii version of the binary data.  Alternatively, these should perhaps be
+methods in the handle.  Might, for example, allow a file.ascii version of file.db which would
+make the db more transportable.  This might make the code of more general use as the code
+could, for example, run simultaneously on quarry and big red.  To be of much use, however,
+this would require setting up some automatic features that are probably a bad idea initially.
+I think the best approach is to put these into the API, but only implement a simple version
+that assumes a simple model where files are local.  
+4.  I thought about having the queue file part of the db object, but that is probably 
+a bad idea.  The main reason is that since a group has specific keys the group used
+will define the queue.  
+
+
+Oct 16
+
+Have been working this over for a while.  Came across a new wrinkle that may alter this 
+design some.  MPI has what appears to be a fairly extensive parallel io library that
+will require some research to understand.  In output mode, in particular, this may provide
+a way to deal with file locking issues more cleanly.  It may also be another way to implement
+the processing queue.  In either case, however, the specifics need to be hidden behind the
+interface.

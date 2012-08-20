@@ -1,0 +1,6 @@
+This program has the same name an older version without the 2011 suffix 
+in the directory name.  This supports a new model format in the 
+more recent version of Roecker's code.   The new format allows more 
+flexibility in the grid definition. It is now effectively a rectilinear
+grid, but I still treat it as structured grid.  Be warned this needs to 
+be modified if ever used as a model for pwmig.
