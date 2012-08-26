@@ -429,18 +429,18 @@ bool validate_parameters(Metadata md,XcorEngineMode mode,string qfile, string or
 /* Return this critical state enum value from parameter space */
 XcorEngineMode get_engine_mode(Metadata& md)
 {
-	XcorEngineMode result;
+	XcorEngineMode result(ContinuousDB);
 	try {
-		string pmodestr=md.get_string("procesing_mode");
+		string pmodestr=md.get_string("processing_mode");
 		if(pmodestr=="EventGathers")
 			result=EventGathers;
 		else if(pmodestr=="GenericGathers")
-			result==GenericGathers;
+			result=GenericGathers;
 		else if(pmodestr=="ContinuousDB")
 			result=ContinuousDB;
 		else
 		{
-			cerr << "Illegal keyword = "<<pmodestr<<" for procesing_mode parameter"
+			cerr << "Illegal keyword = "<<pmodestr<<" for processing_mode parameter"
 				<<endl
 				<< "Must be one of:  EventGathers, GenericGathers, or ContinuousDB"
 				<<endl;
@@ -481,6 +481,32 @@ ReferenceTraceMethod GetReferenceTraceMethod(Metadata& md)
 			<<endl;
 		exit(-1);
 	}
+	return(result);
+}
+BestEnsembleMethod GetBestEnsembleMethod(Metadata& md)
+{
+	string stest;
+	try {
+		stest=md.get_string("BestEnsembleMethod");
+	}
+	catch (MetadataGetError mderr)
+	{
+		mderr.log_error();
+		exit(-1);
+	}
+	BestEnsembleMethod result;
+	if(stest=="MaxSumWeights")
+		result=MaxSumWeights;
+	else if(stest=="MaxSurvivors" )
+		result=MaxSurvivors;
+	else
+	{
+		cerr<< "Illegal keyword for parameter BestEnsembleMethod"<<endl
+			<<"Must be one of:  MaxSumWeights, or MaxSurvivors"
+			<<endl;
+		exit(-1);
+	}
+	return(result);
 }
 
 Hypocenter load_hypo(DatascopeHandle& dbh,string method, string model)
@@ -500,7 +526,109 @@ Hypocenter load_hypo(DatascopeHandle& dbh,string method, string model)
 		exit(-1);
 	}
 }
+int apply_cutoff(TimeSeriesEnsemble& d, Metadata& md)
+{
+	double stack_weight_cutoff=md.get_double("stack_weight_cutoff");
+	double time_lag_cutoff=md.get_double("time_lag_cutoff");
+	double coherence_cutoff=md.get_double("coherence_cutoff");
+	double correlation_peak_cutoff=md.get_double("stack_weight_cutoff");
+	vector<TimeSeries>::iterator memptr;
+	int nbad;
 
+	nbad=0;
+	for(memptr=d.member.begin();memptr!=d.member.end();++memptr)
+	{
+		double correlation, coherence, stackwt, lag;
+		if(memptr->live)
+		{
+			/*Intentionally omit try/catch as here we are
+			guaranteed these have been set */
+			correlation=memptr->get_double(peakxcor_keyword);
+			if(correlation<correlation_peak_cutoff)
+			{
+				memptr->live=false;
+				++nbad;
+				continue;
+			}
+			coherence=memptr->get_double(coherence_keyword);
+			if(coherence<coherence_cutoff)
+			{
+				memptr->live=false;
+				++nbad;
+				continue;
+			}
+			stackwt=memptr->get_double(stack_weight_keyword);
+			if(stackwt<stack_weight_cutoff)
+			{
+				memptr->live=false;
+				++nbad;
+				continue;
+			}
+			lag=memptr->get_double(moveout_keyword);
+			if(fabs(lag)>time_lag_cutoff)
+			{
+				memptr->live=false;
+				++nbad;
+			}
+		}
+	}
+}
+/* This template and related procedures are used to provide a way to 
+resort an ensemble in the original order. */
+const string index_keyword("member_number");
+template <typename T> struct less_integer_header_attribute
+		: public binary_function<T,T,bool>
+{
+	string key;
+	less_integer_header_attribute(string keyin)
+	{
+		key=keyin;
+	};
+	bool operator () (T a, T b)
+	{
+		int ia,ib;
+		try {
+			ia=a.get_int(key);
+		}catch(...){return true;};
+		try {
+			ib=b.get_int(key);
+		}catch(...){return false;};
+		if(ia<ib)
+			return true;
+		else
+			return false;
+	}
+};
+			
+	
+void set_index(TimeSeriesEnsemble *tse)
+{
+	int i;
+	for(i=0;i<tse->member.size();++i)
+	{
+		tse->member[i].put(index_keyword,i);
+	}
+}
+
+
+/* This function kills traces in parent ensemble using pass1 pattern.  
+The method used is very very dependent on an assumption that parent is
+already in index_keyword order.  Thus, pass1 is sorted by index_keyword
+and we assume we can do a kill in index_keyword order.  Said another
+way we assume that parent.member[i] is the same data as pass1.member[i]
+for all i.  
+*/
+void kill_pass1_bad(TimeSeriesEnsemble& pass1, TimeSeriesEnsemble& parent)
+{
+	if(pass1.member.size() != parent.member.size()) throw SeisppError(string("kill_pass1_bad:  ")
+				+ "pass1 and parent ensemble sizes do not match.");
+	// Sort pass1 by index_keyword using the generic integer ordering function
+	sort(pass1.member.begin(),pass1.member.end(),less_integer_header_attribute<TimeSeries>(index_keyword));
+	int i;
+	for(i=0;i<pass1.member.size();++i)
+		if(!pass1.member[i].live) parent.member[i].live=false;
+	
+}
 
 void usage()
 {
@@ -542,19 +670,19 @@ int main(int argc, char **argv)
 			if(i>=argc)usage();
 			pfname=string(argv[i]);
 		}
-		if(argtest=="-q")
+		else if(argtest=="-q")
 		{
 			++i;
 			if(i>=argc)usage();
 			queuefile=string(argv[i]);
 		}
-		if(argtest=="-o")
+		else if(argtest=="-o")
 		{
 			++i;
 			if(i>=argc)usage();
 			dbout=string(argv[i]);
 		}
-		if(argtest=="-e")
+		else if(argtest=="-e")
 		{
 			++i;
 			if(i>=argc)usage();
@@ -570,6 +698,7 @@ int main(int argc, char **argv)
 		exit(-1);
 	}
 	try {
+		string refkey("reference_trace_used");
 		AttributeMap("css3.0");
 		Metadata global_md(pf);
 		XcorAnalysisSetting asetting(global_md);
@@ -607,23 +736,14 @@ int main(int argc, char **argv)
 		/* This is here to do some sanity checks on pf an exit if
 		there are inconsisties.   This function should return a false
 		if parameters are inconsistent.*/
-		if(validate_parameters(global_md,enginemode,queuefile,origindb))
+		if(!validate_parameters(global_md,enginemode,queuefile,origindb))
 		{
 			cerr << "hcpxcor:  parameter inconsistency.  Cannot continue."
 				<< "Fix errors noted above and try again"<<endl;
 			exit(-3);
 		}
 		XcorProcessingEngine xpe(pf,asetting,dbname,dbout,queuefile);
-		/* Not totally necessary in this context, but a useful test to 
-		require anyway*/
-		if(!xpe.validate_setting(asetting)) 
-		{
-			cerr << "XcorProcessingEngine::validate_setting returned false"
-				<< endl <<"Cannot continue.  Exiting. "<<endl;
-			exit(-2);
-		}
-		/* The engine contains an image of the waveform db view.  We need it.*/
-		DatabaseHandle *dbhwf = xpe.get_db(dbname);
+		DatabaseHandle *dbhwf = xpe.get_db(string("waveformdb"));
 		Hypocenter h;  /* Only used in ContinousDB mode, but have to declare now */
 		/* In continuous mode we need to loop through the event database.  We
 		do this by building a handle to origindb and a linked queue */
@@ -672,22 +792,23 @@ int main(int argc, char **argv)
 				the last gather processed.  Works correctly for first pass
 				doing nothing to the queue. */
 				load_status=xpe.load_data(*dbhwf,FINISHED);
+				if(load_status!=0) keeplooping=false;
 				break;
 			case ContinuousDB:
 				dpq->set_to_current(dbhorigin);
 				h=load_hypo(dbhorigin,method,model);
 				xpe.load_data(h);
 			};
-			TimeSeriesEnsemble *tse=xpe.get_waveforms_gui();
-			/* Silently skip any ensemble with only one member */
-			if(tse->member.size()<2) 
+			if(enginemode==ContinuousDB)
 			{
-				if(enginemode==ContinuousDB)
-				{
-					if(!dpq->has_data()) break;
-				}
-				continue;
+				if(!dpq->has_data()) keeplooping=false;
 			}
+			if(!keeplooping) break;
+			TimeSeriesEnsemble *tse=xpe.get_waveforms_gui();
+			int ensemblesize=tse->member.size();
+			/* Silently skip any ensemble with only one member */
+			/* For initial debug, require at least 3 members */
+			if(ensemblesize<4) continue;
 			/* We have to deal with the critical issue of setting
 			the event to be used as the reference trace for the MultichannelCorrelator.
 			We handle that here through an enum with different methods called.
@@ -702,14 +823,17 @@ int main(int argc, char **argv)
 			{
 			case UseAll:
 				reference_traces=UseAll_ChooseReference(*tse,MaxTrials);
+				break;
 			case MaxSnrDB:
 				reference_traces=MaxSnrDB_ChooseReference(*tse,dbsnrkey);
 				if(reference_traces.size()<1) break;  // handle this error below
 				if(MaxTrials>1) reference_traces=find_largest(*tse,dbsnrkey,MaxTrials);
+				break;
 			case MaxSnrComputed:
 				reference_traces=MaxSNRComputed_ChooseReference(*tse,SNR_signal_tw, SNR_noise_tw);
 				if(reference_traces.size()<1) break;  // handle this error below
 				if(MaxTrials>1) reference_traces=find_largest(*tse,snr_keyword,MaxTrials);
+				break;
 			case MaxPeakAmplitude:
 				reference_traces=MaxPeakAmplitude_ChooseReference(*tse);
 				if(reference_traces.size()<1) break;  // handle this error below
@@ -740,24 +864,47 @@ int main(int argc, char **argv)
 				havoc. */
 				if(i!=0) xpe.restore_original_ensemble();
 				xpe.change_analysis_setting(asetting);
-				xpe.analyze();
 				/* Must refresh this pointer since restore_original_ensemble is
 				guaranteed to change it */
 				tse=xpe.get_waveforms_gui();
+				set_index(tse);
+				/*It is convenient to post this to the ensemble to avoiding having
+				to recompute it for pass2 */
+				tse->put(refkey,*rtptr);
+				xpe.analyze();
 				trials.push_back(*tse);
 			}
-			/*Select the version considered best and save */
+			/*Select the version considered best */
 			vector<TimeSeriesEnsemble>::iterator bestens;
 			/* Passing this the global_md is a backdoor way to get 
 			any parameters needed by any of the allowed methods. 
 			Not best practice, but preferable to modifying the engine. */
 			bestens=find_best_ensemble(trials, bem,
 				global_md);
+			/* This procedure applies cutoff criteria to best ensemble returning
+			a count of how many members were marked bad.  We pass these again through
+			the global_md object. */
+			int ibad=apply_cutoff(*bestens, global_md);
+			if(ibad>0 && (ensemblesize-ibad>2))
+			{
+				/* When data get deleted we always rerun the analysis.  This 
+				is more complicated than it might seem as bestens is a copy 
+				of original.  We first refresh the master, then edit it against
+				bestens to mark the data that failed in the first pass as bad. */
+				xpe.restore_original_ensemble();
+				tse=xpe.get_waveforms_gui();
+				set_index(tse);
+				kill_pass1_bad(*bestens, *tse);
+				int iref=tse->get_int(refkey);
+				asetting.set_ref_trace(iref);
+				xpe.change_analysis_setting(asetting);
+				xpe.analyze();
+			}
 			/* We cannot use the save_results methods in the engine 
 			because it would be very evil to delete and modify the
 			tse pointer.  Hence we largely duplicate code from XcorProcessingEngine
 			in the procedure called here.  see above*/
-			save_results(enginemode,xpe,*bestens);
+			//save_results(enginemode,xpe,*bestens);
 
 #ifdef MPI_SET
 		    }
@@ -766,7 +913,7 @@ int main(int argc, char **argv)
 		    if(enginemode==ContinuousDB) ++dbhorigin;
 		    /* Because of inconsistent input methods, we have this ugly construct to 
 		    break this loop */
-		    switch(enginemode):
+		    switch(enginemode)
 		    {
 		    case EventGathers:
 		    case GenericGathers:

@@ -1,9 +1,9 @@
 BIN=pbpathtolatlon
-ldlibs=-lgclgrid -lseispp $(DBLIBS) -lperf 
+ldlibs=-lgclgrid -lgeocoords -lseispp $(DBLIBS) -lperf 
 
 include $(ANTELOPEMAKE)  	
 
-OBJS=pbpathtolatlon.o   PlateBoundaryPath.o 
+OBJS=pbpathtolatlon.o  
 
 $(BIN) : $(OBJS)
 	$(RM) $@
