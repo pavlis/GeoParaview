@@ -88,6 +88,10 @@ GeoTriMeshSurface& GeoTriMeshSurface::operator=(const GeoTriMeshSurface& parent)
     return(*this);
     */
 }
+void GeoTriMeshSurface::AddBoundary(const GeoPolygonRegion& poly)
+{
+    boundary=poly;
+}
 double GeoTriMeshSurface::radius(double lat, double lon)
 {
     /* We need to fetch the raw pointer from the shared_ptr by this method */
@@ -110,6 +114,8 @@ bool GeoTriMeshSurface::is_defined(double lat, double lon)
     CGPolygon *poly=polygon_containing_xy(trigrid,lon,lat);
     if(poly==NULL) 
         return false;
-    else
+    if(boundary.is_inside(lat,lon))
         return true;
+    else
+        return false;
 }

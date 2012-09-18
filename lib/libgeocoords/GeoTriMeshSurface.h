@@ -4,6 +4,7 @@
 #include "cgeom.h"
 #include "gclgrid.h"
 #include "GeoSurface.h"
+#include "GeoPolygonRegion.h"
 
 using namespace std;
 /* This enum is needed to define coordinate units. It may belong in a more 
@@ -81,6 +82,18 @@ class GeoTriMeshSurface : public GeoSurface
         ~GeoTriMeshSurface();
         /*! Standard assignment operator. */
         GeoTriMeshSurface& operator=(const GeoTriMeshSurface& parent);
+        /*! Add a polygonal boundary region.
+
+          This object always is constrained by the convex hull of the set of points.
+          Sometimes, however, it is useful to carve out part of the surface 
+          particularly when part of the object is not convex.   This is added
+          through the GeoPolygonRegion object that is copied and used internally.
+          When this is called the boundary is the interior of both the convex
+          hull and the polygon defined here. 
+
+          \param poly defines the polygon region. 
+          */
+        void AddBoundary(const GeoPolygonRegion& poly);
         /*! Return the radius of the surface at lat,lon.  
          
          This method interpolates the surface and returns a radius value
@@ -107,5 +120,7 @@ class GeoTriMeshSurface : public GeoSurface
     private:
         CGPartition *trigrid;
         GeographicUnits units;
+        bool polygon_boundary_defined;
+        GeoPolygonRegion boundary;
 };
 #endif

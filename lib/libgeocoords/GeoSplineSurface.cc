@@ -147,6 +147,10 @@ double GeoSplineSurface::radius(double lat, double lon)
         return(r0-this->depth(lat,lon));
     }catch(...){throw;};
 }
+void GeoSplineSurface::AddBoundary(const GeoPolygonRegion& poly)
+{
+    boundary=poly;
+}
 /* Note the test here is fundamentally different from that used by 
    the depth method.  The depth method compares lat and lon to a rectangular
    region (min,max).  This uses the convex hull defined by the Delaunay
@@ -156,6 +160,8 @@ bool GeoSplineSurface::is_defined(double lat,double lon)
     CGPolygon *poly=polygon_containing_xy(trigrid,lon,lat);
     if(poly==NULL)
         return false;
-    else
+    if(boundary.is_inside(lat,lon))
         return true;
+    else
+        return false;
 }

@@ -5,6 +5,7 @@
 #include "Metadata.h"
 #include "cgeom.h"
 #include "GeoSurface.h"
+#include "GeoPolygonRegion.h"
 using namespace std;
 using namespace SEISPP;
 
@@ -138,6 +139,15 @@ public:
       Nontrivial destructor has to free grid data.
       */
     ~GeoSplineSurface();
+    /*! Add a polygonal boundary region.
+
+      Sometimes we need to build a bounding curve that has an 
+      arbitrary shape.   This adds that capability.  Default uses
+      the convex hull of input points. 
+
+      \param poly defines the polygon region.
+      */
+    void AddBoundary(const GeoPolygonRegion& poly);
     /*! Return radius of surface.
 
       This method returns the spherical coordinate radius (in km) of the surface
@@ -193,5 +203,6 @@ private:
             double tension_interior, double tension_boundary, 
             double aspect_ratio, double overrelexation, 
             double convergence, int max_iterations);
+    GeoPolygonRegion boundary;
 };
 #endif
