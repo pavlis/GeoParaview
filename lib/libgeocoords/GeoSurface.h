@@ -1,5 +1,6 @@
 #ifndef _GEOSURFACE_H_
 #define _GEOSURFACE_H_
+#include "GeoPolygonRegion.h"
 /*! Abstract base class for georeferenced surfaces.
 
   We often want a georeferenced surface.  This is the 
@@ -16,6 +17,12 @@ at that position.
 class GeoSurface
 {
 public:
+    /* \brief Add bounding polygon to the surface
+
+       Frequently an independent bounding curve is desirable
+       for a surface. This perhaps should not be in the base 
+       class, but so be it. */
+    void AddBoundary(GeoPolygonRegion& p){};
     /*! Return the radius of the surface at point lat,lon.*/
     virtual double radius(double lat, double lon)=0;
     /*! Return the depth of the surface at point lat,lon.*/

@@ -4,7 +4,7 @@
 #include "GeoTriMeshSurface.h"
 using namespace std;
 
-GeoTriMeshSurface::GeoTriMeshSurface(vector<Geographic_point> pts,string coordunits)
+void GeoTriMeshSurface::initialize_private(vector<Geographic_point> pts,string coordunits)
 {
     if(pts.size()<3) 
         throw GeoCoordError(string("GeoTriMeshSurface:")
@@ -24,6 +24,14 @@ GeoTriMeshSurface::GeoTriMeshSurface(vector<Geographic_point> pts,string coordun
     trigrid=delaunay_On4(pointset);
     cgpointset_free(&pointset);
 }
+GeoTriMeshSurface::GeoTriMeshSurface(vector<Geographic_point> pts,
+        string coordunits)
+{
+    try {
+        initialize_private(pts,coordunits);
+    }catch(...){throw;};
+}
+
 GeoTriMeshSurface::GeoTriMeshSurface(vector<double>lat, vector<double>lon, 
         vector<double> depth,string coordunits)
 {
@@ -51,9 +59,9 @@ GeoTriMeshSurface::GeoTriMeshSurface(vector<double>lat, vector<double>lon,
     }
     try {
         if(units==RADIANS)
-            *this=GeoTriMeshSurface(pts);
+            initialize_private(pts,string("radians"));
         else
-            *this=GeoTriMeshSurface(pts,string("degrees"));
+            initialize_private(pts,string("degrees"));
     } catch(...){throw;};
 }
 GeoTriMeshSurface::GeoTriMeshSurface(const GeoTriMeshSurface& parent)

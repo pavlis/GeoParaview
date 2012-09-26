@@ -5,6 +5,7 @@
 #include "Metadata.h"
 #include "seispp.h"
 #include "interpolator1d.h"
+#include "GeoPolygonRegion.h"
 #include "GeoTriMeshSurface.h"
 #include "GeoSplineSurface.h"
 #include "PLGeoPath.h"
@@ -340,9 +341,17 @@ int main(int argc, char **argv)
             GeoSurface *geosurf;
             bool spline_surface=control.get_bool("use_bicubic_spline");
             if(spline_surface)
-                geosurf=dynamic_cast<GeoSurface*>(new GeoSplineSurface(slabdata,control));
+                geosurf=new GeoSplineSurface(slabdata,control);
             else
-                geosurf=dynamic_cast<GeoSurface*>(new GeoTriMeshSurface(slabdata));
+                geosurf=new GeoTriMeshSurface(slabdata);
+            /* This adds a bounding curve that may not be convex */
+            bool use_bounding_polygon=control.get_bool("use_bounding_polygon");
+            if(use_bounding_polygon)
+            {
+                string boundsfile=control.get_string("bounding_polygon_file");
+                GeoPolygonRegion bounds(boundsfile);
+                geosurf->AddBoundary(bounds);
+            }
             /* Now create one path for each point on resampled trench path.*/
             int npoints=SEISPP::nint(modeltime/timesampleinterval)+1;
             int npaths=zerotimecurve.number_points();

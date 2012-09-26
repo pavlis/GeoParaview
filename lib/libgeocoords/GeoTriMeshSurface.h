@@ -122,5 +122,7 @@ class GeoTriMeshSurface : public GeoSurface
         GeographicUnits units;
         bool polygon_boundary_defined;
         GeoPolygonRegion boundary;
+        void initialize_private(vector<Geographic_point> pts,
+                string units);
 };
 #endif
