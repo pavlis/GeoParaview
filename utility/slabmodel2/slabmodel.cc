@@ -268,6 +268,11 @@ int main(int argc, char **argv)
             double timesampleinterval=control.get_double("time_sample_interval");
             /* Time to run slab motion */
             double modeltime=control.get_double("model_elapsed_time");
+            /* Number of points to oversample defining paths.
+               Most relevant to spline methods.   Makes larger 
+               with splnes and coarse sampling.  Make smaller for 
+               triangulation and/or short time sampling */
+            int oversampling=control.get_int("oversampling_count");
             double trench_path_sample_interval=control.get_double(
                         "trench_path_sample_interval");
             double maxdip,mindip;
@@ -338,12 +343,21 @@ int main(int argc, char **argv)
                part of the input set of points */
             string slabdata_filename=control.get_string("slabdata_filename");
             vector<Geographic_point> slabdata=load_geopointdata(slabdata_filename);
+            /* This oddity is needed to deal with polymophic geosurf */
+            GeoSplineSurface *gss;
+            GeoTriMeshSurface *gts;
             GeoSurface *geosurf;
             bool spline_surface=control.get_bool("use_bicubic_spline");
             if(spline_surface)
-                geosurf=new GeoSplineSurface(slabdata,control);
+            {
+                gss=new GeoSplineSurface(slabdata,control);
+                geosurf=dynamic_cast<GeoSurface *>(gss);
+            }
             else
-                geosurf=new GeoTriMeshSurface(slabdata);
+            {
+                gts=new GeoTriMeshSurface(slabdata);
+                geosurf=dynamic_cast<GeoSurface *>(gts);
+            }
             /* This adds a bounding curve that may not be convex */
             bool use_bounding_polygon=control.get_bool("use_bounding_polygon");
             if(use_bounding_polygon)
@@ -382,7 +396,6 @@ int main(int argc, char **argv)
                 dist(plat,plon,gp.lat,gp.lon,&Reffective,&aztmp);
                 Reffective=deg2km(deg(Reffective));
                         */
-                const int oversampling(50);
                 double sdt=timesampleinterval/static_cast<double>(oversampling);
                 int j;
                 vector<Geographic_point> oversampledpath;

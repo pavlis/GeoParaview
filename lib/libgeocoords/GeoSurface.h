@@ -17,12 +17,6 @@ at that position.
 class GeoSurface
 {
 public:
-    /* \brief Add bounding polygon to the surface
-
-       Frequently an independent bounding curve is desirable
-       for a surface. This perhaps should not be in the base 
-       class, but so be it. */
-    void AddBoundary(GeoPolygonRegion& p){};
     /*! Return the radius of the surface at point lat,lon.*/
     virtual double radius(double lat, double lon)=0;
     /*! Return the depth of the surface at point lat,lon.*/
@@ -30,5 +24,6 @@ public:
     /*! Test to see if the surface is defined at this point.  Returns 
       true of the surface is defined at the given point. */
     virtual bool is_defined(double lat,double lon)=0;
+    virtual void AddBoundary(const GeoPolygonRegion& poly)=0;
 };
 #endif

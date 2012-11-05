@@ -207,6 +207,13 @@ GeoPolygonRegion::GeoPolygonRegion(string fname)
         lat.push_back(lat[0]);
         lon.push_back(lon[0]);
     }
+    /* Last but not least convert all lat and lon values to radians */
+    npoints=lat.size();
+    for(int i=0;i<npoints;++i)
+    {
+        lat[i]=rad(lat[i]);
+        lon[i]=rad(lon[i]);
+    }
 }
 GeoPolygonRegion::GeoPolygonRegion(vector<double> vlat, vector<double> vlon)
     : lat(vlat),lon(vlon)
@@ -228,14 +235,21 @@ GeoPolygonRegion::GeoPolygonRegion(vector<Geographic_point> gpts)
     int npts=gpts.size();
     lat.reserve(npts);
     lon.reserve(npts);
+    /* Temporaries for error check */
+    vector<double> dlat,dlon;
+    dlat.reserve(npts);
+    dlon.reserve(npts);
     for(i=0;i<npts;++i)
     {
-        /* Geographic points are normally in radians so we force
-           conversion to degrees */
-        lat.push_back(deg(gpts[i].lat));
-        lon.push_back(deg(gpts[i].lon));
+        /* Geographic points are normally in radians so we create
+           the dlat and dlon (degrees) version to allow use of points_not_valid 
+           test */
+        dlat.push_back(deg(gpts[i].lat));
+        dlon.push_back(deg(gpts[i].lon));
+        lat.push_back(gpts[i].lat);
+        lon.push_back(gpts[i].lon);
     }
-    if(points_not_valid(lat,lon))
+    if(points_not_valid(dlat,dlon))
         throw GCLgridError(base_error + "illegal lat or lon values in polygon\n"
                 "Does not support longitude singularity or across poles");
 }
@@ -282,6 +296,6 @@ ostream& operator << (ostream& os, GeoPolygonRegion& p)
 {
     int i;
     for(i=0;i<p.npoints;++i)
-        os << p.lon[i]<<" "<<p.lat[i]<<endl;
+        os << deg(p.lon[i])<<" "<<deg(p.lat[i])<<endl;
     return(os);
 }

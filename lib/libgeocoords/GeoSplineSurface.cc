@@ -19,7 +19,7 @@ GeoSplineSurface::GeoSplineSurface(vector<Geographic_point>& pts,
             double aspect_ratio,
              double overrelaxation,
               double convergence,
-               int max_iterations)
+               int max_iterations) : boundary()
 {
     this->GSSinit(pts,minx,maxx,miny,maxy,dx,dy,lower,upper,
             tension_interior,tension_boundary,aspect_ratio,
@@ -39,7 +39,7 @@ void GeoSplineSurface::GSSinit(vector<Geographic_point>& pts,
             double aspect_ratio,
              double overrelaxation,
               double convergence,
-               int max_iterations)
+               int max_iterations) 
 {
     latmin=rad(miny);
     latmax=rad(maxy);
@@ -69,7 +69,7 @@ void GeoSplineSurface::GSSinit(vector<Geographic_point>& pts,
     cgpointset_free(&pointset);
 }
 GeoSplineSurface::GeoSplineSurface(vector<Geographic_point>& pts,
-            Metadata& inpar)
+            Metadata& inpar) : boundary()
 {
     try {
         double minx=inpar.get_double("grid_longitude_minimum");

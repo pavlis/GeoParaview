@@ -25,6 +25,10 @@
    across the poles.   Date line problems are readily fixed by switching 
    to 0 to 360 specification instead of -180 to 180.  Converse applies to 
    crossing the prime meridian.
+
+   Although the input is required to be in degrees be aware that to be
+   consistent with everything else in this library the points are
+   stored internally in radians.   
    */
 class GeoPolygonRegion
 {
@@ -78,7 +82,7 @@ class GeoPolygonRegion
         bool is_inside(double lat0, double lon0);
         /*! Standard assignment operator. */
         GeoPolygonRegion& operator=(const GeoPolygonRegion& parent);
-        /*! Standard output stream operator. */
+        /*! Standard output stream operator.  List points in degrees.*/
         friend ostream& operator << (ostream& os, GeoPolygonRegion& p);
     private:
         int npoints;  // Number of points in polygon

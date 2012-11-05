@@ -25,7 +25,7 @@ void GeoTriMeshSurface::initialize_private(vector<Geographic_point> pts,string c
     cgpointset_free(&pointset);
 }
 GeoTriMeshSurface::GeoTriMeshSurface(vector<Geographic_point> pts,
-        string coordunits)
+        string coordunits) : boundary()
 {
     try {
         initialize_private(pts,coordunits);
@@ -33,7 +33,7 @@ GeoTriMeshSurface::GeoTriMeshSurface(vector<Geographic_point> pts,
 }
 
 GeoTriMeshSurface::GeoTriMeshSurface(vector<double>lat, vector<double>lon, 
-        vector<double> depth,string coordunits)
+        vector<double> depth,string coordunits) : boundary()
 {
     int npts=lat.size();
     if( (lon.size()!=npts) || (depth.size()!=npts)) throw GeoCoordError(
@@ -79,6 +79,7 @@ GeoTriMeshSurface::GeoTriMeshSurface(const GeoTriMeshSurface& parent)
     trigrid=parent.trigrid;
     */
     units=parent.units;
+    boundary=parent.boundary;
 }
 GeoTriMeshSurface::~GeoTriMeshSurface()
 {

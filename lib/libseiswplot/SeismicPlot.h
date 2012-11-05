@@ -4,10 +4,17 @@
 #include "ensemble.h"
 #include "Seisw.h"
 #include "BasicSeisPlot.h"
+#include "SeismicPick.h"
 #include "Metadata.h"
 #include <Xm/MainW.h>
 #include <Xm/Form.h>
 #include <Xm/PushB.h>
+#include <Xm/PushBG.h>
+#include <Xm/PanedW.h>
+#include <Xm/RowColumn.h>
+#include <Xm/CascadeBG.h>
+#include <Xm/ToggleB.h>
+#include <Xm/ToggleBG.h>
 namespace SEISPP
 {
 using namespace std;
@@ -24,9 +31,18 @@ using namespace SEISPP;
    redraw, but the current version based on Xt and the Seisw Motif widget
    just can't do that.  
 
-   Recognize that this implementation is designed only to plot data, not interact with
-   it.  If you need that functionality you will need to either write your own GUI 
-   or extend this one.  */
+   Because the implementation of this class is focused on the Seisw Motif
+   widget there is a very important limitation to note.  One must never
+   attempt to copy this object. The reason is that the X implemenation 
+   used here is simply not readily capable of handling multiple copies of
+   the same object in the same program.  There are several good reasons for
+   this but user should just realize the key rule - just don't ever try
+   to create copies of this plot handle.  A C++ compiler might just
+   allow you to do so because a default copy constructor and operator=
+   are often created even if you don't declare them.  
+
+   \author Gary L. Pavlis
+   */
 class SeismicPlot : public BasicSeisPlot, public Metadata
 {
     public:
@@ -45,28 +61,40 @@ class SeismicPlot : public BasicSeisPlot, public Metadata
             \exception Will throw a SeisppError object if plot parameters are missing.
         */
         SeismicPlot(Metadata& md);
+        /*! Destructor. 
+
+          Destructor for this beast is not trivial as we need to have the window system
+          clear the plot window and close it cleanly. */
+        ~SeismicPlot();
         /*! Plot an ensemble of data.
 
           This method plots an ensemble of scalar data in a single window frame. 
 
           \param d is the ensemble to be plotted. 
+          \param blocking boolean to control whether or not the plot enters
+            an event loop (default true).  When true the caller will block
+            until the user exits through the user interface.  When false 
+            the plot is generated and the program continues immediately. 
           */
-        void plot(TimeSeriesEnsemble& d);
+        void plot(TimeSeriesEnsemble& d,bool blocking=true);
         /*! Plot a three component ensemble of data.
 
-          Three-component data could be plotted a variety of ways, but here I choose to plot the 
-          data in three parallel window.  Each component is displayed in a window with a label for 
-          (C order ) component 0, 1, and 2. 
+          Three-component data could be plotted a variety of ways, but in this implmentation
+          this is plotted in 3 panes of the base window.
 
           \param d is data to be plotted.
+          \param blocking boolean to control whether or not the plot enters
+            an event loop (default true).  When true the caller will block
+            until the user exits through the user interface.  When false 
+            the plot is generated and the program continues immediately. 
           */
-        void plot(ThreeComponentEnsemble& d);
+        void plot(ThreeComponentEnsemble& d, bool blocking=true);
         /*! Plot a single time series.
 
           This is essentially a special case of a TimeSeriesEnsemble with one member and it is
           treated that way.  i.e. you get a plot of the data with one trace in the window.
           */
-        void plot(TimeSeries& d);
+        void plot(TimeSeries& d,bool blocking=true);
         /*! Plot a single three-component seismogram.
 
           A three component seismogram is plotted in the window 0 (the one labelled component 0) 
@@ -74,8 +102,12 @@ class SeismicPlot : public BasicSeisPlot, public Metadata
           different window, which would not make sense for common use for this type of plot.  
 
           \param d is the seismogram to be plotted.
+          \param blocking boolean to control whether or not the plot enters
+            an event loop (default true).  When true the caller will block
+            until the user exits through the user interface.  When false 
+            the plot is generated and the program continues immediately. 
           */
-        void plot(ThreeComponentSeismogram& d);
+        void plot(ThreeComponentSeismogram& d,bool blocking=true);
         /*! Make new plot parameters active.
 
           This plot object inherits another a Metadata object.  You can thus use the 
@@ -109,7 +141,11 @@ class SeismicPlot : public BasicSeisPlot, public Metadata
           this in the public interface and get threading to work right.  It really
           doesn't belong here and a caller should never ever touch this. */
         XtAppContext AppContext;
-    private:
+        friend class TraceEditPlot;
+    protected:
+        /* When true calls to plot will block until until the exit button is
+           pushed.   When false a call to plot immediately returns. */
+        bool block_till_exit_pushed;
         bool EventLoopIsActive;  // Set true when an event loop thread is running
         /* These are used to be safe.  They may not be necessary, but 
            because normally these are initialized from main this fakery
@@ -117,11 +153,26 @@ class SeismicPlot : public BasicSeisPlot, public Metadata
         int argc;  
         char *argv[1];
         Widget toplevel,main_w;
+        Widget slrc,paned_win;
         Widget continue_button;
-        Widget rshell[3];  // pop up windows for 3c data comp 2 and 3
-        Widget seisw[3];   // This is the seismic display widget
+        Widget seisw[3];   // This is the set of seismic display widgets
+        //Widget seisw0,seisw1,seisw2;
+        //For now just one entry, add pick functions to menu bar later
+        Widget menu_bar,menu_file;
         /* Private method that launches event handler thread */
         void launch_Xevent_thread_handler();
+        /* We will need this to implement kills on a 3c ensemble.  Intentionally 
+           commented out initially as this is a nasty add on that may never happen. */
+        //ThreeComponentEnsemble *parent3c;
+        /* These are temporaries needed to cache data being plotted.
+           Without this we will get a seg fault when the ensemble goes out of scope
+           because the widget accepts a raw pointer */
+        TimeSeriesEnsemble *comp0,*comp1,*comp2;
+        /*! Private method initializes widgets in a regular way.
+          
+          This is mainly here to provide common code for unparameterized
+          constructor and the one using a Metadata.*/
+        void initialize_widgets(Metadata& md);
 };
 }
 #endif
