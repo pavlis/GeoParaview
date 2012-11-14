@@ -255,9 +255,9 @@ int main(int argc, char **argv)
 				{
 					string chan;
 					chan=d[iic].get_string("chan");
-					if(chan==Rchan)
+                                        if(chan.find(Rchan)!=string::npos)
 						jc=1;
-					else if(chan==Tchan)
+					else if(chan.find(Tchan)!=string::npos)
 						jc=0;
 					else
 					{
