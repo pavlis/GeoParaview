@@ -1,3 +1,5 @@
+#include <vector>
+#include <list>
 #include "SeisppKeywords.h"
 #include "TimeSeries.h"
 #include "ThreeComponentSeismogram.h"
@@ -8,7 +10,7 @@
 #include "filter++.h"
 #include "resample.h"
 #include "seispp.h"
-#include "MatlabProcessor.h"
+//#include "MatlabProcessor.h"
 using namespace std;
 using namespace SEISPP;
 /*! \brief Generic algorithm to load arrival times from a database.
@@ -48,14 +50,19 @@ of data with valid arrivals is returned as an stl list container of ints.
 \return list of members of input vector with valid arrival times posted.
 	The contents of the list can be traversed and used with operator[]
 	to extract valid data from the ensemble.  
+
+        Yingzhu:  could not get this to build as a template.  Converted to 
+        concrete implementation for ThreeComponentSeismogram
 */
-template <class T>
-	list<int> LoadArrivalTimes(vector<T>& dat, DatascopeMatchHandle& dbh,
-		const string keyword)
+using namespace std;
+using namespace SEISPP;
+list<long> LoadArrivalTimes(vector<ThreeComponentSeismogram>& dat,
+                DatascopeMatchHandle& dbh,
+		    const string keyword)
 {
-	vector<T>::iterator d;
-	int i;
-	list<int> data_with_arrivals;
+        std::vector<ThreeComponentSeismogram>::iterator d;
+	long i;
+	list<long> data_with_arrivals;
 	const string base_error("Warning (LoadArrivalTimes): ");
 	for(d=dat.begin(),i=0;d!=dat.end();++d,++i)
 	{
@@ -64,7 +71,7 @@ template <class T>
 		{
 		// First see if there is an arrival for this
 		// station.  If not, skip it. 
-			list<int> records
+			list<long> records
 				=dbh.find(dynamic_cast<Metadata&>(*d));
 			// if no arrival silently skip data for this station
 			if(records.size()<=0) continue;
@@ -110,7 +117,7 @@ ThreeComponentEnsemble *BuildRegularGather(ThreeComponentEnsemble& raw,
 	TimeWindow processing_window)
 {
 	const string arrival_keyword("arrival.time");
-	const samprate_tolerance(0.01);  // fractional sample rate tolerance
+	const double samprate_tolerance(0.01);  // fractional sample rate tolerance
 	int nmembers=raw.member.size();
 	auto_ptr<TimeSeries> x1,x2,x3;
 	ThreeComponentEnsemble *result;
@@ -122,9 +129,9 @@ ThreeComponentEnsemble *BuildRegularGather(ThreeComponentEnsemble& raw,
 	result->member.reserve(raw.member.size());
 	// Load arrivals from database.  List returned is index into raw of
 	// data with valid arrivals loaded
-	list<int> data_with_arrivals=LoadArrivalTimes<ThreeComponentSeismogram>
-					(raw.member,dbh,arrival_keyword);
-	list<int>::iterator index;
+	list<long> data_with_arrivals;
+        data_with_arrivals=LoadArrivalTimes(raw.member,dbh,arrival_keyword);
+	list<long>::iterator index;
 	for(index=data_with_arrivals.begin();index!=data_with_arrivals.end();++index)
 	{
 		ThreeComponentSeismogram d=raw.member[*index];
@@ -428,7 +435,7 @@ int main(int argc, char **argv)
 		DatascopeHandle dbhbeam(dbh);
 		if(beamdb!=dbin)
 			dbhbeam=DatascopeHandle(beamdb,true);
-		DatascopeHandle dbhbv(dbhbeam.db,pf,
+		DatascopeHandle dbhbv(dbhbeam,pf,
 			string("dbprocess_commands_for_beams"));
 		DatascopeHandle dbho(dbh);
 		dbho.lookup(string("wfprocess"));
@@ -449,7 +456,7 @@ int main(int argc, char **argv)
 		// End section on prep for beam data
 		//
 		// Now launch matlab and sets up the communication channels
-		MatlabProcessor mp(stdout);
+		//MatlabProcessor mp(stdout);
 		// 3C ensemble are loaded into Matlab as three matrices with these names
 		string chans[3]={"x1","x2","x3"};
 		// These are pointers to dynamic objects used in the loop
@@ -468,9 +475,9 @@ int main(int argc, char **argv)
 			// Read the beam trace and load it as beam
 			TimeSeries beam(dynamic_cast<DatabaseHandle&>(dbhbv),
 				mdbeam,am);
-			mp.load(beam,string("beam"));
+			//mp.load(beam,string("beam"));
 // DEBUG
-mp.process(string("plot(beam);"));
+//mp.process(string("plot(beam);"));
 			lat=beam.get_double(string("origin.lat"));
 			lon=beam.get_double(string("origin.lon"));
 			depth=beam.get_double(string("origin.depth"));
@@ -527,11 +534,11 @@ mp.process(string("plot(beam);"));
 			// regular gather is now assumed to contain data with
 			// a common start time.  irregular start time is allowed
 			// with matlab interface
-			mp.load(*regular_gather,chans);
+			//mp.load(*regular_gather,chans);
 //DEBUG
 			char savstr[100];
 			sprintf(savstr,"save %d_event",evid);
-			mp.process(savstr);
+			//mp.process(savstr);
 // Uncomment when beamdecon script is working
 //			mp.process(string("beamdecon"));
 /*
@@ -545,17 +552,9 @@ mp.process(string("plot(beam);"));
 			delete decondata;
 		}
 	}
-	catch (SeisppError serr)
+	catch (SeisppError& serr)
 	{
 		serr.log_error();
-	}
-	catch (MetadataGetError mdge)
-	{
-		mdge.log_error();
-	}
-	catch (MetadataError mde)
-	{
-		mde.log_error();
 	}
 	catch (...)
 	{
