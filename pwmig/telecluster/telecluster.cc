@@ -182,11 +182,16 @@ SectorTest::SectorTest(RadialGrid& g, int ia, int id)
 }
 
 /* Saves cluster table.  Returns gridid as nextid value that defines gridid */
-int save_cluster_data(EventCatalog& events, DatascopeHandle& dbh, string gridname)
+long save_cluster_data(EventCatalog& events, DatascopeHandle& dbh, string gridname,long grididin)
 {
-	int gridid,evid;
+	long gridid,evid;
 	Metadata aux;
-	gridid=dbnextid(dbh.db,"gridid");
+        /* This is used to signal to use dbnextid.  A potentially confusing hack fix made to 
+           allow external setting of gridid */
+        if(grididin<0)
+	    gridid=dbnextid(dbh.db,"gridid");
+        else
+            gridid=grididin;
 	int i;
 	events.rewind();
 	for(i=0;i<events.size();++i)
@@ -297,6 +302,10 @@ int main(int argc, char **argv)
 		origin_lat=rad(origin_lat);  origin_lon=rad(origin_lon);
 		string ttmethod=control.get_string("ttmethod");
 		string ttmodel=control.get_string("ttmodel");
+                /* Added option Nov 2012 for geographic merge capability.
+                   When true gridid values will be computed from grid geometry
+                   instead of using dbnextid. */
+                bool use_count_for_gridid=control.get_bool("use_count_for_gridid");
 		DatascopeHandle dbh(dbname,false);
 		DatascopeHandle dbhcluster(dbh);
 		dbhcluster.lookup("cluster");
@@ -316,7 +325,7 @@ int main(int argc, char **argv)
 		if(SEISPP_verbose) cout << "Loaded event catalog with "
 				<< catalog.size()
 				<< " events"<<endl;
-		int gridid;
+		long gridid;
 		double latp,lonp;
 		/* Main loop  over azimuth and delta segments */
 		for(int ia=0;ia<(grid->naz)-1;++ia)
@@ -334,7 +343,15 @@ int main(int argc, char **argv)
 					<< deg(p.lon) 
 					<< " has " << evsubset->size()
 					<< " events"<<endl;
-				gridid=save_cluster_data(*evsubset,dbhcluster,gridname);
+                                long test_gridid;
+                                /* This is not an elegant way to handle this, but was
+                                   done as a patch */
+                                if(use_count_for_gridid)
+                                    gridid=ia*(grid->naz)+id+1;
+                                else
+                                    gridid=-1;
+				test_gridid=save_cluster_data(*evsubset,dbhcluster,gridname,gridid);
+                                if(!use_count_for_gridid)  gridid=test_gridid;
 				save_hypocentroid_data(*evsubset,dbhypoc,
 					p.lat,p.lon,gridname,gridid);
 			}
