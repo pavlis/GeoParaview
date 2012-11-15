@@ -311,7 +311,7 @@ cout << "After site join size="<<dbh.number_tuples()<<endl;
         // need this information though.
         //
         string stagridname=control.get_string("pseudostation_grid_name");
-        GCLgrid stagrid(dbh.db,stagridname);
+        GCLgrid stagrid(dbh,stagridname);
         cout << "Using pseudostation grid of size "<<stagrid.n1<<" X " <<stagrid.n2<<endl;
 
 	/* This field derived from stagrid is used to hold stack fold
