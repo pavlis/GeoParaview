@@ -2,8 +2,10 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <errno.h>
+#include <sstream>
 #include <algorithm>
 #include "PwmigFileHandle.h"
+using namespace std;
 /* This appears necessary on quarray to allow large file support */
 #define _FILE_OFFSET_BITS 64
 /* used to sort records by gridid */
@@ -113,7 +115,13 @@ PwmigFileHandle::~PwmigFileHandle()
 		if(test!=sizeof(PwmigFileGlobals) )
 		{
 			close(hdrfd);
-			throw SeisppError(message);
+                        ostringstream ess;
+                        ess << message <<endl
+                            << "Tried to write PwmigFileGlobals block of size "
+                            << sizeof(PwmigFileGlobals) <<endl
+                            << "binary write function returned count of "
+                            << test << "  Mismatch is fatal error."<<endl;
+			throw SeisppError(ess.str());
 		}
 		for(current_record=recs.begin();current_record!=recs.end();++current_record)
 		{
@@ -122,6 +130,12 @@ PwmigFileHandle::~PwmigFileHandle()
 			if(test!=sizeof(PwmigFileRecord))
 			{
 				close(hdrfd);
+                        ostringstream ess;
+                        ess << message <<endl
+                            << "Tried to write PwmigFileRecord block of size "
+                            << sizeof(PwmigFileRecord) <<endl
+                            << "binary write function returned count of "
+                            << test << "  Mismatch is fatal error."<<endl;
 				throw SeisppError(message);
 			}
 		}
@@ -196,7 +210,14 @@ void PwmigFileHandle::save(TimeSeries& ts)
 	void *sptr=static_cast<void *>(&(ts.s[0]));
 	test=write(datafd,sptr,(ts.ns)*sizeof(double));
 	if(test!=(ts.ns)*sizeof(double) )
-		throw SeisppError(string("PwmigFileHandle::save:  write error"));
+        {
+            ostringstream ess;
+            ess << "PwmigFileHandle::save(scalar data):  write error" <<endl
+                << "Tried to write "<< (ts.ns)*sizeof(double) << "bytes" <<endl
+                << "write function return count = "<<test<<endl
+                << "Mismatch is a fatal error"<<endl;
+		throw SeisppError(ess.str());
+        }
 	recs.push_back(hdr);
 }
 void PwmigFileHandle::save(ThreeComponentSeismogram& tcs)
@@ -223,8 +244,14 @@ void PwmigFileHandle::save(ThreeComponentSeismogram& tcs)
 	test=write(datafd,static_cast<void *>(sptr),
 		3*sizeof(double)*tcs.ns);
 	if(test!=(3*sizeof(double)*tcs.ns) )
-		throw SeisppError(string("PwmigFileHandle::save:  ")
-			+ string("write error"));
+        {
+            ostringstream ess;
+            ess << "PwmigFileHandle::save(3Cdata):  write error" <<endl
+                << "Tried to write "<< 3*(tcs.ns)*sizeof(double) << "bytes" <<endl
+                << "write function return count = "<<test<<endl
+                << "Mismatch is a fatal error"<<endl;
+		throw SeisppError(ess.str());
+        }
 }
 /* This is the reciprocal of PwmigFileRecord_load above */
 template <class T> void PwmigFileRecord_load_Metadata(PwmigFileRecord& hdr, T& d) 
@@ -261,7 +288,17 @@ ThreeComponentSeismogram *load_3c_seis(PwmigFileRecord& hdr, int fd)
 	test=read(fd,static_cast<void *>(seis->u.get_address(0,0)),
 			(3*hdr.nsamp)*sizeof(double));
 	if(test!=(3*hdr.nsamp)*sizeof(double) )
-		throw SeisppError(string("load_3c_seis: read error"));
+        {
+            ostringstream ess;
+            ess << "PwmigFileHandle load_3c_seis procedure:  read error"
+                <<endl
+                << "Tried to read "<< (3*hdr.nsamp)*sizeof(double) << " bytes"
+                <<endl
+                << "read function return value = "<<test
+                << endl
+                << "Mismatch is a fatal error"<<endl;
+		throw SeisppError(ess.str());
+        }
 	return seis;
 }
 TimeSeries *load_seis(PwmigFileRecord& hdr, int fd)
@@ -274,6 +311,17 @@ TimeSeries *load_seis(PwmigFileRecord& hdr, int fd)
 	ptr=&(seis->s[0]);
 	test=read(fd,static_cast<void *>(ptr),(hdr.nsamp)*sizeof(double));
 	if(test!=(hdr.nsamp)*sizeof(double) )
+        {
+            ostringstream ess;
+            ess << "PwmigFileHandle load_seis procedure:  read error"
+                <<endl
+                << "Tried to read "<< (hdr.nsamp)*sizeof(double) << " bytes"
+                <<endl
+                << "read function return value = "<<test
+                << endl
+                << "Mismatch is a fatal error"<<endl;
+		throw SeisppError(ess.str());
+        }
 		throw SeisppError(string("load_seis: read error"));
 	return seis;
 }
