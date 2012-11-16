@@ -34,7 +34,7 @@ void vadd(int n, double *x,int  incx, double *y,int  incy)
 string virtual_station_name(int ix1, int ix2)
 {
     char name[8];
-    sprintf(name,"%03.3d%03.3d",ix1,ix2);
+    sprintf(name,"%3.3d%3.3d",ix1,ix2);
     return(string(name));
 }
 
