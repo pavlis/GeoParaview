@@ -485,15 +485,16 @@ cout << "After site join size="<<dbh.number_tuples()<<endl;
 	    char fsbuf[64];
 	    sprintf(fsbuf,"%s_%d",fieldnamebase.c_str(),evid);
 	    string fieldname(fsbuf);
-	    /* It is necessary on clusters to open and close the
-	    db in write mode to save results.  Without I found this
-	    program would deadlock when multiple processes tried to 
-	    access the database simultaneously in write mode*/
-		/*
-	    DatascopeHandle *dbho=new DatascopeHandle(dbname_in,false);
-	    fold.dbsave(dbho->db,string(""),fielddir,fieldname,fieldname);
-	    delete dbho;  // destroying dbho forces a close
-		*/
+            /* This uses the new file based save metod */
+            try {
+                fold.save(fieldname,fielddir);
+            }catch  (exception& e)
+            {
+                cerr << "Error saving fold data to file "<<fieldname
+                    << " in directory "<<fielddir<<endl
+                    << "Bundering on as this is not critical data."
+                    <<endl;
+            }
         }
     } catch (SeisppError& err)
     {
