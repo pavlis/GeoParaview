@@ -140,7 +140,10 @@ int main(int argc, char **argv)
 	}
 	/* format switch.  For now just ascii formats, but segy planned */
 	enum OutputFormat {Dmatrix, GMT, SEISMICUNIX};
-	char *formatname=pfget_string(pf,"output_format");
+        char *pfkey;
+        pfkey=strdup("output_format");
+	char *formatname=pfget_string(pf,pfkey);
+        free(pfkey);
 	string stmp(formatname);
 	OutputFormat odform;
 	if(formatname==NULL)
@@ -192,7 +195,9 @@ int main(int argc, char **argv)
 	}
 		
 	Tbl *pointlist;
-	pointlist=pfget_tbl(pf,"section_points");
+        pfkey=strdup("section_points");
+	pointlist=pfget_tbl(pf,pfkey);
+        free(pfkey);
 	if(pointlist==NULL)
 	{
 		cerr << "pf error on Tbl section_points"
@@ -295,13 +300,13 @@ int main(int argc, char **argv)
 		if(vectordata)
 		{
 			int component=control.get_int("component_number");
-			GCLvectorfield3d *gvec=new GCLvectorfield3d(db,gridname,fieldname);
+			GCLvectorfield3d *gvec=new GCLvectorfield3d(dbh,gridname,fieldname);
 			g=extract_component(*gvec,component);
 			delete gvec;
 		}
 		else
 		{
-			g=new GCLscalarfield3d(db,gridname,fieldname);
+			g=new GCLscalarfield3d(dbh,gridname,fieldname);
 		}
 		/* This will hold the output.  */
 		dmatrix section(nz,path.size());
