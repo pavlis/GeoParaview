@@ -300,7 +300,9 @@ int main(int argc, char **argv)
 		if(vectordata)
 		{
 			int component=control.get_int("component_number");
-			GCLvectorfield3d *gvec=new GCLvectorfield3d(dbh,gridname,fieldname);
+                        int nvcomp=control.get_int("number_vector_components");
+			GCLvectorfield3d *gvec=new GCLvectorfield3d(dbh,
+                                gridname,fieldname,nvcomp);
 			g=extract_component(*gvec,component);
 			delete gvec;
 		}
@@ -372,6 +374,11 @@ int main(int argc, char **argv)
 		}
 		delete g;
 	}
+        catch (exception& gerr)
+        {
+            cerr << "Error was throw.  This is the message:"<<endl
+                << gerr.what()<<endl;
+        }
 	catch (SeisppError& serr)
 	{
 		serr.log_error();
