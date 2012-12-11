@@ -149,10 +149,7 @@ int main(int argc, char **argv)
 
 	try {
         	Metadata control(pf);
-		Dbptr db;
-		if(dbopen(const_cast<char *>(dbname.c_str()),
-				"r+",&db)==dbINVALID)
-			elog_die(1,"dbopen failure\n");
+                DatascopeHandle dbh(dbname,true);
 
 		if(gridname==nodef)
 			gridname=control.get_string("gridname");
@@ -177,13 +174,13 @@ int main(int argc, char **argv)
 			int griddim=control.get_int("remapgrid_number_dimensions");
 			if(griddim==3)
 			{
-				GCLgrid3d *gtmp=new GCLgrid3d(db,
+				GCLgrid3d *gtmp=new GCLgrid3d(dbh,
 					remapgridname);
 				rgptr=dynamic_cast<BasicGCLgrid*>(gtmp);
 			}
 			else if(griddim==2)
 			{
-				GCLgrid *gtmp=new GCLgrid(db,
+				GCLgrid *gtmp=new GCLgrid(dbh,
 					remapgridname);
 				rgptr=dynamic_cast<BasicGCLgrid*>(gtmp);
 			}
@@ -216,7 +213,7 @@ int main(int argc, char **argv)
 			fielddir=control.get_string("field_directory");
 		if(fieldtype=="scalar3d") 
 		{
-			GCLscalarfield3d field(db,gridname,fieldname);
+			GCLscalarfield3d field(dbh,gridname,fieldname);
 			if(remap)
 			{
 				// Used to make this optional.  force
@@ -228,7 +225,7 @@ int main(int argc, char **argv)
 			if(apply_agc) agc_scalar_field(field,iwagc);
 			output_gcl3d_to_vtksg(field,outfile,xmloutput,binaryout);
 			if(saveagcfield) 
-				field.dbsave(db,string(""),fielddir,
+				field.save(dbh,string(""),fielddir,
 				  outfieldname,outfieldname);
 		}
 		else if(fieldtype=="vector3d")
@@ -245,7 +242,10 @@ int main(int argc, char **argv)
 					<< "ignored for vector field="
 					<< fieldname<<endl;
 			}
-			GCLvectorfield3d vfield(db,gridname,fieldname);
+                        /* This needs a more general solution long term.  For now this is
+                           frozen for vector size in pwmig */
+                        const int nvpwmig(5);
+			GCLvectorfield3d vfield(dbh,gridname,fieldname,nvpwmig);
 			GCLscalarfield3d *sfptr;
 			if(remap)
 			{
@@ -276,7 +276,7 @@ int main(int argc, char **argv)
 					stringstream ssof;
 					ssof << outfieldname<<"_"<<i;
 					string ofld=ssof.str();
-					sfptr->dbsave(db,string(""),
+					sfptr->save(dbh,string(""),
 					  fielddir,ofld,ofld);
 				}
 				delete sfptr;
@@ -285,7 +285,7 @@ int main(int argc, char **argv)
 		else if(fieldtype=="grid2d")
 		{
 			int npoly;
-			GCLgrid g(db,gridname);
+			GCLgrid g(dbh,gridname);
 			if(remap)
 			{
 				//if(g!=(*rgptr))
@@ -299,7 +299,7 @@ int main(int argc, char **argv)
 		else if(fieldtype=="scalar2d")
 		{
 			int npoly;
-			GCLscalarfield field(db,gridname,fieldname);
+			GCLscalarfield field(dbh,gridname,fieldname);
 			if(remap)
 			{
 				//if(field!=(*rgptr))
