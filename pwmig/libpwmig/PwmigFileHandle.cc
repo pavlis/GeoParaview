@@ -322,7 +322,6 @@ TimeSeries *load_seis(PwmigFileRecord& hdr, int fd)
                 << "Mismatch is a fatal error"<<endl;
 		throw SeisppError(ess.str());
         }
-		throw SeisppError(string("load_seis: read error"));
 	return seis;
 }
 ThreeComponentEnsemble *PwmigFileHandle::load_next_3ce()
