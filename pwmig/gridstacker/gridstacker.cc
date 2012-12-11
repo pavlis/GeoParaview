@@ -631,10 +631,11 @@ int main(int argc, char **argv)
 		bool normalize=control.get_bool("normalize_by_scattering_angle_range");
 		double solid_angle_cutoff=control.get_double("normalization_solid_angle_cutoff");
 
+                const int nvpwmig(5);   // Need by constructor.  number vector components in pwmig output
 		/* End section extracting control parameters */
 
-		GCLvectorfield3d mastergrid(dbh.db,mastergridname,masterfieldname);
-		GridScratchFileHandle gsfh(mastergrid,mgl,dbh.db,normalize,solid_angle_cutoff);
+		GCLvectorfield3d mastergrid(dbh,mastergridname,masterfieldname,nvpwmig);
+		GridScratchFileHandle gsfh(mastergrid,mgl,dbh,normalize,solid_angle_cutoff);
 		gsfh.rewind();
 		/* First compute and save a straight stack.  This works because
 		mgl.reswt values are all set to 1.0 above. */
@@ -642,7 +643,7 @@ int main(int argc, char **argv)
 		result.zero();
 		VectorField3DWeightedStack(result,gsfh,mgl);
 		string avgfname=baseofn + "_avg";
-		result.dbsave(dbh.db,string(""),outdir,avgfname,avgfname);
+		result.save(dbh,string(""),outdir,avgfname,avgfname);
 		gsfh.rewind();
 		/* Now compute and save a coherence attribute grid for straight stack.
 		Grid is formed by decimation of master grid controlled by dec1,dec2,
@@ -659,7 +660,7 @@ int main(int argc, char **argv)
 		// Probably should test first to make sure it does not exist already
 		// as this will likely be a common error.  Ignored for now
 		string cohfieldname=baseofn+"_coh_avg";
-		coh.dbsave(dbh.db,cohgdir,outdir,cohfieldname,cohfieldname);
+		coh.save(dbh,cohgdir,outdir,cohfieldname,cohfieldname);
 		/* At this point no matter what we set cohgdir as a null string.  This is
 		a weird feature of the gclgrid library that turns off saving grid file */
 		cohgdir=string("");
@@ -688,18 +689,23 @@ int main(int argc, char **argv)
 		else
 			cout << "Robust stack loop converged after "<<robust_loop_count<<" iterations"<<endl;
 		string robustfname=baseofn+"_ravg";
-		result.dbsave(dbh.db,string(""),outdir,robustfname,robustfname);
+		result.save(dbh,string(""),outdir,robustfname,robustfname);
 		gsfh.rewind();
 		ComputeGridCoherence(result,gsfh,mgl,coh,dec1,dec2,dec3,coherence_component);
 		string robustcohf=baseofn+"_coh_ravg";
-		coh.dbsave(dbh.db,cohgdir,outdir,robustcohf,robustcohf);
+		coh.save(dbh,cohgdir,outdir,robustcohf,robustcohf);
 
 	} catch (int ierr)
 	{
 		cerr << "GCLgrid library error number "<<ierr<< " was thrown"<<endl;
 		exit(-1);
 	}
-	catch (SeisppError serr)
+        catch(exception& stdexcept)
+        {
+            cerr << "Child of a std::exception threw the following error:"<<endl
+                << stdexcept.what();
+        }
+	catch (SeisppError& serr)
 	{
 		serr.log_error();
 		exit(-1);
