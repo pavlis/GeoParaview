@@ -6,7 +6,7 @@
 #include "stock.h"
 #include "coords.h"
 #include "pf.h"
-#include "db.h"
+#include "dbpp.h"
 #include "dmatrix.h"
 #include "gclgrid.h"
 #include "ray1d.h"
@@ -983,7 +983,7 @@ bool SEISPP::SEISPP_verbose(false);
 
 int main(int argc, char **argv)
 {
-        Dbptr db,dbv;
+        //Dbptr db,dbv;
 	string Pmodel1d_name;
 	const string pvfnm("P"), svfnm("S");
 	ThreeComponentEnsemble *pwdata;
@@ -1199,15 +1199,10 @@ int main(int argc, char **argv)
 		bool save_partial_sums;
 		save_partial_sums=control.get_bool("save_partial_sums");
 		// Create a database handle for reading data objects
-		dbopen(const_cast<char *>(dbname.c_str()),"r+",&db);
-		if(db.record == dbINVALID)
-		{
-			cerr << "Cannot open database " << dbname <<endl;
-			exit(-1);
-		}
+                DatascopeHandle dbh(dbname,false);
 		// These constructors load a velocity model into a GCLgrid
-		GCLscalarfield3d Up3d(db,Pvelocity_grid_name,Pmodel3d_name);
-		GCLscalarfield3d Us3d(db,Svelocity_grid_name,Smodel3d_name);
+		GCLscalarfield3d Up3d(dbh,Pvelocity_grid_name,Pmodel3d_name);
+		GCLscalarfield3d Us3d(dbh,Svelocity_grid_name,Smodel3d_name);
 		if(SEISPP_verbose)
 		{
 			cout << "P velocity model"<<endl;
@@ -1264,12 +1259,12 @@ HorizontalSlicer(mp,Us3d);
 			//Caution this procedure assumes Up3d is slowness
 			Vp1d=DeriveVM1Dfrom3D(Up3d);
 		else
-			Vp1d=VelocityModel_1d(db,Pmodel1d_name,pvfnm);
+			Vp1d=VelocityModel_1d(dbh.db,Pmodel1d_name,pvfnm);
 		if(Smodel1d_name=="derive_from_3d")
 			Vs1d=DeriveVM1Dfrom3D(Us3d);
 		else
-			Vs1d=VelocityModel_1d(db,Smodel1d_name,svfnm);
-		GCLgrid parent(db,const_cast<char*>(parent_grid_name.c_str()) );
+			Vs1d=VelocityModel_1d(dbh.db,Smodel1d_name,svfnm);
+		GCLgrid parent(dbh,const_cast<char*>(parent_grid_name.c_str()) );
 
 		// This loads the image volume assuming this was precomputed with
 		// makegclgrid
@@ -1277,7 +1272,7 @@ HorizontalSlicer(mp,Us3d);
 		for omega and weights.  Now vector data are 0,1,2; omega is 3; and
 		weights are 4 */
 
-		GCLvectorfield3d migrated_image(db,stack_grid_name,"",5);
+		GCLvectorfield3d migrated_image(dbh,stack_grid_name,"",5);
 		/* This group of parameters relate to storing coherence values
                 in a separate 4-vector field.  This was derived from an earlier
                 inappropriate approach to put coherence weighting inside this
@@ -1288,7 +1283,7 @@ HorizontalSlicer(mp,Us3d);
 		we include a smoothing parameter that reduces errors when the 
 		result is mapped to depth and then decimated. */
 		string cohgridname=control.get_string("coherence_grid_name");
-		GCLvectorfield3d cohimage(db,cohgridname,"",4);
+		GCLvectorfield3d cohimage(dbh,cohgridname,"",4);
 		initialize_cohimage(cohimage);
 		int cohsl=control.get_int("coherence_smoother_length");
 		int cohdecfac=control.get_int("coherence_raygrid_decimation");
@@ -1882,7 +1877,7 @@ delete sfptr;
 				// the debugging stage
 				dfile=MakeDfileName(dfilebase
 					+string("_psum"),gridid+1000);
-                		migrated_image.dbsave(db,"",fielddir,
+                		migrated_image.save(dbh,"",fielddir,
 					dfile,dfile);
 			}
 			cout << "Total time for this plane wave component="<<now()-rundtime<<endl;
@@ -1947,14 +1942,14 @@ const string merge_command("F=cat(3,F,f);");
 		if(!skip_this_event)
 		{
 			dfile=MakeDfileName(dfilebase+string("_data"),evid);
-			migrated_image.dbsave(db,"",fielddir,dfile,dfile);
+			migrated_image.save(dbh,"",fielddir,dfile,dfile);
 			//
 			// zero field values so when we loop back they can
 			// be reused
 			//
 			migrated_image.zero();
 			dfile=MakeDfileName(dfilebase+string("_coh"),evid);
-			cohimage.dbsave(db,"",fielddir,dfile,dfile);
+			cohimage.save(dbh,"",fielddir,dfile,dfile);
 		}
 		} // Bottom of np%rank conditional 
 		++filecount;
@@ -1965,9 +1960,11 @@ const string merge_command("F=cat(3,F,f);");
 			<< "events."<<endl
 			<< "Elapsed time (sec)="<<totalruntime<<endl;
 	}
-	catch (GCLgrid_error& gcle)
+	catch (exception& ge)
 	{
-		gcle.log_error();
+		cerr << "Child of generic exception was thrown"
+                    << endl << "Message thrown:  "
+                    << ge.what()<<endl;
 	}
 	catch (SeisppError& seer)
 	{
