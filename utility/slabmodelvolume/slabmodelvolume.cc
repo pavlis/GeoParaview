@@ -3,6 +3,8 @@
    be used to color polygons. */
 #include <iostream>
 #include <fstream>
+#include <vector>
+#include <list>
 #include <string>
 #include "coords.h"
 #include "Metadata.h"
@@ -12,15 +14,15 @@
 #include "GeoSplineSurface.h"
 #include "PLGeoPath.h"
 #include "PlateBoundaryPath.h"
-/* convenient internal type.   Use a vector container to hold a
-   vector of paths.  Index down each path is on generalized coordinate.
-   vector index is the other */
-typedef PathArray vector<PLGeoPath>;  // convenient internal typedef
-/* this is used several times here.  Beware if you ever cut and paste from this file */
-const double REARTH(6378.17);
 using namespace std;
 using namespace SEISPP;
 using namespace INTERPOLATOR1D;
+/* convenient internal type.   Use a vector container to hold a
+   vector of paths.  Index down each path is on generalized coordinate.
+   vector index is the other */
+typedef vector<PLGeoPath> PathArray;  // convenient internal typedef
+/* this is used several times here.  Beware if you ever cut and paste from this file */
+const double REARTH(6378.17);
 const string prog("slabmodelvolume");
 typedef list<Geographic_point> Profile;
 typedef vector<Profile> ProfileEnsemble ;
@@ -247,22 +249,22 @@ PathArray BuildLithosphereSurface(PathArray& topsurface)
             }
             else
             {
-                tangents(0,jj)=thisnode.x-lastnode.x;
-                tangents(1,jj)=thisnode.y-lastnode.y;
-                tangents(2,jj)=thisnode.z-lastnode.z;
+                tangents(0,jj)=thisnode.x1-lastnode.x1;
+                tangents(1,jj)=thisnode.x2-lastnode.x2;
+                tangents(2,jj)=thisnode.x3-lastnode.x3;
             }
             /* Need the direction up to compute the normal vector.  
             Note because we are using forward difference this is referenced
             with jj instead of j */
-            Geographic_point gpthis=topsurface[i].node_positon(jj);
+            Geographic_point gpthis=topsurface[i].node_position(jj);
             Geographic_point gpdz=gpthis;
             gpdz.r += 10.0;  // Arbitrary radial upward step size.
             Cartesian_point cpr=topsurface[i].coordxyz.cartesian(gpthis);
             Cartesian_point cpdz=topsurface[i].coordxyz.cartesian(gpdz);
             double upvector[3];
-            upvector[0]=cpdz.x-cpr.x;
-            upvector[0]=cpdz.y-cpr.y;
-            upvector[0]=cpdz.z-cpr.z;
+            upvector[0]=cpdz.x1-cpr.x1;
+            upvector[0]=cpdz.x2-cpr.x2;
+            upvector[0]=cpdz.x3-cpr.x3;
             /* now get the normal vector as double cross product */
             double horizontal[3];
             dr3cros(tangents.get_address(0,jj),upvector,horizontal);
@@ -272,9 +274,9 @@ PathArray BuildLithosphereSurface(PathArray& topsurface)
                     normals.get_address(0,jj));
             // Normalize both these vectors to unit length */
             double norm;
-            norm=dnrm2(tangents.get_address(0,jj));
+            norm=dnrm2(3,tangents.get_address(0,jj),1);
             dscal(3,1.0/norm,tangents.get_address(0,jj),1);
-            norm=dnrm2(normals.get_address(0,jj));
+            norm=dnrm2(3,normals.get_address(0,jj),1);
             dscal(3,1.0/norm,normals.get_address(0,jj),1);
         }
         for(k=0;k<3;++i)
@@ -292,9 +294,9 @@ PathArray BuildLithosphereSurface(PathArray& topsurface)
         {
             thisnode=topsurface[i].node_position_xyz(j);
             double nodexyz[3];
-            nodexyz[0]=x;
-            nodexyz[1]=y;
-            nodexyz[2]=z;
+            nodexyz[0]=thisnode.x1;
+            nodexyz[1]=thisnode.x2;
+            nodexyz[2]=thisnode.x3;
             for(k=0;k<3;+k)
                 rawbase(k,j)=nodexyz[k]-normals(k,j);
             if(j==npts-1)
@@ -331,13 +333,13 @@ PathArray BuildLithosphereSurface(PathArray& topsurface)
                 for(k=0;k<3;++k) fixedbase(k,0)=rawbase(k,0);
             // This is a test for concave up-not sure sign is right
             else if(ddot(3,normals.get_address(0,j),1,curvature.get_address(0,j),1)<=0.0) 
-            {`
+            {
                 // When the curvature is concave up assume we can just keep the projected point 
                 for(k=0;k<3;++k) fixedbase(k,j)=rawbase(k,j);
             }
             else 
             {
-                if(ddot(3,tangent.get_address(0,j),1,tangentbase.get_address(0,j),1)>0.0)
+                if(ddot(3,tangents.get_address(0,j),1,tangentbase.get_address(0,j),1)>0.0)
                 {
                     for(k=0;k<3;++k) fixedbase(k,j)=rawbase(k,j);
                 }
@@ -348,7 +350,7 @@ PathArray BuildLithosphereSurface(PathArray& topsurface)
                     do {
                         ++j;
                         for(k=0;k<3;++k) basetest[k]=rawbase(k,j)-rawbase(k,jstart);
-                    }while(ddot(3,tangent.get_address(0,jstart),1,basetest,1)<0.0);
+                    }while(ddot(3,tangents.get_address(0,jstart),1,basetest,1)<0.0);
                     jend=j;
                     frac=1.0/static_cast<double>(jend-jstart-1);
                     for(int jj=jstart;jj<=jend;++jj)
@@ -368,10 +370,10 @@ PathArray BuildLithosphereSurface(PathArray& topsurface)
         {
             Geographic_point ptgeo; 
             Cartesian_point cpt;
-            cpt.x=fixedbase(0,j);
-            cpt.y=fixedbase(1,j);
-            cpt.z=fixedbase(2,j);
-            ptgeo=topsurface[i].coordxyz.ctog(cpt);
+            cpt.x1=fixedbase(0,j);
+            cpt.x2=fixedbase(1,j);
+            cpt.x3=fixedbase(2,j);
+            ptgeo=topsurface[i].coordxyz.geographic(cpt);
             fbgeo.push_back(ptgeo);
         }
         PLGeoPath thisbasecurve(fbgeo,0,0.0);
@@ -469,15 +471,8 @@ int main(int argc, char **argv)
             {
                 double s;
                 Geographic_point gp;
-                if(triple_mode)
-                {
-                    gp=zerotimecurve.node_position(i);
-                }
-                else
-                {
-                    s=trench_path_sample_interval*static_cast<double>(i);
-                    gp=zerotimecurve.position(s);
-                }
+                s=trench_path_sample_interval*static_cast<double>(i);
+                gp=zerotimecurve.position(s);
 //DEBUG
 //cerr << "Starting position:  "<<deg(gp.lat)<<" "<<deg(gp.lon)<<endl;
                 pbpath=BuildPBPObject(gp.lat,gp.lon, pf);
@@ -649,8 +644,7 @@ int main(int argc, char **argv)
                First step is to generate a base of lithosphere surface.
                Complicated by curvature effects.  Done in the procedure
                called here.*/
-            PathArray lithosphere_base;
-            lithosphere_base=BuildLithophereSurface(allpaths);
+            PathArray lithosphere_base=BuildLithosphereSurface(allpaths);
         }
 
         catch (SeisppError& serr)
