@@ -1,4 +1,3 @@
-PF=slabmodelvolume.pf
 BIN=slabmodelvolume
 #ldlibs=-lgeocoords -lcgeom -lgclgrid -lseispp $(DBLIBS) -lperf 
 ldlibs=-lgeocoords -lcgeom -lgclgrid -lseispp $(TRLIBS) -lperf 
