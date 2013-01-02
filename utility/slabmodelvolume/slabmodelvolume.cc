@@ -4,6 +4,7 @@
    an approximation because it does not project out of the plane formed by the 
    vertical and the local tangent to each flow line curve.   In areas with high dip 
    perpendicular to the flow lines this is a poor approximation. */
+#include <float.h>
 #include <iostream>
 #include <fstream>
 #include <sstream>
@@ -29,7 +30,10 @@ double unit_vector_normalization(double *x)
     double length;
     int i;
     for(length=0.0,i=0;i<3;++i) length+=x[i]*x[i];
-    double scale=1.0/sqrt(length);
+    // Do nothing if length is 0
+    if(length<DBL_EPSILON) return(0.0);
+    length=sqrt(length);
+    double scale=1.0/length;
     for(i=0;i<3;++i) x[i] *= scale;
     return(length);
 }
@@ -44,39 +48,128 @@ PathArray BuildLithosphereSurface(PathArray& topsurface,double dz)
 {
     const string base_error("BuildLithosphereSurface procedure of slabmodelvolume:  ");
     PathArray base;
-    int npaths=topsurface.size();
+    int npaths,npts;
+    npaths=topsurface.size();
     base.reserve(npaths);
-    int i,j,k,jj;
+    int i,j,k;
+    typedef vector<dmatrix> MatrixVector;
+    MatrixVector tangents,crosslines,normals,ds;
+    Cartesian_point thisnode,lastnode,nextnode;
+    double length;
     for(i=0;i<npaths;++i)
     {
         int npts;
         npts=topsurface[i].number_points();
-        dmatrix normals(3,npts);
-        dmatrix tangents(3,npts);
-        Cartesian_point thisnode,lastnode;
+        dmatrix pathtangents(3,npts);
+        dmatrix pathds(1,npts);
         /* First comput tangents using a forward difference.
            Tangent vectors are indexed starting at 0.  Last point is 
            made a copy of the second to last */
-        for(j=0,jj=-1;j<(npts-1);++j,++jj)
+//DEBUG
+  //      cerr << "Start tangents for flow line "<<i<<endl;
+        for(j=0;j<npts;++j)
         {
             thisnode=topsurface[i].node_position_xyz(j);
+            //DEBUG
+            //cerr << "x,y,z="<<thisnode.x1<<" "<<thisnode.x2<<" "<<thisnode.x3<<endl;
             if(j==0) 
             {
                 lastnode=thisnode;
+                pathds(0,j)=0.0;
             }
             else
             {
-                tangents(0,jj)=thisnode.x1-lastnode.x1;
-                tangents(1,jj)=thisnode.x2-lastnode.x2;
-                tangents(2,jj)=thisnode.x3-lastnode.x3;
+                pathtangents(0,j-1)=thisnode.x1-lastnode.x1;
+                pathtangents(1,j-1)=thisnode.x2-lastnode.x2;
+                pathtangents(2,j-1)=thisnode.x3-lastnode.x3;
+                length=unit_vector_normalization(pathtangents.get_address(0,j-1));
+                pathds(0,j)=length;
+                //DEBUG
+                //cerr << "i j distance:  "<<i<<" "<<j<<" "<<length<<endl;
+                /* The size of this test is dependent upon assumed cartesian
+                   coordinates in units of km.  i.e. this means within 1 m */
+                if(fabs(length)<0.001) throw GeoCoordError(base_error
+                        + "Duplicate points in input.  Fix data file");
+                lastnode=thisnode;
             }
+            //DEBUG
+            //cerr << "tangent " << j-1 << " length="<<length<<endl;
         }
-        for(j=0;j<3;++j) tangents(j,npts-1)=tangents(j,npts-2);
+        /* Above loop leaves last point unset.  Make it a copy of the second to last */
+        for(j=0;j<3;++j) pathtangents(j,npts-1)=pathtangents(j,npts-2);
+        tangents.push_back(pathtangents);
+        ds.push_back(pathds);
+    }
+    /* Now get the cross-flowline dip direction by computing tangent vectors
+       in the crossline direction of the flow lines.  This is complicated by 
+       the fact that the flow lines will (for most recent versions) have irregular
+       lengths. Because this is a locked sibling to slabmodel we can assume that 
+       all points start at the trench (0) and the differences are only how long
+       each curve is.   The algorithm is to compute crossline dips by finite differences
+       in the + mesh direction and if path 2 (more +) is shorter to use the last 
+       valid crossdip vector to the end of the current path.  The npts-1 path is
+       a copy of the npts-2 path crossdip.
+    
+    A Huge complication was created by using PLGeoPath objects.  Each path in
+    these objects define it's own local coordinate system with the origin at 
+    the first point in the path.  What we do here handle this in forward 
+    difference schemes to compute the crossline vectors.  They will be correct
+    in each line segments coordinates then.  */
+    Geographic_point gpwork;
+    /* We need this outside the loop to simplify copying of last path crossline vectors */
+    dmatrix pathcross;
+    for(i=0;i<npaths-1;++i)
+    {
+        int np1=topsurface[i].number_points();
+        int np2=topsurface[i+1].number_points();
+        int np=min(np1,np2);
+        pathcross=dmatrix(3,np1);
+//DEBUG
+  //      cerr << "Start crossline computation for flow line "<<i<<endl;
+        for(j=0;j<np;++j)
+        {
+            gpwork=topsurface[i+1].node_position(j);
+            nextnode=topsurface[i].coordxyz.cartesian(gpwork);
+            thisnode=topsurface[i].node_position_xyz(j);
+
+            pathcross(0,j)=nextnode.x1-thisnode.x1;
+            pathcross(1,j)=nextnode.x2-thisnode.x2;
+            pathcross(2,j)=nextnode.x3-thisnode.x3;
+            length=unit_vector_normalization(pathcross.get_address(0,j));
+            if(fabs(length)<0.001) throw GeoCoordError(base_error
+                    + "Intersecting flow line curves found. Increase crossline spacing");
+            //DEBUG
+            //cerr << "node "<<j<<" length "<<length<<endl;
+        }
+        for(j=np;j<np1;++j)
+        {
+            for(k=0;k<3;++k) pathcross(k,j)=pathcross(k,np-1);
+        }
+        crosslines.push_back(pathcross);
+    }
+    crosslines.push_back(pathcross);
+    /* Now we compute normals for each node point from cross product of 
+       tangent and crossline.   There is a nontrivial sign issue here.  
+       The generalized coordinates in the slabmodel grid can be left or
+       right handed.  We do this by computing a vector at each node point
+       that points up and using the sign of the dot product to assume our
+       normal here point downward (the direction we always project here). */
+    MatrixVector::iterator tptr,cptr;  //iterators for tangent and crossline resp
+    //DEBUG remove 
+    //dmatrix testmat;
+    for(i=0,tptr=tangents.begin(),cptr=crosslines.begin();i<npaths;
+            ++i,++tptr,++cptr)
+    {
+        //DEBUG
+        /*cerr <<"Tangents for path "<<i<<endl
+            << *tptr <<endl;
+        cerr<< "Crossline vectors for same path"<<endl
+            << *cptr <<endl;
+            */
+        npts=topsurface[i].number_points();
+        dmatrix pathnormals(3,npts);
         for(j=0;j<npts;++j)
         {
-            /* Need the direction up to compute the normal vector.  
-            Note because we are using forward difference this is referenced
-            with jj instead of j */
             Geographic_point gpthis=topsurface[i].node_position(j);
             Geographic_point gpdz=gpthis;
             gpdz.r += 10.0;  // Arbitrary radial upward step size.
@@ -84,139 +177,191 @@ PathArray BuildLithosphereSurface(PathArray& topsurface,double dz)
             Cartesian_point cpdz=topsurface[i].coordxyz.cartesian(gpdz);
             double upvector[3];
             upvector[0]=cpdz.x1-cpr.x1;
-            upvector[0]=cpdz.x2-cpr.x2;
-            upvector[0]=cpdz.x3-cpr.x3;
-            /* now get the normal vector as double cross product */
-            double horizontal[3],tangent_unit[3],rawnormal[3];
-            dcopy(3,tangents.get_address(0,j),1,tangent_unit,1);
-            dr3cros(tangent_unit,upvector,horizontal);
-            double norm;
-            // normalize this vector so we can test cleanly for parallel vectors
-            norm=unit_vector_normalization(horizontal);
-            if(norm==0.0) throw GeoCoordError(base_error
-                       + "cross product of curve tangent and local vertical is zero\n"
-                       + "Cannot handle vertical 90 degree surface dip");
-            /* Note this normal points upward because down is a bit
-            confusing to work through for me */
-            dr3cros(horizontal,tangent_unit,raw_normal);
-            norm=unit_vector_normalization(raw_normal);
-            /* This number is a conservative measure of equality */
-            if(fabs(norm)<0.00000001)
-                throw GeoCoordError(base_error
-                        + "Computed transverse direction vector has zero length\n"
-                        + "This should not happen - use a debugger to find problem");
-            /* Replace both tangent and normal with unit vectors */
-            dcopy(3,raw_normal,1,normals.get_address(0,j),1);
-            dcopy(3,tangent_unit,1,tangents.get_address(0,j),1);
+            upvector[1]=cpdz.x2-cpr.x2;
+            upvector[2]=cpdz.x3-cpr.x3;
+            /* now get the normal vector as cross product of tangent and crossline 
+               vectors */
+            double rawnormal[3];
+            dr3cros(tptr->get_address(0,j),cptr->get_address(0,j),rawnormal);
+            length=unit_vector_normalization(rawnormal);
+            /*This size is a bit arbitrary (about float epslison).   
+              Likely conservative.  Intentionally made to not be a
+              fatal error but the warning seems appropriate */
+            if(length<0.000001) 
+            {
+                cerr << base_error 
+                    << "WARNING:  cross product of inline and crossline tangent "
+                    << "vectors used to compute projection direction is very small"
+                    <<endl
+                    << "Length computed is "<<length<<endl
+                    << "Working on flow line number "<<i <<" at node "<<j<<endl
+                    << "Check for geometry anomalies at this point"<<endl;;
+            }
+            /* Now force the normal to be downward in the earth */
+            double testdot=ddot(3,rawnormal,1,upvector,1);
+            //DEBUG
+            //cerr << j << " "<<testdot<<endl;
+            /* Again the test for zero is a bit arbitrary and a bit conservative */
+            if(fabs(testdot)<0.0000001) 
+            {
+                cerr << base_error
+                    << "WARNING:  near vertical dip detected."<<endl
+                    << "Computed normal vector is very close to horizonal. "
+                    << "Dot product of up direction and tangent unit vectors is only "
+                    << length<<endl
+                    << "Working on flow line number "<<i <<" at node "<<j<<endl
+                    << "This may create geometry anomalies in the output"
+                    <<endl;
+            }
+            /* This assures normal used points down */
+            if(testdot>0.0)
+                for(k=0;k<3;++k) pathnormals(k,j)=-rawnormal[k];
+            else
+                for(k=0;k<3;++k) pathnormals(k,j)=rawnormal[k];
         }
-        /* Now project blindly along normals.  Simultaneously
-           compute second derivative of tangent.  We need that below to
-           avoid overlaps when curvature is convex up */
+        normals.push_back(pathnormals);
+        //DEBUG
+        //testmat=tr(pathnormals);
+        //cerr << "normals for path "<<i<<endl;
+        //cerr << testmat<<endl; 
+    }
+    /* Now project along normals.   In the same loop we compute sin of the angle
+       between tangents which is used to test for overlaps when the curvature is strongly
+       concave down. */
+    MatrixVector::iterator nptr,dsptr;
+    for(i=0,tptr=tangents.begin(),nptr=normals.begin(),dsptr=ds.begin();
+            i<npaths;++i,++tptr,++nptr,++dsptr)
+    {
+        npts=topsurface[i].number_points();
         dmatrix rawbase(3,npts);
-        /* Note this may be misnamed for differential geometry definitions.
-           In differential geometry curvature has a cross relationship to the
-           path.  What this really here is vector change in tangent vectors */
-        dmatrix curvature(3,npts);
-        dmatrix tangentbase(3,npts);
+        /* This vector is used as a test to deal with retrograde line segments
+           in projecting lines with strong concave down curvature. */
+        dvector xtest(npts); 
+        /* It is a bit inefficient to make these copies of path vectors, but
+           I do not expect a performance problem for these simple calculations
+           and this makes the syntax SOOO much cleaner. (alternative is
+           ugly thins like uptr->(k,j)  */
+        dmatrix pathtangents(*tptr);
+        dmatrix pathnormals(*nptr);
+        dmatrix  pathds(*dsptr);
+        /* Now project this path */
         for(j=0;j<npts;++j)
         {
+            double tangent_dot_product,phi;
+            double dtds[3],nudotdtds;
             thisnode=topsurface[i].node_position_xyz(j);
-            double nodexyz[3];
-            nodexyz[0]=thisnode.x1;
-            nodexyz[1]=thisnode.x2;
-            nodexyz[2]=thisnode.x3;
-            for(k=0;k<3;+k)
-                rawbase(k,j)=nodexyz[k]-dz*normals(k,j);
+            rawbase(0,j)=thisnode.x1+dz*pathnormals(0,j);
+            rawbase(1,j)=thisnode.x2+dz*pathnormals(1,j);
+            rawbase(2,j)=thisnode.x3+dz*pathnormals(2,j);
             if(j==npts-1)
             {
-                for(k=0;k<3;++k)
-                {
-                    curvature(k,j)=0.0;
-                    tangentbase(k,j)=0.0;
-                }
+                xtest(j)=0.0;
             }
             else
             {
+                tangent_dot_product=ddot(3,pathtangents.get_address(0,j),1,
+                        pathtangents.get_address(0,j+1),1);
+                /* This test seems necessary.  Found occasional nans otherwise
+                   from roundoff errors.  Using conservative 32 bit epsilon */
+                if(fabs(tangent_dot_product-1.0)<FLT_EPSILON)
+                    phi=0.0;
+                else
+                    phi=acos(tangent_dot_product);
+                xtest(j)=dz*sin(phi);
+                /* Set xtest negative (which forces it to be ignored) for 
+                   the case of concave up.  Determined by dot product of 
+                   tangent vector difference with normal.  Sign is 
+                   because normals point down */
                 for(k=0;k<3;++k) 
-                {
-                    curvature(k,j)=tangents(k,j+1)
-                                        - tangents(k,j);
-                    /* this is tangent vector of uncorrected basal curve */
-                    tangentbase(k,j)=rawbase(k,j+1)-rawbase(k,j);
-                }
+                    dtds[k]=pathtangents(k,j+1)-pathtangents(k,j);
+                nudotdtds=ddot(3,dtds,1,pathnormals.get_address(0,j),1);
+                if(nudotdtds<0) xtest(j) = (-xtest(j));
+                //DEBUG
+                //cerr << "xtest for "<<j<<" is "<<xtest(j)<<endl;
             }
         }
-        /* We only care about the direction of the curvature and tangentbase
-           vectors so we normalize them here.  We do this, however, in a 
-           special way to handle the common cases when the computed curvature
-           is zero.   Less common case to handle is when the tangent base is
-           an exact zero vector */
-        const double zero_size_test(0.00000001);  // conservative test for double
-        for(j=0;j<npts;++j)
-        {
-            double length;
-            length=unit_vector_normalization(curvature.get_address(0,j));
-            /* When parallel we set the curvature vector to point upward */
-            if(fabs(length)<zero_size_test)
-                for(k=0;k<3;++k) curvature(k,j)=-normals(k,j);
-            endif
-            length=unit_vector_normalization(tangentbase.get_address(0,j));
-            /* We force this negative to make sure this is treated like the case
-               where the projected points are retrograde */
-            if(fabs(length)<zero_size_test)
-                for(k=0;k<3;++k) tangentbase(k,j)=-tangents(k,j);
-            endif
+        //DEBUG
+        /*
+        if(i==8) {
+        testmat=tr(rawbase);
+        cerr << "rawbase"<<endl<<testmat<<endl;
+        testmat=tr(pathnormals);
+        cerr << "pathnormals"<<endl<<testmat<<endl;
+        testmat=tr(pathtangents);
+        cerr << "pathtangents"<<endl<<testmat<<endl;
+        testmat=tr(pathds);
+        cerr << "pathds"<<endl<<testmat<<endl;
         }
+        */
         dmatrix fixedbase(3,npts);
-        /* Now the algorithm we use is this.  when tangent \dot tangentbase is positive
-           we assume the curve is not backing up.   When that dot produce it negative we
-           scan forward until we find a point whose dot product with the tangent is positive. 
-           We then divide the computed vector into that many points and continue */
+        /* We use the geometry defined by the xtest vector to decide if we need to deal
+           with the complications of a strongly concave down curve segment.   The 
+           theory behind this follows from simple trigonometry with a right triangle 
+           with angles phi and 90-phi with phi computed from local turning rate of the 
+           curve.   Note xtest can and will be negative if the curve is turning upward 
+           so the test is simply for ds values larger than xtest. */
         j=0;
         int jstart,jend;  // range of indices when handling overlaps
         double basetest[3];
         double frac;   //computed fraction as delta of basetest vector
-        while(j<npts)
+        for(j=0;j<npts;++j)
         {
+            double dssum,sumxtest;
             if(j==0)
                 for(k=0;k<3;++k) fixedbase(k,0)=rawbase(k,0);
-            /* This is a test for concave up.   Works because we set normals to point
-               downward along flow lines and curvature is turning of tangent vector.
-               That vector points up if curving upward and down if curving downward*/
-            else if(ddot(3,normals.get_address(0,j),1,curvature.get_address(0,j),1)<=0.0) 
+            else if(pathds(0,j)>=xtest(j))
             {
-                // When the curvature is concave up assume we can just keep the projected point 
+                /* Case with no overlap - just copy rawbase to fixedbase*/
                 for(k=0;k<3;++k) fixedbase(k,j)=rawbase(k,j);
             }
             else 
             {
-                if(ddot(3,tangents.get_address(0,j),1,tangentbase.get_address(0,j),1)>0.0)
+                jstart=j;
+                dssum=0.0;
+                do{
+                    double phi;
+                    ++j;
+                    if(j==npts)break;
+                    dssum+=pathds(0,j);
+                    double tangent_dot_product=ddot(3,pathtangents.get_address(0,jstart),1,
+                            pathtangents.get_address(0,j),1);
+                    if(fabs(tangent_dot_product-1.0)<FLT_EPSILON)
+                        phi=0.0;
+                    else
+                        phi=acos(tangent_dot_product);
+                    sumxtest=dz*sin(acos(phi));
+                }while(dssum<sumxtest);
+                if(j==npts)
                 {
-                    for(k=0;k<3;++k) fixedbase(k,j)=rawbase(k,j);
+                        /* A crude recovery for this condition.  This is entered if
+                           the end of the curve is retrograde.   What we do then is 
+                           project along the last valid tangent a tiny distance 
+                           where tiny is a scale dependent for this application */
+                        frac=1.0; /* Since tangents are unit vectors this means 100 m */
+                        double increment;
+                        for(int jfix=jstart,increment=frac;jfix<npts;++jfix,increment+=frac)
+                        {
+                            for(k=0;k<3;++k) 
+                            {
+                                fixedbase(k,jfix)=fixedbase(k,jstart-1)
+                                                + increment*(pathtangents(k,jstart-1));
+                            }
+                        }
                 }
                 else
                 {
-                    /* Here is the hard part - scan forward to find point that does   
-                    not overlap this one */
-                    jstart=j;
-                    do {
-                        ++j;
-                        if(j==(npts-1))break;
-                        for(k=0;k<3;++k) basetest[k]=rawbase(k,j)-rawbase(k,jstart);
-                    }while(ddot(3,tangents.get_address(0,jstart),1,basetest,1)<0.0);
-                    jend=j;
-                    frac=1.0/static_cast<double>(jend-jstart-1);
-                    /* WORKING ISSUE:   do not think this handles large
-                       slowly changing curves well */ 
-                    for(int jj=jstart;jj<=jend;++jj)
-                    {
-                        for(k=0;k<3;++k)
-                            fixedbase(k,jj)=fixedbase(k,jstart)
-                                    +basetest[k]*static_cast<double>(jj-jstart)*frac;
-                    }
+                        jend=j;
+                        // set basetest to vector between jstart and jend
+                        for(k=0;k<3;++k) basetest[k]=rawbase(k,jend)-rawbase(k,jstart);
+                        frac=1.0/static_cast<double>(jend-jstart-1);
+                        for(int jj=jstart;jj<=jend;++jj)
+                        {
+                            for(k=0;k<3;++k)
+                                fixedbase(k,jj)=fixedbase(k,jstart-1)
+                                        +basetest[k]*static_cast<double>(jj-jstart)*frac;
+                        }
                 }
             }
-            ++j;
         }
         /* The last thing we need to do is convert the fixedbase points to vector of Geographic_points
            that are then pushed to the base object we are constructing. */
