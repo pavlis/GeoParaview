@@ -22,6 +22,7 @@ using namespace std;
 using namespace SEISPP;
 /* Convenient typedef for primary procedure of this code. */
 typedef vector<PLGeoPath> PathArray;
+typedef vector<dmatrix> MatrixVector;
 /* Small dangerous helper function to normalize a 3 vector to unit length. 
    Returns normalization constant which should be tested for machine zero */
 double unit_vector_normalization(double *x)
@@ -37,14 +38,94 @@ double unit_vector_normalization(double *x)
     for(i=0;i<3;++i) x[i] *= scale;
     return(length);
 }
+MatrixVector smooth_normals(MatrixVector& n)
+{
+    /* We use a 11 point smoother.  5 along flow lines and only 3 points 
+         on each cross line.  Equal weight with that geometry is 1/11.   For 
+         edges it is 1/8 */
+    const double wt(1.0/9.0);
+    const double ewt(1.0/6.0);
+    MatrixVector result;
+    int i,j,k;
+    MatrixVector::iterator nptr,nptrp1;
+    dmatrix n0;
+    for(nptr=n.begin(),i=0;nptr!=n.end();++nptr,++i)
+    {
+        dmatrix nm1,np1;
+        if(i!=0)
+            nm1=n0;
+        n0=(*nptr);
+        int npts=n0.columns();
+        if(i<(npts-1))
+        {
+            nptrp1=nptr+1;
+            np1=(*nptrp1);
+        }
+
+        // Intentionally make output copy.  This allow us to 
+        // simply do nothing to some boundary points
+        dmatrix snormals(n0); 
+        /* along flow line section does not do an end correction
+           This means first 2 and last 2 points are not smoothed. */
+        int nend;
+        int jj;
+        nend=n0.columns();
+        nend=min(nend,nm1.columns());
+        nend=min(nend,np1.columns());
+        nend-=2;
+        for(j=2;j<nend;++j)
+        {
+            double sum;
+            if( (i==0) || (i==(npts-1)))
+            {
+                for(k=0;k<3;++k)
+                {
+                    sum=0.0;
+                    for(jj=j-1;jj<=j+1;++jj)
+                    {
+                        if(i!=0)
+                            sum+=wt*nm1(k,jj);
+                        else
+                            sum+=wt*np1(k,jj);
+                    }
+                    for(jj=j-2;jj<=j+2;++jj)
+                        sum+=wt*n0(k,jj);
+                    snormals(k,j)=sum;
+                }
+            }
+            else
+            {
+                for(k=0;k<3;++k)
+                {
+                    sum=0.0;
+                    for(jj=j-1;jj<=j+1;++jj)
+                    {
+                        sum+=wt*np1(k,jj);
+                        sum+=wt*nm1(k,jj);
+                    }
+                    for(jj=j-2;jj<=j+2;++jj)
+                        sum+=wt*n0(k,jj);
+                    snormals(k,j)=sum;
+                }
+            }
+            double length=unit_vector_normalization(snormals.get_address(0,j));
+        }
+        result.push_back(snormals);
+    }
+    return(result);
+}
 /* This program takes the output of the slabmodel program and 
    builds a surface projected downward to a specified depth 
    (radially) below the input surface.   The normal use for this
    is to build a parallel surface for the crust or lithosphere 
    base consistent with the give top surface.   Default thickness
    argument is 100 km.`
+
+   If smooth is set true a (frozen size) smoother is applied to the
+   normal vectors before projection.
    */
-PathArray BuildLithosphereSurface(PathArray& topsurface,double dz)
+PathArray BuildLithosphereSurface(PathArray& topsurface,double dz,
+        bool smooth)
 {
     const string base_error("BuildLithosphereSurface procedure of slabmodelvolume:  ");
     PathArray base;
@@ -52,7 +133,6 @@ PathArray BuildLithosphereSurface(PathArray& topsurface,double dz)
     npaths=topsurface.size();
     base.reserve(npaths);
     int i,j,k;
-    typedef vector<dmatrix> MatrixVector;
     MatrixVector tangents,crosslines,normals,ds;
     Cartesian_point thisnode,lastnode,nextnode;
     double length;
@@ -225,6 +305,7 @@ PathArray BuildLithosphereSurface(PathArray& topsurface,double dz)
         //cerr << "normals for path "<<i<<endl;
         //cerr << testmat<<endl; 
     }
+    if(smooth) normals=smooth_normals(normals);
     /* Now project along normals.   In the same loop we compute sin of the angle
        between tangents which is used to test for overlaps when the curvature is strongly
        concave down. */
@@ -384,7 +465,8 @@ PathArray BuildLithosphereSurface(PathArray& topsurface,double dz)
 }
 void usage()
 {
-    cerr << "slabmodelvolume [-t thickness] < in > out "<<endl;
+    cerr << "slabmodelvolume [-t thickness -s] < in > out "<<endl
+        << "  where -s enables smoothing option (off by default)"<<endl;;
     exit(-1);
 }
 bool SEISPP::SEISPP_verbose(false);
@@ -393,6 +475,7 @@ int main(int argc, char **argv)
 try {
     int i;
     double surface_offset(100.0);
+    bool smooth(false);
     for(i=1;i<argc;++i)
     {
         string sarg(argv[i]);
@@ -404,6 +487,8 @@ try {
             cerr << "Projecting input surface downward by "
                << surface_offset << " km"<<endl;
         }
+        else if(sarg=="-s")
+            smooth=true;
         else
             usage();
     }
@@ -446,7 +531,8 @@ try {
         }
     }
     // Data are now loaded.  Now the for the projection
-    PathArray lowersurface=BuildLithosphereSurface(topsurface,surface_offset);
+    PathArray lowersurface=BuildLithosphereSurface(topsurface,
+            surface_offset,smooth);
     /* Now write the new surface to stdout */
     PathArray::iterator pathptr;
     int j;
@@ -460,7 +546,7 @@ try {
     		     << deg(nodepoint.lat) << " "
     		     << r0_ellipse(nodepoint.lat)-nodepoint.r<<endl;
     	}
-    	cout << "<"<<endl;
+    	cout << ">"<<endl;
     }
 } catch(exception& err)
 {
