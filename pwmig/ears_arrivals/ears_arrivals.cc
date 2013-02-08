@@ -37,7 +37,7 @@ int main(int argc, char **argv)
         dbhi.lookup(string("wfdisc"));
         string subss("chan=~/ITR.*/");
         dbhi.subset(subss);
-        cout << "ears_arrivals subset view of arrival number of rows="<<dbhi.number_tuples()<<endl;
+        cout << "ears_arrivals subset view of wfdisc number of rows="<<dbhi.number_tuples()<<endl;
         DatascopeHandle dbho(dbout,false);
         dbho.lookup(string("arrival"));
         long nrows;
