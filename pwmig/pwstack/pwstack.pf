@@ -1,3 +1,16 @@
+# This version of this pf applies Fresnel zone aperture and net centroid cutoff
+# feature
+aperture_taper_length 2.0
+centroid_cutoff 35.0  # half the nominal station spacing for TA
+use_fresnel_aperture true
+fresnel vs 4.5
+fresnel vp 8.1
+fresnel_cutoff_multiplier 2.0
+fresnel_period 5.0
+fresnel_lag_time_sampling_interval 1.0
+fresnel_number_lag_samples 100
+
+enable_data_mute true
 Data_Top_Mute	&Arr{
     end_time	3.0
     time_reference_type	relative
@@ -7,18 +20,18 @@ Slowness_Grid_Definition	&Arr{
     Slowness_Grid_Name	test
     dux	0.01
     duy	0.01
-    nux	21
-    nuy	21
-    uxlow	-0.1
-    uylow	-0.1
+    nux	11
+    nuy	11
+    uxlow	-0.05
+    uylow	-0.05
 }
+enable_stack_mute true
 Stack_Top_Mute	&Arr{
     end_time	3.0
     time_reference_type	relative
     zero_end_time	1.0
 }
-stack_count_cutoff 1
-data_time_window_end	70.0
+data_time_window_end	120.0
 data_time_window_start	-25.0
 dbprocess_commands	&Tbl{
 	dbopen event
@@ -30,22 +43,10 @@ dbprocess_commands	&Tbl{
     dbsort evid sta 
     dbgroup evid sta
 }
-# default uses this
 depth_dependent_aperture	&Tbl{
-    0.0 10.0  20.0
-    5.0 10.0 30.0
-    10.0 30.0 90.0
-   50.0 60.0 180.0
+    0.0 75.0 150.0
+   700.0 75.0 150.0
 }
-# parameters for Fresnel zone aperture setup.  
-use_fresnel_aperture false  # set to true to enable fresnel zone aperture
-fresnel_vs 4.5
-fresnel_vp 8.1
-fresnel_cutoff_multiplier 2.0
-fresnel_period 2.0
-fresnel_lag_time_sampling_interval 1.0
-fresnel_number_lag_samples 100
-# end fresnel zone parameters
 ensemble_metadata	&Tbl{
 dir string
 evid int
@@ -56,7 +57,7 @@ origin.depth real
 
 }
 pf_revision_time	1107002513
-pseudostation_grid_name	bolivarPrf
+pseudostation_grid_name	taimage12
 stack_metadata	&Tbl{
     pwfid int
     wfprocess.dir string
@@ -65,7 +66,7 @@ stack_metadata	&Tbl{
     wfprocess.timetype string
     wfprocess.algorithm string
 }
-stack_time_end	50.0
+stack_time_end	120.0
 stack_time_start	0.0
 station_metadata	&Tbl{
     sta string
@@ -88,11 +89,11 @@ station_metadata	&Tbl{
     timetype string
     datatype string
 }
-waveform_directory	./pwstack
+waveform_directory	./pwfiles_test
 coherence_sample_interval 5.0
 coherence_average_length 10.0
-output_data_file_base_name test
+output_data_file_base_name earfz
 database_view_mode use_wfprocess
-# New August 2009
-aperture_taper_length 2.0
-centroid_cutoff  30.0
+field_file_directory migrated_data_fz
+field_base_name fold
+stack_count_cutoff 5
