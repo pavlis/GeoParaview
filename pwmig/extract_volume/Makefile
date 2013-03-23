@@ -6,6 +6,6 @@ PF=extract_volume.pf
 ldlibs=-lseispp -ltrvltm -lgclgrid -lseispp $(TRLIBS) $(DBLIBS) -lperf -lm
 
 include $(ANTELOPEMAKE) 
-OBJS= extract_volume.o pfutils.o
+OBJS= extract_volume.o pfutils.o SEGY2002FileHandle.o
 $(BIN) : $(OBJS)
 	$(CXX) $(CXXFLAGS) -o $@ $(OBJS) $(LDFLAGS) $(LDLIBS)
