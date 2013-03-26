@@ -74,6 +74,8 @@ void SEGY2002FileHandle::WriteFileHeaders(Metadata& md)
 {
     const string base_error("SEGY2002FileHandle::WriteFileHeaders:  ");
     char textheader[3200];
+    /* For now we set textheader to all blanks characters */
+    for(int i=0;i<3200;++i) textheader[i]=' ';
     /* Define and initialize binary (file) header */
     SegyReel BinaryHeader;
     Initialize_BinaryHeader(&BinaryHeader);
@@ -215,15 +217,17 @@ void SEGY2002FileHandle::WriteFileHeaders(Metadata& md)
 
 }
 SEGY2002FileHandle::SEGY2002FileHandle(string fname,
-        list<string> tmdlist, Metadata& md,
+        list<string> tmdlist, Pf *pf,
         bool read_only) : GenericFileHandle(fname,string("SEGY2002"),read_only)
 {
     const string base_error("SEGY2002FileHandle constructor:  ");
     try {
+        Metadata md(pf);
         /* We define these variables we need to send tot he set_required 
            protected method */
         string amname=md.get_string("AttributeCrossReferenceMapName");
-        AttributeCrossReference xref(amname);
+        string xrefstr=pftbl2string(pf,amname.c_str());
+        AttributeCrossReference xref(xrefstr);
         /* These are left empty because planning only to implement
            a writer.  Change if implementing a reader */
         list<string> orderkeys,ensmdlist;

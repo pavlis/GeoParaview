@@ -17,7 +17,7 @@ class SEGY2002FileHandle : public GenericFileHandle
 {
     public:
         SEGY2002FileHandle(string fname, 
-                list<string> trace_mdlist,Metadata& setup,
+                list<string> trace_mdlist,Pf *pf,
                 bool read_only=false);
         /*! \breif write a time series object. 
 

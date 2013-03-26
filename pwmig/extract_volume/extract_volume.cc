@@ -5,7 +5,7 @@
 #include "Metadata.h"
 #include "seispp.h"
 #include "gclgrid.h"
-#include "FixedFormatTrace.h"
+#include "SEGY2002FileHandle.h"
 #include "GenericFileHandle.h"
 /* These are functions in pfutils.cc.  Eventually they will probably land
    in Metadata.h */
@@ -27,8 +27,7 @@ void usage()
 {
 	cerr << "extract_volume db gridname fieldname "
 		<< "[-o outfile -pf pffile -v]"<<endl
-	      << "Default outfile is called extract_volume.su"<<endl
-              << "Output is always in old SU format"<<endl;
+	      << "Default outfile is called extract_volume.su"<<endl;
 
 	exit(-1);
 }
@@ -270,6 +269,8 @@ int main(int argc, char **argv)
                     <<endl;
                 exit(-1);
             }
+            string outform=control.get_string("output_format");
+            GenericFileHandle *outhandle;
             DatascopeHandle dbh(dbname,true);
             dbh.lookup(string("gclgdisk"));
 	    DatascopeHandle dbhg(dbh);
@@ -279,15 +280,32 @@ int main(int argc, char **argv)
 	    GCLvectorfield3d g(dbh,gridname,fieldname,5);
             string xrefstr=pftbl2string(pf,"metadata_cross_reference");
             AttributeCrossReference outxref(xrefstr);
+            /* We share this list for both su and segy formats. This 
+               will be a problem because segy2002 has some attributes 
+               we set here not defined in SU (namely inline and crossline) */
             list<string> tmdlist=pftbl2list(pf,"output_metadata_list");
-            /* We create empty lists for these for now since we 
-               support only SU output */
+            /* We create empty lists for these for use in SU formaat */
             list<string> orderkeys,endslist;
             orderkeys.clear();   endslist.clear();
-            /* For now support only SU format.  Could be generalized */
-            GenericFileHandle suout(outfile,string("SEGYfloat"),
+            if(outform=="SeismicUnix")
+            {
+                outhandle=new GenericFileHandle(outfile,string("SEGYfloat"),
                     outxref,orderkeys,endslist,tmdlist,false,
                     string("nsamp"),string("dt"),1000.0,true);
+            }
+            else if(outform=="SEGY")
+            {
+                SEGY2002FileHandle *sgyh;
+                sgyh=new SEGY2002FileHandle(outfile,tmdlist,pf);
+                outhandle=dynamic_cast<GenericFileHandle *>(sgyh);
+            }
+            else
+            {
+                cerr << "Illegal value specified for output_format parameter = "
+                    << outform<<endl
+                    << "Must be either SeismicUnix of SEGY"<<endl;
+                exit(-1);
+            }
             /* Now loop over grid.  */
             int i,j,tracr,npts;
             double x1i,x2j;
@@ -358,7 +376,7 @@ int main(int argc, char **argv)
                         }
                         //DEBUG
                         //cout << *(dynamic_cast<Metadata*>(comp))<<endl;
-                        suout.put(*comp);
+                        outhandle->put(*comp);
                         delete comp;
                       }
                     }
