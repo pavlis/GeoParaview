@@ -100,7 +100,7 @@ c  power of 2 in this procedure.  Hence we have to trap this condition
       nfpts=nft/2+1
       fny=1./(2.*dt)
       delf=2.*fny/float(nft)
-      t=dt*nft
+      t=dt*real(nft)
 c
 c     set up some computational parameters
 c          specifying the type of response

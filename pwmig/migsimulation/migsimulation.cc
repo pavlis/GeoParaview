@@ -330,6 +330,7 @@ int main(int argc, char **argv){
 	    break;
          case CONST_VEL_LAYERED:
             synbase=CreateStaVariableConstVelGenerator(control);
+            break;
 	 default:
             // Necessary because I wanted to not use a pf for this object 
             synbase=CreateSimpleGenerator(control,pf);
@@ -368,6 +369,9 @@ int main(int argc, char **argv){
                 dptr!=ensemble->member.end();++dptr)
             {
                 double rlat,rlon,relev;
+                //DEBUG
+                //cout << dynamic_cast<Metadata &>(*dptr)<<endl;
+                cout << dptr->get_string("sta")<<endl;
                 rlat=dptr->get_double("site.lat");
                 rlon=dptr->get_double("site.lon");
                 rlat=rad(rlat);

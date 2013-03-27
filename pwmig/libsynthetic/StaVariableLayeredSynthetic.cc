@@ -130,7 +130,10 @@ ThreeComponentSeismogram StaVariableLayeredSynthetic::Compute3C(
         /* Kennett's fortran synthetic program uses a power of 2 fft
            so we need to find the next larger power of 2 for size */
         double log2ns=log2(static_cast<double>(data_nsamp));
-        int nsamp=static_cast<int>(pow(2.0,log2ns));
+        // A rather eloborate constuct to remove fraction of log2ns and add one
+        int nsamp=static_cast<int>(pow(2.0,static_cast<double>(static_cast<int>(log2ns+1.0))));
+        //DEBUG for a memory debug
+        nsamp=2*nsamp;
         float *zp,*rp,*zs,*rs,*trans,*rfr;
         zp=new float[nsamp];
         rp=new float[nsamp];
@@ -138,6 +141,8 @@ ThreeComponentSeismogram StaVariableLayeredSynthetic::Compute3C(
         rs=new float[nsamp];
         trans=new float[nsamp];
         rfr=new float[nsamp];
+        //DEBUG:  reset smaller for memory debug
+        nsamp=nsamp/2;
         int ierr;
         /* Now call the fortran routine.  Because it is fortran
            all arguments have to be passed as pointers.  We use
@@ -160,10 +165,10 @@ ThreeComponentSeismogram StaVariableLayeredSynthetic::Compute3C(
             if(ierr==-1) throw SeisppError(base_error
                     + "velocity model for station "
                     + sta + " has more layers than maximum allowed");
+            else if(ierr=-2)
+                throw SeisppError(base_error 
+                        + "required power of 2 for ns input violated.  Coding error needs to be fixed.");
             else
-                /* other possibility is -2 but that is for none power
-                   of two size which cannot happen here so call it 
-                   a mystery error if we land here */
                 throw SeisppError(base_error
                         + " unexpected error code returned by kntsyn");
         }
@@ -177,8 +182,8 @@ ThreeComponentSeismogram StaVariableLayeredSynthetic::Compute3C(
         }
         /* We need to compute the offset in work space from sample 0.
            Since seispp library allows negative t0 this has to be computed
-           as here.  */
-        int lag0=result.sample_number(result.t0-tzerolag);
+           as here.  Sign oddity*/
+        int lag0=SEISPP::nint((result.t0+tzerolag)/result.dt);
         int ns_to_copy;
         ns_to_copy=result.ns-lag0;
         if(ns_to_copy>nsamp) ns_to_copy=nsamp;
