@@ -1,0 +1,94 @@
+This is a rewrite of two previous version of this slab model surface program.
+
+This version aims to correct two basic flaws in the previous version:
+1.  Using a constrained Delaunay trianglulatization to remove limitation of
+clearly incorrect result from limitation of a "convex hull".   The 
+constrained trinagularization allows embayments in a surface.
+
+2.  Triangular facets are still a problem.  Considered the idea of using 
+some other interpolation functions that are smoother.  The bicubic splines
+in version 2 are an example.   The issue, however, with the version 2 
+splines is they were dogmatic about exactly matching points.   Further 
+there are classic instability issues, particular on edges.   As a result
+I decided to stick with triangles and add a smoothing operator.   
+I'll expand on that in a moment.
+
+Facets in a triangulated surface are created by singularities in the 
+direction of the surface normal.   Furthermore, a special property of the 
+slabmodel surface is we can impose a boundary condition at the origin line
+defined by the trench (this will carry on with the set of generalized 
+coordinates used in v1 and v2.)   So the basic idea is to grid up the 
+space using the set of generalized coordinates, compute some representation 
+of local derivatives, smooth the derivative field, and construct the 
+surface by integration.
+
+Thinking this over realize this will likely need a couple details to work 
+correctly:
+1.  Although we can and should use normal vectors, integration will 
+inevitably lead to closure errors.   A simple solution is to integrate and then apply a linear correction to rotate the path to match a (inputed) constraint 
+node. 
+2.  The critical issue is that surface slope along the time line coordinate 
+(x2) can be smoothed, but should not be integrated to produce the 
+smoothed path.   i.e. what we want to do is integrate a smoothed directional
+derivative, not one related to the local gradient.   Flow lines in this 
+situation are not parallel to the surface gradient.  
+3.   Smoothed local slopes should have an (optional) positivity (perhaps
+    even minimum slope) constraint.   
+4.  Careful if any constaints are applied that they don't produce 
+discontinuities - the whole purpose of this exercise.
+
+
+Now some implementation ideas:
+
+Working objects and basic procedures.
+
+1.  Need a child of GCLgrid, let's call it GCLMaskedGrid, that 
+has a private mask array that defines if a grid point should be taken 
+seriously.   Think it can have 
+1.  Need a child of GCLscalar and vector fields that have way to mark
+grid points as live or dead.   This is needed because we will have 
+many situations where the grid does not fit in a box.   May only need
+the scalar version, but they are so parallel there is little reason
+to not implement both.
+
+2. A core procedure is one to compute a scalar field of dx/dr where dx
+is surface distance taken along the x1 axis of the grid.   This will 
+take some spherical geometry because dx will be angle dependent.   
+Probably best done with Geographic_point manipulations.  Use a delta R
+value computed from forward differences and offset distance at constant R.
+Error from not using a great circle will be tiny unless the increments
+are huge and ridiculously large anyway.  Should set undefined values (outside
+mask) t zero.
+prototp`
+
+GCLMaskedScalarfield compute_drdx1(GCLmaskedgrid& raw);
+
+3.  And we will need a smoother.  Probably best done as an object with a 
+rough interface something like this:
+
+class GCLMVFSmoother
+{
+    public:
+        GCLMVFSmoother(dmatrix& firfilter);
+        GCLMaskedScalarField apply(GCLMaskedScalarField& parent);
+}
+4.  Integrator of smoothed field
+GCLMaskedScalarField x1_integrator(GCLMaskedGrid& parent, 
+        GCLMaskedScalarField& drdx1field);
+This integrates from x1=0 line using drdx1field values to build a new
+grid.   Would be applied using smoothed derivative field.
+
+4.  After application of GCLMVFSmoother and integrte this routine is needed to 
+correct for likely depth skews of integrated depth (radius) compared
+to original depth.  Here is the prototype defintion
+/* \brief Applies linear drift to match depth at specified points.
+
+   */
+class TiePoint
+{
+    public:
+        double radius;
+        int i_tie, j_tie;
+};
+GCLMaskedGrid LinearDepthCorrection(GCLMaskedGrid& raw, 
+        vector<TiePoints>& tpv);

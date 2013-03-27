@@ -1,4 +1,5 @@
-BIN=slabmodelvolume
+PF=slabmodel.pf
+BIN=slabmodel
 #ldlibs=-lgeocoords -lcgeom -lgclgrid -lseispp $(DBLIBS) -lperf 
 ldlibs=-lgeocoords -lcgeom -lgclgrid -lseispp $(TRLIBS) -lperf 
 
@@ -6,7 +7,7 @@ ldlibs=-lgeocoords -lcgeom -lgclgrid -lseispp $(TRLIBS) -lperf
 include $(ANTELOPEMAKE)  	
 #include $(ANTELOPEMAKELOCAL)
 
-OBJS=slabmodelvolume.o 
+OBJS=slabmodel.o 
 
 $(BIN) : $(OBJS)
 	$(RM) $@

@@ -1,364 +1,448 @@
-/* this program is a direct descendant of slabmodel.  It differs from that
-   program as this creates data that can be used to build a set of polygons that define a slab volume.   If inspired I may have it put out attributes that can 
-   be used to color polygons. */
+/* This is a first order program for the specialized purpose of taking the output
+   of the slabmodel program and properly projecting flow lines computed by the 
+   program to approximately project the curve a specified depth.  The algorithm is
+   an approximation because it does not project out of the plane formed by the 
+   vertical and the local tangent to each flow line curve.   In areas with high dip 
+   perpendicular to the flow lines this is a poor approximation. */
+#include <float.h>
 #include <iostream>
 #include <fstream>
+#include <sstream>
+#include <iostream>
+#include <vector>
+#include <list>
 #include <string>
 #include "coords.h"
-#include "Metadata.h"
 #include "seispp.h"
-#include "interpolator1d.h"
 #include "GeoTriMeshSurface.h"
 #include "GeoSplineSurface.h"
 #include "PLGeoPath.h"
 #include "PlateBoundaryPath.h"
-/* convenient internal type.   Use a vector container to hold a
-   vector of paths.  Index down each path is on generalized coordinate.
-   vector index is the other */
-typedef PathArray vector<PLGeoPath>;  // convenient internal typedef
-/* this is used several times here.  Beware if you ever cut and paste from this file */
-const double REARTH(6378.17);
 using namespace std;
 using namespace SEISPP;
-using namespace INTERPOLATOR1D;
-const string prog("slabmodelvolume");
-typedef list<Geographic_point> Profile;
-typedef vector<Profile> ProfileEnsemble ;
-bool pointsmatch(Geographic_point p1, Geographic_point p2)
+/* Convenient typedef for primary procedure of this code. */
+typedef vector<PLGeoPath> PathArray;
+typedef vector<dmatrix> MatrixVector;
+/* Small dangerous helper function to normalize a 3 vector to unit length. 
+   Returns normalization constant which should be tested for machine zero */
+double unit_vector_normalization(double *x)
 {
-    /* Roughly float_epsilon.  Very conservative, could cause
-    problems if really close points, but for expected use of
-    this program that would be ridiculous anyway */
-    const double cutoff(0.0000001);
-    double test;
-    test=fabs((p1.lat-p2.lat)/p1.lat);
-    if(test>cutoff) return false;
-    test=fabs((p1.lon-p2.lon)/p1.lon);
-    if(test>cutoff) return false;
-    return true;
+    /* Note frozen 3 vector assumption - very dangerous but appropriate here */
+    double length;
+    int i;
+    for(length=0.0,i=0;i<3;++i) length+=x[i]*x[i];
+    // Do nothing if length is 0
+    if(length<DBL_EPSILON) return(0.0);
+    length=sqrt(length);
+    double scale=1.0/length;
+    for(i=0;i<3;++i) x[i] *= scale;
+    return(length);
 }
-
-vector<Geographic_point> load_geopointdata(string fname)
+MatrixVector smooth_normals(MatrixVector& n)
 {
-    const string base_error("load_geopointdata:  ");
-    FILE *fp=fopen(fname.c_str(),"r");
-    if(fp==NULL) throw SeisppError(base_error
-            + "Open failed on file="+fname);
-    /* Assume input is decimal degrees lon,lon,depth */
-    Geographic_point gp;
-    vector<Geographic_point> points;
-    double dlat,dlon,depth;
-    char line[128];
-    int count=0;
-    Geographic_point lastpoint;
-    while(fgets(line,128,fp)!=NULL)
+    /* We use a 11 point smoother.  5 along flow lines and only 3 points 
+         on each cross line.  Equal weight with that geometry is 1/11.   For 
+         edges it is 1/8 */
+    const double wt(1.0/9.0);
+    const double ewt(1.0/6.0);
+    MatrixVector result;
+    int i,j,k;
+    MatrixVector::iterator nptr,nptrp1;
+    dmatrix n0;
+    for(nptr=n.begin(),i=0;nptr!=n.end();++nptr,++i)
     {
-        if(line[0]=='#') continue;
-        sscanf(line,"%lf%lf%lf",&dlon,&dlat,&depth);
-        if(dlat<-90.0 || dlat>90.0) throw SeisppError(base_error
-                + "Inconsistent latitude value must be -90 to 90");
-        if(dlon<-180.0 || dlon>360.0) throw SeisppError(base_error
-                + "Inconsistent latitude value must be -180 to 360");
-        gp.lat=rad(dlat);
-        gp.lon=rad(dlon);
-        gp.r=r0_ellipse(gp.lat)-depth;
-        if(count==0)
-            points.push_back(gp);
-        else
+        dmatrix nm1,np1;
+        if(i!=0)
+            nm1=n0;
+        n0=(*nptr);
+        int npts=n0.columns();
+        if(i<(npts-1))
         {
-            /* This is necessary because it causes all the interpolators
-               to fail entering an infinite loop */
-            if(pointsmatch(gp,lastpoint))
+            nptrp1=nptr+1;
+            np1=(*nptrp1);
+        }
+
+        // Intentionally make output copy.  This allow us to 
+        // simply do nothing to some boundary points
+        dmatrix snormals(n0); 
+        /* along flow line section does not do an end correction
+           This means first 2 and last 2 points are not smoothed. */
+        int nend;
+        int jj;
+        nend=n0.columns();
+        nend=min(nend,nm1.columns());
+        nend=min(nend,np1.columns());
+        nend-=2;
+        for(j=2;j<nend;++j)
+        {
+            double sum;
+            if( (i==0) || (i==(npts-1)))
             {
-                cerr << "Warning:  duplicate point at "
-                    << deg(gp.lat) <<" " << deg(gp.lon)
-                    << " at line "<<count<<" dropped"<<endl;
+                for(k=0;k<3;++k)
+                {
+                    sum=0.0;
+                    for(jj=j-1;jj<=j+1;++jj)
+                    {
+                        if(i!=0)
+                            sum+=wt*nm1(k,jj);
+                        else
+                            sum+=wt*np1(k,jj);
+                    }
+                    for(jj=j-2;jj<=j+2;++jj)
+                        sum+=wt*n0(k,jj);
+                    snormals(k,j)=sum;
+                }
             }
             else
             {
-                points.push_back(gp);
+                for(k=0;k<3;++k)
+                {
+                    sum=0.0;
+                    for(jj=j-1;jj<=j+1;++jj)
+                    {
+                        sum+=wt*np1(k,jj);
+                        sum+=wt*nm1(k,jj);
+                    }
+                    for(jj=j-2;jj<=j+2;++jj)
+                        sum+=wt*n0(k,jj);
+                    snormals(k,j)=sum;
+                }
             }
+            double length=unit_vector_normalization(snormals.get_address(0,j));
         }
-        lastpoint=gp;
-        ++count;
+        result.push_back(snormals);
     }
-    /* PLGeoPath allows a more general origin but here we intentionally 
-       force it to first point in list.  Allow azimuth to default to 0 */
-    return(points);
+    return(result);
 }
-PLGeoPath timesample_PLGeoPath(PLGeoPath& raw, 
-        vector<double>t,vector<double> s,double dt,double endtime)
-{
-    if(t.size()!=s.size()) throw SeisppError(string("timesample_PLGeoPath:  ")
-            + "time and distance vector sizes do not match");
-    double s0=raw.sbegin();
-    double smax=raw.send();
-    Geographic_point gp;
-    vector<Geographic_point> newpts;
-    int nt=t.size();
-    if(nt<=1) throw SeisppError(string("timesample_PLGeoPath:  ")
-            + "empty vectors for time and distance for path");
-    double t0,tmax;
-    tmax=t[nt-1];
-    //Assume first point is time t=0;
-    gp=raw.origin();
-    newpts.push_back(gp);
-    t0=dt;
-    /* terminate on either end of the path or the passed endtime 
-       argument*/
-    double etest=endtime+(0.01*dt);  //allow some slop for this test
-    while(t0<tmax && t0<=etest)
-    {
-        // A hideously inefficient linear search, but don't expect
-        // nt to ever be huge
-        int i;
-        for(i=1;i<nt;++i)
-            if(t[i]>t0) break;
-        double dsdt=(s[i]-s[i-1])/(t[i]-t[i-1]);
-        double sp=s[i-1]+(t0-t[i-1])*dsdt;
-        gp=raw.position(sp);
-        newpts.push_back(gp);
-        t0+=dt;
-    }
-    return(PLGeoPath(newpts,0));
-}
-PLGeoPath resample_PLGeoPath(PLGeoPath& raw,double ds)
-{
-    if(ds<=0.0) 
-        throw SeisppError("resample_PLGeoPath was passed a negative resample interval");
-    double s0=raw.sbegin();
-    double smax=raw.send();
-    Geographic_point gp;
-    gp=raw.origin();
-    vector<Geographic_point> newpts;
-    newpts.push_back(gp);
-    double s;
-    s=s0+ds;
-    while(s<smax)
-    {
-        gp=raw.position(s);
-        newpts.push_back(gp);
-        s+=ds;
-    }
-    return(PLGeoPath(newpts,0));
-}
-GeoPath *BuildPBPObject(double olat, double olon, Pf *pf)
-{
-    Tbl *t;
-    string tname("pole_data");
-    t=pfget_tbl(pf,const_cast<char *>(tname.c_str()));
-    vector<double>spla,splo,dt,ang;
-    /* Read data in gmt rotconverter and backtracker format for stage pole
-       data.  (This program requires stage pole input).  That format requires
-       stage poles in reverse time order.  Hence we have to read the stage pole
-       data in and then reverse the order to produce a path oriented from
-       time 0 to some time in the past. */
-    for(int i=0;i<maxtbl(t);++i)
-    {
-        char *line;
-        line=(char *)gettbl(t,i);
-        stringstream ss(line);
-        double lat,lon,timestart,timeend,phi;
-        ss>>lon;
-        ss>>lat;
-        ss>>timeend;
-        ss>>timestart;
-        ss>>phi;
-        lat=rad(lat);
-        lon=rad(lon);
-        phi=rad(phi);
-        spla.insert(spla.begin(),lat);
-        splo.insert(splo.begin(),lon);
-        dt.insert(dt.begin(),(timeend-timestart)*1000000.0);
-        /* These are stage pole rotation angles */
-        ang.insert(ang.begin(),phi);
-    }
-    int npoles=spla.size();
-    if(npoles==1)
-    {
-        PlateBoundaryPath *pbpath=new PlateBoundaryPath(spla[0],splo[0],
-                olat,olon,ang[0]/dt[0]);
-        return pbpath;
-    }
-    else
-    {
-        TimeVariablePlateBoundaryPath *pbpath=new TimeVariablePlateBoundaryPath(
-                spla,splo,dt,ang,olat,olon);
-        return pbpath;
-    }
-}
-/*  Compute and return great circle distance between two points
-    defined by two Geographic_point objects. Returned distance 
-    is in radians. */
-double GeoDistance(Geographic_point gp0, Geographic_point gp1)
-{
-    double delta,az;
-    dist(gp0.lat,gp0.lon,gp1.lat,gp1.lon,&delta,&az);
-    return(delta);
-}
+/* This program takes the output of the slabmodel program and 
+   builds a surface projected downward to a specified depth 
+   (radially) below the input surface.   The normal use for this
+   is to build a parallel surface for the crust or lithosphere 
+   base consistent with the give top surface.   Default thickness
+   argument is 100 km.`
 
-/* This pair of functions are used to computed 3d distance and 
-   a corrected time increment for paths.  There is duplication of
-   the distance calculation, which is not very efficient, but 
-   acceptable as long as as this isn't used enormous numbers
-   of times.
-
-In both procedures gp0 is first point and gp1 is second.  Significant
-only in how horizontal distance is computed as r*delta.  */
-double distance_increment(Geographic_point gp0, Geographic_point gp1, 
-        double dt)
+   If smooth is set true a (frozen size) smoother is applied to the
+   normal vectors before projection.
+   */
+PathArray BuildLithosphereSurface(PathArray& topsurface,double dz,
+        bool smooth)
 {
-    double delta;
-    delta=GeoDistance(gp0,gp1);
-    delta*=gp0.r;
-    double ds=hypot(delta,fabs(gp1.r-gp0.r));
-    return(ds);
-}
-double adjustedtime(Geographic_point gp0, Geographic_point gp1, 
-        double dt)
-{
-    double delta;
-    delta=GeoDistance(gp0,gp1);
-    delta*=r0_ellipse(gp0.lat);
-    double ds=hypot(delta,fabs(gp1.r-gp0.r));
-    return(dt*ds/delta);
-}
-PathArray BuildLithosphereSurface(PathArray& topsurface)
-{
+    const string base_error("BuildLithosphereSurface procedure of slabmodelvolume:  ");
     PathArray base;
-    int npaths=topsurface.size();
+    int npaths,npts;
+    npaths=topsurface.size();
     base.reserve(npaths);
-    int i,j,k,jj;
+    int i,j,k;
+    MatrixVector tangents,crosslines,normals,ds;
+    Cartesian_point thisnode,lastnode,nextnode;
+    double length;
     for(i=0;i<npaths;++i)
     {
         int npts;
         npts=topsurface[i].number_points();
-        dmatrix normals(3,npts);
-        dmatrix tangents(3,npts);
-        Cartesian_point thisnode,lastnode;
-        // npts-1 because we use forward differences
-        // last point is copy of last valid point 
-        for(j=0,jj=-1;j<(npts-1);++j,++jj)
+        dmatrix pathtangents(3,npts);
+        dmatrix pathds(1,npts);
+        /* First comput tangents using a forward difference.
+           Tangent vectors are indexed starting at 0.  Last point is 
+           made a copy of the second to last */
+//DEBUG
+  //      cerr << "Start tangents for flow line "<<i<<endl;
+        for(j=0;j<npts;++j)
         {
             thisnode=topsurface[i].node_position_xyz(j);
+            //DEBUG
+            //cerr << "x,y,z="<<thisnode.x1<<" "<<thisnode.x2<<" "<<thisnode.x3<<endl;
             if(j==0) 
             {
                 lastnode=thisnode;
+                pathds(0,j)=0.0;
             }
             else
             {
-                tangents(0,jj)=thisnode.x-lastnode.x;
-                tangents(1,jj)=thisnode.y-lastnode.y;
-                tangents(2,jj)=thisnode.z-lastnode.z;
+                pathtangents(0,j-1)=thisnode.x1-lastnode.x1;
+                pathtangents(1,j-1)=thisnode.x2-lastnode.x2;
+                pathtangents(2,j-1)=thisnode.x3-lastnode.x3;
+                length=unit_vector_normalization(pathtangents.get_address(0,j-1));
+                pathds(0,j)=length;
+                //DEBUG
+                //cerr << "i j distance:  "<<i<<" "<<j<<" "<<length<<endl;
+                /* The size of this test is dependent upon assumed cartesian
+                   coordinates in units of km.  i.e. this means within 1 m */
+                if(fabs(length)<0.001) throw GeoCoordError(base_error
+                        + "Duplicate points in input.  Fix data file");
+                lastnode=thisnode;
             }
-            /* Need the direction up to compute the normal vector.  
-            Note because we are using forward difference this is referenced
-            with jj instead of j */
-            Geographic_point gpthis=topsurface[i].node_positon(jj);
+            //DEBUG
+            //cerr << "tangent " << j-1 << " length="<<length<<endl;
+        }
+        /* Above loop leaves last point unset.  Make it a copy of the second to last */
+        for(j=0;j<3;++j) pathtangents(j,npts-1)=pathtangents(j,npts-2);
+        tangents.push_back(pathtangents);
+        ds.push_back(pathds);
+    }
+    /* Now get the cross-flowline dip direction by computing tangent vectors
+       in the crossline direction of the flow lines.  This is complicated by 
+       the fact that the flow lines will (for most recent versions) have irregular
+       lengths. Because this is a locked sibling to slabmodel we can assume that 
+       all points start at the trench (0) and the differences are only how long
+       each curve is.   The algorithm is to compute crossline dips by finite differences
+       in the + mesh direction and if path 2 (more +) is shorter to use the last 
+       valid crossdip vector to the end of the current path.  The npts-1 path is
+       a copy of the npts-2 path crossdip.
+    
+    A Huge complication was created by using PLGeoPath objects.  Each path in
+    these objects define it's own local coordinate system with the origin at 
+    the first point in the path.  What we do here handle this in forward 
+    difference schemes to compute the crossline vectors.  They will be correct
+    in each line segments coordinates then.  */
+    Geographic_point gpwork;
+    /* We need this outside the loop to simplify copying of last path crossline vectors */
+    dmatrix pathcross;
+    for(i=0;i<npaths-1;++i)
+    {
+        int np1=topsurface[i].number_points();
+        int np2=topsurface[i+1].number_points();
+        int np=min(np1,np2);
+        pathcross=dmatrix(3,np1);
+//DEBUG
+  //      cerr << "Start crossline computation for flow line "<<i<<endl;
+        for(j=0;j<np;++j)
+        {
+            gpwork=topsurface[i+1].node_position(j);
+            nextnode=topsurface[i].coordxyz.cartesian(gpwork);
+            thisnode=topsurface[i].node_position_xyz(j);
+
+            pathcross(0,j)=nextnode.x1-thisnode.x1;
+            pathcross(1,j)=nextnode.x2-thisnode.x2;
+            pathcross(2,j)=nextnode.x3-thisnode.x3;
+            length=unit_vector_normalization(pathcross.get_address(0,j));
+            if(fabs(length)<0.001) throw GeoCoordError(base_error
+                    + "Intersecting flow line curves found. Increase crossline spacing");
+            //DEBUG
+            //cerr << "node "<<j<<" length "<<length<<endl;
+        }
+        for(j=np;j<np1;++j)
+        {
+            for(k=0;k<3;++k) pathcross(k,j)=pathcross(k,np-1);
+        }
+        crosslines.push_back(pathcross);
+    }
+    crosslines.push_back(pathcross);
+    /* Now we compute normals for each node point from cross product of 
+       tangent and crossline.   There is a nontrivial sign issue here.  
+       The generalized coordinates in the slabmodel grid can be left or
+       right handed.  We do this by computing a vector at each node point
+       that points up and using the sign of the dot product to assume our
+       normal here point downward (the direction we always project here). */
+    MatrixVector::iterator tptr,cptr;  //iterators for tangent and crossline resp
+    //DEBUG remove 
+    //dmatrix testmat;
+    for(i=0,tptr=tangents.begin(),cptr=crosslines.begin();i<npaths;
+            ++i,++tptr,++cptr)
+    {
+        //DEBUG
+        /*cerr <<"Tangents for path "<<i<<endl
+            << *tptr <<endl;
+        cerr<< "Crossline vectors for same path"<<endl
+            << *cptr <<endl;
+            */
+        npts=topsurface[i].number_points();
+        dmatrix pathnormals(3,npts);
+        for(j=0;j<npts;++j)
+        {
+            Geographic_point gpthis=topsurface[i].node_position(j);
             Geographic_point gpdz=gpthis;
             gpdz.r += 10.0;  // Arbitrary radial upward step size.
             Cartesian_point cpr=topsurface[i].coordxyz.cartesian(gpthis);
             Cartesian_point cpdz=topsurface[i].coordxyz.cartesian(gpdz);
             double upvector[3];
-            upvector[0]=cpdz.x-cpr.x;
-            upvector[0]=cpdz.y-cpr.y;
-            upvector[0]=cpdz.z-cpr.z;
-            /* now get the normal vector as double cross product */
-            double horizontal[3];
-            dr3cros(tangents.get_address(0,jj),upvector,horizontal);
-            /* Note this normal points upward because down is a bit
-            confusing to work through for me */
-            dr3cros(horizontal,tangents.get_address(0,jj),
-                    normals.get_address(0,jj));
-            // Normalize both these vectors to unit length */
-            double norm;
-            norm=dnrm2(tangents.get_address(0,jj));
-            dscal(3,1.0/norm,tangents.get_address(0,jj),1);
-            norm=dnrm2(normals.get_address(0,jj));
-            dscal(3,1.0/norm,normals.get_address(0,jj),1);
+            upvector[0]=cpdz.x1-cpr.x1;
+            upvector[1]=cpdz.x2-cpr.x2;
+            upvector[2]=cpdz.x3-cpr.x3;
+            /* now get the normal vector as cross product of tangent and crossline 
+               vectors */
+            double rawnormal[3];
+            dr3cros(tptr->get_address(0,j),cptr->get_address(0,j),rawnormal);
+            length=unit_vector_normalization(rawnormal);
+            /*This size is a bit arbitrary (about float epslison).   
+              Likely conservative.  Intentionally made to not be a
+              fatal error but the warning seems appropriate */
+            if(length<0.000001) 
+            {
+                cerr << base_error 
+                    << "WARNING:  cross product of inline and crossline tangent "
+                    << "vectors used to compute projection direction is very small"
+                    <<endl
+                    << "Length computed is "<<length<<endl
+                    << "Working on flow line number "<<i <<" at node "<<j<<endl
+                    << "Check for geometry anomalies at this point"<<endl;;
+            }
+            /* Now force the normal to be downward in the earth */
+            double testdot=ddot(3,rawnormal,1,upvector,1);
+            //DEBUG
+            //cerr << j << " "<<testdot<<endl;
+            /* Again the test for zero is a bit arbitrary and a bit conservative */
+            if(fabs(testdot)<0.0000001) 
+            {
+                cerr << base_error
+                    << "WARNING:  near vertical dip detected."<<endl
+                    << "Computed normal vector is very close to horizonal. "
+                    << "Dot product of up direction and tangent unit vectors is only "
+                    << length<<endl
+                    << "Working on flow line number "<<i <<" at node "<<j<<endl
+                    << "This may create geometry anomalies in the output"
+                    <<endl;
+            }
+            /* This assures normal used points down */
+            if(testdot>0.0)
+                for(k=0;k<3;++k) pathnormals(k,j)=-rawnormal[k];
+            else
+                for(k=0;k<3;++k) pathnormals(k,j)=rawnormal[k];
         }
-        for(k=0;k<3;++i)
-        {
-            normals(k,npts-1)=normals(k,npts-2);
-            tangents(k,npts-1)=tangents(k,npts-2);
-        }
-        /* Now project blindly along normals.  Simultaneously
-           compute second derivative of tangent.  We need that below to
-           avoid overlaps when curvature is convex up */
+        normals.push_back(pathnormals);
+        //DEBUG
+        //testmat=tr(pathnormals);
+        //cerr << "normals for path "<<i<<endl;
+        //cerr << testmat<<endl; 
+    }
+    if(smooth) normals=smooth_normals(normals);
+    /* Now project along normals.   In the same loop we compute sin of the angle
+       between tangents which is used to test for overlaps when the curvature is strongly
+       concave down. */
+    MatrixVector::iterator nptr,dsptr;
+    for(i=0,tptr=tangents.begin(),nptr=normals.begin(),dsptr=ds.begin();
+            i<npaths;++i,++tptr,++nptr,++dsptr)
+    {
+        npts=topsurface[i].number_points();
         dmatrix rawbase(3,npts);
-        dmatrix curvature(3,npts);
-        dmatrix tangentbase(3,npts);
+        /* This vector is used as a test to deal with retrograde line segments
+           in projecting lines with strong concave down curvature. */
+        dvector xtest(npts); 
+        /* It is a bit inefficient to make these copies of path vectors, but
+           I do not expect a performance problem for these simple calculations
+           and this makes the syntax SOOO much cleaner. (alternative is
+           ugly thins like uptr->(k,j)  */
+        dmatrix pathtangents(*tptr);
+        dmatrix pathnormals(*nptr);
+        dmatrix  pathds(*dsptr);
+        /* Now project this path */
         for(j=0;j<npts;++j)
         {
+            double tangent_dot_product,phi;
+            double dtds[3],nudotdtds;
             thisnode=topsurface[i].node_position_xyz(j);
-            double nodexyz[3];
-            nodexyz[0]=x;
-            nodexyz[1]=y;
-            nodexyz[2]=z;
-            for(k=0;k<3;+k)
-                rawbase(k,j)=nodexyz[k]-normals(k,j);
+            rawbase(0,j)=thisnode.x1+dz*pathnormals(0,j);
+            rawbase(1,j)=thisnode.x2+dz*pathnormals(1,j);
+            rawbase(2,j)=thisnode.x3+dz*pathnormals(2,j);
             if(j==npts-1)
             {
-                for(k=0;k<3;++k)
-                {
-                    curvature(k,j)=0.0;
-                    tangentbase(k,j)=0.0;
-                }
+                xtest(j)=0.0;
             }
             else
             {
+                tangent_dot_product=ddot(3,pathtangents.get_address(0,j),1,
+                        pathtangents.get_address(0,j+1),1);
+                /* This test seems necessary.  Found occasional nans otherwise
+                   from roundoff errors.  Using conservative 32 bit epsilon */
+                if(fabs(tangent_dot_product-1.0)<FLT_EPSILON)
+                    phi=0.0;
+                else
+                    phi=acos(tangent_dot_product);
+                xtest(j)=dz*sin(phi);
+                /* Set xtest negative (which forces it to be ignored) for 
+                   the case of concave up.  Determined by dot product of 
+                   tangent vector difference with normal.  Sign is 
+                   because normals point down */
                 for(k=0;k<3;++k) 
-                {
-                    curvature(k,j)=tangents(k,j+1)
-                                        - tangents(k,j);
-                    /* this is tangent vector of uncorrected basal curve */
-                    tangentbase(k,j)=rawbase(k,j+1)-rawbase(k,j);
-                }
+                    dtds[k]=pathtangents(k,j+1)-pathtangents(k,j);
+                nudotdtds=ddot(3,dtds,1,pathnormals.get_address(0,j),1);
+                if(nudotdtds<0) xtest(j) = (-xtest(j));
+                //DEBUG
+                //cerr << "xtest for "<<j<<" is "<<xtest(j)<<endl;
             }
         }
+        //DEBUG
+        /*
+        if(i==8) {
+        testmat=tr(rawbase);
+        cerr << "rawbase"<<endl<<testmat<<endl;
+        testmat=tr(pathnormals);
+        cerr << "pathnormals"<<endl<<testmat<<endl;
+        testmat=tr(pathtangents);
+        cerr << "pathtangents"<<endl<<testmat<<endl;
+        testmat=tr(pathds);
+        cerr << "pathds"<<endl<<testmat<<endl;
+        }
+        */
         dmatrix fixedbase(3,npts);
-        /* Now the algorithm we use is this.  when tangent \dot tangentbase is positive
-           we assume the curve is not backing up.   When that dot produce it negative we
-           scan forward until we find a point whose dot product with the tangent is positive. 
-           We then divide the computed vector into that many points and continue */
+        /* We use the geometry defined by the xtest vector to decide if we need to deal
+           with the complications of a strongly concave down curve segment.   The 
+           theory behind this follows from simple trigonometry with a right triangle 
+           with angles phi and 90-phi with phi computed from local turning rate of the 
+           curve.   Note xtest can and will be negative if the curve is turning upward 
+           so the test is simply for ds values larger than xtest. */
         j=0;
-        int jstart,jend;  // range of indices when handlind overlaps
+        int jstart,jend;  // range of indices when handling overlaps
         double basetest[3];
         double frac;   //computed fraction as delta of basetest vector
-        while(j<npts)
+        for(j=0;j<npts;++j)
         {
+            double dssum,sumxtest;
             if(j==0)
                 for(k=0;k<3;++k) fixedbase(k,0)=rawbase(k,0);
-            // This is a test for concave up-not sure sign is right
-            else if(ddot(3,normals.get_address(0,j),1,curvature.get_address(0,j),1)<=0.0) 
-            {`
-                // When the curvature is concave up assume we can just keep the projected point 
+            else if(pathds(0,j)>=xtest(j))
+            {
+                /* Case with no overlap - just copy rawbase to fixedbase*/
                 for(k=0;k<3;++k) fixedbase(k,j)=rawbase(k,j);
             }
             else 
             {
-                if(ddot(3,tangent.get_address(0,j),1,tangentbase.get_address(0,j),1)>0.0)
+                jstart=j;
+                dssum=0.0;
+                do{
+                    double phi;
+                    ++j;
+                    if(j==npts)break;
+                    dssum+=pathds(0,j);
+                    double tangent_dot_product=ddot(3,pathtangents.get_address(0,jstart),1,
+                            pathtangents.get_address(0,j),1);
+                    if(fabs(tangent_dot_product-1.0)<FLT_EPSILON)
+                        phi=0.0;
+                    else
+                        phi=acos(tangent_dot_product);
+                    sumxtest=dz*sin(acos(phi));
+                }while(dssum<sumxtest);
+                if(j==npts)
                 {
-                    for(k=0;k<3;++k) fixedbase(k,j)=rawbase(k,j);
+                        /* A crude recovery for this condition.  This is entered if
+                           the end of the curve is retrograde.   What we do then is 
+                           project along the last valid tangent a tiny distance 
+                           where tiny is a scale dependent for this application */
+                        frac=1.0; /* Since tangents are unit vectors this means 100 m */
+                        double increment;
+                        for(int jfix=jstart,increment=frac;jfix<npts;++jfix,increment+=frac)
+                        {
+                            for(k=0;k<3;++k) 
+                            {
+                                fixedbase(k,jfix)=fixedbase(k,jstart-1)
+                                                + increment*(pathtangents(k,jstart-1));
+                            }
+                        }
                 }
                 else
                 {
-                    /* Here is the hard part - scan forward to find point that does not overlap this one */
-                    jstart=j;
-                    do {
-                        ++j;
-                        for(k=0;k<3;++k) basetest[k]=rawbase(k,j)-rawbase(k,jstart);
-                    }while(ddot(3,tangent.get_address(0,jstart),1,basetest,1)<0.0);
-                    jend=j;
-                    frac=1.0/static_cast<double>(jend-jstart-1);
-                    for(int jj=jstart;jj<=jend;++jj)
-                    {
-                        for(k=0;k<3;++k)
-                            fixedbase(k,jj)=fixedbase(k,jstart)+basetest[k]*static_cast<double>(jj-jstart)*frac;
-                    }
+                        jend=j;
+                        // set basetest to vector between jstart and jend
+                        for(k=0;k<3;++k) basetest[k]=rawbase(k,jend)-rawbase(k,jstart);
+                        frac=1.0/static_cast<double>(jend-jstart-1);
+                        for(int jj=jstart;jj<=jend;++jj)
+                        {
+                            for(k=0;k<3;++k)
+                                fixedbase(k,jj)=fixedbase(k,jstart-1)
+                                        +basetest[k]*static_cast<double>(jj-jstart)*frac;
+                        }
                 }
             }
-            ++j;
         }
         /* The last thing we need to do is convert the fixedbase points to vector of Geographic_points
            that are then pushed to the base object we are constructing. */
@@ -368,10 +452,10 @@ PathArray BuildLithosphereSurface(PathArray& topsurface)
         {
             Geographic_point ptgeo; 
             Cartesian_point cpt;
-            cpt.x=fixedbase(0,j);
-            cpt.y=fixedbase(1,j);
-            cpt.z=fixedbase(2,j);
-            ptgeo=topsurface[i].coordxyz.ctog(cpt);
+            cpt.x1=fixedbase(0,j);
+            cpt.x2=fixedbase(1,j);
+            cpt.x3=fixedbase(2,j);
+            ptgeo=topsurface[i].coordxyz.geographic(cpt);
             fbgeo.push_back(ptgeo);
         }
         PLGeoPath thisbasecurve(fbgeo,0,0.0);
@@ -381,292 +465,94 @@ PathArray BuildLithosphereSurface(PathArray& topsurface)
 }
 void usage()
 {
-	cerr << prog <<" -pf pffile -v]"<<endl
-            << "Drivine largely by parameter writing results to stdout"<<endl
-	    << "output data can be used to build slab volume as polygons with vtk_gcl_converter"<<endl;
-	exit(-1);
+    cerr << "slabmodelvolume [-t thickness -s] < in > out "<<endl
+        << "  where -s enables smoothing option (off by default)"<<endl;;
+    exit(-1);
 }
 bool SEISPP::SEISPP_verbose(false);
 int main(int argc, char **argv)
 {
-	int i;
-        ios::sync_with_stdio();
-	string pfname(prog);
-	for(i=1;i<argc;++i)
-	{
-		string sarg(argv[i]);
-		if(sarg=="-pf")
-		{
-			++i;
-			if(i>=argc) usage();
-			pfname=string(argv[i]);
-		}
-                else if(sarg=="-v")
-                {
-                    SEISPP_verbose=true;
-                }
-		else
-			usage();
-	}
-	Pf *pf;
-	if(pfread(const_cast<char *>(pfname.c_str()),&pf))
-	{
-		cerr << "pfread failed for pf file="<<pfname<<endl;
-		usage();
-	}
-	try {
-	    Metadata control(pf);
-	    //double plat=control.get_double("pole_latitude");
-	    //double plon=control.get_double("pole_longitude");
-            /* This must have units of radians/year*/
-            //double angularvelocity=control.get_double("slab_angular_velocity");
-            /* The next two  must have time in Mya*/
-            double timesampleinterval=control.get_double("time_sample_interval");
-            /* Time to run slab motion */
-            double modeltime=control.get_double("model_elapsed_time");
-            double trench_path_sample_interval=control.get_double(
-                        "trench_path_sample_interval");
-            double maxdip,mindip;
-            maxdip=control.get_double("maximum_extension_dip");
-            mindip=control.get_double("minimum_extension_dip");
-            bool use_local_dip=control.get_bool("use_local_dip");
-            PLGeoPath zerotimecurve;
-            string trenchlinefile=control.get_string("trench_line_filename");
-            vector<Geographic_point> rawtrenchpoints
-                                =load_geopointdata(trenchlinefile);
-            PLGeoPath *rawtrenchpath=new PLGeoPath(rawtrenchpoints,0);
-            zerotimecurve=resample_PLGeoPath(*rawtrenchpath,
-                    trench_path_sample_interval);
-            delete rawtrenchpath;
-
-            /* now load and build the surface to be used to build the 
-               model.   Note for simplicity assume the trench path data is
-               part of the input set of points */
-            string slabdata_filename=control.get_string("slabdata_filename");
-            vector<Geographic_point> slabdata=load_geopointdata(slabdata_filename);
-            GeoSurface *geosurf;
-            bool spline_surface=control.get_bool("use_bicubic_spline");
-            if(spline_surface)
-                geosurf=dynamic_cast<GeoSurface*>(new GeoSplineSurface(slabdata,control));
+try {
+    int i;
+    double surface_offset(100.0);
+    bool smooth(false);
+    for(i=1;i<argc;++i)
+    {
+        string sarg(argv[i]);
+        if(sarg=="-t")
+        {
+            ++i;
+            std::istringstream sstr(argv[i]);
+            sstr>>surface_offset;
+            cerr << "Projecting input surface downward by "
+               << surface_offset << " km"<<endl;
+        }
+        else if(sarg=="-s")
+            smooth=true;
+        else
+            usage();
+    }
+    typedef vector<Geographic_point> Gvec;
+    Gvec thisflowline;
+    PathArray topsurface;
+    char line[256];
+    /* Initialize these variables at top of the main read loop */
+    int segsize(0);
+    i=0; 
+    int nseg(0);
+    while(!cin.eof())
+    {
+        double latin,lonin,zin;
+        Geographic_point gpoint;
+        cin.getline(line,256);
+        if(line[0]=='#') continue;
+        if(cin.eof()) break;
+        if(line[0]=='>')
+        {
+            segsize=thisflowline.size();
+            if(segsize==0)
+                cerr << "Warning:  zero length line segment number "<<nseg
+                    <<endl << "Ignored."<<endl;
             else
-                geosurf=dynamic_cast<GeoSurface*>(new GeoTriMeshSurface(slabdata));
-            /* Now create one path for each point on resampled trench path.*/
-            int npoints=SEISPP::nint(modeltime/timesampleinterval)+1;
-            int npaths=zerotimecurve.number_points();
-            if(SEISPP_verbose) cerr << "Output grid npaths="<<npaths<<endl;
-            //double Reffective;  // distance in km between pole and origin point 
-            bool extendpaths=control.get_bool("extendpaths");
-            /* New parameters for this, volume version */
-            // For now use constant thickness lithosphere given as input
-            double lithosphere_thickness=control.get_double("lithosphere_thickness");
-            /* We store the top surface geometry in this peculiar construct
-               made for simplicity.  We use a vector container to hold 
-               the individual paths that are assumed an ordered sequence 
-               starting from the given trench position. */
-            PathArray allpaths;
-            GeoPath *pbpath;
-            for(i=0;i<npaths;++i)
             {
-                double s;
-                Geographic_point gp;
-                if(triple_mode)
-                {
-                    gp=zerotimecurve.node_position(i);
-                }
-                else
-                {
-                    s=trench_path_sample_interval*static_cast<double>(i);
-                    gp=zerotimecurve.position(s);
-                }
-//DEBUG
-//cerr << "Starting position:  "<<deg(gp.lat)<<" "<<deg(gp.lon)<<endl;
-                pbpath=BuildPBPObject(gp.lat,gp.lon, pf);
-                /*
-                PlateBoundaryPath pbpath(plat,plon,gp.lat,gp.lon,
-                        angularvelocity);
-                double aztmp;
-                dist(plat,plon,gp.lat,gp.lon,&Reffective,&aztmp);
-                Reffective=deg2km(deg(Reffective));
-                        */
-                const int oversampling(50);
-                double sdt=timesampleinterval/static_cast<double>(oversampling);
-                int j;
-                vector<Geographic_point> oversampledpath;
-                /* These are needed if we have to extrapolate the last valid point */
-                Geographic_point lastgp;
-                /* This vector holds path times corrected for radial distance.
-                   This is necessary to create a time grid.*/
-                vector<double> corrected_time;
-                /* Parallel vector of arc distances */
-                vector<double> path_s;
-                double current_time(0.0),current_s(0.0),ds;
-                double dzdx;
-                if(SEISPP_verbose) cerr <<"Oversample path length="
-                    <<npoints*oversampling<<endl;
-                /* Two counters used here.  j is the live index for
-                 vectors.  jloop is the total loop counter
-                 They are different only if origin outside convex
-                 hull error (jloop=0 conditional) is entered */
-                for(int jloop=0,j=0;jloop<(npoints*oversampling+1);++j,++jloop)
-                {
-                    gp=pbpath->position(static_cast<double>(jloop)*sdt);
-                    if(geosurf->is_defined(gp.lat,gp.lon))
-                    {
-                        gp.r=geosurf->radius(gp.lat,gp.lon);
-                    }
-                    else
-                    {
-                    // Allow the first point to be skipped but issue warning
-                        if(jloop==0)
-                        {
-                            cerr << "Warning:  origin point not inside convex hull. "<<endl
-                                << "A skew of about "<<1.0/static_cast<double>(oversampling)
-                                << " of the time sampling rate will be present"<<endl;
-                            lastgp=gp;
-                            --j;
-                            continue;
-                        }
-                        else if(j<2)
-                            break;
-                        else if(extendpaths)
-                        {
-
-                            // This computes change in depth (sign switch)
-                            dzdx=oversampledpath[j-2].r
-                                        - oversampledpath[j-1].r;
-                            /* compute distance between j-1 and j-2 to compute dip */
-                            double ddelta=GeoDistance(oversampledpath[j-2],oversampledpath[j-1]);
-                            dzdx/= ddelta;  // note mixed units.  dz in km, ddelta in radians
-                            double dipdeg;
-                            double R0(oversampledpath[j-1].r);
-                            dipdeg=dzdx/R0;
-                            dipdeg=deg(atan(dipdeg));
-                            /* These could be  precomputed for efficiency but better to leave
-                               it here for clarity */
-                            if(dipdeg>maxdip)
-                            {
-                                dzdx=tan(rad(maxdip))*R0;
-                                dipdeg=maxdip;
-                            }
-                            else if(dipdeg<mindip)
-                            {
-                                dzdx=tan(rad(mindip))*R0;
-                                dipdeg=mindip;
-                            }
-                            int jlast=j-1;
-                            if(SEISPP_verbose) 
-                                cerr << "Extending path "<<i<<" with dip "
-                                <<dipdeg<<" from point number "<<j<<endl
-                                <<"Position = " 
-                                <<deg(oversampledpath[jlast].lat)<<", "
-                                <<deg(oversampledpath[jlast].lon)<<endl;
-                            // now extend the path to npoints
-                            int jj;
-                            double s0=path_s[jlast];
-                            double r0=oversampledpath[jlast].r;
-                            lastgp=oversampledpath[jlast-1];
-                            for(jj=j;jj<(npoints*oversampling+1);++jj)
-                            {
-                                double s;
-                                s=static_cast<double>(jj)*sdt;
-                                gp=pbpath->position(s);
-                                // recycle ddelta for same context here
-                                ddelta=GeoDistance(lastgp,gp);
-                                /* This option corrects delta for 
-                                   shrinking length with depth */
-                                if(use_local_dip) ddelta *= lastgp.r/R0;
-                                gp.r=lastgp.r-dzdx*ddelta;
-                    //DEBUG
-                                /*
-                    cout << "Extended: "
-                        << deg(gp.lon)<<" "
-                        << deg(gp.lat)<<" "
-                        <<r0_ellipse(gp.lat)-gp.r<<endl;
-                        */
-                                oversampledpath.push_back(gp);
-                                current_time += adjustedtime(lastgp,gp,sdt);
-                                ds = distance_increment(lastgp,gp,sdt);
-                                current_s += ds;
-                                corrected_time.push_back(current_time);
-                                path_s.push_back(current_s);
-                                lastgp=gp;
-                            }
-                            break;
-                        }
-                        else
-                            break;
-                    }
-                    if(j>0)
-                    {
-                        current_time += adjustedtime(lastgp,gp,sdt);
-                        ds = distance_increment(lastgp,gp,sdt);
-                        current_s += ds;
-                    }
-                    corrected_time.push_back(current_time);
-                    path_s.push_back(current_s);
-                    //DEBUG
-                    /*
-                    cout << "Interpolated: "
-                        << deg(gp.lon)<<" "
-                        << deg(gp.lat)<<" "
-                        <<r0_ellipse(gp.lat)-gp.r<<endl;
-                        */
-
-                    oversampledpath.push_back(gp);
-                    lastgp=gp;
-                }
-                if(oversampledpath.size()>1)
-                {
-                    //DEBUG
-                    /*
-                    for(int kd=0;kd<oversampledpath.size();++kd)
-                        cout << path_s[kd]<<" "
-                            << corrected_time[kd]<<" "
-                            << deg(oversampledpath[kd].lat)<<" "
-                            << deg(oversampledpath[kd].lon)<<" "
-                            << oversampledpath[kd].r
-                            <<" "
-                            << r0_ellipse(oversampledpath[kd].lat)
-                              - oversampledpath[kd].r<<endl;
-                              */
-                    PLGeoPath plop(oversampledpath,0);
-                    PLGeoPath finalpath=timesample_PLGeoPath(plop,
-                            corrected_time,path_s,timesampleinterval,
-                            modeltime);
-                    allpaths.push_back(finalpath);
-                }
-                else
-                {
-                    cerr << "Warning:  Path has zero length "
-                        <<"for path point number "<<i<<endl;
-                }
-                oversampledpath.clear();
-                corrected_time.clear();
-                path_s.clear();
-                delete pbpath;
+                PLGeoPath PLthisfl(thisflowline,0,0.0);
+                topsurface.push_back(PLthisfl);
+                thisflowline.clear();
+                ++nseg;
             }
-            /* This is new code to generate the volume data.  
-               First step is to generate a base of lithosphere surface.
-               Complicated by curvature effects.  Done in the procedure
-               called here.*/
-            PathArray lithosphere_base;
-            lithosphere_base=BuildLithophereSurface(allpaths);
         }
-
-        catch (SeisppError& serr)
+        else
         {
-            serr.log_error();
-            exit(-2);
+            sscanf(line,"%lf%lf%lf",&lonin,&latin,&zin);
+	    gpoint.lat=rad(latin);
+	    gpoint.lon=rad(lonin);
+	    gpoint.r=r0_ellipse(gpoint.lat)-zin;
+  	    thisflowline.push_back(gpoint);
         }
-        catch (GeoCoordError& gerr)
-        {
-            cerr << gerr.what()<<endl;
-            exit(-3);
-        }
-        catch (int ierr)
-        {
-            cerr << "GCLgrid error:  something threw error code="
-                <<ierr<<endl;
-            exit(-2);
-        }
+    }
+    // Data are now loaded.  Now the for the projection
+    PathArray lowersurface=BuildLithosphereSurface(topsurface,
+            surface_offset,smooth);
+    /* Now write the new surface to stdout */
+    PathArray::iterator pathptr;
+    int j;
+    for(pathptr=lowersurface.begin(),j=0;pathptr!=lowersurface.end();++pathptr,++j)
+    {
+    	int npts=pathptr->number_points();
+    	for(i=0;i<npts;++i)
+    	{
+    		Geographic_point nodepoint=pathptr->node_position(i);
+    		cout << deg(nodepoint.lon) << " "
+    		     << deg(nodepoint.lat) << " "
+    		     << r0_ellipse(nodepoint.lat)-nodepoint.r<<endl;
+    	}
+    	cout << ">"<<endl;
+    }
+} catch(exception& err)
+{
+    cerr << "Fatal error:  "<<endl
+        << err.what()<<endl;
+    exit(-1);
 }
+}
+
