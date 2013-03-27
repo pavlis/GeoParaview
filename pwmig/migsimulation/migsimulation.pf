@@ -66,6 +66,17 @@ surface_S_velocity 3.5
 SimplePSPrimarySynthetic::ddelta 1.0
 SimplePSPrimarySynthetic::ndelta 1500
 Synthetic_method POINTSOURCE
+#
+# These parameters are only for the StaVariableLayeredSynthetic constructor
+#
+listfile model_files.list
+tsigma 1.0
+# When false return pure impulse response.  true deconvolute with wvlevel 
+# to compute receiver function simulation
+receiver_function_mode true
+# relative water level for water level method. Referenced only if 
+# receiver_function_mode is set true
+water_level 0.01
 
 # parameters below are solely for PointSourcePSSynthetics
 zmin 0.2
