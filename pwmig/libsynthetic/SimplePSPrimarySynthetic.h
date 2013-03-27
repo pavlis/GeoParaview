@@ -11,11 +11,11 @@ class SimplePSPrimarySynthetic : public SyntheticSeismogram
     public:
         SimplePSPrimarySynthetic(Metadata& md, vector<double> scd,
                 vector<double> sca);
-        TimeSeries ComputeScalar(Hypocenter& hypo,
+        TimeSeries ComputeScalar(int nsamp, double dt, Hypocenter& hypo,
                             double rlat, double rlon, double relev,string type);
         TimeSeries ComputeScalar(const TimeSeries& parent,
              Hypocenter& hypo,double rlat, double rlon, double relev,string type);
-        ThreeComponentSeismogram Compute3C(Hypocenter& hypo,
+        ThreeComponentSeismogram Compute3C(int nsamp, double dt, Hypocenter& hypo,
                  double rlat, double rlon, double relev,string units);
         ThreeComponentSeismogram Compute3C(const ThreeComponentSeismogram& parent,
              Hypocenter& hypo, double rlat, double rlon, double relev,string units);

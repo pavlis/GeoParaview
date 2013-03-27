@@ -27,38 +27,45 @@ public:
       the output is naturally a scalar field.  This method should be used
       to return that type of synthetic.  
 
+      \param nsamp number of samples for output
+      \param dt sample interval in s for output
       \param hypo is an object that contains the source coordinates
       \param rlat receiver latitude (radians)
       \param rlon receiver longitude (radians)
       \param relev receiver elevation (km)
-      \param type is a string used to sort out possible options for scalar
+      \param options is a string used to sort out possible options for scalar
         output.  e.g. an implementation could use P for pressure, Z for
         vertical, R for radial, and T for transverse.  
-      \param units can be optionally used to specify units of output.
       */
-    virtual TimeSeries ComputeScalar(Hypocenter& hypo,
-            double rlat, double rlon, double relev,string type)=0;
+    virtual TimeSeries ComputeScalar(int nsamp, double dt,
+            Hypocenter& hypo, double rlat, double rlon, double relev,
+            string options)=0;
     /*! Similar to simpler method above, but clone parent. */
     virtual TimeSeries ComputeScalar(const TimeSeries& parent,
             Hypocenter& hypo,
-            double rlat, double rlon, double relev,string type)=0;
+            double rlat, double rlon, double relev,string options)=0;
     /*! Compute a three component synthetic.
 
       Sometimes we want a synthetic that computes a full three component
       seismogram.  This method should be implemented to do that.  
 
+      \param nsamp number of samples for output
+      \param dt sample interval in s for output
       \param hypo is an object that contains the source coordinates
       \param rlat receiver latitude (radians)
       \param rlon receiver longitude (radians)
       \param relev elevation (km)
-      \param units can be optionally used to specify units of output.
+      \param options is a generic way to specify options for output.
       */
-    virtual ThreeComponentSeismogram Compute3C(Hypocenter& hypo,
-            double rlat, double rlon, double relev,string units)=0;
-    /*! Similar to simpler method above, but clone parent. */
+    virtual ThreeComponentSeismogram Compute3C(int nsamp, double dt,
+            Hypocenter& hypo,
+            double rlat, double rlon, double relev,string options)=0;
+    /*! Similar to simpler method above, but clone parent. 
+     
+     Specifically dt and nsamp are derived from the parent.*/
     virtual ThreeComponentSeismogram Compute3C(const ThreeComponentSeismogram& parent,
             Hypocenter& hypo,
-            double rlat, double rlon, double relev,string units)=0;
+            double rlat, double rlon, double relev,string options)=0;
 };
 
 }  // End SEISPP namespace encapsulation

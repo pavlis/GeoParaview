@@ -86,8 +86,9 @@ PointSourcePSSynthetic::PointSourcePSSynthetic(VelocityModel_1d& vsmods, Velocit
     } catch(...){throw;};
 }
 
-TimeSeries PointSourcePSSynthetic::ComputeScalar(Hypocenter& hypo,
-         double rlat, double rlon, double rz,string type)
+TimeSeries PointSourcePSSynthetic::ComputeScalar(int nsamp,
+         double dt, Hypocenter& hypo,
+         double rlat, double rlon, double rz,string options)
 {
     throw SeisppError(string("ComputeScalar method not implemented"));
 }
@@ -96,7 +97,8 @@ TimeSeries PointSourcePSSynthetic::ComputeScalar(const TimeSeries& parent,
 {
     throw SeisppError(string("ComputeScalar method not implemented"));
 }
-ThreeComponentSeismogram PointSourcePSSynthetic::Compute3C(Hypocenter& hypo,
+ThreeComponentSeismogram PointSourcePSSynthetic::Compute3C(int nsamp,
+         double dt, Hypocenter& hypo,
          double rlat, double rlon, double rz,string units)
 {
     throw SeisppError(string("Compute3C plain method not implemented"));

@@ -16,14 +16,15 @@ class PointSourcePSSynthetic : public SyntheticSeismogram
     public:
         PointSourcePSSynthetic(VelocityModel_1d& vsmods, VelocityModel_1d& vpmods, Pf *pf);
         //~PointSourcePSSynthetic();
-        TimeSeries ComputeScalar(Hypocenter& hypo,
+        TimeSeries ComputeScalar(int nsamp, double dt, Hypocenter& hypo,
                             double rlat, double rlon, double relev,string type);
         TimeSeries ComputeScalar(const TimeSeries& parent,
                     Hypocenter& hypo,
                             double rlat, double rlon, double relev,string type);
-        ThreeComponentSeismogram Compute3C(Hypocenter& hypo,
+        ThreeComponentSeismogram Compute3C(int nsamp, double dt, Hypocenter& hypo,
                  double rlat, double rlon, double relev,string units);
-        ThreeComponentSeismogram Compute3C(const ThreeComponentSeismogram& parent,Hypocenter& hypo, double rlat, double rlon, double relev,string units);
+        ThreeComponentSeismogram Compute3C(const ThreeComponentSeismogram& parent,
+                Hypocenter& hypo, double rlat, double rlon, double relev,string units);
 	void P_scatter(double pointdepth, double plat, double hypodepth, double delta , double& Pinc_time, double& Pinc_theta);
 	// Pinc_* are return values of P_scatter()
 	double getlocalAZ(Hypocenter& hypo, Geographic_point& point, const double& rlat, const double& rlon);

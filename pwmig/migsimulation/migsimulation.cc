@@ -6,12 +6,13 @@
 #include "Metadata.h"
 #include "SimplePSPrimarySynthetic.h"
 #include "PointSourcePSSynthetic.h"
+#include "StaVariableLayeredSynthetic.h"
 #include "filter++.h"
 #include "SimpleWavelets.h"
 #include "VelocityModel_1d.h"
 #include "vectorcls.h"
 
-enum SyntheticType {SIMPLE,POINTSOURCE,EXTERN_LAYERED};
+enum SyntheticType {SIMPLE,POINTSOURCE,CONST_VEL_LAYERED};
 using namespace std;
 using namespace SEISPP;
 bool SEISPP::SEISPP_verbose(false);
@@ -19,7 +20,7 @@ SyntheticSeismogram *CreateSimpleGenerator(Metadata& control, Pf *pf)
 {
     try {
         Tbl *t;
-        t=pfget_tbl(pf,"interfaces");
+        t=pfget_tbl(pf,const_cast<char *>("interfaces"));
         vector<double> d,a;
         int i;
         for(i=0;i<maxtbl(t);++i)
@@ -32,6 +33,18 @@ SyntheticSeismogram *CreateSimpleGenerator(Metadata& control, Pf *pf)
             a.push_back(amp);
         }
         SimplePSPrimarySynthetic *result = new SimplePSPrimarySynthetic(control,d,a);
+        return result;
+    } catch (...) {throw;};
+}
+SyntheticSeismogram *CreateStaVariableConstVelGenerator(Metadata& p)
+{
+    try{
+        string listfile=p.get_string("model_list_file");
+        double tsigma=p.get_double("tsigma");
+        double wlevel=p.get_double("water_level");
+        bool useRF=p.get_bool("receiver_function_mode");
+        StaVariableLayeredSynthetic *result =
+             new StaVariableLayeredSynthetic(listfile,tsigma,wlevel,useRF);
         return result;
     } catch (...) {throw;};
 }
@@ -175,28 +188,22 @@ void usage()
     cout<<"n1Xn2="<<n1*n2<<"   n1.*n2="<<dotproduct(n1,n2)<<"   n1+n2="<<n1+n2<<endl;
     exit(-1);
 }
-SyntheticType parse_syntype(Metadata& type){
+SyntheticType parse_syntype(Metadata& type)
+{
+SyntheticType result;
 string strtype;
 
 strtype=type.get_string("Synthetic_method");
-/*switch(strtype){
-	case "SIMPLE":
-	  return SIMPLE;
-	case "POINTSOURCE":
-	  return POINTSOURCE;
-	default:
-	  return SIMPLE; 
-}*/
 
-if(strtype=="SIMPLE")
-	return SIMPLE;
-else 
-if(strtype=="POINTSOURCE")
-	 return POINTSOURCE;
-else
-	return SIMPLE;	
-
-
+    if(strtype=="SIMPLE")
+        result=SIMPLE;
+    else if(strtype=="POINTSOURCE")
+        result=POINTSOURCE;
+    else if(strtype=="STAVARIABLE_LAYERED")
+        result=CONST_VEL_LAYERED;
+    else
+        result=SIMPLE;
+return result;
 }
 
 
@@ -321,6 +328,9 @@ int main(int argc, char **argv){
          case POINTSOURCE:
 	    synbase=CreatePointsourceGenerator(control,pf);
 	    break;
+         case CONST_VEL_LAYERED:
+            synbase=CreateStaVariableConstVelGenerator(control);
+            break;
 	 default:
             // Necessary because I wanted to not use a pf for this object 
             synbase=CreateSimpleGenerator(control,pf);
@@ -359,6 +369,9 @@ int main(int argc, char **argv){
                 dptr!=ensemble->member.end();++dptr)
             {
                 double rlat,rlon,relev;
+                //DEBUG
+                //cout << dynamic_cast<Metadata &>(*dptr)<<endl;
+                cout << dptr->get_string("sta")<<endl;
                 rlat=dptr->get_double("site.lat");
                 rlon=dptr->get_double("site.lon");
                 rlat=rad(rlat);

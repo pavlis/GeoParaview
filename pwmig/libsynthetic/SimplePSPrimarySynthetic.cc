@@ -79,7 +79,8 @@ TimeSeries SimplePSPrimarySynthetic::ComputeScalar(const TimeSeries& parent,
     cout << "ComputeScalar procedure not implemented"<<endl;
     exit(-1);
 }
-TimeSeries SimplePSPrimarySynthetic::ComputeScalar(Hypocenter& hypo,
+TimeSeries SimplePSPrimarySynthetic::ComputeScalar(int nsamp,
+        double dt, Hypocenter& hypo,
         double rlat, double rlon, double relev,string type)
 {
     // This method can build a parent TimeSeries object, call the above, and
@@ -88,6 +89,7 @@ TimeSeries SimplePSPrimarySynthetic::ComputeScalar(Hypocenter& hypo,
     exit(-1);
 }
 ThreeComponentSeismogram SimplePSPrimarySynthetic::Compute3C(
+        int nsamp, double dt,
         Hypocenter& hypo, double rlat, double rlon, double relev,
         string units)
 {
