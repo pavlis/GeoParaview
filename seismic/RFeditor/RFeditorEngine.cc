@@ -7,7 +7,7 @@ using namespace std;
 using namespace SEISPP;
 const int StackThreshold(5);   // do not stack unless count above this
 /* Helpers for edit method. */
-vector<int> stack_and_sort(TimeSeriesEnsemble& d)
+vector<int> stack_and_sort(TimeSeriesEnsemble& d,TimeWindow rtw)
 {
     try{
         vector<int> result;
@@ -25,7 +25,7 @@ vector<int> stack_and_sort(TimeSeriesEnsemble& d)
             dptr->put("member_number",i);
         /* Always use the robust method with the stack and robust
            window the same */
-        Stack s(d,twin,twin,RobustSNR);
+        Stack s(d,twin,rtw,RobustSNR);
         /* Frozen name a problem, but label this stack so clear it
            is such */
         s.stack.put(string("sta"),string("stack"));
@@ -90,6 +90,9 @@ RFeditorEngine::RFeditorEngine(Metadata& params)
         }
         else
             cutoff_editing=false;
+        double rtwstart=params.get_double("robust_window_start");
+        double rtwend=params.get_double("robust_window_end");
+        robust_twin=TimeWindow(rtwstart,rtwend);
     }catch(...){throw;};
 }
 /* Helpers for edit method.  */ 
@@ -143,13 +146,16 @@ void apply_kills_to_other(TimeSeriesEnsemble& tse, set<long> evids_to_kill)
 int RFeditorEngine::edit(TimeSeriesEnsemble& rd, TimeSeriesEnsemble& td)
 {
     try{
+        //DEBUG
+        cout << "radial ensemble size="<<rd.member.size()<<endl
+            <<"transverse ensemble size="<<td.member.size()<<endl;
         /* This procedure runs the robust stacker and sorts the radial
            data by stack weight.   Returns a vector of ints linking 
            original member numbers to sorted member numbers.  We use
            this is to reorder transverse data before plotting. */
         if(rd.member.size()>StackThreshold)
         {
-            vector<int> reordering=stack_and_sort(rd);
+            vector<int> reordering=stack_and_sort(rd,robust_twin);
             td=reorder_transverse(td,reordering);
         }
         /* This changes the plot titles for each window.  Assumes sta

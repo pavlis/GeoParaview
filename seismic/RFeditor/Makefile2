@@ -1,4 +1,5 @@
 BIN=RFeditor
+PF=RFeditor.pf
 ldlibs=-lseispp -ltrvltm -lbrttutil $(TRLIBS) $(DBLIBS) -L$(XMOTIFLIB) \
        -L$(BOOSTLIB) -lboost_thread -lboost_system -lseisppplot -lseisw -lXm -lXt -lperf -lgclgrid -lpwmig $(X11LIBS)
 

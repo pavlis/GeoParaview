@@ -23,10 +23,13 @@ class RFeditorEngine
            \return Number of traces loaded.
            */
         int edit(TimeSeriesEnsemble& r, TimeSeriesEnsemble& d);
+        TimeWindow report_robust_twin(){return(robust_twin);};
+        void set_robust_twin(TimeWindow tw){robust_twin=tw;};
     private:
         bool cutoff_editing;
         TraceEditPlot Rwindow;
         TraceEditPlot Twindow;
+        TimeWindow robust_twin;
         /* private method kills T if R marked or R if T marked bad */
         void kill_sibling(); 
 };

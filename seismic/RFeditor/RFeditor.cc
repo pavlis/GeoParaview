@@ -29,6 +29,10 @@ void set_eventids(TimeSeriesEnsemble& d)
     for(evid=0,i=0,dptr=d.member.begin();dptr!=d.member.end();
             ++i,++dptr)
     {
+        /*
+        cout << "Member number "<<i<< "Metadata contens"<<endl
+            << dynamic_cast<Metadata &>(*dptr)<<endl;
+            */
         if(i==0)
         {
             dptr->put(evidkey,evid);
@@ -82,13 +86,18 @@ int save_to_db(TimeSeriesEnsemble& r, TimeSeriesEnsemble& t,
         const string table("wfdisc");
         for(dptr=r.member.begin();dptr!=r.member.end();++dptr)
         {
-            if(dptr->live)
+            string sta=dptr->get_string("sta");
+            if(dptr->live && (sta!="stack"))
             {
                 int rec;
                 rec=dbsave(*dptr,dbh.db,table,mdl,am);
+//DEBUG
+cerr << "Sta="<<dptr->get_string("sta")<<endl;
                 ++nlive;
             }
         }
+//DEBUG
+cerr << "Number radial saved="<<nlive<<endl;
         for(dptr=t.member.begin();dptr!=t.member.end();++dptr)
         {
             if(dptr->live)
@@ -98,6 +107,7 @@ int save_to_db(TimeSeriesEnsemble& r, TimeSeriesEnsemble& t,
                 ++nlive;
             }
         }
+        return(nlive);
     }catch(...){throw;};
 }
 bool SEISPP::SEISPP_verbose(false);
@@ -233,7 +243,9 @@ int main(int argc, char **argv)
 
             try {
                 radial=extract_by_chan(dall,rchan);
+                cout << "Found "<<radial.member.size()<<" radial component RFs"<<endl;
                 transverse=extract_by_chan(dall,tchan);
+                cout << "Found "<<radial.member.size()<<" transverse component RFs"<<endl;
             }catch(SeisppError& serr)
             {
                 cerr << "Problems in extract_by_chan.  Message "
