@@ -112,6 +112,15 @@ ThreeComponentSeismogram StaVariableLayeredSynthetic::Compute3C(
         string sta=result.get_string("sta");
         LayeredModel vmodel=get_model(sta);
         int nlyrs=vmodel.alpha.size();
+//DEBUG
+cout << "model for sta="<<sta<<endl;
+for(int im=0;im<nlyrs;++im)
+{
+cout << vmodel.alpha[im] <<" "
+  << vmodel.beta[im]<<" "
+  << vmodel.rho[im]<<" "
+  << vmodel.dz[im]<<endl;
+}
         double backaz,azimuth;
         backaz=hypo.seaz(rlat,rlon);
         //dist returns backazimuth, convert to propagation azimuth
@@ -132,17 +141,18 @@ ThreeComponentSeismogram StaVariableLayeredSynthetic::Compute3C(
         double log2ns=log2(static_cast<double>(data_nsamp));
         // A rather eloborate constuct to remove fraction of log2ns and add one
         int nsamp=static_cast<int>(pow(2.0,static_cast<double>(static_cast<int>(log2ns+1.0))));
-        //DEBUG for a memory debug
-        nsamp=2*nsamp;
+//DEBUG
+cout << "nsamp="<<nsamp<<endl;
         float *zp,*rp,*zs,*rs,*trans,*rfr;
-        zp=new float[nsamp];
-        rp=new float[nsamp];
-        zs=new float[nsamp];
-        rs=new float[nsamp];
-        trans=new float[nsamp];
-        rfr=new float[nsamp];
-        //DEBUG:  reset smaller for memory debug
-        nsamp=nsamp/2;
+	// Intentionally add 4 extra slots at end because of a potential off by one
+	// problem created by need for nasty opaque pointers casting float array to a 
+	// fortran 32 bit complex
+        zp=new float[nsamp+4];
+        rp=new float[nsamp+4];
+        zs=new float[nsamp+4];
+        rs=new float[nsamp+4];
+        trans=new float[nsamp+4];
+        rfr=new float[nsamp+4];
         int ierr;
         /* Now call the fortran routine.  Because it is fortran
            all arguments have to be passed as pointers.  We use
@@ -150,6 +160,9 @@ ThreeComponentSeismogram StaVariableLayeredSynthetic::Compute3C(
            array pointer as used here. */
         int fullrsp(1);
         float fdt=static_cast<float>(result.dt);
+//DEBUG
+cout << "Computing synthetic for station = "<<sta<<endl
+<< "nsamp="<<nsamp<<" dt="<<fdt<<" with slowness="<<slow<<endl;
         kntsyn_(&nlyrs,&(vmodel.alpha[0]),&(vmodel.beta[0]),
                 &(vmodel.rho[0]),&(vmodel.dz[0]),&slow,&fullrsp,
                 &fdt,&nsamp,&(this->tsigma),&(this->wlevel),

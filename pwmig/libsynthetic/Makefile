@@ -5,6 +5,7 @@ INCLUDE=SyntheticSeismogram.h PointSourcePSSynthetic.h \
         vectorcls.h SimplePSPrimarySynthetic.h StaVariableLayeredSynthetic.h \
         SphericalRayPathArray.h   
 cflags=-g
+fflags=-g
 ldlibs=$(F77LIBS)
 
 include $(ANTELOPEMAKE)

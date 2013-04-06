@@ -44,23 +44,23 @@ c  the original array is 2*numpts in length.  When called from C/C++
 c  caller must extract the real part from each vector as the first 
 c  of each pair of the complex array.
 c----------------------------------------------------------------
-      real tsigma
-      real t,dt,wlevel
-      integer nlyrs,numpts
-      real alfm(nlyrs),betm(nlyrs),rhom(nlyrs),thikm(nlyrs)
-      real pr
-      integer fullrsp
+      real*4 tsigma
+      real*4 t,dt,wlevel
+      integer*4 nlyrs,numpts
+      real*4 alfm(nlyrs),betm(nlyrs),rhom(nlyrs),thikm(nlyrs)
+      real*4 pr
+      integer*4 fullrsp
       complex u0(numpts),w0(numpts),u1(numpts),w1(numpts),tn(numpts)
       complex rfr(numpts)
-      real zpeak,zamp,rwlev
-      real fsigma
+      real*4 zpeak,zamp,rwlev
+      real*4 fsigma
 c--This is a time shift applied to rf estimate after decon.  Necessary
 c--because spectral division cancels original phase.
       real rftshift
       parameter(rftshift=5.0)
       parameter(maxlyr=50)
       real qpm(maxlyr),qsm(maxlyr),ta(maxlyr),tb(maxlyr)
-      integer ierr
+      integer*4 ierr
       complex dvp,dvs,drp,drs,dts,p,fr
       real freal
       real*8 wq,t1,t2,qa,qb,qabm,vabm

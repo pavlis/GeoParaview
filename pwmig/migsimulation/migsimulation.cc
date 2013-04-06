@@ -67,7 +67,7 @@ strcpy(pdbv, fname.c_str());
 string vmodel_datasource=control.get_string("vmodel_datasource");
 txtvmodel=control.get_string("Vmodel_text_file");
 if(vmodel_datasource=="database"){
- dberror=dbopen(pdbv, "r", &dbvmodel);
+ dberror=dbopen(pdbv, const_cast<char *>("r"), &dbvmodel);
  //dberror=dbopen(&fname[0], "r", &dbvmodel);
  VelocityModel_1d vs1d(dbvmodel, vmodelname, "Svelocity");
  VelocityModel_1d vp1d(dbvmodel, vmodelname, "Pvelocity");
@@ -182,10 +182,7 @@ set<int> load_eventset(string fname)
 
 void usage()
 {
-    cerr << "migsimulation dbin dbout [-evf eventlistfile -pf pffile -V]"<<endl;
-    vectorcls n1(1,2,3),n2(2,3.6,5);
-    cout<<"n1="<<n1<<"    n2="<<n2<<endl;
-    cout<<"n1Xn2="<<n1*n2<<"   n1.*n2="<<dotproduct(n1,n2)<<"   n1+n2="<<n1+n2<<endl;
+    cerr << "migsimulation dbin dbout [-evf eventlistfile -pf pffile -v]"<<endl;
     exit(-1);
 }
 SyntheticType parse_syntype(Metadata& type)
@@ -236,7 +233,7 @@ int main(int argc, char **argv){
             evlfile=string(argv[i]);
             check_evlist=true;
         }
-        else if(strarg=="-V")
+        else if(strarg=="-v")
             SEISPP_verbose=true;
         else
             usage();
@@ -363,15 +360,24 @@ int main(int argc, char **argv){
             //int evid=ensemble->get_int("evid");
             //For now freeze this as taup calculator iasp91
             Hypocenter hypo(slat,slon,sz,otime,string("tttaup"),string("iasp91"));
-	    ((PointSourcePSSynthetic*) synbase)->initPtime4event(hypo);
+	    if(syntype==POINTSOURCE)
+		((PointSourcePSSynthetic*) synbase)->initPtime4event(hypo);
             vector<ThreeComponentSeismogram>::iterator dptr;
             for(dptr=ensemble->member.begin();
                 dptr!=ensemble->member.end();++dptr)
             {
                 double rlat,rlon,relev;
+		// Ignore data marked data but always log this as a nonfatal erro
+		if(!(dptr->live)) 
+		{
+		    cerr << "Deleting data from station="<<dptr->get_string("sta")<<endl
+				<< "Marked dead by constructor.  Likely data problem you need to address"<<endl;
+		    continue;
+		}
                 //DEBUG
                 //cout << dynamic_cast<Metadata &>(*dptr)<<endl;
-                cout << dptr->get_string("sta")<<endl;
+		cout << dptr->get_string("sta")<<endl;
+		cout << "ns="<<dptr->ns<<" dt="<<dptr->dt<<" live="<<dptr->live<<endl;
                 rlat=dptr->get_double("site.lat");
                 rlon=dptr->get_double("site.lon");
                 rlat=rad(rlat);

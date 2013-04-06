@@ -6,6 +6,7 @@ ldlibs=-lseispp -lsynthetic -ltrvltm -lbrttutil $(TRLIBS) $(DBLIBS)  \
                -lperf -lgclgrid -lpwmig 
 
 include $(ANTELOPEMAKE) 
+CXXFLAGS += -g
 
 OBJS=migsimulation.o 
 $(BIN) : $(OBJS)
