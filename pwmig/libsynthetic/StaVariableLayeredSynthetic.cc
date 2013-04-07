@@ -113,6 +113,7 @@ ThreeComponentSeismogram StaVariableLayeredSynthetic::Compute3C(
         LayeredModel vmodel=get_model(sta);
         int nlyrs=vmodel.alpha.size();
 //DEBUG
+/*
 cout << "model for sta="<<sta<<endl;
 for(int im=0;im<nlyrs;++im)
 {
@@ -121,6 +122,7 @@ cout << vmodel.alpha[im] <<" "
   << vmodel.rho[im]<<" "
   << vmodel.dz[im]<<endl;
 }
+*/
         double backaz,azimuth;
         backaz=hypo.seaz(rlat,rlon);
         //dist returns backazimuth, convert to propagation azimuth
@@ -142,7 +144,7 @@ cout << vmodel.alpha[im] <<" "
         // A rather eloborate constuct to remove fraction of log2ns and add one
         int nsamp=static_cast<int>(pow(2.0,static_cast<double>(static_cast<int>(log2ns+1.0))));
 //DEBUG
-cout << "nsamp="<<nsamp<<endl;
+//cout << "nsamp="<<nsamp<<endl;
         float *zp,*rp,*zs,*rs,*trans,*rfr;
 	// Intentionally add 4 extra slots at end because of a potential off by one
 	// problem created by need for nasty opaque pointers casting float array to a 
@@ -160,9 +162,6 @@ cout << "nsamp="<<nsamp<<endl;
            array pointer as used here. */
         int fullrsp(1);
         float fdt=static_cast<float>(result.dt);
-//DEBUG
-cout << "Computing synthetic for station = "<<sta<<endl
-<< "nsamp="<<nsamp<<" dt="<<fdt<<" with slowness="<<slow<<endl;
         kntsyn_(&nlyrs,&(vmodel.alpha[0]),&(vmodel.beta[0]),
                 &(vmodel.rho[0]),&(vmodel.dz[0]),&slow,&fullrsp,
                 &fdt,&nsamp,&(this->tsigma),&(this->wlevel),
@@ -191,7 +190,7 @@ cout << "Computing synthetic for station = "<<sta<<endl
         {
             /* this helper hunts for first peak in z component */
             zerolag=find_first_peak(zp,nsamp);
-            tzerolag=static_cast<double>(-zerolag)*result.dt;
+            tzerolag=static_cast<double>(zerolag)*result.dt;
         }
         /* We need to compute the offset in work space from sample 0.
            Since seispp library allows negative t0 this has to be computed
@@ -201,11 +200,14 @@ cout << "Computing synthetic for station = "<<sta<<endl
         ns_to_copy=result.ns-lag0;
         if(ns_to_copy>nsamp) ns_to_copy=nsamp;
         /* Component 1 is radial and 2 is vertial in internal TRL coordinates.  
-           this is reason for indexing in loops below */
+           this is reason for indexing in loops below.  The use of a
+	   a conditional to avoid negative indices is a bit ineffiicent
+           but will leave it unless this proves problematic. */
         int i,ii;
         if(ConvertToRF)
         {
-            for(i=0,ii=lag0;i<ns_to_copy;++i,++ii) result.u(1,ii)=rfr[i];
+            for(i=0,ii=lag0;i<ns_to_copy;++i,++ii) 
+		if(ii>=0) result.u(1,ii)=rfr[i];
         }
         else
         {
@@ -213,8 +215,11 @@ cout << "Computing synthetic for station = "<<sta<<endl
                so use this clearer construct intentionally*/
             for(i=0,ii=lag0;i<ns_to_copy;++i,++ii)
             {
-                result.u(1,ii)=rp[i];
-                result.u(2,ii)=zp[i];
+		if(ii>=0)
+		{
+                    result.u(1,ii)=rp[i];
+                    result.u(2,ii)=zp[i];
+		}
             }
         }
         /* Done with these work spaces so we can clear them now. */

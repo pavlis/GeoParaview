@@ -204,6 +204,7 @@ c
                   rfr(i)=w0(i)/u0(i)
              endif
    12 continue
+      rfr(nfpts) = (0.,0.)
 c -- multiply by gaussian filter with width fsigma
 c -- rf also requires a phase shift to translate to tshift instead of 0
       do 20 i=1,nfpts-1
