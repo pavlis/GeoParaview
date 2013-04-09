@@ -4,6 +4,9 @@
 #include "ThreeComponentSeismogram.h"
 using namespace std;
 using namespace SEISPP;
+/* This defines a format name for a single velocity.  Currently this 
+      is the only name allowed */
+const string default_model_format("glpvmodels");
 class LayeredModel
 {
 public:
@@ -47,7 +50,7 @@ with the RF case.
 class StaVariableLayeredSynthetic : public SyntheticSeismogram
 {
 public:
-    /*! \brief construct from file with list of file names. 
+    /*! \brief construct from a list of file names.
 
       Assumes the list is a set of strings that define valid file names.
       The assumption is that the names a relative or absolute unix path 
@@ -56,7 +59,9 @@ public:
       names are used internally as keys to index the entire suite of models.
       Each file is assumed to contain ascii data with four columns:
       p-velocity, s-velocity, density, thickness
-      \param listfile is the file containing the list of model files
+      \param filelist is an stl list of file names.   The name structure
+        is important.  It is blindly assumed file names are unix file
+        names with the leaf of the tree being a station name.
       \param tsig is time sigma.  The output seismograms are filtered by 
         a Gaussian filter (in the frequency domain) to build pulses of this
         width measure in time. 
@@ -72,8 +77,44 @@ public:
        \exception throws a SeisppError exception mostly related to reading
        files or inconsistencies in files.
        */
-   StaVariableLayeredSynthetic(string listfile,double tsig,
+   StaVariableLayeredSynthetic(list<string> filelist, double tsig,
            double wlev=0.01,bool MakeRF=false);
+   /*! \brief Construct from a single file.
+
+     This constructor builds the object from a single large file.   
+     At present this is a single format that is defaulted, but 
+     the interface allows alternatives if one wished to do the
+     coding to support such an alternative.  The default format
+     is best viewed as the same as concatenating the single station
+     files used by the list driven constructor adding a header line
+     before each station model with two arguments:  station_name and
+     number of layers (lines to follow).
+
+     An important reason this constuctor was added is that the list
+     driven version was ridiculously inefficient due to the large 
+     number of tiny file it required. 
+
+     \param modfile is the name of the file containing all the models.
+      \param tsig is time sigma.  The output seismograms are filtered by 
+        a Gaussian filter (in the frequency domain) to build pulses of this
+        width measure in time. 
+      \param wlev is a water level used for frequency domain waterlevel 
+        deconvolution to simulate the radial being a standard receiver
+        function computed by deconvolution with the vertical component.
+      \param MakeRF is a boolean that controls the type of output.  When
+        true output is plane wave radial and vertical response to model.  
+        When false the vertical component will be zero and the radial will
+        be a simulated receiver function produced by deconvolving the 
+        radial with the vertical (waterlevel).
+      \param format - optional format specification.   Currently will
+       throw an exception if it is not the default.
+
+       \exception throws a SeisppError exception mostly related to reading
+       files or inconsistencies in files.
+
+       */
+   StaVariableLayeredSynthetic(string modfile, double tsig,
+           double wlev=0.01,bool MakeRF=false,string format=default_model_format);
    /*! Compute a scalar time series - not implemented. */
    TimeSeries ComputeScalar(int nsamp, double dt, 
            Hypocenter& hypo,double rlat,double rlon,double relev,

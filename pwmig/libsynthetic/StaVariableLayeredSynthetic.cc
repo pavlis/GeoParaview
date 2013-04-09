@@ -10,9 +10,11 @@ extern "C" void kntsyn_(int *nlyr, float *alfm, float *betm, float *rhom,
        float *tsigma, float *wlevel, float *u0, float *w0, float *u1,
          float *w1,float *tn, float *rfr, int *ierr);
 
-string extract_sta_name(char *filename)
+/* Rather primitive function extracts the leaf name of a unix file
+   and returns it.  For this code when driven by a list of file names
+   this is assumed to be a seismic station name. */
+string extract_sta_name(string path)
 {
-    string path(filename);
     string sta;
     size_t right;
     right=path.rfind("/");
@@ -22,7 +24,7 @@ string extract_sta_name(char *filename)
         sta.assign(path,right+1,string::npos);
     return(sta);
 }
-StaVariableLayeredSynthetic::StaVariableLayeredSynthetic(string listfn,
+StaVariableLayeredSynthetic::StaVariableLayeredSynthetic(list<string> filelist,
         double tsig,double wlev,bool MakeRF)
 {
     const string base_error("StaVariableLayeredSynthetic constructor:  ");
@@ -30,22 +32,16 @@ StaVariableLayeredSynthetic::StaVariableLayeredSynthetic(string listfn,
     wlevel=static_cast<float>(wlev);
     ConvertToRF=MakeRF;
     try {
-        ifstream in;
-        in.open(listfn.c_str(),ios::in);
-        if(in.fail())
-            throw SeisppError(base_error + "Open failed on file "
-                    +listfn
-                    +"\nThis should contain a list of velocity model files");
-        char fname[256];
         LayeredModel thismod;
-        while(in.getline(fname,256))
+        list<string>::iterator mptr;
+        for(mptr=filelist.begin();mptr!=filelist.end();++mptr)
         {
-            string sta=extract_sta_name(fname);
+            string sta=extract_sta_name(*mptr);
             ifstream din;
-            din.open(fname,ios::in);
+            din.open(mptr->c_str(),ios::in);
             if(din.fail())
                 throw SeisppError(base_error + "Open failed on model file "
-                        + fname);
+                        + *mptr);
             char inputline[256];
             double Pvin,Svin,density,dzin;
             thismod.name=sta;
@@ -56,7 +52,7 @@ StaVariableLayeredSynthetic::StaVariableLayeredSynthetic(string listfn,
                 if(Pvin<=0.0 || Svin <= 0.0 || density<=0.0)
                     throw SeisppError(base_error
                             + "Illegal model parameters for mode file"
-                            + fname);
+                            + *mptr);
                 thismod.alpha.push_back(Pvin);
                 thismod.beta.push_back(Svin);
                 thismod.rho.push_back(density);
@@ -78,6 +74,54 @@ StaVariableLayeredSynthetic::StaVariableLayeredSynthetic(string listfn,
         default_model.dz.push_back(35.0);   default_model.dz.push_back(0.0);
         default_model.name=string("default");
     } catch(...){throw;};
+}
+StaVariableLayeredSynthetic::StaVariableLayeredSynthetic(string modfile,
+        double tsig,double wlev,bool MakeRF,string format)
+{
+    string base_error("StaVariableLayeredSynthetic single file constructor:  ");
+    /* for now only one format allowed */
+    if(format!=default_model_format) throw SeisppError(base_error
+            + "coding error.  Only accept default format = "
+            + default_model_format);
+    tsigma=static_cast<float>(tsig);
+    wlevel=static_cast<float>(wlev);
+    ConvertToRF=MakeRF;
+    /* This mixed C and C++ io is less than elegant, but my choice*/
+    FILE *fp;
+    fp=fopen(modfile.c_str(),"r");
+    if(fp==NULL) throw SeisppError(base_error
+            + "fopen failure for file="+modfile);
+    try {
+        LayeredModel thismod;
+        char staproto[64];
+        int nlayers;
+        int i;
+        while(fscanf(fp,"%s%d",staproto,&nlayers)!=EOF)
+        {
+            double Pvin,Svin,rhoin,dzin;
+            string sta(staproto);
+            for(i=0;i<nlayers;++i)
+            {
+                fscanf(fp,"%lf%lf%lf%lf",&Pvin,&Svin,&rhoin,&dzin);
+                thismod.alpha.push_back(Pvin);
+                thismod.beta.push_back(Svin);
+                thismod.rho.push_back(rhoin);
+                thismod.dz.push_back(dzin);
+            }
+            this->mods.insert(pair<string,LayeredModel>(sta,thismod));
+            thismod.alpha.clear();
+            thismod.beta.clear();
+            thismod.rho.clear();
+            thismod.dz.clear();
+        }
+        /* WARNING:  these need to be kept consistent with above. Awkward
+           potential maintenance issue */
+        default_model.alpha.push_back(6.0);   default_model.alpha.push_back(8.0);
+        default_model.beta.push_back(3.4641);   default_model.beta.push_back(4.6188);
+        default_model.rho.push_back(2.69);   default_model.rho.push_back(3.33);
+        default_model.dz.push_back(35.0);   default_model.dz.push_back(0.0);
+        default_model.name=string("default");
+    }catch(...){throw;};
 }
 /* Used to find the P arrival time on the P synthetic.   Looks for largest amplitude 
    so this assumes the input is synthetic for z.  Returns the sample number (first 

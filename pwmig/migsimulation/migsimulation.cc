@@ -38,13 +38,39 @@ SyntheticSeismogram *CreateSimpleGenerator(Metadata& control, Pf *pf)
 }
 SyntheticSeismogram *CreateStaVariableConstVelGenerator(Metadata& p)
 {
+    const string base_error("CreateStaVariableConstVelGenerator procedure:  ");
     try{
-        string listfile=p.get_string("model_list_file");
         double tsigma=p.get_double("tsigma");
         double wlevel=p.get_double("water_level");
         bool useRF=p.get_bool("receiver_function_mode");
-        StaVariableLayeredSynthetic *result =
-             new StaVariableLayeredSynthetic(listfile,tsigma,wlevel,useRF);
+        bool single_model_file("use_single_model_file");
+        StaVariableLayeredSynthetic *result;
+        if(single_model_file)
+        {
+            string modfile=p.get_string("model_file_name");
+            result=new StaVariableLayeredSynthetic(modfile,
+                    tsigma,wlevel,useRF);
+        }
+        else
+        {
+            string listfile=p.get_string("model_list_file");
+            list<string> filelist;
+            try {
+                ifstream in;
+                in.open(listfile.c_str(),ios::in);
+                if(in.fail())
+                    throw SeisppError(base_error + "Open failed on file "
+                            +listfile
+                            +"\nThis file should contain a list of velocity model files to read");
+                char fname[256];
+                while(in.getline(fname,256))
+                {
+                    filelist.push_back(string(fname));
+                }
+            } catch(...){throw;};
+            result=new StaVariableLayeredSynthetic(filelist,
+                    tsigma,wlevel,useRF);
+        }
         return result;
     } catch (...) {throw;};
 }
