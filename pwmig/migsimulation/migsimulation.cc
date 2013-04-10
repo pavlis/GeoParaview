@@ -396,14 +396,18 @@ int main(int argc, char **argv){
 		// Ignore data marked data but always log this as a nonfatal erro
 		if(!(dptr->live)) 
 		{
-		    cerr << "Deleting data from station="<<dptr->get_string("sta")<<endl
+                    double timestamp=dptr->get_double("arrival.time");
+		    cerr << "Deleting data from station="
+                        <<dptr->get_string("sta")<<" arrival time tag= "
+                        <<strtime(timestamp)<<endl
 				<< "Marked dead by constructor.  Likely data problem you need to address"<<endl;
 		    continue;
 		}
                 //DEBUG
-                //cout << dynamic_cast<Metadata &>(*dptr)<<endl;
+                /*cout << dynamic_cast<Metadata &>(*dptr)<<endl;
 		cout << dptr->get_string("sta")<<endl;
 		cout << "ns="<<dptr->ns<<" dt="<<dptr->dt<<" live="<<dptr->live<<endl;
+                */
                 rlat=dptr->get_double("site.lat");
                 rlon=dptr->get_double("site.lon");
                 rlat=rad(rlat);
