@@ -1,3 +1,4 @@
+#include <typeinfo>
 #include <string.h>
 #include <math.h>
 #include "gclgrid.h"
