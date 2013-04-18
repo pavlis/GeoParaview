@@ -133,7 +133,7 @@ GridScratchFileHandle::~GridScratchFileHandle()
 
 void GridScratchFileHandle::rewind()
 {
-	std::rewind(fp);
+	int iret=fseek(fp,0L,SEEK_SET);
 	current_member=0;
 }
 /*
