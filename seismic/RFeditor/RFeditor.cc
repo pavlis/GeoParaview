@@ -163,6 +163,7 @@ int main(int argc, char **argv)
         MetadataList mdlout=pfget_mdlist(pf,"output_mdl");
         string rchan=control.get_string("radial_channel_key");
         string tchan=control.get_string("transverse_channel_key");
+        int minrfcutoff=control.get_int("minimum_number_receiver_functions");
         /* Open a log file in append mode */
         ofstream logfile;
         logfile.open("RFeditor.log",ios::app);
@@ -224,6 +225,18 @@ int main(int argc, char **argv)
             sta=dall.get_string("sta");
             logfile << "Read "<<dall.member.size()<<" RF traces for station "
                 << sta <<endl;
+            cout << "Read "<<dall.member.size()<<" RF traces for station "
+                << sta <<endl;
+            int nstacount=dall.member.size()/2;
+            if(nstacount<minrfcutoff)
+            {
+                cout << "Station "<<sta<<" dropped.   Count below miminum of "
+                    << minrfcutoff<<endl;
+                logfile << "Station "<<sta
+                    <<" dropped.   Count below miminum of "
+                    << minrfcutoff<<endl;
+                continue;
+            }
             /* This routine sets a metadata item eventid based
                on start time only.  Not a bulletproof approach but one 
                that should work for RF data */
