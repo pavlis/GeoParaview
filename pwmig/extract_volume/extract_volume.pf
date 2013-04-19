@@ -1,3 +1,7 @@
+#output_format SEGY
+output_format SeismicUnix
+# For now we have SEGY input read same cross reference map as SU
+AttributeCrossReferenceMapName metadata_cross_reference
 nondimensional_x1_sample_interval 1
 nondimensional_x2_sample_interval 1
 # appropriate for su and use of scalco
@@ -99,26 +103,3 @@ nsamp
 dt
 duse
 }
-#
-# These are only used for SEGY2002 output 
-#
-job_id_number 1
-line_number 1
-number_of_traces_per_ensemble 1
-number_of_aux_traces_per_ensemble 0
-# this MUST match x3 sampling of grid multiplied by 1000
-sample_interval 2000
-field_sample_interval 2000
-# must match n3 of parent grid
-number_samples 450
-file_number_samples 1000
-fold 1
-segy_sort_order_code 2
-#
-# this one should be one of:  AGC, spherical_divergence, or none
-amplitude_method none
-# 2 is feet 1 is metric, anything else ane rror
-measurement_units 1
-# anything but "reversed" will mean normal
-polarity normal
-using_variable_length_records false
