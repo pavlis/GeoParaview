@@ -58,7 +58,7 @@ typedef struct  Geographic_point {
 // Radius of point from Earth's center (kilometers).
 */
 	double r;
-};
+}Geographic_point;
 /*! 
 // GCLgrid objects hold points internally in a Cartesian reference fram.
 // This data structure encapsulates such a coordinate.  It perhaps should
@@ -80,7 +80,7 @@ typedef struct  Cartesian_point
 // The coordinate in the internal x3 direction.
 */
 	double x3;
-};
+}Cartesian_point;
 
 /*! 
 // This is a base class that contains common attributes and virtual 
