@@ -162,9 +162,16 @@ string extract_net_string(string path)
     // right is the position of the right hand / 
     net.assign(path,left+1,right-left-1);
     */
+    /* early 2012 version was this 
     right=path.find(".");
     string net;
     net.assign(path,0,right);
+    */
+    // This is version for station gathers EARS2013
+    right=path.rfind("/");
+    left=path.rfind(".");
+    string net;
+    net.assign(path,right+1,left-right-1);
     return(net);
 }
 string extract_directory_name(string path)
@@ -407,6 +414,7 @@ int main(int argc, char **argv)
                 Now we extract dir from the wfdisc row and crack that string */
                 string wfdir=dbh.get_string("dir");
                 net=extract_net_string(wfdir);
+                //cout << "dir file="<<wfdir <<" extracted net="<<net<<endl;
 
                 try {
                     SEEDStaGeom teststa(dbh.db,net);
@@ -419,6 +427,7 @@ int main(int argc, char **argv)
                             <<endl;
                         continue;
                     }
+                    //cout << teststa<<endl;
                     int retcode=stbl.add(teststa);
                     if(retcode<0)
                     {
