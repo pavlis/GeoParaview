@@ -48,18 +48,18 @@ int main(int argc, char **argv)
 		    {
 			if(vectorfield)
 			{
-				GCLvectorfield3d field(dbh.db,gridname,fieldname);
+				GCLvectorfield3d field(dbh,gridname,fieldname);
 				cout << field;
 			}
 			else
 			{
-				GCLscalarfield3d field(dbh.db,gridname,fieldname);
+				GCLscalarfield3d field(dbh,gridname,fieldname);
 				cout << field;
 			}
 		     }
 		     else
 		     {
-			GCLgrid3d grid(dbh.db,gridname);
+			GCLgrid3d grid(dbh,gridname);
 			/* fields define operator <<, but there is this is not
 			currently defined for grids.  We write a grid in a simpler
 			format*/
@@ -78,18 +78,18 @@ int main(int argc, char **argv)
 		    {
 			if(vectorfield)
 			{
-				GCLvectorfield field(dbh.db,gridname,fieldname);
+				GCLvectorfield field(dbh,gridname,fieldname);
 				cout << field;
 			}
 			else
 			{
-				GCLscalarfield field(dbh.db,gridname,fieldname);
+				GCLscalarfield field(dbh,gridname,fieldname);
 				cout << field;
 			}
 		     }
 		     else
 		     {
-			GCLgrid grid(dbh.db,gridname);
+			GCLgrid grid(dbh,gridname);
 			for(int j=0;j<grid.n2;++j)
 			    for(int i=0;i<grid.n1;++i)
 				cout << deg(grid.lon(i,j)) <<" "<<deg(grid.lat(i,j))<<endl;
