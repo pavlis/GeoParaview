@@ -60,7 +60,7 @@ int main(int argc, char **argv)
 		DatascopeHandle dbhgrid(dbh);
 		dbhgrid.lookup("gclgdisk");
 		cout << "Loading gridname="<<gridname<<endl;
-		GCLgrid3d grid(dbhgrid.db,gridname);
+		GCLgrid3d grid(dbhgrid,gridname);
 		GCLscalarfield3d mod(grid);
 		cout << "Loading 1d velocity model with name="<<vmodname<<endl;
 		VelocityModel_1d Vmod(dbhmod.db,vmodname,modtype);
@@ -104,7 +104,7 @@ int main(int argc, char **argv)
 		string gclgdir("");  /* null as save is not needed*/
 		/* Use the fieldname as the file name.  Restrictive,
 		but this code may never leave the neighborhood. */
-		mod.dbsave(dbhgrid.db,gclgdir,fielddir,fieldname,fieldname);
+		mod.save(dbhgrid,gclgdir,fielddir,fieldname,fieldname);
 	} catch (SeisppError serr)
 	{
 		serr.log_error();
