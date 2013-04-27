@@ -74,7 +74,7 @@ int main(int argc, char **argv)
 		// remap procedure
 		GCLgrid g(n1,n2,gridname,rad(lat0),rad(lon0),r0,0.0,dx1n,dx2n,iorigin,jorigin);
 		// This needs to be more flexible and allow other grid types as patterns
-		GCLgrid3d gpat(dbh.db,patterngrid);
+		GCLgrid3d gpat(dbh,patterngrid);
 		remap_grid(g,dynamic_cast<BasicGCLgrid&>(gpat));
 		// This assumes grd2xyz writes from top down which is inverted
 		// from required order for the gclgrid object.  
@@ -101,7 +101,7 @@ int main(int argc, char **argv)
 		// Necessary to reset extents variables because of remap_grid
 		// in combination with explicitly resetting x1,x2, and x3 arrays
 		g.compute_extents();
-		g.dbsave(dbh.db,griddir);
+		g.save(dbh,griddir);
 	} 
 	catch (int ierr)
 	{
