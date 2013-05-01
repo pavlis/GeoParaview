@@ -44,6 +44,7 @@ c  the original array is 2*numpts in length.  When called from C/C++
 c  caller must extract the real part from each vector as the first 
 c  of each pair of the complex array.
 c----------------------------------------------------------------
+      implicit none
       real*4 tsigma
       real*4 t,dt,wlevel
       integer*4 nlyrs,numpts
@@ -56,16 +57,24 @@ c----------------------------------------------------------------
       real*4 fsigma
 c--This is a time shift applied to rf estimate after decon.  Necessary
 c--because spectral division cancels original phase.
-      real rftshift
-      parameter(rftshift=5.0)
+      real*4 rftshift
+      data rftshift/5.0/
+      integer*4 maxlyr
       parameter(maxlyr=50)
       real qpm(maxlyr),qsm(maxlyr),ta(maxlyr),tb(maxlyr)
       integer*4 ierr
       complex dvp,dvs,drp,drs,dts,p,fr
       real freal
       real*8 wq,t1,t2,qa,qb,qabm,vabm
+      real phdr
+      real omega
 c  This monstrosity passes data to respknt procedure
       include 'kennet.inc'
+      integer*2 cnv,rvb
+      real*4 delf,fny
+      integer*4 i,j,npts,nfpts,nft
+c--new syntax needed for implicit none with this function
+      integer :: npowr2
       real twopi
       data twopi/6.2831853/
       fsigma=1.0/tsigma;
@@ -216,7 +225,8 @@ c -- rf also requires a phase shift to translate to tshift instead of 0
             tn(i)=tn(i)*exp(-(freal*freal/(2.0*fsigma*fsigma)))
             rfr(i)=rfr(i)*exp(-(freal*freal/(2.0*fsigma*fsigma)))
             omega=twopi*freal
-            rfr(i)=rfr(i)*exp(cmplx(0.0,-omega*rftshift))
+c           rfr(i)=rfr(i)*exp(cmplx(0.0,-omega*rftshift))
+            rfr(i)=rfr(i)*exp(cmplx(0.0,-twopi*freal*rftshift))
    20 continue
 c compute inverse fourier transform of all 5 elements 
 c in the work arrays.  Original code wrote sac files here
