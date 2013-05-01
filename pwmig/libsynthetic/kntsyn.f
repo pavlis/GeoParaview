@@ -67,7 +67,6 @@ c--because spectral division cancels original phase.
       real freal
       real*8 wq,t1,t2,qa,qb,qabm,vabm
       real phdr
-      real omega
 c  This monstrosity passes data to respknt procedure
       include 'kennet.inc'
       integer*2 cnv,rvb
@@ -224,8 +223,6 @@ c -- rf also requires a phase shift to translate to tshift instead of 0
             w1(i)=w1(i)*exp(-(freal*freal/(2.0*fsigma*fsigma)))
             tn(i)=tn(i)*exp(-(freal*freal/(2.0*fsigma*fsigma)))
             rfr(i)=rfr(i)*exp(-(freal*freal/(2.0*fsigma*fsigma)))
-            omega=twopi*freal
-c           rfr(i)=rfr(i)*exp(cmplx(0.0,-omega*rftshift))
             rfr(i)=rfr(i)*exp(cmplx(0.0,-twopi*freal*rftshift))
    20 continue
 c compute inverse fourier transform of all 5 elements 
