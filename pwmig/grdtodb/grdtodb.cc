@@ -103,17 +103,13 @@ int main(int argc, char **argv)
 		g.compute_extents();
 		g.save(dbh,griddir);
 	} 
-	catch (int ierr)
+	catch (std::exception& stex)
 	{
-		cerr << "GCLgrid constructor threw exception ="<<ierr<<endl;
+		cerr << "Fatal Error"<<endl
+                    << stex.what()<<endl;
 		usage();
 	}
-	catch (MetadataGetError mderr)
-	{
-		mderr.log_error();
-		usage();
-	}
-	catch (SeisppError serr)
+	catch (SeisppError& serr)
 	{
 		serr.log_error();
 		usage();
