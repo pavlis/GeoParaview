@@ -238,8 +238,8 @@ cout << vmodel.alpha[im] <<" "
         }
         /* We need to compute the offset in work space from sample 0.
            Since seispp library allows negative t0 this has to be computed
-           as here.  Sign oddity*/
-        int lag0=SEISPP::nint((result.t0+tzerolag)/result.dt);
+           as here.  Sign oddity because positive lag is positive time shift*/
+        int lag0=SEISPP::nint(-(result.t0+tzerolag)/result.dt);
         int ns_to_copy;
         ns_to_copy=result.ns-lag0;
         if(ns_to_copy>nsamp) ns_to_copy=nsamp;
