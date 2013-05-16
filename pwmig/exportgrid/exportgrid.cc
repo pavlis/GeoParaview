@@ -7,12 +7,12 @@ using namespace std;
 using namespace SEISPP;
 void usage()
 {
-	cerr << "exportgrid db|fname gridname [-fin -f fieldname -3d -vector -o outfile -dir outdir] "<<endl
+	cerr << "exportgrid db|fname gridname [-fin -f fieldname -3d -vector n -o outfile -dir outdir] "<<endl
 		<< " outputs GCLgrid or field objects to stdout"<<endl
                 << " -fin selects file based input with name fname (arg1) - default is db input"<<endl
 		<< " Dumps only grid unless -f is used."<<endl
                 << " Use -3d if data are defined on a 3d grid (default is 2d)"<<endl
-                << " Use -vector if the data are a vector field (default is scalar)"<<endl
+                << " Use -vector if the data are a vector field (default is scalar). n is vector size"<<endl
                 << " -o saves to outfile using pfhdr format (used mainly for conversion from db)"<<endl
                 << " -dir defines directory where file based saves will be done (default is curent directory)"<<endl
                 << "  ( -o not allowed with -fin option)"<<endl;
@@ -35,6 +35,7 @@ int main(int argc, char **argv)
 	bool isfield(false);
 	bool vectorfield(false);
         bool write_file_output(false);
+        int nv;  // expected number of vector components in read
         string outfile;
         string outdir(".");
 	for(int i=3;i<argc;i++)
@@ -56,7 +57,12 @@ int main(int argc, char **argv)
 			isfield=true;
 		}
 		else if(sarg=="-vector")
+                {
 			vectorfield=true;
+			++i;
+			if(i==argc) usage();
+                        nv=atoi(argv[i]);
+                }
                 else if(sarg=="-dir")
                 {
 			++i;
@@ -84,7 +90,7 @@ int main(int argc, char **argv)
 			{
                             if(dbmode)
                             {
-				GCLvectorfield3d field(dbh,gridname,fieldname);
+				GCLvectorfield3d field(dbh,gridname,fieldname,nv);
 				cout << field;
                                 if(write_file_output) field.save(outfile,outdir);
                             }
@@ -135,7 +141,7 @@ int main(int argc, char **argv)
 		    {
 			if(vectorfield)
 			{
-				GCLvectorfield field(dbh,gridname,fieldname);
+				GCLvectorfield field(dbh,gridname,fieldname,nv);
 				cout << field;
                                 if(write_file_output) field.save(outfile,outdir);
 			}
