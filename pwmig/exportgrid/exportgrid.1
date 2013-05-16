@@ -3,7 +3,7 @@
 exportgrid - ascii output of GCLgrid objects
 .SH SYNOPSIS
 .nf
-exportgrid db|fname gridname [-fin -f fieldname -3d -vector -o outfile -dir outdir] 
+exportgrid db|fname gridname [-fin -f fieldname -3d -vector n -o outfile -dir outdir] 
 .fi
 .SH DESCRIPTION
 .LP
@@ -35,6 +35,8 @@ abort.
 Switch to 3d mode.  The default assumes the grid/field are 2d objects.
 .IP -vector
 Assume the field being referenced is a vector field object.  
+The argument following is the expected vector size.   An error is thrown if this does 
+not match the size stored with the data.   
 .IP -o
 If this flag appears the program will write to the name defined by outfile. 
 This is needed for the conversion mode noted the DESCRIPTION section above.
@@ -103,6 +105,9 @@ Remember that famous quote:  "Do you feel lucky?  Do ya, punk?".
 .IP (2)
 There probably should be the reverse converter to import file data into a database.
 The conversion mode was an add on and the clumsy usage shows.
+.IP (3) 
+Requiring the user to specify the vector size is an unnecessary complexity but 
+one I found useful as a sanity check. 
 .SH AUTHOR
 .nf
 Gary L. Pavlis
