@@ -3,23 +3,29 @@
 exportgrid - ascii output of GCLgrid objects
 .SH SYNOPSIS
 .nf
-exportgrid db gridname [-f fieldname -3d -vector]
+exportgrid db|fname gridname [-fin -f fieldname -3d -vector -o outfile -dir outdir] 
 .fi
 .SH DESCRIPTION
 .LP
-This is a relatively crude program to output the contents of various
+This program exports various 
 GCLgrid related objects as simple ascii data.  This implementation supports
-three data type:  GCLgrid, GCLgrid3d, GCLscalarfield, GCLscalarfield3d,
-GCLvectorfield, and GCLvectorfield3d.  In all cases the object's contents
-are dumped stdout.  The type of object to dump is implied from combinations
-of the arguments passed to the program.  See the following section for a 
-description of how this works.
-
-The default requires two arguments.  \fIdb\fR is assumed to be an
-Antelope database name containing at least a gclgdisk table and 
-gclfield table if a field object is to being referenced.  The
-\fIgridname\fR is required.  It defines a unique name assigned to 
-a particular grid referenced in the gclgdisk table.
+6 data type:  GCLgrid, GCLgrid3d, GCLscalarfield, GCLscalarfield3d,
+GCLvectorfield, and GCLvectorfield3d.  
+The program will always write results to stdout.  It will optionally operate 
+in what is effectively a conversion mode.   That is, the -o flag can be used
+to export data from the database to a file format that can be read by some program
+that use the GCLgrid library.   The stdout output, in contrast, is always plain
+ascii coded data.
+.LP
+The gclgrid library has two ways of storing data:  (1) in a database, and (2) in 
+a mixed binary/pf format.   The default assumes the data are in a datascope 
+database defined by the db argument.  
+If the -fin flag appears the program assumes that argv[1]
+is not a database but a root file name used for the file based output of a gclgrid.
+The file based input assumes two files are present with the root name defined by the fname
+argument (e.g. if fname is "migdata1" the program will look for binary data in "migdata.dat"
+and related parametric data is stored in "migdata.pf", which is cracked with standard pf 
+routines.)  
 .SH OPTIONS
 .IP -f
 Dump the field with the unique name \fIfieldname\fR defined in the gclfield
@@ -29,6 +35,13 @@ abort.
 Switch to 3d mode.  The default assumes the grid/field are 2d objects.
 .IP -vector
 Assume the field being referenced is a vector field object.  
+.IP -o
+If this flag appears the program will write to the name defined by outfile. 
+This is needed for the conversion mode noted the DESCRIPTION section above.
+.IP -dir
+When -dir appears the output will be written to a directory with the name dir.
+This flag is ignored unless the -o flag appears. If -o is used without an
+associated -dir pair output will be written in the current directory.  
 .LP
 The -f, -3d, and -vector options work together to define the type of 
 object the program tries to load.  If -f is not used the assumption is
@@ -37,6 +50,8 @@ switch between the class of 2d and 3d GCLgrid/field objects. Finally,
 the -vector argument is required if a field being referenced is a 
 vector field. 
 .SH FILES
+.ce
+\fISTDOUT text files\fR
 .LP
 At this time the output format is very different for field objects
 and grid objects.  The format for grid object is simpler and is just a series
@@ -59,17 +74,35 @@ Cartesian system used internally by the GCLgrid library;
 latitude, longitude, and radius are Earth coordinates, and 
 val(1) to val(nv) are the nv data values associated with this 
 grid point.  For scalar fields nv is 1 so there is only one val.  
+.ce
+\fIGrid File Output\fR
+.LP
+The format used to store a GCLgrid with the -o option is a version of
+the two file solution for data and metadata.  Two files are created:  one
+with a ".dat" appendage and one with a ".pf" extension.   The first is 
+binary dump of the coordinates of the grid followed (for formats) with a 
+dump the data attached to each grid point.   The pf stores the attributes
+that describe the contents of the .dat file.   They are identical to 
+attribute names in the gclgdisk and gclfield tables used for database
+indexing.
 .SH "SEE ALSO"
 .nf
-http://geology.indiana.edu/pavlis/software/gclgrid/ccdoc.GCLgrid.GCLgrid.pkg.html
+http://geology.indiana.edu/pavlis/software/gclgrid/html/annotated.html
 .fi
-.SH "BUGS AND CAVEATS"
+.SH ERRORS
 .LP
+Be aware it is always a fatal error to mix -fin and -o.   The -o option 
+is intended strictly as a converter.
+.SH "BUGS AND CAVEATS"
+.IP (1)
 The program does not automatically make a sanity check for scalar versus
 vector fields.  The output will be scrambled if a vector field is referenced
 without using the -vector flag.  I am not sure what will happen if a 
 scalar field is referenced with the -vector flag set.  
 Remember that famous quote:  "Do you feel lucky?  Do ya, punk?".
+.IP (2)
+There probably should be the reverse converter to import file data into a database.
+The conversion mode was an add on and the clumsy usage shows.
 .SH AUTHOR
 .nf
 Gary L. Pavlis
