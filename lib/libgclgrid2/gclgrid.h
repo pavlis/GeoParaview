@@ -1005,11 +1005,12 @@ public:
   \param nm name of grid to be loaded from the database.
   \param fldname field name attribute of data linked to nm
   \param nvsize is the expected number of components in the
-     desired field.  (default 3)
+     desired field.  (default 0 which implies use database value without cross check)
+
 */
 	GCLvectorfield(DatabaseHandle& db, string nm,string fldname,
-                int nvsize=3);  
-        /*! \brief Constuct from a file.
+                int nvsize=0);  
+        /*! \brief Construct from a file.
 
           A standard simple way to build any object is from a data file.
           This provides that interface.  The interface is relatively 
@@ -1367,10 +1368,11 @@ public:
   \param nm name of grid to be loaded from the database.
   \param fldname field name attribute of data linked to nm
   \param nvsize is the expected number of components in the
-     desired field.  (default 3)
+     desired field.  (default 0 which implies get this value
+     from database - if nonzero cross check for consistency)
 */
 	GCLvectorfield3d(DatabaseHandle& db, string nm,string fldname,
-                int nvsize=3);  
+                int nvsize=0);  
         /*! \brief Constuct from a file.
 
           A standard simple way to build any object is from a data file.
