@@ -5,7 +5,7 @@ MAN1=gclfield2vtk.1
 
 ldlibs=-lm -lgclgrid -lseispp -lperf  \
    $(DBLIBS) $(TRLIBS) $(F77LIBS) -L$(VTKLIB) \
-   -lvtkRendering -lvtkGraphics -lvtkImaging -lvtkIO -lvtkFiltering -lvtkCommon -lvtkIO
+   -lvtkRendering -lvtkGraphics -lvtkImaging -lvtkIO -lvtkFiltering -lvtkCommon -lvtkIO -lgclgrid
 ANTELOPEMAKELOCAL = $(ANTELOPE)/local/include/antelopemake.local
 
 include $(ANTELOPEMAKE)

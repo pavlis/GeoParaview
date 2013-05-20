@@ -289,15 +289,18 @@ void GCLvectorfield::save(string fname, string dir,string format)
     const string base_error("GCLvectorfield::save:  ");
     try{
         Metadata attributes=load_common_GCL_attributes(this);
-        GCLgrid *g=dynamic_cast<GCLgrid*>(this);
-        g->save(fname,dir,format);
+        attributes.put("nv",nv);
+        /* This duplicates code in save method for grid*/
+        string fbase=makepath(dir,fname);
+        if(format==default_output_format)
+        {
+            pfsave_attributes(attributes,fbase);
+            pfhdr_save_griddata(*this,fbase);
         /* To allow using common code to save the grid we have to 
            segregate writing the field data.  Currently only support
            one format so this issue does not come up as a restriction.
            Beware if this is extended as this may have to be 
            reorganized. */
-        if(format==default_output_format)
-        {
             string fbase=makepath(dir,fname);
             size_t npts=n1*n2*nv;
             pfhdr_save_field_data(fbase,&(val[0][0][0]),npts);
@@ -332,11 +335,13 @@ void GCLvectorfield3d::save(string fname, string dir,string format)
     const string base_error("GCLvectorfield3d::save:  ");
     try{
         Metadata attributes=load_common_GCL_attributes(this);
-        GCLgrid3d *g=dynamic_cast<GCLgrid3d*>(this);
-        g->save(fname,dir,format);
+        load_3d_attributes(*this,attributes);
+        attributes.put("nv",nv);
+        string fbase=makepath(dir,fname);
         if(format==default_output_format)
         {
-            string fbase=makepath(dir,fname);
+            pfsave_attributes(attributes,fbase);
+            pfhdr_save_griddata(*this,fbase);
             size_t npts=n1*n2*n3*nv;
             pfhdr_save_field_data(fbase,&(val[0][0][0][0]),npts);
         }
