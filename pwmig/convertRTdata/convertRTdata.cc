@@ -13,14 +13,6 @@ for more info. */
 #include "ArrivalUpdater.h"
 using namespace std;
 using namespace SEISPP;
-/* debug routine*/
-bool has_nan(ThreeComponentSeismogram& d)
-{
-    for(int i=0;i<d.ns;++i)
-        for(int j=0;j<3;++j) 
-            if(isnan(d.u(j,i))) return(true);
-    return false;
-}
 void usage()
 {
 	cerr << "convertRTdata dbin dbout [-pf pffile -V]"<<endl;
