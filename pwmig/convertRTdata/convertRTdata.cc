@@ -295,80 +295,70 @@ int main(int argc, char **argv)
                                         break;
                                     }
 				}
-				if(testlive) d3c.live=true;
-//DEBUG
-if(has_nan(d3c)) 
-{
-    cerr << "The following trace has an nan before calling rotate_to_standard"<<endl;
-    cerr << dynamic_cast<Metadata&>(d3c)<<endl;
-    for(int ll=0;ll<d3c.ns;++ll) cout << d3c.u(2,ll)<<endl;
-}
-				d3c.rotate_to_standard();
-if(has_nan(d3c)) 
-{
-    cerr << "The following trace has an nan after calling rotate_to_standard"<<endl;
-    cerr << dynamic_cast<Metadata&>(d3c)<<endl;
-    for(int ll=0;ll<d3c.ns;++ll) cout << d3c.u(2,ll)<<endl;
-}
-				/* We need to post these things or we're screwed */
-				d3c.put("dir",outdir);
-				char buf[128];
-				stringstream ss(buf);
-				ss<<dfilebase<<lastevid<<'\0';
-				d3c.put("dfile",ss.str());
-				d3c.put("wfprocess.algorithm","convertRF");
-				d3c.put("timetype","a");
-//cout << "3c data for sta "<<d3c.get_string("sta")<<" t0="<<strtime(d3c.t0)<<endl;
-				int rec=dbsave(d3c,dbho.db,outtable,mdlout,am);
-				if(rec<0)
-				{
-					cerr << "dbsave failed working on input record="<<i<<endl;
-					exit(-1);
-				}
-				if(save_wfdisc)
-				{
-					dbsave(d3c,dbhwfdisc.db,
+				if(testlive) 
+                                {
+                                    d3c.live=true;
+        				d3c.rotate_to_standard();
+        				/* We need to post these things or we're screwed */
+        				d3c.put("dir",outdir);
+        				char buf[128];
+        				stringstream ss(buf);
+        				ss<<dfilebase<<lastevid<<'\0';
+        				d3c.put("dfile",ss.str());
+        				d3c.put("wfprocess.algorithm","convertRF");
+        				d3c.put("timetype","a");
+        //cout << "3c data for sta "<<d3c.get_string("sta")<<" t0="<<strtime(d3c.t0)<<endl;
+        				int rec=dbsave(d3c,dbho.db,outtable,mdlout,am);
+        				if(rec<0)
+        				{
+					    cerr << "dbsave failed working on input record="<<i<<endl;
+					    exit(-1);
+				        }
+				        if(save_wfdisc)
+				        {
+					   dbsave(d3c,dbhwfdisc.db,
 						string("wfdisc"),
 						mdlwfdisc, am,
 						chanmap,true);
-				}
-				/* We have to set up these tables because we are using wfprocess
-				to store 3c objects.*/
-				dbho.db.record=rec;
-				pwfid=dbho.get_int("pwfid");
-				rec=dbhoev.append();
-				dbhoev.put("pwfid",pwfid);
-				dbhoev.put("evid",evid);
-				rec=dbhosc.append();
-				dbhosc.put("sta",laststa);
-				/* Ignore the fact this has endian implications.  At present datatype
-				is used to handle this. */
-				dbhosc.put("chan","3C");
-				dbhosc.put("pwfid",pwfid);
-				/* This is necessary only if time is foobarred */
-				if(start_time_is_origin)
-				{
-					/* These are frozen so will put them in */
-					d3c.put("arrival.time",atime);
-					d3c.put("arrival.iphase","P");
-					d3c.put("assoc.phase","P");
-					d3c.put("assoc.vmodel","iasp91");
-					d3c.put("assoc.timedef","d");
-					d3c.put("time",d3c.t0);
-					d3c.put("endtime",d3c.endtime());
-					/* The following should not be necessary, but ArrivalUpdater at this
-					point does not handle aliases correctly */
-					string sval;
-					int ival;
-					double dval;
-					sval=d3c.get_string("sta");
-					d3c.put("assoc.sta",sval);
-					d3c.put("arrival.sta",sval);
-					sval=d3c.get_string("chan");
-					d3c.put("arrival.chan",sval);
-					ival=d3c.get_int("orid");
-					d3c.put("assoc.orid",ival);
-					AUhandle.update(d3c);
+				        }
+        				/* We have to set up these tables because we are using wfprocess
+        				to store 3c objects.*/
+        				dbho.db.record=rec;
+        				pwfid=dbho.get_int("pwfid");
+        				rec=dbhoev.append();
+        				dbhoev.put("pwfid",pwfid);
+        				dbhoev.put("evid",evid);
+        				rec=dbhosc.append();
+        				dbhosc.put("sta",laststa);
+        				/* Ignore the fact this has endian implications.  At present datatype
+        				is used to handle this. */
+        				dbhosc.put("chan","3C");
+        				dbhosc.put("pwfid",pwfid);
+        				/* This is necessary only if time is foobarred */
+        				if(start_time_is_origin)
+        				{
+						/* These are frozen so will put them in */
+						d3c.put("arrival.time",atime);
+						d3c.put("arrival.iphase","P");
+						d3c.put("assoc.phase","P");
+						d3c.put("assoc.vmodel","iasp91");
+						d3c.put("assoc.timedef","d");
+						d3c.put("time",d3c.t0);
+						d3c.put("endtime",d3c.endtime());
+						/* The following should not be necessary, but ArrivalUpdater at this
+						point does not handle aliases correctly */
+						string sval;
+						int ival;
+						double dval;
+						sval=d3c.get_string("sta");
+						d3c.put("assoc.sta",sval);
+						d3c.put("arrival.sta",sval);
+						sval=d3c.get_string("chan");
+						d3c.put("arrival.chan",sval);
+						ival=d3c.get_int("orid");
+						d3c.put("assoc.orid",ival);
+						AUhandle.update(d3c);
+                                        }
 				}
 				/* Cleanup and prep for new gather */
 				tracecount=1;  // 1 because we push d_read below 
