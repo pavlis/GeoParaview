@@ -72,6 +72,11 @@ int main(int argc, char **argv)
 	string Rchan=control.get_string("radial_channel_code");
 	string Tchan=control.get_string("tangential_channel_code");
 	bool save_wfdisc=control.get_bool("save_wfdisc");
+        /* QC problem with EARS data found a problem with high 
+           amplitude traces that dominated the stack. This parameter
+           will autokill (with a message) any trace with an rms amplitude
+           exceeding this size on either radial or transverse */
+        double rms_kill_threshold=control.get_double("rms_kill_threshold");
 		
 	try {
 		AttributeMap am("css3.0");
@@ -145,9 +150,23 @@ int main(int argc, char **argv)
 			and is incremented thereafter.  Reset to 0 when new event-sta encounterd */
 			sta=d_read.get_string("sta");
 			evid=d_read.get_int("evid");
+                        /* We compute rms here assuming we have no 
+                           gaps. There is a fancier way to do this in
+                           the seispp library to deal with gaps but that
+                           baggage is not needed here */
+                        double rms=dnrm2(d_read.s.size(),&(d_read.s[0]),1);
 			if(SEISPP_verbose) cout << "Indices i,sta,chan,evid:  "
-				 <<i<<", "<<sta<<", "<<d_read.get_string("chan")<<", "<<evid<<endl;
-//cout << sta <<" t0="<<strtime(d_read.t0)<<endl;
+				 <<i<<", "<<sta
+                                <<", "<<d_read.get_string("chan")
+                                <<", "<<evid
+                                <<".  RMS amplitude="<<rms<<endl;
+                        if(rms>rms_kill_threshold) 
+                        {
+                            cout << "High rms for "<<sta<<" on channel "
+                                <<d_read.get_string("chan")<<endl
+                                << "Marking for deletion"<<endl;
+                            d_read.live=false;
+                        }
 			if(sta==laststa && evid==lastevid && (i != (ntuples-1)))
 			{
 				if(tracecount>2)
@@ -251,8 +270,11 @@ int main(int argc, char **argv)
 					for(j=0;j<3;++j) d3c.u(j,k)=0.0;
 				/* stuff r into 1 (x2) and t into 0 (x1).  Leave x3 0 */
 				int iic,jc;
-				for(iic=0;iic<tracecount;++iic)
+                                bool testlive;
+				for(iic=0,testlive=true;iic<tracecount;++iic)
 				{
+                                    if(d[iic].live)
+                                    {
 					string chan;
 					chan=d[iic].get_string("chan");
                                         if(chan.find(Rchan)!=string::npos)
@@ -266,9 +288,14 @@ int main(int argc, char **argv)
 						exit(-1);
 					}
 					for(k=0;k<d[iic].ns;++k) d3c.u(jc,k)=d[iic].s[k];
+                                    }
+                                    else
+                                    {
+                                        testlive=false;
+                                        break;
+                                    }
 				}
-				// always mark data live
-				d3c.live=true;
+				if(testlive) d3c.live=true;
 //DEBUG
 if(has_nan(d3c)) 
 {
