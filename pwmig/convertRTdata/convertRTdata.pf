@@ -58,3 +58,4 @@ start_time_is_origin false
 radial_channel_code ITR
 tangential_channel_code ITT
 save_wfdisc true
+rms_kill_threshold 20.0
