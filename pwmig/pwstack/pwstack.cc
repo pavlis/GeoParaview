@@ -454,6 +454,7 @@ cout << "After site join size="<<dbh.number_tuples()<<endl;
                             switch(iret)
                             {
                             case (-1):
+			    case (0):
                                 cout << "stack count below threshold."<<endl;
                                 break;
                             case (-2):
