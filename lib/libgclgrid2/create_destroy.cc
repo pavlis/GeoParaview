@@ -973,7 +973,8 @@ GCLscalarfield::GCLscalarfield(string fname, string format)
                         + "fopen failed for file="
                         + dfile);
             long fvalstart;
-            fvalstart=sizeof(double)*n1*n2;
+            // 3 is because there are 3 coordinates for each grid point 
+            fvalstart=sizeof(double)*n1*n2*3;
             if(fseek(fp,fvalstart,SEEK_SET))
             {
                 fclose(fp);
@@ -1021,7 +1022,7 @@ GCLscalarfield3d::GCLscalarfield3d(string fname, string format)
                         + "fopen failed for file="
                         + dfile);
             long fvalstart;
-            fvalstart=sizeof(double)*n1*n2*n3;
+            fvalstart=sizeof(double)*n1*n2*n3*3;
             if(fseek(fp,fvalstart,SEEK_SET))
             {
                 fclose(fp);
@@ -1062,6 +1063,9 @@ GCLvectorfield::GCLvectorfield(string fname, string format)
                + "Object type mismatch.  "
                + "Called GCLvectorfield constructor on a file with object_type="
                + otype);
+            /* nv has to be handled specially.  attribute name maintenance
+               issue here */
+            nv=params.get_int("nv");
             string dfile=fname+"."+dfileext;
             FILE *fp=fopen(dfile.c_str(),"r");
             if(fp==NULL)
@@ -1069,7 +1073,7 @@ GCLvectorfield::GCLvectorfield(string fname, string format)
                         + "fopen failed for file="
                         + dfile);
             long fvalstart;
-            fvalstart=sizeof(double)*n1*n2*nv;
+            fvalstart=sizeof(double)*n1*n2*3;
             if(fseek(fp,fvalstart,SEEK_SET))
             {
                 fclose(fp);
@@ -1109,6 +1113,9 @@ GCLvectorfield3d::GCLvectorfield3d(string fname, string format)
                + "Object type mismatch.  "
                + "Called GCLvectorfield3d constructor on a file with object_type="
                + otype);
+            /* nv has to be handled specially.  attribute name maintenance
+               issue here */
+            nv=params.get_int("nv");
             string dfile=fname+"."+dfileext;
             FILE *fp=fopen(dfile.c_str(),"r");
             if(fp==NULL)
@@ -1116,7 +1123,7 @@ GCLvectorfield3d::GCLvectorfield3d(string fname, string format)
                         + "fopen failed for file="
                         + dfile);
             long fvalstart;
-            fvalstart=sizeof(double)*n1*n2*n3*nv;
+            fvalstart=sizeof(double)*n1*n2*n3*3;
             if(fseek(fp,fvalstart,SEEK_SET))
             {
                 fclose(fp);
