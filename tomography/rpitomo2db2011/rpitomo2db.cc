@@ -6,6 +6,7 @@
 #include "pf.h"
 #include "seispp.h"
 #include "Metadata.h"
+#include "dbpp.h"
 #include "gclgrid.h"
 using namespace SEISPP;
 void usage()
@@ -75,14 +76,8 @@ int main(int argc, char **argv)
             cerr << "pfread failed for pf file="<<pfname<<endl;
             exit(-1);
         }
-	Dbptr db;
-	if(dbopen(dbname,"r+",&db)==dbINVALID)
-	{
-		cerr << "Cannot open output database "<<dbname<<endl;
-		exit(-1);
-	}
-	
 	try {
+                DatascopeHandle dbh(dbname,false);
 		int i,j,k,kk;
 		Metadata control(pf);
 		double lat0=control.get_double("grid3d_lat0");
@@ -354,12 +349,12 @@ int main(int argc, char **argv)
                         <<endl
                         << "WARNING:  additional runs with this geometry should use default (no save)"
                         <<endl;
-		    vel.dbsave(db,gclgdir,fielddir,modelname,modelname);
+		    vel.save(dbh,gclgdir,fielddir,modelname,modelname);
                 }
                 else
                 {
                     cout<< "Warning:  grid geometry assumed already defined (default)"<<endl;
-                    vel.dbsave(db,string(""),fielddir,modelname,modelname);
+                    vel.save(dbh,string(""),fielddir,modelname,modelname);
                 }
 	}
 	catch (SeisppError& serr)
