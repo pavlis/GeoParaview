@@ -1069,7 +1069,8 @@ GCLvectorfield::GCLvectorfield(string fname, string format)
                         + "fopen failed for file="
                         + dfile);
             long fvalstart;
-            fvalstart=sizeof(double)*n1*n2*nv;
+            nv=params.get_int("nv");
+            fvalstart=sizeof(double)*n1*n2;
             if(fseek(fp,fvalstart,SEEK_SET))
             {
                 fclose(fp);
@@ -1116,13 +1117,14 @@ GCLvectorfield3d::GCLvectorfield3d(string fname, string format)
                         + "fopen failed for file="
                         + dfile);
             long fvalstart;
-            fvalstart=sizeof(double)*n1*n2*n3*nv;
+            fvalstart=sizeof(double)*n1*n2*n3;
             if(fseek(fp,fvalstart,SEEK_SET))
             {
                 fclose(fp);
                 throw GCLgridError(base_error
                         + "fseek to start of field data area of file failed");
             }
+            nv=params.get_int("nv");
             size_t npts=n1*n2*n3*nv;
             val=create_4dgrid_contiguous(n1,n2,n3,nv);
             size_t nvread;
