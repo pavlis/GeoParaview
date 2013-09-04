@@ -302,6 +302,7 @@ int main(int argc, char **argv){
         /* the next group sets if synthetics are filtered with an
            idealized wavelet or with a standard time invariant filter */
         string wavelet_type=control.get_string("wavelet_type");
+        cout << "Using wavelet type = "<<wavelet_type<<endl;
         TimeSeries wavelet;
         double datadt=control.get_double("data_sample_interval");
         // these are not needed for TimeInvariantFilter, but are 
@@ -330,11 +331,13 @@ int main(int argc, char **argv){
         }
         else
         {
-            cerr << "wavelet_type parameter="<<wavelet_type
+            cout << "-"<<wavelet_type<<"-"<<endl;
+            cout << "wavelet_type parameter="<<wavelet_type
                 << " is not supported."<<endl
                 << "Must be one of:  filter, gaussian, or ricker"<<endl;
             usage();
         }
+        cout << "Wavelet type is set"<<endl;
         /* build event (evid) list if requested */
         set<int> eventset;
         if(check_evlist)
