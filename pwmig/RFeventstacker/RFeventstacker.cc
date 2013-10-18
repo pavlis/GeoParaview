@@ -521,8 +521,7 @@ cout << "Number of record to process="<<nrec<<endl;
 		for(record=0;record<nrec;++record,++dbhwf)
 		{
 			int fold;
-                        char evidstr[10];
-                        stringstream ss(evidstr);
+                        stringstream ss;
                         /*
 			pwdataraw=new ThreeComponentEnsemble(dynamic_cast<DatabaseHandle&>(dbhwf),
 				mdlin,mdens,am);
