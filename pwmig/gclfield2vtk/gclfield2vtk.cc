@@ -62,7 +62,7 @@ void agc_scalar_field(GCLscalarfield3d& g, int iwagc)
 
 void usage()
 {
-	cerr << "gclfield2vtk db outfile [-g gridname -f fieldname -r remapgridname "
+	cerr << "gclfield2vtk db|file outfile [-i -g gridname -f fieldname -r remapgridname "
 		<< "-odbf outfieldname -xml -binary -pf pffile] -V" << endl;
 	exit(-1);
 }
@@ -71,10 +71,12 @@ int main(int argc, char **argv)
 {
 	int i;
 
+        bool dbmode(true);  // default is db input mode
         ios::sync_with_stdio();
 	elog_init(argc,argv);
 	if(argc<3) usage();
 	string dbname(argv[1]);
+        string infile(argv[1]);  // redundant but easier to do this way
 	string outfile(argv[2]);
 	string argstr;
 	string pffile("gclfield2vtk");
@@ -96,6 +98,8 @@ int main(int argc, char **argv)
 			if(i>=argc)usage();
 			pffile=string(argv[i]);
 		}
+                else if(argstr=="-i")
+                    dbmode=false;
 		else if(argstr=="-V")
 		{
 		    cbanner("1.0",
@@ -149,7 +153,9 @@ int main(int argc, char **argv)
 
 	try {
         	Metadata control(pf);
-                DatascopeHandle dbh(dbname,true);
+                DatascopeHandle dbh;
+                if(dbmode)
+                    dbh=DatascopeHandle(dbname,true);
 
 		if(gridname==nodef)
 			gridname=control.get_string("gridname");
@@ -166,6 +172,13 @@ int main(int argc, char **argv)
 		BasicGCLgrid *rgptr;
 		if(remap)
 		{
+                        if(!dbmode)
+                        {
+                            cerr << "Illegal argument combination"<<endl
+                                << "remap option only available with db input"
+                                <<endl;
+                            exit(-1);
+                        }
 			if(remapgridname==nodef)
 				remapgridname=control.get_string("remapgridname");
 			cout << "Remapping emabled.  "
@@ -174,15 +187,17 @@ int main(int argc, char **argv)
 			int griddim=control.get_int("remapgrid_number_dimensions");
 			if(griddim==3)
 			{
-				GCLgrid3d *gtmp=new GCLgrid3d(dbh,
+                                GCLgrid3d *gtmp;
+                                 gtmp=new GCLgrid3d(dbh,
 					remapgridname);
 				rgptr=dynamic_cast<BasicGCLgrid*>(gtmp);
 			}
 			else if(griddim==2)
 			{
-				GCLgrid *gtmp=new GCLgrid(dbh,
+                            GCLgrid *gtmp;
+                            gtmp=new GCLgrid(dbh,
 					remapgridname);
-				rgptr=dynamic_cast<BasicGCLgrid*>(gtmp);
+			    rgptr=dynamic_cast<BasicGCLgrid*>(gtmp);
 			}
 			else
 			{
@@ -195,12 +210,18 @@ int main(int argc, char **argv)
 		bool SaveAsVectorField;
 		int VectorComponent;
 		bool rmeanx3=control.get_bool("remove_mean_x3_slices");
+                if(rmeanx3)
+                    cout << "remove mean for each slice enabled"<<endl;
 		bool apply_agc=control.get_bool("apply_agc");
 		int iwagc(0);
 		if(apply_agc)
 		{
 			iwagc=control.get_int("agc_operator_length");
+                        cout << "Applying agc operator with length="<<iwagc
+                            << " depth intervals"<<endl;
 		}
+                else
+                    cout << "Date being written with true amplitude"<<endl;
 		if(saveagcfield  && !apply_agc)
 		{
 			cerr << "Illegal option combination"<<endl
@@ -213,7 +234,11 @@ int main(int argc, char **argv)
 			fielddir=control.get_string("field_directory");
 		if(fieldtype=="scalar3d") 
 		{
-			GCLscalarfield3d field(dbh,gridname,fieldname);
+                        GCLscalarfield3d field;
+                        if(dbmode)
+			    field=GCLscalarfield3d(dbh,gridname,fieldname);
+                        else
+                            field=GCLscalarfield3d(infile);
 			if(remap)
 			{
 				// Used to make this optional.  force
@@ -245,7 +270,12 @@ int main(int argc, char **argv)
                         /* This needs a more general solution long term.  For now this is
                            frozen for vector size in pwmig */
                         const int nvpwmig(5);
-			GCLvectorfield3d vfield(dbh,gridname,fieldname,nvpwmig);
+                        GCLvectorfield3d vfield;
+                        if(dbmode)
+			    vfield=GCLvectorfield3d(dbh,gridname,
+                                    fieldname,nvpwmig);
+                        else
+                            vfield=GCLvectorfield3d(infile);
 			GCLscalarfield3d *sfptr;
 			if(remap)
 			{
@@ -285,7 +315,11 @@ int main(int argc, char **argv)
 		else if(fieldtype=="grid2d")
 		{
 			int npoly;
-			GCLgrid g(dbh,gridname);
+                        GCLgrid g;
+                        if(dbmode)
+			    g=GCLgrid(dbh,gridname);
+                        else
+                            g=GCLgrid(infile);
 			if(remap)
 			{
 				//if(g!=(*rgptr))
@@ -299,11 +333,14 @@ int main(int argc, char **argv)
 		else if(fieldtype=="scalar2d")
 		{
 			int npoly;
-			GCLscalarfield field(dbh,gridname,fieldname);
+                        GCLscalarfield field;
+			if(dbmode)
+                            field=GCLscalarfield(dbh,gridname,fieldname);
+                        else 
+                            field=GCLscalarfield(infile);
 			if(remap)
 			{
-				//if(field!=(*rgptr))
-					remap_grid(dynamic_cast<GCLgrid&>(field),
+			    remap_grid(dynamic_cast<GCLgrid&>(field),
 						*rgptr);
 			}
 			vtk_output_GCLgrid(dynamic_cast<GCLgrid&>(field),outfile);
@@ -318,17 +355,21 @@ int main(int argc, char **argv)
 		}
 
 	}
-	catch (MetadataGetError mderr)
+	catch (MetadataGetError& mderr)
 	{
 		mderr.log_error();
 		exit(-1);
 	}
-	catch(int ierr)
-	{
-		elog_die(1,"GCLgrid library error\n");
-	}
+        catch(GCLgridError& gerr)
+        {
+            cerr << "GCLgridError thrown"<<endl<<gerr.what();
+        }
+        catch(std::exception& sexcp)
+        {
+            cerr << sexcp.what();
+        }
 	catch (...)
 	{
-		elog_die(1,"Something threw and unhandled excepton\n");
+		elog_die(1,"Something threw an unhandled excepton\n");
 	}
 }

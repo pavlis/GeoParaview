@@ -13,14 +13,6 @@ for more info. */
 #include "ArrivalUpdater.h"
 using namespace std;
 using namespace SEISPP;
-/* debug routine*/
-bool has_nan(ThreeComponentSeismogram& d)
-{
-    for(int i=0;i<d.ns;++i)
-        for(int j=0;j<3;++j) 
-            if(isnan(d.u(j,i))) return(true);
-    return false;
-}
 void usage()
 {
 	cerr << "convertRTdata dbin dbout [-pf pffile -V]"<<endl;
@@ -72,6 +64,11 @@ int main(int argc, char **argv)
 	string Rchan=control.get_string("radial_channel_code");
 	string Tchan=control.get_string("tangential_channel_code");
 	bool save_wfdisc=control.get_bool("save_wfdisc");
+        /* QC problem with EARS data found a problem with high 
+           amplitude traces that dominated the stack. This parameter
+           will autokill (with a message) any trace with an rms amplitude
+           exceeding this size on either radial or transverse */
+        double rms_kill_threshold=control.get_double("rms_kill_threshold");
 		
 	try {
 		AttributeMap am("css3.0");
@@ -145,9 +142,23 @@ int main(int argc, char **argv)
 			and is incremented thereafter.  Reset to 0 when new event-sta encounterd */
 			sta=d_read.get_string("sta");
 			evid=d_read.get_int("evid");
+                        /* We compute rms here assuming we have no 
+                           gaps. There is a fancier way to do this in
+                           the seispp library to deal with gaps but that
+                           baggage is not needed here */
+                        double rms=dnrm2(d_read.s.size(),&(d_read.s[0]),1);
 			if(SEISPP_verbose) cout << "Indices i,sta,chan,evid:  "
-				 <<i<<", "<<sta<<", "<<d_read.get_string("chan")<<", "<<evid<<endl;
-//cout << sta <<" t0="<<strtime(d_read.t0)<<endl;
+				 <<i<<", "<<sta
+                                <<", "<<d_read.get_string("chan")
+                                <<", "<<evid
+                                <<".  RMS amplitude="<<rms<<endl;
+                        if(rms>rms_kill_threshold) 
+                        {
+                            cout << "High rms for "<<sta<<" on channel "
+                                <<d_read.get_string("chan")<<endl
+                                << "Marking for deletion"<<endl;
+                            d_read.live=false;
+                        }
 			if(sta==laststa && evid==lastevid && (i != (ntuples-1)))
 			{
 				if(tracecount>2)
@@ -251,8 +262,11 @@ int main(int argc, char **argv)
 					for(j=0;j<3;++j) d3c.u(j,k)=0.0;
 				/* stuff r into 1 (x2) and t into 0 (x1).  Leave x3 0 */
 				int iic,jc;
-				for(iic=0;iic<tracecount;++iic)
+                                bool testlive;
+				for(iic=0,testlive=true;iic<tracecount;++iic)
 				{
+                                    if(d[iic].live)
+                                    {
 					string chan;
 					chan=d[iic].get_string("chan");
                                         if(chan.find(Rchan)!=string::npos)
@@ -266,82 +280,77 @@ int main(int argc, char **argv)
 						exit(-1);
 					}
 					for(k=0;k<d[iic].ns;++k) d3c.u(jc,k)=d[iic].s[k];
+                                    }
+                                    else
+                                    {
+                                        testlive=false;
+                                        break;
+                                    }
 				}
-				// always mark data live
-				d3c.live=true;
-//DEBUG
-if(has_nan(d3c)) 
-{
-    cerr << "The following trace has an nan before calling rotate_to_standard"<<endl;
-    cerr << dynamic_cast<Metadata&>(d3c)<<endl;
-    for(int ll=0;ll<d3c.ns;++ll) cout << d3c.u(2,ll)<<endl;
-}
-				d3c.rotate_to_standard();
-if(has_nan(d3c)) 
-{
-    cerr << "The following trace has an nan after calling rotate_to_standard"<<endl;
-    cerr << dynamic_cast<Metadata&>(d3c)<<endl;
-    for(int ll=0;ll<d3c.ns;++ll) cout << d3c.u(2,ll)<<endl;
-}
-				/* We need to post these things or we're screwed */
-				d3c.put("dir",outdir);
-				char buf[128];
-				stringstream ss(buf);
-				ss<<dfilebase<<lastevid<<'\0';
-				d3c.put("dfile",ss.str());
-				d3c.put("wfprocess.algorithm","convertRF");
-				d3c.put("timetype","a");
-//cout << "3c data for sta "<<d3c.get_string("sta")<<" t0="<<strtime(d3c.t0)<<endl;
-				int rec=dbsave(d3c,dbho.db,outtable,mdlout,am);
-				if(rec<0)
-				{
-					cerr << "dbsave failed working on input record="<<i<<endl;
-					exit(-1);
-				}
-				if(save_wfdisc)
-				{
-					dbsave(d3c,dbhwfdisc.db,
+				if(testlive) 
+                                {
+                                    d3c.live=true;
+        				d3c.rotate_to_standard();
+        				/* We need to post these things or we're screwed */
+        				d3c.put("dir",outdir);
+        				char buf[128];
+        				stringstream ss(buf);
+        				ss<<dfilebase<<lastevid<<'\0';
+        				d3c.put("dfile",ss.str());
+        				d3c.put("wfprocess.algorithm","convertRF");
+        				d3c.put("timetype","a");
+        //cout << "3c data for sta "<<d3c.get_string("sta")<<" t0="<<strtime(d3c.t0)<<endl;
+        				int rec=dbsave(d3c,dbho.db,outtable,mdlout,am);
+        				if(rec<0)
+        				{
+					    cerr << "dbsave failed working on input record="<<i<<endl;
+					    exit(-1);
+				        }
+				        if(save_wfdisc)
+				        {
+					   dbsave(d3c,dbhwfdisc.db,
 						string("wfdisc"),
 						mdlwfdisc, am,
 						chanmap,true);
-				}
-				/* We have to set up these tables because we are using wfprocess
-				to store 3c objects.*/
-				dbho.db.record=rec;
-				pwfid=dbho.get_int("pwfid");
-				rec=dbhoev.append();
-				dbhoev.put("pwfid",pwfid);
-				dbhoev.put("evid",evid);
-				rec=dbhosc.append();
-				dbhosc.put("sta",laststa);
-				/* Ignore the fact this has endian implications.  At present datatype
-				is used to handle this. */
-				dbhosc.put("chan","3C");
-				dbhosc.put("pwfid",pwfid);
-				/* This is necessary only if time is foobarred */
-				if(start_time_is_origin)
-				{
-					/* These are frozen so will put them in */
-					d3c.put("arrival.time",atime);
-					d3c.put("arrival.iphase","P");
-					d3c.put("assoc.phase","P");
-					d3c.put("assoc.vmodel","iasp91");
-					d3c.put("assoc.timedef","d");
-					d3c.put("time",d3c.t0);
-					d3c.put("endtime",d3c.endtime());
-					/* The following should not be necessary, but ArrivalUpdater at this
-					point does not handle aliases correctly */
-					string sval;
-					int ival;
-					double dval;
-					sval=d3c.get_string("sta");
-					d3c.put("assoc.sta",sval);
-					d3c.put("arrival.sta",sval);
-					sval=d3c.get_string("chan");
-					d3c.put("arrival.chan",sval);
-					ival=d3c.get_int("orid");
-					d3c.put("assoc.orid",ival);
-					AUhandle.update(d3c);
+				        }
+        				/* We have to set up these tables because we are using wfprocess
+        				to store 3c objects.*/
+        				dbho.db.record=rec;
+        				pwfid=dbho.get_int("pwfid");
+        				rec=dbhoev.append();
+        				dbhoev.put("pwfid",pwfid);
+        				dbhoev.put("evid",evid);
+        				rec=dbhosc.append();
+        				dbhosc.put("sta",laststa);
+        				/* Ignore the fact this has endian implications.  At present datatype
+        				is used to handle this. */
+        				dbhosc.put("chan","3C");
+        				dbhosc.put("pwfid",pwfid);
+        				/* This is necessary only if time is foobarred */
+        				if(start_time_is_origin)
+        				{
+						/* These are frozen so will put them in */
+						d3c.put("arrival.time",atime);
+						d3c.put("arrival.iphase","P");
+						d3c.put("assoc.phase","P");
+						d3c.put("assoc.vmodel","iasp91");
+						d3c.put("assoc.timedef","d");
+						d3c.put("time",d3c.t0);
+						d3c.put("endtime",d3c.endtime());
+						/* The following should not be necessary, but ArrivalUpdater at this
+						point does not handle aliases correctly */
+						string sval;
+						int ival;
+						double dval;
+						sval=d3c.get_string("sta");
+						d3c.put("assoc.sta",sval);
+						d3c.put("arrival.sta",sval);
+						sval=d3c.get_string("chan");
+						d3c.put("arrival.chan",sval);
+						ival=d3c.get_int("orid");
+						d3c.put("assoc.orid",ival);
+						AUhandle.update(d3c);
+                                        }
 				}
 				/* Cleanup and prep for new gather */
 				tracecount=1;  // 1 because we push d_read below 

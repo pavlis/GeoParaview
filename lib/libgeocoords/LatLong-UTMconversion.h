@@ -20,9 +20,9 @@ class Ellipsoid
 {
 public:
 	Ellipsoid(){};
-	Ellipsoid(int Id, char* name, double radius, double ecc)
+	Ellipsoid(int Id, const char* name, double radius, double ecc)
 	{
-		id = Id; ellipsoidName = name; 
+		id = Id; ellipsoidName = strdup(name); 
 		EquatorialRadius = radius; eccentricitySquared = ecc;
 	}
 
