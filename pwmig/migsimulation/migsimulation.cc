@@ -366,6 +366,7 @@ int main(int argc, char **argv){
         if(SEISPP_verbose) cout << "Processing "<<nevents<<" simulated events"
                             <<endl;
         int rec;
+        ThreeComponentSeismogram syndata;
         for(rec=0;rec<nevents;++rec,++dbhin)
         {
             int evid=dbhin.get_int("evid");
@@ -416,8 +417,19 @@ int main(int argc, char **argv){
                 rlat=rad(rlat);
                 rlon=rad(rlon);
                 relev=dptr->get_double("site.elev");
-                ThreeComponentSeismogram syndata(synbase->Compute3C(*dptr,
-                            hypo,rlat,rlon,-relev,string("")));
+                try {
+                    syndata = synbase->Compute3C(*dptr,
+                            hypo,rlat,rlon,-relev,string(""));
+                }catch (SeisppError &serr)
+                {
+                    cerr << "Error processing station "<<dptr->get_string("sta")
+                        << " for event "<< evid<<endl
+                        << "No output for this seismogram."<<endl
+                        << "Error mesage thrown by synthetic Compute3C method:"
+                        <<endl;
+                    serr.log_error();
+                    continue;
+                }
                 if(wavelet_type=="filter")
                 {
                     filter->apply(syndata);
