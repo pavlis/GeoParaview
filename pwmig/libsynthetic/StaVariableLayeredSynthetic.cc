@@ -221,7 +221,7 @@ cout << vmodel.alpha[im] <<" "
             if(ierr==-1) throw SeisppError(base_error
                     + "velocity model for station "
                     + sta + " has more layers than maximum allowed");
-            else if(ierr=-2)
+            else if(ierr==(-2))
                 throw SeisppError(base_error 
                         + "required power of 2 for ns input violated.  Coding error needs to be fixed.");
             else
