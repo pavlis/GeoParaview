@@ -59,13 +59,9 @@ PointSourcePSSynthetic::PointSourcePSSynthetic(VelocityModel_1d& vsmods, Velocit
         amp.reserve(numpts);
         double r0;
 	ifstream poisrcf(pointsrcf.c_str());
-	//if((fp=fopen(pointsrcf.c_str(), "r"))){
-	//	cout<<"The point source loc file doesn't exist!i\n";
-	//}
 	string line;
 	while(getline(poisrcf, line))
         {
-            //char *line=(char *)gettbl(t,i);
             double lat,lon,depth,r,ampin;
             Geographic_point gp;
             istringstream ss(line);
@@ -82,7 +78,7 @@ PointSourcePSSynthetic::PointSourcePSSynthetic(VelocityModel_1d& vsmods, Velocit
    
             
         }
-	//fclose(poisrcf);
+        poisrcf.close();
     } catch(...){throw;};
 }
 
