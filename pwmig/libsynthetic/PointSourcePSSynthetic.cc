@@ -78,6 +78,7 @@ PointSourcePSSynthetic::PointSourcePSSynthetic(VelocityModel_1d& vsmods, Velocit
    
             
         }
+        numpts=amp.size();
         poisrcf.close();
     } catch(...){throw;};
 }
