@@ -3,7 +3,7 @@ BIN=BuildEarsModels
 #MAN1=
 
 cflags= -g
-ldlibs= $(DBLIBS)
+ldlibs= $(DBLIBS) -lseispp 
 
 include $(ANTELOPEMAKE)  	
 
