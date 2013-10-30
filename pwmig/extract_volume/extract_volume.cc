@@ -87,30 +87,30 @@ ThreeComponentSeismogram ExtractInterp(GCLvectorfield3d& g, double xi,
         cerr << "Coding error - xj points outside grid boundary"<<endl;
         exit(-1);
     }
-    double x1_0[3],x2_0[3],x3_0[3];
-    for(k=0;k<3;++k)
-    {
+    double x1_0,x2_0,x3_0;
+
+    
         double dx;
         /* First interpolate along i axis */
         dx=g.x1[i+1][j][kk]-g.x1[i][j][kk];
-        x1_0[k]=g.x1[i][j][kk] + dxi*dx;
+        x1_0=g.x1[i][j][kk] + dxi*dx;
         dx=g.x2[i+1][j][kk]-g.x2[i][j][kk];
-        x2_0[k]=g.x2[i][j][kk]+ dxi*dx;
+        x2_0=g.x2[i][j][kk]+ dxi*dx;
         dx=g.x3[i+1][j][kk]-g.x3[i][j][kk];
-        x3_0[k]=g.x3[i][j][kk]+ dxi*dx;
+        x3_0=g.x3[i][j][kk]+ dxi*dx;
         /* Elegantly simple formula for j axis */
         dx=g.x1[i][j+1][kk]-g.x1[i][j][kk];
-        x1_0[k]=g.x1[i][j][kk] + dxj*dx;
+        x1_0+= dxj*dx;
         dx=g.x2[i][j+1][kk]-g.x2[i][j][kk];
-        x2_0[k]=g.x2[i][j][kk]+ dxj*dx;
+        x2_0+= dxj*dx;
         dx=g.x3[i][j+1][kk]-g.x3[i][j][kk];
-        x3_0[k]=g.x3[i][j][kk]+ dxj*dx;
-    }
+        x3_0+= dxj*dx;
+    
     /* Now we need to convert this to a geographic point.  We
        then define points desired as radially below the 
        surface point.   We could not use cartesian system
        to do this */
-    Geographic_point gp0=g.ctog(x1_0[0],x2_0[1],x3_0[2]);
+    Geographic_point gp0=g.ctog(x1_0,x2_0,x3_0);
     Geographic_point gp;
     for(k=0,kk=g.n3-1;k<g.n3;++k,--kk)
     {
@@ -208,7 +208,7 @@ int main(int argc, char **argv)
         string pffile("extract_volume");
 	ofstream outstrm;
 	bool out_to_other(false);
-	string outfile("extract_volume.su");;
+	string outfile("extract_volume.su");
 	for(i=4;i<argc;++i)
 	{
 		string argstr=string(argv[i]);
@@ -296,6 +296,8 @@ int main(int argc, char **argv)
             else if(outform=="SEGY")
             {
                 SEGY2002FileHandle *sgyh;
+                pfput_int(pf,"number_samples",g.n3);
+                pfput_int(pf,"sample_interval",g.dx3_nom*1000);
                 sgyh=new SEGY2002FileHandle(outfile,tmdlist,pf);
                 outhandle=dynamic_cast<GenericFileHandle *>(sgyh);
             }
@@ -322,18 +324,22 @@ int main(int argc, char **argv)
                     ++npts;
                     /* Some hard coded header edits better done
                        here than in ExtractFromGrid */
-                    double dv=d.get_double("rx");
-                    dv *= llscf;
-                    d.put("rx",dv);
-                    dv=d.get_double("ry");
-                    dv *= llscf;
-                    d.put("ry",dv);
-                    dv=d.get_double("sx");
-                    dv *= llscf;
-                    d.put("sx",dv);
-                    dv=d.get_double("sy");
-                    dv *= llscf;
-                    d.put("sy",dv);
+//                    double dv=d.get_double("rx");
+//                    dv *= llscf;
+//                    d.put("rx",dv);
+//                    dv=d.get_double("ry");
+//                    dv *= llscf;
+//                    d.put("ry",dv);
+//                    dv=d.get_double("sx");
+//                    dv *= llscf;
+//                    d.put("sx",dv);
+//                    dv=d.get_double("sy");
+//                    dv *= llscf;
+//                    d.put("sy",dv);
+                    d.put("rx",(double)i);
+                    d.put("ry",(double)j);
+                    d.put("sx",(double)i);
+                    d.put("sy",(double)j);
                     /* SEGY uses this scale factor explicitly */
                     d.put("scalco",llscf);
                     /* Note these do not mesh with SU but can be 
@@ -387,4 +393,8 @@ int main(int argc, char **argv)
 	{
 		serr.log_error();
 	}
+        catch(std::exception& sterr)
+        {
+            cerr << sterr.what()<<endl;
+        }
 }
