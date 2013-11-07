@@ -23,11 +23,10 @@ SimplePSPrimarySynthetic::SimplePSPrimarySynthetic(Metadata& md,
         vp0=md.get_double("surface_P_velocity");
         vs0=md.get_double("surface_S_velocity");
         ddelta=md.get_double("SimplePSPrimarySynthetic::ddelta");
-        /* convert ddelta to units of degrees */
-        const double Rearth(6378.164);
-        ddelta /= Rearth;
-        ddelta*=180.0/M_PI;
         ndelta=md.get_int("SimplePSPrimarySynthetic::ndelta");
+        if((ndelta*ddelta)>30.0) 
+            throw SeisppError(base_error
+                    + "ndelta * ddelta > 30 degrees not sensible - modify one or the other");
         tp=dmatrix(ndelta,nlayers);
         ts=dmatrix(ndelta,nlayers);
         pslow=dmatrix(ndelta,nlayers);
