@@ -215,6 +215,7 @@ PwmigFileHandle& cohfh)
     // list.  It also quietly assumes a relative time base
     // so all times are computed relative to the start of
     // each trace.  Caller should guarantee this.
+    // Current versioh assures this with clean_gather procedure
     //
     double dt=indata.member[0].dt;
     int nsin = indata.member[0].ns;
@@ -226,10 +227,6 @@ PwmigFileHandle& cohfh)
     int nsout = iend-istart+1;
     int ismute = SEISPP::nint(mute.t1/dt);
     int ismute_this, ie_this;
-
-    if(istart>=indata.member[0].ns)
-        elog_die(0,(char *)"Irreconcilable window request:  Requested stack time window = %lf to %lf\nThis is outside range of input data\n",
-            tstart,tend);
 
     /* Apply front end mutes to all traces */
     ApplyTopMute(indata,mute);
