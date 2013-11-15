@@ -36,6 +36,41 @@ void load_file_globals(PwmigFileHandle& fh,int evid, double olat, double olon,
 	fh.filehdr.stime=otime;
 	strncpy(fh.filehdr.gridname,gridname.c_str(),16);
 }
+/* Removes members of d that have no data inside time aligned window range */
+auto_ptr<ThreeComponentEnsemble> clean_gather(
+	auto_ptr<ThreeComponentEnsemble> d,
+		double tstart, double tend)
+{
+	vector<ThreeComponentSeismogram>::iterator dptr;
+	for(dptr=d->member.begin();dptr!=d->member.end();++dptr)
+	{
+		//DEGUG
+		/*
+		cout << "clean_gather sta="<<dptr->get_string("sta")
+			<< " t0="<< (dptr->t0) <<endl;
+		*/
+		double t0d=dptr->t0;
+		double ted=dptr->endtime();
+		/* Test for data outside stack window and delete
+ 		them.  dptr assignment construct is used because
+		stl erase method returns iterator of next element
+		after the delete or the end.  Proper way to 
+		do this with an stl container. */
+		if((t0d>tend)||(ted<tstart))
+		{
+			if(SEISPP_verbose) cerr << "clean_gather:  "
+					<< "deleting seismogram for sta="
+					<< dptr->get_string("sta")
+					<<endl;
+			dptr=d->member.erase(dptr);
+		}
+	}
+	return(d);
+}
+
+	
+
+
 #ifdef MATLABDEBUG
 MatlabProcessor mp(stdout);
 #endif
@@ -353,6 +388,24 @@ cout << "After site join size="<<dbh.number_tuples()<<endl;
                 data_window);
             // Release this potentially large memory area
             delete din;
+	    if(SEISPP_verbose) cout << "Ensemble for evid="
+			<<  ensemble->get_int("evid")
+			<< " has "<<ensemble->member.size()<<" seismograms"
+			<<endl;
+            /* Throws out data without overlaping times*/
+	    int original_ensemble_size=ensemble->member.size();
+	    ensemble=clean_gather(ensemble,ts,te);
+	    int clean_ensemble_size=ensemble->member.size();
+	    if(clean_ensemble_size!=original_ensemble_size)
+	    {
+		cerr << "Warning:  potential data problem"<<endl
+			<< "clean_gather procedure cleared "
+			<<(clean_ensemble_size-original_ensemble_size)
+			<<" seismograms with time range outside "
+			<<"stack window"<<endl
+			<<"Number of seismograms remaining="
+			<<ensemble->member.size()<<endl;
+	    }
             //DEBUG
 #ifdef MATLABDEBUG
             mp.load(*ensemble,chans);
@@ -369,10 +422,7 @@ cout << "After site join size="<<dbh.number_tuples()<<endl;
             olat=rad(olat);  olon=rad(olon);
             odepth=ensemble->get_double("origin.depth");
             otime=ensemble->get_double("origin.time");
-	    if(SEISPP_verbose) cout << "Ensemble for evid="<<evid
-			<< " has "<<ensemble->member.size()<<" seismograms"
-			<<endl;
-	    /* A way to asssure this is cleared.  May not be necessary */
+	    /* A way to assure this is cleared.  May not be necessary */
 	    ssbuf[0]='\0';
 	    stringstream ss(ssbuf);
 	    ss << dir << "/" << dfilebase << "_" << evid;
@@ -454,6 +504,7 @@ cout << "After site join size="<<dbh.number_tuples()<<endl;
                             switch(iret)
                             {
                             case (-1):
+			    case (0):
                                 cout << "stack count below threshold."<<endl;
                                 break;
                             case (-2):
@@ -502,10 +553,8 @@ cout << "After site join size="<<dbh.number_tuples()<<endl;
     }
     // The GCLgrid library db routines throw simple int exceptions
     // This should only be entered if the GCLgrid constructor fails.
-    catch (int gclerr)
+    catch (exception& stdexc)
     {
-        // these all put a message to the antelope elog list
-        // so we just call the routine that dumps this error one exit.
-        elog_die(1,"GCLgrid constructor failed\n");
+        cerr << stdexc.what()<<endl;
     }
 }

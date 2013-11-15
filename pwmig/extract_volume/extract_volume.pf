@@ -1,7 +1,5 @@
-#output_format SEGY
-output_format SeismicUnix
-# This is required for SEGY and is set here
-number_samples 450
+output_format SEGY
+#output_format SeismicUnix
 # For now we have SEGY input read same cross reference map as SU
 AttributeCrossReferenceMapName metadata_cross_reference
 nondimensional_x1_sample_interval 1
