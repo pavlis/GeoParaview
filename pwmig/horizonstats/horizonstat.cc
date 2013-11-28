@@ -5,6 +5,7 @@
 #include "dbpp.h"
 #include "gclgrid.h"
 #include "dmatrix.h"
+#include "VectorStatistics.h"
 using namespace std;
 using namespace SEISPP;
 /* This routine extracts a depth window from the grid using interpolation
@@ -54,7 +55,7 @@ dmatrix ExtractDataWindow(GCLvectorfield3d& g, double lon, double lat,
         Geographic_point gp;
         gp.lon=lon;
         gp.lat=lat;
-        gp.r=r0_ellipse(lat)-zmax;
+        gp.r=r0_ellipse(lat)-zmin;
         for(int i=0;i<windowlen;++i)
         {
             cp=g.gtoc(gp);
@@ -71,7 +72,7 @@ dmatrix ExtractDataWindow(GCLvectorfield3d& g, double lon, double lat,
               is a common situation it cannot be treated as an 
               exception.  Thus we instead return a 1x1 matrix to 
               signal this condition. */
-            if(vec[4]<=0.0) 
+            if(vec[4]<=0.1) 
             {
                 delete [] vec;
                 return (dmatrix(1,1));
@@ -127,14 +128,21 @@ double compute_mad(dmatrix& d,int comp)
     for(int i=0;i<n;++i) dv.push_back(d(comp,i));
     return(mad(dv));
 }
-double compute_max(dmatrix& d,int comp)
+/* Return pair with first = lag and second is amplitude at peak.
+Note late calculation assumes 0 is center of range passed */
+pair<int,double> compute_max(dmatrix& d,int comp)
 {
     vector<double> dv;
     vector<double>::iterator maxvalptr;
     int n=d.columns();
-    for(int i=0;i<n;++i) dv.push_back(fabs(d(comp,i)));
+    for(int i=0;i<n;++i) dv.push_back(d(comp,i));
     maxvalptr=max_element(dv.begin(),dv.end());
-    return(*maxvalptr);
+    int i0=distance(dv.begin(),maxvalptr);
+    /* convert to lag relative to center from vector count.
+    Note counted from top */
+    i0-=(n/2);
+    pair<int,double> result(i0,*maxvalptr);
+    return(result);
 }
 double compute_rms3c(dmatrix& d)
 {
@@ -166,7 +174,9 @@ double compute_mad3c(dmatrix& d)
     }
     return(mad(dv));
 }
-double compute_max3c(dmatrix& d)
+/* Return lag and amplitude using hypot for 3d vector.
+   Note lag is relative to centered range.  (-n/2 to n/2)*/
+pair<int,double> compute_max3c(dmatrix& d)
 {
     vector<double> dv;
     vector<double>::iterator maxvalptr;
@@ -179,15 +189,29 @@ double compute_max3c(dmatrix& d)
             amp+=d(k,i)*d(k,i);
         amp=sqrt(amp);
         dv.push_back(amp);
+        //DEBUG
+        //cerr << i << " "<<amp<<endl;
     }
     maxvalptr=max_element(dv.begin(),dv.end());
-    return(*maxvalptr);
+    int i0=distance(dv.begin(),maxvalptr);
+    //DEBUG
+    //cerr << "i0="<<i0;
+    /* convert to lag relative to center from vector count. 
+    Note order top to bottom*/
+    i0-=(n/2);
+    //cerr << " i0 relative to center="<<i0<<endl;
+    pair<int,double> result(i0,*maxvalptr);
+    return(result);
 }
 void usage()
 {
-    cerr << "horizonstats db gridname fieldname windowsize(km) < inlist"<<endl
+    cerr << "horizonstats db gridname fieldname windowsize(km) [-raw -writenull] < inlist"<<endl
         << "gridname:fieldname expected in db.gclfield table"<<endl
-        << "Compute with window length windowlen in depth sampled at grid dz/2"<<endl;;
+        << "Compute with window length windowlen in depth sampled at grid dz/2"
+        <<endl
+        << "-raw output raw amplitude (default removes median)" 
+        <<endl
+        << "-writenull puts -1 in all fields when interp fails"<<endl;
     exit(-1);
 }
 bool SEISPP::SEISPP_verbose(true);
@@ -204,6 +228,26 @@ int main(int argc, char **argv)
         cerr << "Illegal window size = "<<windowsize<<endl;
         usage();
     }
+    bool rawoutput(false);
+    bool writenull(false);
+    for(int iarg=5;iarg<argc;++iarg)
+    {
+        string sarg(argv[iarg]);
+        if(sarg=="-raw")
+            rawoutput=true;
+        else if(sarg=="-writenull")
+            writenull=true;
+        else
+            usage();
+    }
+    if(writenull)
+    {
+        if(!rawoutput)
+        {
+            cerr << "Warning setting raw output (no median scaling) because -writenull enabled"<<endl;
+            rawoutput=true;
+        }
+    }
     try{
         DatascopeHandle dbh(dbname,true);
         /* pwmig output is a 5component vector field.  Read it from
@@ -214,6 +258,11 @@ int main(int argc, char **argv)
         int windowlen=SEISPP::nint(windowsize/dz)+1;
         double plon, plat, pdepth;
         char line[256];
+        vector<double> lon,lat,depth;
+        vector<double> rmsT,madT,maxT,rmsR,madR,maxR,rms3d,mad3d,max3d;
+        vector<double> depthR,depthT,depth3d;
+        double peakdepth;
+        pair<int,double> maxreturn;
         while(cin.getline(line,256))
         {
             sscanf(line,"%lf%lf%lf",&plon,&plat,&pdepth);
@@ -221,33 +270,51 @@ int main(int argc, char **argv)
             plat=rad(plat);
             try {
                 dmatrix d=ExtractDataWindow(image,plon,plat,pdepth,
-                        windowlen,dz);
+                    windowlen,dz);
                 /* A window with null data in the window has d set
                    as a 1x1 matrix.  Thus this is a test for null
                    data.  We only write results without valid data*/
                 if(d.rows()>1)
                 {
-                    double rmsT=compute_rms(d,0);
-                    double madT=compute_mad(d,0);
-                    double maxT=compute_max(d,0);
-                    double rmsR=compute_rms(d,1);
-                    double madR=compute_mad(d,1);
-                    double maxR=compute_max(d,1);
-                    double rms3d=compute_rms3c(d);
-                    double mad3d=compute_mad3c(d);
-                    double max3d=compute_max3c(d);
-                    cout << deg(plon)<<" "
-                        <<deg(plat)<<" "
-                        <<pdepth<<" "
-                        <<rmsR<<" "
-                        <<madR<<" "
-                        <<maxR<<" "
-                        <<rmsT<<" "
-                        <<madT<<" "
-                        <<maxT<<" "
-                        <<rms3d<<" "
-                        <<mad3d<<" "
-                        <<max3d<<endl;
+                    lon.push_back(deg(plon));
+                    lat.push_back(deg(plat));
+                    depth.push_back(pdepth);
+                    rmsT.push_back(compute_rms(d,0));
+                    madT.push_back(compute_mad(d,0));
+                    maxreturn=compute_max(d,0);
+                    maxT.push_back(maxreturn.second);
+                    peakdepth=pdepth+static_cast<double>(maxreturn.first)*dz;
+                    depthT.push_back(peakdepth);
+                    rmsR.push_back(compute_rms(d,1));
+                    madR.push_back(compute_mad(d,1));
+                    maxreturn=compute_max(d,1);
+                    maxR.push_back(maxreturn.second);
+                    peakdepth=pdepth+static_cast<double>(maxreturn.first)*dz;
+                    depthR.push_back(peakdepth);
+                    rms3d.push_back(compute_rms3c(d));
+                    mad3d.push_back(compute_mad3c(d));
+                    maxreturn=compute_max3c(d);
+                    max3d.push_back(maxreturn.second);
+                    peakdepth=pdepth+static_cast<double>(maxreturn.first)*dz;
+                    depth3d.push_back(peakdepth);
+                }
+                else if(rawoutput)
+                {
+                    lon.push_back(deg(plon));
+                    lat.push_back(deg(plat));
+                    depth.push_back(pdepth);
+                    rmsT.push_back(-1.0);
+                    madT.push_back(-1.0);
+                    maxT.push_back(-1.0);
+                    depthT.push_back(-1.0);
+                    rmsR.push_back(-1.0);
+                    madR.push_back(-1.0);
+                    maxR.push_back(-1.0);
+                    depthR.push_back(-1.0);
+                    rms3d.push_back(-1.0);
+                    mad3d.push_back(-1.0);
+                    max3d.push_back(-1.0);
+                    depth3d.push_back(-1.0);
                 }
             } catch(int ierr)
             {
@@ -257,6 +324,62 @@ int main(int argc, char **argv)
                     <<" in window of length "<<windowlen<<endl
                     <<"Point skipped - trying next input point"<<endl;
             };
+        }
+        // Not best form with inverted logic here 
+        // This removes median by default
+        int npoints=lon.size();
+        if(!rawoutput)
+        {
+            double medrmsR,medmadR,medmaxR,medrmsT,medmadT,medmaxT;
+            double medrms3d,medmad3d,medmax3d;
+            medrmsR=median(rmsR);
+            cerr << "median rms radial "<<medrmsR<<endl;
+            medmadR=median(madR);
+            cerr << "median mad radial "<<medmadR<<endl;
+            medmaxR=median(maxR);
+            cerr << "median max radial "<<medmaxR<<endl;
+            medrmsT=median(rmsT);
+            cerr << "median rms transverse "<<medrmsT<<endl;
+            medmadT=median(madT);
+            cerr << "median mad transverse "<<medmadT<<endl;
+            medmaxT=median(maxT);
+            cerr << "median max transverse "<<medmaxT<<endl;
+            medrms3d=median(rms3d);
+            cerr << "median rms 3-component "<<medrms3d<<endl;
+            medmad3d=median(mad3d);
+            cerr << "median mad 3-component "<<medmad3d<<endl;
+            medmax3d=median(max3d);
+            cerr << "median max 3-component "<<medmax3d<<endl;
+            for(int i=0;i<npoints;++i)
+            {
+                rmsR[i]=rmsR[i]/medrmsR;
+                madR[i]=madR[i]/medmadR;
+                maxR[i]=maxR[i]/medmaxR;
+                rmsT[i]=rmsT[i]/medrmsT;
+                madT[i]=madT[i]/medmadT;
+                maxT[i]=maxT[i]/medmaxT;
+                rms3d[i]=rms3d[i]/medrms3d;
+                mad3d[i]=mad3d[i]/medmad3d;
+                max3d[i]=max3d[i]/medmax3d;
+            }
+        }
+        for(int i=0;i<npoints;++i)
+        {
+            cout << lon[i]<<" "
+                <<lat[i]<<" "
+                <<depth[i]<<" "
+                <<rmsR[i]<<" "
+                <<madR[i]<<" "
+                <<maxR[i]<<" "
+                <<rmsT[i]<<" "
+                <<madT[i]<<" "
+                <<maxT[i]<<" "
+                <<rms3d[i]<<" "
+                <<mad3d[i]<<" "
+                <<max3d[i]<<" "
+                <<depthR[i]<<" "
+                <<depthT[i]<<" "
+                <<depth3d[i]<<endl;
         }
     } catch (SeisppError& serr)
     {
