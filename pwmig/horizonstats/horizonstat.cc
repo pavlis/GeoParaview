@@ -230,9 +230,11 @@ int main(int argc, char **argv)
                     double rmsT=compute_rms(d,0);
                     double madT=compute_mad(d,0);
                     double maxT=compute_max(d,0);
+                    maxT=fabs(maxT);
                     double rmsR=compute_rms(d,1);
                     double madR=compute_mad(d,1);
                     double maxR=compute_max(d,1);
+                    maxR=fabs(maxR);
                     double rms3d=compute_rms3c(d);
                     double mad3d=compute_mad3c(d);
                     double max3d=compute_max3c(d);
