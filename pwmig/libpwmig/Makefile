@@ -6,7 +6,7 @@ include $(ANTELOPEMAKE)
 #CXXFLAGS+=-D_LARGEFILE_SOURCE
 #CXXFLAGS+=-D_LARGEFILE64_SOURCE
 #  needed for debug
-CXXFLAGS+=-I/usr/OpenMotif/include
+CXXFLAGS+=-I/sw/include
 # for valgrid use only
 CXXFLAGS+=-O0
 
