@@ -2,8 +2,19 @@
 #include "dbpp.h"
 #include "Metadata.h"
 #include "gclgrid.h"
+#include "SeisppError.h"
 using namespace std;
 using namespace SEISPP;
+/* this program is designed to do a remap operation on GCLgrid objects.
+   All use an important trick that must be recognize and is a potential maintenance issue.
+   That is, db storage of GCLgrid objects splits the grid and field data storage into 
+   to files.   A remap operation really only changes the grid and not the numbers in
+   the field.  Hence only the grid is altered and a new entry is created in the
+   gclfield table.   To make this doubly confusing it actually would NOT have been 
+   necessary to actually make a new file for the modified grid because GCLgrid external
+   storage uses lat, lon, r coordinates.   However, I chose to not do that as I thought
+   that was really pushing my luck.   
+   */
 
 void usage()
 {
@@ -16,6 +27,8 @@ int main(int argc, char **argv)
 	int i;
 	ios::sync_with_stdio();
 	if(argc<2) usage();
+        char dir[128],dfile[128]; // these are larger than necessary
+        long foff;
 
 	Pf *pf;
 	string pffile("dbremapgrid");
@@ -40,7 +53,7 @@ int main(int argc, char **argv)
 		twodmode=control.get_bool("2Dmode");
 		griddir=control.get_string("grid_directory");
 		newgridname=control.get_string("new_grid_name");
-	} catch (MetadataError& mderr)
+	} catch (SeisppError& mderr)
 	{
 		mderr.log_error();
 		exit(-1);
@@ -90,19 +103,19 @@ int main(int argc, char **argv)
 	    BasicGCLgrid *bpat;
 	    if(use2dpat) 
 	    {
-		GCLgrid *pat=new GCLgrid(db,pattern);
+		GCLgrid *pat=new GCLgrid(dbh,pattern);
 		bpat=dynamic_cast<BasicGCLgrid*>(pat);
 	    }
 	    else
 	    {	
-		GCLgrid3d *pat=new GCLgrid3d(db,pattern);
+		GCLgrid3d *pat=new GCLgrid3d(dbh,pattern);
 		bpat=dynamic_cast<BasicGCLgrid*>(pat);
 	    }
 	    if(twodmode)
 	    {
 		if(vectormode)
 		{
-			GCLvectorfield g(db,gridname,fieldname);
+			GCLvectorfield g(dbh,gridname,fieldname);
 			remap_grid(dynamic_cast<GCLgrid&>(g),*bpat);
 			g.name=newgridname;
 			string sstring;
@@ -114,8 +127,8 @@ int main(int argc, char **argv)
 					+ fieldname 
 					+ string("/ && nv==")
 					+ string(nvs); 
-			Dbptr dbss=dbsubset(dbgrd,const_cast<char *>(sstring.c_str()),0);
-			int nrec;
+			Dbptr dbss=dbsubset(dbgrd,const_cast<char *>(sstring.c_str()),NULL);
+			long nrec;
 			dbquery(dbss,dbRECORD_COUNT,&nrec);
                 	if(nrec <= 0)
 			{
@@ -123,18 +136,20 @@ int main(int argc, char **argv)
 				cerr << "Subset string passed: "<<sstring;
 				exit(-1);
 			}
-			// This uses the feature that dbget with 0 stuffs this record
-			// into the scratch record
-			dbget(dbss,0);
-			dbgrd.record=dbSCRATCH;
-			dbputv(dbgrd,0,"gridname",newgridname.c_str(),0);
-			dbadd(dbgrd,0);
-			dynamic_cast<GCLgrid&>(g).dbsave(db,griddir);
+                        dbss.record=0;
+                        dbgetv(dbss,0,"dir",dir,"dfile",dfile,"foff",&foff,NULL);
+			dbaddv(dbgrd,0,"gridname",newgridname.c_str(),"fieldname",fieldname.c_str(),
+                                "dimensions",2L,
+                                "nv",g.nv,
+                                "dir",dir,
+                                "dfile",dfile,
+                                "foff",foff,NULL);
+                        dynamic_cast<GCLgrid&>(g).save(dbh,griddir);
 
 		}
 		else
 		{
-			GCLscalarfield g(db,gridname,fieldname);
+			GCLscalarfield g(dbh,gridname,fieldname);
 			remap_grid(dynamic_cast<GCLgrid&>(g),*bpat);
 			g.name=newgridname;
 			sstring = string("gridname =~ /")
@@ -142,8 +157,8 @@ int main(int argc, char **argv)
 					+string("/ && fieldname =~ /")
 					+ fieldname 
 					+ string("/");
-			Dbptr dbss=dbsubset(dbgrd,const_cast<char *>(sstring.c_str()),0);
-			int nrec;
+			Dbptr dbss=dbsubset(dbgrd,const_cast<char *>(sstring.c_str()),NULL);
+			long nrec;
 			dbquery(dbss,dbRECORD_COUNT,&nrec);
                 	if(nrec <= 0)
 			{
@@ -151,13 +166,15 @@ int main(int argc, char **argv)
 				cerr << "Subset string passed: "<<sstring;
 				exit(-1);
 			}
-			// This uses the feature that dbget with 0 stuffs this record
-			// into the scratch record
-			dbget(dbss,0);
-			dbgrd.record=dbSCRATCH;
-			dbputv(dbgrd,0,"gridname",newgridname.c_str(),0);
-			dbadd(dbgrd,0);
-			dynamic_cast<GCLgrid&>(g).dbsave(db,griddir);
+                        dbss.record=0;
+                        dbgetv(dbss,0,"dir",dir,"dfile",dfile,"foff",&foff,NULL);
+			dbaddv(dbgrd,0,"gridname",newgridname.c_str(),"fieldname",fieldname.c_str(),
+                                "dimensions",2L,
+                                "nv",1L,
+                                "dir",dir,
+                                "dfile",dfile,
+                                "foff",foff,NULL);
+                        dynamic_cast<GCLgrid&>(g).save(dbh,griddir);
 		}
 				
 	    }
@@ -165,7 +182,7 @@ int main(int argc, char **argv)
 	    {
 		if(vectormode)
 		{
-			GCLvectorfield3d g(db,gridname,fieldname);
+			GCLvectorfield3d g(dbh,gridname,fieldname);
 			remap_grid(dynamic_cast<GCLgrid3d&>(g),*bpat);
 			g.name=newgridname;
 			char nvs[20];
@@ -176,8 +193,8 @@ int main(int argc, char **argv)
 				+ fieldname
 				+ string("/ && nv==")
 				+ string(nvs); 
-			Dbptr dbss=dbsubset(dbgrd,const_cast<char *>(sstring.c_str()),0);
-			int nrec;
+			Dbptr dbss=dbsubset(dbgrd,const_cast<char *>(sstring.c_str()),NULL);
+			long nrec;
 			dbquery(dbss,dbRECORD_COUNT,&nrec);
                 	if(nrec <= 0)
 			{
@@ -185,17 +202,19 @@ int main(int argc, char **argv)
 				cerr << "Subset string passed: "<<sstring;
 				exit(-1);
 			}
-			// This uses the feature that dbget with 0 stuffs this record
-			// into the scratch record
-			dbget(dbss,0);
-			dbgrd.record=dbSCRATCH;
-			dbputv(dbgrd,0,"gridname",newgridname.c_str(),0);
-			dbadd(dbgrd,0);
-			dynamic_cast<GCLgrid3d&>(g).dbsave(db,griddir);
+                        dbss.record=0;
+                        dbgetv(dbss,0,"dir",dir,"dfile",dfile,"foff",&foff,NULL);
+			dbaddv(dbgrd,0,"gridname",newgridname.c_str(),"fieldname",fieldname.c_str(),
+                                "dimensions",3L,
+                                "nv",g.nv,
+                                "dir",dir,
+                                "dfile",dfile,
+                                "foff",foff,NULL);
+                        dynamic_cast<GCLgrid3d&>(g).save(dbh,griddir);
 		}
 		else
 		{
-			GCLscalarfield3d g(db,gridname,fieldname);
+			GCLscalarfield3d g(dbh,gridname,fieldname);
 			remap_grid(dynamic_cast<GCLgrid3d&>(g),*bpat);
 			g.name=newgridname;
 			sstring = string("gridname =~ /")
@@ -203,8 +222,8 @@ int main(int argc, char **argv)
 				+ string("/ && fieldname =~ /")
 				+ fieldname 
 				+ string("/");
-			Dbptr dbss=dbsubset(dbgrd,const_cast<char *>(sstring.c_str()),0);
-			int nrec;
+			Dbptr dbss=dbsubset(dbgrd,const_cast<char *>(sstring.c_str()),NULL);
+			long nrec;
 			dbquery(dbss,dbRECORD_COUNT,&nrec);
                 	if(nrec <= 0)
 			{
@@ -212,33 +231,30 @@ int main(int argc, char **argv)
 				cerr << "Subset string passed: "<<sstring;
 				exit(-1);
 			}
-			// This uses the feature that dbget with 0 stuffs this record
-			// into the scratch record
-			dbget(dbss,0);
-			dbgrd.record=dbSCRATCH;
-			dbputv(dbgrd,0,"gridname",newgridname.c_str(),
-				"dimensions",3,
-				"nv", 1, 
-				"fieldname",fieldname.c_str(),
-				0);
-			dbadd(dbgrd,0);
-			dynamic_cast<GCLgrid3d&>(g).dbsave(db,griddir);
-			cerr << "Warning:  this is a hack program.  "<<endl
-				<< "You will need to manually set dir and dfile"
-				<< " in gclfield directory for "
-				<< "fieldname="<<fieldname<<endl;
+                        dbss.record=0;
+                        dbgetv(dbss,0,"dir",dir,"dfile",dfile,"foff",&foff,NULL);
+			dbaddv(dbgrd,0,"gridname",newgridname.c_str(),"fieldname",fieldname.c_str(),
+                                "dimensions",3L,
+                                "nv",1L,
+                                "dir",dir,
+                                "dfile",dfile,
+                                "foff",foff,NULL);
+                        dynamic_cast<GCLgrid3d&>(g).save(dbh,griddir);
 		}
 	    }
-	}
-	catch (int ierr)
-	{
-		cerr << "GCLgrid library function threw error code="
-			<< ierr << endl;
 	}
 	catch (SeisppError& serr)
 	{
 		serr.log_error();
 	}
+        catch(GCLgridError& gerr)
+        {
+            cerr << gerr.what()<<endl;
+        }
+        catch (std::exception& serr)
+        {
+            cerr << serr.what()<<endl;
+        }
 	catch (...)
 	{
 		cerr << "Something threw an exception"<<endl;

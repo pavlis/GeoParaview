@@ -1,6 +1,6 @@
 BIN=dbremapgrid
 INCLUDE=
-PF=
+PF=dbremapgrid.pf
 #MAN1=		# man pages for commands
 CC=CC
 LD=CC
