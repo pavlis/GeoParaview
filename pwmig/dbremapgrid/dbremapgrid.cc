@@ -89,8 +89,10 @@ int main(int argc, char **argv)
 			newgridname=string(argv[i]);
 		}
 		else
+                {
 			cerr << "Unknown argument = "<<argstr<<endl;
 			usage();
+                }
 	}
 	try {
 	    DatascopeHandle dbh(dbname,false);
