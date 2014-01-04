@@ -19,3 +19,6 @@ vector_component 0
 remove_mean_x3_slices false
 apply_agc false
 agc_operator_length 20
+#   this is the expected size for a vector field read from a db
+#  ignored for other types
+nv_expected 5

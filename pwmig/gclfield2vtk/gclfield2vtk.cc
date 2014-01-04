@@ -165,6 +165,11 @@ int main(int argc, char **argv)
 		cout << "Converting field = "<<fieldname
 			<< " associated with gridname="<<gridname<<endl;
 		cout << "Assuming grid type is "<<fieldtype<<endl;
+                int nv_expected(5);  // defaulted for pwmig
+                if(fieldtype=="vector3d")
+                {
+                    nv_expected=control.get_int("nv_expected");
+                }
 		/* Slightly odd logic here, but this allows remap off
 		to be the default.  pf switch is ignored this way if
 		the -r flag was used */
@@ -267,13 +272,10 @@ int main(int argc, char **argv)
 					<< "ignored for vector field="
 					<< fieldname<<endl;
 			}
-                        /* This needs a more general solution long term.  For now this is
-                           frozen for vector size in pwmig */
-                        const int nvpwmig(5);
                         GCLvectorfield3d vfield;
                         if(dbmode)
 			    vfield=GCLvectorfield3d(dbh,gridname,
-                                    fieldname,nvpwmig);
+                                    fieldname,nv_expected);
                         else
                             vfield=GCLvectorfield3d(infile);
 			GCLscalarfield3d *sfptr;
