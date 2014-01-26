@@ -1,0 +1,21 @@
+This repository evolved from an earlier organization I used until 
+January 2014.   This is my personal git repository for software.  
+Previously the directory structure evolved beyond what worked in 
+my original layout as I evolved into some new areas.  The 
+second motivation for reorganization was a need to separate 
+code that was to be released through github and code I maintained
+only locally.   I did not want to maintain two repositories so 
+I simply reorganized this one.   
+
+For now, the key organization is this.   
+
+public - contains directories that will be made publically available
+on github when I am ready to do so
+prototypes - is used to hold code that I wished to retain but which
+were mostly relics.  Call it a place for older research code that 
+either hasn't gone far enough yet for release, or which did evolve
+to release but in a different form so I wanted to retain this original.
+Code in this directory should not normally be compiled.
+
+All other directories can and likely will evolve with new projects.
+
