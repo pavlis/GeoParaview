@@ -2,6 +2,7 @@
 #include <fstream>
 #include <vector>
 #include "RegionalCoordinates.h"
+#include "seispp.h"
 #include "Metadata.h"
 #include "LatLong-UTMconversion.h"
 using namespace std;
@@ -13,10 +14,10 @@ PointSet ExtractPoints(FILE *fp)
 {
     PointSet utmpoints;
     string tag;
-    int node,lastnode(0);
+    int node,lastnode;
     double x,y,z;
-    rewind(fp);
     char line[256];
+    int linenumber(1);
     while(fgets(line,256,fp)!=NULL)
     {
         char chtag[20];
@@ -27,7 +28,9 @@ PointSet ExtractPoints(FILE *fp)
         if(tag=="VRTX")
         {
             sscanf(line,"%s%d%lf%lf%lf",chtag,&node,&x,&y,&z);
-            if(node!=(lastnode+1))
+            if(linenumber==1)
+                lastnode=node-1;
+            else if(node!=(lastnode+1))
             {
                 cerr << "Data error in input file"<<endl
                     << "Require points (VRTX tag) values start at 1 and "
@@ -38,6 +41,10 @@ PointSet ExtractPoints(FILE *fp)
                     <<endl;
                 exit(-3);
             }
+            //DEBUG
+            //cout << node<<" "<<x<<" "<<y<<" "<<z<<endl;
+            ++linenumber;
+            lastnode=node;
             pt.x1=x;
             pt.x2=y;
             pt.x3=z;
@@ -82,6 +89,7 @@ void usage()
 
 
 bool SEISPP::SEISPP_verbose(true);
+
 int main(int argc, char **argv)
 {
     ios::sync_with_stdio();
@@ -127,7 +135,7 @@ int main(int argc, char **argv)
         lon=control.get_double("origin_longitude");
         radius=control.get_double("origin_radius");
         az=control.get_double("azimuth_y_axis"); 
-        RegionalCoordinates vtkcoords(rad(lat),rad(lon),radius,az);
+        RegionalCoordinates vtkcoords(rad(lat),rad(lon),radius,rad(az));
         /* UTM parameters */
         string UTMzone=control.get_string("UTM_zone");
         /*Freeze as WGS-84 */
@@ -139,14 +147,21 @@ int main(int argc, char **argv)
             << "that this program will ignore:"<<endl;
         char line[256];
         char tag[20];
+        long foff(0);
         while(fgets(line,256,fpin)!=NULL)
         {
             sscanf(line,"%s",tag);
+            // Save foff as we need to seek back when the 
+            // vertex keyword is found
+            long current=ftell(fpin);
             string stag(tag);
-            if((stag!="VRTX")&&(stag!="TRGL")) cout << line;
+            /* Assume VRTX data start the data section */
+            if(stag=="VRTX") break;
+            cout << line;
+            foff=current;
         }
         string ques;
-        cout << "///////////End of File Content//////////"<<endl
+        cout << "///////////End of Header//////////"<<endl
             << "Ok to continue? (y or n): ";
         cin >> ques;
         if(ques!="y") 
@@ -154,6 +169,7 @@ int main(int argc, char **argv)
             cout << "Exiting"<<endl;
             exit(-2);
         }
+        fseek(fpin,foff,SEEK_SET);
         PointSet utmpoints=ExtractPoints(fpin);
         if(utmpoints.size()<3)
         {
@@ -172,7 +188,7 @@ int main(int argc, char **argv)
         npoints=utmpoints.size();
         ntriangles=t.size();
         cout << "Finished parsing files"<<endl
-            << "Number of points read ="<<npoints
+            << "Number of points read ="<<npoints<<endl
             << "Number of triangle definitions read = "<<ntriangles<<endl;
         /* Next step is to write header material to vtk file */
         outstrm << "# vtk DataFile Version 2.0"<<endl
@@ -187,6 +203,11 @@ int main(int argc, char **argv)
         {
             double lat,lon;
             UTMtoLL(RefEllipsoid,psitr->x2,psitr->x1,UTMzone.c_str(),lat,lon);
+            //DEBUG
+            /*
+            cout << "Conversion (x,y,lon,lat):  "<<psitr->x1 <<" "<<psitr->x2
+                        <<" "<<lon<<" " <<lat<<endl;
+                        */
             // convert these to radians 
             lat=rad(lat);
             lon=rad(lon);
@@ -194,7 +215,7 @@ int main(int argc, char **argv)
             /* Assume z values are units of m and positive up.  For
                paraview we need to convert this to radius in km */
             double r=r0;
-            r-=((psitr->x3)*1000.0);
+            r+=((psitr->x3)/1000.0);
             Cartesian_point vtkpoint=vtkcoords.cartesian(lat,lon,r);
             outstrm << vtkpoint.x1 <<" "
                 << vtkpoint.x2 << " "
