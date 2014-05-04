@@ -86,14 +86,15 @@ int main(int argc, char **argv)
                 az=rad(az);
 		//double dz=control.get_double("projection_depth_increment");
                 double dz,dr;
-                dr=control.get_double("projection_distance_increment");
+		// Note this isn't really a depth for dips other than 90
+                dr=control.get_double("projection_depth_increment");
                 /*Normally this parameter should be zero. Positive moves
                   start of surface coordinates in azimuth direction.  Use
                   negative offset in opposite direction */
                 double origin_offset=control.get_double("origin_offset");
                 /* this combination must be trapped to avoid divide by
                    zero errors.  constant is a bit arbitrary */
-                if(fabs(dip)>89.0)
+                if(fabs(dip)>89.0 && (fabs(origin_offset)>0.1))
                 {
                     cerr << "Illegal parameter combination"<<endl
                         << "dip near 90 degrees = "<<dip
@@ -101,11 +102,11 @@ int main(int argc, char **argv)
                         <<endl;
                     exit(-1);
                 }
-		int nr=control.get_int("number_distance_increments");
+		int nr=control.get_int("number_depth_increments");
 		string gridname=control.get_string("reference_grid_name");
 		string outdir=control.get_string("output_directory");
 		DatascopeHandle dbh(dbname,false);
-		GCLgrid3d grid(dbh.db,gridname);
+		GCLgrid3d grid(dbh,gridname);
 		/* Load up lon,lat points */
 		vector<double> pathlat,pathlon,pathz;
 		if(SEISPP_verbose) cout << "Longitude Latitude Depth"<<endl;
@@ -217,7 +218,7 @@ int main(int argc, char **argv)
 		gout.dx1_nom=fabs(gout.x1high-gout.x1low)
 					/static_cast<double>(nx);
 		gout.dx2_nom=dz;
-		gout.dbsave(dbh.db,outdir);
+		gout.save(dbh,outdir);
 	} 
 	catch (int ierr)
 	{
