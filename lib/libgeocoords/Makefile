@@ -1,5 +1,6 @@
 LIB=libgeocoords.a
 INCLUDE=GeoCoordError.h \
+  Crust1_0.h \
   GeoPath.h \
   GeoPolygonRegion.h \
   GeoSplineSurface.h \
@@ -9,7 +10,9 @@ INCLUDE=GeoCoordError.h \
   PLGeoPath.h \
   PlateBoundaryPath.h \
   RegionalCoordinates.h
-cflags=-g`
+DATADIR=crust1.0
+DATA=crust1.bnds crust1.rho crust1.vp crust1.vs
+cflags=-g
 ldlibs=-lgclgrid -lcoords -lcgeom $(DBLIBS)
 
 include $(ANTELOPEMAKE)
@@ -19,7 +22,8 @@ PLGeoPath.cc : GeoPath.h PLGeoPath.h
 PlateBoundaryPath.cc : GeoPath.h PlateBoundaryPath.h
 RegionalCoordinates.cc : RegionalCoordinates.h
 
-OBJS=GeoSplineSurface.o \
+OBJS=Crust1_0.o \
+  GeoSplineSurface.o \
   GeoTriMeshSurface.o \
   GeoPolygonRegion.o \
   LatLong-UTMconversion.o \
