@@ -85,7 +85,7 @@ Crust1_0::Crust1_0()
            there are frequent zero thickness layers in this beast.
            Note the difference in count of 1 for intervals 
            compared to points.  Thickness references the layer 
-           below each top.   Also not depth is a bit of a 
+           below each top.   Also note depth is a bit of a 
            misnomer as the boundaries are tabulated with positive
            up (Moho always has a negative depth value).*/
         for(int i=0;i<nlon;++i)
@@ -136,16 +136,45 @@ int Crust1_0::lookup_lat(double lat)
         throw SeisppError(string("Crust1_0::lookup_lat: illegal latitude"));
     return result;
 }
+/* Use bilinear interpolator for model components.  Complication 
+   is that Crust1.0 has zero entries in places that we have to 
+   work around.   To do that we check for any zeros in the 4 corners
+   and revert to nearest neighbor if any are zero.  Will return
+   zero if zero node is closest.
+
+    Note dlon and dlat are normalized delta latitude and delta longitude
+    That is, range is 0 to 1 */
 double *interpolate_model_grid(double ***y,int i, int j, 
         double dlon, double dlat)
 {
+    /* The nearest neighbor algorithm requires this test to avoid
+       disaster */
+    if((dlon<0.0) || (dlon>1.01) || (dlat<0.0) || (dlat>1.01))
+        throw SeisppError(string("Crust1_0:  interpolate_model_grid")
+              + "illegal delta latitude and/or delta longitude values passed");
     double *result=new double[9];
     /* We blindly assume the i and j values are valid */
-    int k;
+    int k,ii,jj;
+    bool has_a_zero(false);
     for(k=0;k<9;++k)
     {
-        result[k]=bilinear<double>(dlon,dlat,y[i][j][k],y[i+1][j][k],
+        for(ii=i;ii<i+2;++ii)
+            for(jj=j;jj<j+2;++jj)
+                if(fabs(y[ii][jj][k])<0.01)
+                {
+                    has_a_zero=true;
+                    break;
+                }
+
+        if(has_a_zero)
+        {
+            result[k]=y[i+SEISPP::nint(dlon)][j+SEISPP::nint(dlat)][k];
+        }
+        else
+        {
+            result[k]=bilinear<double>(dlon,dlat,y[i][j][k],y[i+1][j][k],
                 y[i][j+1][k],y[i+1][j+1][k]);
+        }
     }
     return result;
 }
@@ -172,9 +201,12 @@ VelocityModel_1d Crust1_0::model(double lat, double lon, string property)
         int k;
         for(k=0;k<9;++k)
         {
-            /* Skip any zero thickness layers.
-               This happens frequently in crust1.0 */
-            if(fabs(dz[k])>0.001) // works because of format to 0.01 km
+            /* Skip any zero thickness layers and those with zero
+               propeties.   (tested against a small value).
+               This happens frequently in crust1.0.
+               Magic numbers assume units of km and seconds.
+               */
+            if(((fabs(dz[k])>0.001)) && (fabs(y[k]>0.01)))
             {
                 result.v.push_back(y[k]);
                 /* Reverse sign of layertops because the VelocityModel_1d
@@ -184,6 +216,12 @@ VelocityModel_1d Crust1_0::model(double lat, double lon, string property)
                 result.grad.push_back(0.0);
             }
         }
+        //DEBUG
+        /*
+        for(k=0;k<result.v.size();++k)
+            cout << k <<" "<< result.v[k]<<" "<<result.z[k]<<endl;
+            */
+        result.nlayers=result.v.size();
         delete [] dz;
         delete [] y;
         delete [] layertops;
