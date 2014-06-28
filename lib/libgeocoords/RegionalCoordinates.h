@@ -109,6 +109,24 @@ public:
       means the y (x2) axis points north at the origin)
       */
     double aznorth_angle(){return(azimuth_y);};
+    /*! Return transformation matrix to convert local azimuth to cartesian system.
+
+      Standard local coordinates use a local east direction for x, a local
+      north direction as y, and up as z.   Geologic examples include strike
+      vectors, gps motion vectors, and fault normal vectors.   This 
+      method returns a 3x3 transformation matrix that will convert a local
+      x (E), y (N), z (up) vector to a vector in the cartesian system
+      defined by this object.  Note this was intended for use on data
+      measured at the surface so the matrix is always computed at a 
+      sea level datum.   Elevation effects on real data should be totally
+      negligible.
+
+      \param lat - latitude in radians of the point to compute the
+        transformation matrix.
+      \param lon - longidude in radians of the point to compute the
+              transformation matrix.
+              */
+    dmatrix l2rtransformation(double lat, double lon);
 private:
     double gtoc_rmatrix[3][3];
     double translation_vector[3];

@@ -154,3 +154,58 @@ Geographic_point RegionalCoordinates::origin()
     gp.r=r0;
     return(gp);
 }
+/* This method returns a transformation matrix that will take 
+   a point in a local geographic reference frame (e=x1, n=x2, z=x3)
+   and transform it to the coordinate system used in this object.
+   It works by a crude finite difference approach.   
+ 
+ lat and lon are point to compute matrix and should be in radians*/
+
+dmatrix RegionalCoordinates::l2rtransformation(double lat, double lon)
+{
+    try{
+        dmatrix result(3,3);
+        Geographic_point x0;
+        x0.lat=lat;
+        x0.lon=lon;
+        x0.r=r0_ellipse(lat);
+        Geographic_point dx;
+        Cartesian_point cx0,cx0pdx;
+        cx0=this->cartesian(x0);
+        const double delta_angle(0.00016);  // roughly 1 km
+        const double delta_r(1.0);  //exactly 1 km
+        double n[3];  // unit vector copied to result
+        // first e=longitude
+        dx=x0;
+        dx.lon+=delta_angle;
+        cx0pdx=this->cartesian(dx);
+        n[0]=cx0pdx.x1-cx0.x1;
+        n[1]=cx0pdx.x2-cx0.x2;
+        n[2]=cx0pdx.x3-cx0.x3;
+        double nmag=dnrm2(3,n,1);
+        dscal(3,1.0/nmag,n,1);
+        int i;
+        for(i=0;i<3;++i) result(i,0)=n[i];
+        // Now similar for n=latitude
+        dx=x0;
+        dx.lat+=delta_angle;
+        cx0pdx=this->cartesian(dx);
+        n[0]=cx0pdx.x1-cx0.x1;
+        n[1]=cx0pdx.x2-cx0.x2;
+        n[2]=cx0pdx.x3-cx0.x3;
+        nmag=dnrm2(3,n,1);
+        dscal(3,1.0/nmag,n,1);
+        for(i=0;i<3;++i) result(i,1)=n[i];
+        // Minor difference for r = x3
+        dx=x0;
+        dx.r+=delta_r;
+        cx0pdx=this->cartesian(dx);
+        n[0]=cx0pdx.x1-cx0.x1;
+        n[1]=cx0pdx.x2-cx0.x2;
+        n[2]=cx0pdx.x3-cx0.x3;
+        nmag=dnrm2(3,n,1);
+        dscal(3,1.0/nmag,n,1);
+        for(i=0;i<3;++i) result(i,2)=n[i];
+        return result;
+    }catch(...){throw;};
+}
