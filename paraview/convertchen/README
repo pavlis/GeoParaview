@@ -1,0 +1,16 @@
+Scan order of this data file is from fastest to slowest:
+vertical top to bottom
+longitude west to east
+latitude from south to north
+
+File has no header, but has a line of global parameters.  
+That line has to be parsed to compute sizes.  It's contents are:
+latmin latmax dlat lonmin lonmax dlon
+
+Each vertical scan is preceded by two lines:
+lon lat 
+nz - number of points in this scan
+
+
+Data are in four columns:  
+thickness	density	vp	vs

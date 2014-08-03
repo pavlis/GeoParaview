@@ -83,35 +83,39 @@ void usage()
     cout << "convertucb db"<<endl;
     exit(-1);
 }
+bool SEISPP::SEISPP_verbose(true);
 int main(int argc, char **argv)
 {
     try {
     if(argc!=2) usage();
     string dbname(argv[1]);
     cout << "Will write results to Antelope db = "<< dbname<<endl;
+    DatascopeHandle dbh(dbname,false);
+    /*
     Dbptr db;
     if(dbopen(const_cast<char *>(dbname.c_str()),"r+",&db))
     {
         cerr << "dbopen failed on this database.  Cannot continue!"<<endl;
         usage();
     }
+    */
     /* This is procedure defined above that loads the iasp91 file from
        Sigloch et al.s matlab file.  Returns a model */
     //VelocityModel_1d vmod=load_iasp91();
     /* Will make origin first point in ascii file */
-    double lat0(32.0);
-    double lon0(-125.0);
+    double lat0(25.0);
+    double lon0(-126.0);
     /* gclgrid requires these in radians */
     lat0=rad(lat0);
     lon0=rad(lon0);
     double r0=r0_ellipse(lat0);
     /* These are frozen constants for DNA10 */
-    const int n1vp(141),n2vp(101),n3vp(41);
+    const int n1vp(109),n2vp(55),n3vp(129);
     const double dx1nom(25.0),dx2nom(25.0),dx3nom(25.0);
     const int i0(0),j0(0);
 
     /* Build a template for the grid that will define this model */
-    GCLgrid3d *grid=new GCLgrid3d(n1vp,n2vp,n3vp,string("UCBtomo10"),
+    GCLgrid3d *grid=new GCLgrid3d(n1vp,n2vp,n3vp,string("UCBtomo13"),
             lat0,lon0,r0,0.0,
             dx1nom,dx2nom,dx3nom,i0,j0);
 
@@ -131,9 +135,9 @@ int main(int argc, char **argv)
        latitude second, and depth last.  All are arranged right handed, at least,
        so there are no inverted indices.  Most unusual is depth moves from bottom up,
        which is more rational in my view.*/
-    for(k=0;k<n3vp;++k)
-        for(j=0;j<n2vp;++j)
             for(i=0;i<n1vp;++i)
+        for(j=0;j<n2vp;++j)
+    for(k=0;k<n3vp;++k)
     /*  REMOVE ME.  Retained for initial hacking.
     for(k=n3vp-1,kk=0;kk<n3vp;--k,++kk)
       for(i=0;i<n1vp;++i)
@@ -144,7 +148,7 @@ int main(int argc, char **argv)
             cin >> lat;
             cin >> lon;
             cin >> dvsin;
-            cin >> dummy;  // needed because format has a column of zeros here 
+            //cin >> dummy;  // needed because format has a column of zeros here 
             lat=rad(lat);
             lon=rad(lon);
             double rsurface=r0_ellipse(lat);
@@ -162,7 +166,8 @@ int main(int argc, char **argv)
         string griddir("grids"),modeldir("vmodels");
         /* save the dvs data. arg2 is null string to prevent save error for duplicate
         grid */
-        dVS.dbsave(db,griddir,modeldir,string("dVS10"),string("dVSDNA10"));
+        dVS.save(dynamic_cast<DatabaseHandle&>(dbh),
+                griddir,modeldir,string("dVP13"),string("dVPDNA13"));
         /* Now we convert all values to absolute velocities using the ak135
            velocity model sorted in the vmod object */
 //        double v1d,depth;
