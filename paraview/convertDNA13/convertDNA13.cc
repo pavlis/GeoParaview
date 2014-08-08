@@ -80,29 +80,42 @@ VelocityModel_1d load_iasp91()
 
 void usage()
 {
-    cout << "convertucb db"<<endl;
+    cout << "convertucb -dVp|-dVSV|-dVSH|-dVSJ < DNA13_data_file"<<endl
+        <<"   Output is file name determined by switch.  "
+        <<endl;
     exit(-1);
 }
 bool SEISPP::SEISPP_verbose(true);
 int main(int argc, char **argv)
 {
     try {
-    if(argc!=2) usage();
-    string dbname(argv[1]);
-    cout << "Will write results to Antelope db = "<< dbname<<endl;
-    DatascopeHandle dbh(dbname,false);
-    /*
-    Dbptr db;
-    if(dbopen(const_cast<char *>(dbname.c_str()),"r+",&db))
-    {
-        cerr << "dbopen failed on this database.  Cannot continue!"<<endl;
-        usage();
-    }
-    */
-    /* This is procedure defined above that loads the iasp91 file from
-       Sigloch et al.s matlab file.  Returns a model */
-    //VelocityModel_1d vmod=load_iasp91();
-    /* Will make origin first point in ascii file */
+    if(argc!=2)usage();
+    /* Default to dVp*/
+    int dcol_to_use;  //0 is first data field after r,lat,lon
+    string outfile;
+        string sarg(argv[1]);
+        if(sarg=="-dVp") 
+        {
+            dcol_to_use=0;
+            outfile="DNA13_dVP";
+        }
+        else if(sarg=="-dVSV")
+        {
+            dcol_to_use=1;
+            outfile="DNA13_dVSV";
+        }
+        else if(sarg=="-dVSH")
+        {
+            dcol_to_use=2;
+            outfile="DNA13_dSVH";
+        }
+        else if(sarg=="-dVSJ")
+        {
+            dcol_to_use=3;
+            outfile="DNA13_dVSJ";
+        }
+        else
+            usage();
     double lat0(25.0);
     double lon0(-126.0);
     /* gclgrid requires these in radians */
@@ -122,9 +135,11 @@ int main(int argc, char **argv)
     /* This clones the grid but does not set the field variables*/
     GCLscalarfield3d dVS(*grid);
     delete grid;
-    int i,j,k,kk;
+    int i,j,k,l,kk;
     double lat,lon,r;
-    double dep,dvsin,dummy;
+    double dep,dvsin;
+    int nVcol(4);
+    double dVinValues[4];
     Geographic_point gp;
     Cartesian_point cp;
     char linebuffer[256];
@@ -147,7 +162,8 @@ int main(int argc, char **argv)
             cin >> r;
             cin >> lat;
             cin >> lon;
-            cin >> dvsin;
+            for(l=0;l<nVcol;++l) cin >> dVinValues[l];
+            dvsin=dVinValues[dcol_to_use];
             //cin >> dummy;  // needed because format has a column of zeros here 
             lat=rad(lat);
             lon=rad(lon);
@@ -163,11 +179,16 @@ int main(int argc, char **argv)
             dVS.x3[i][j][k]=cp.x3;
             dVS.val[i][j][k]=dvsin;
         }
-        string griddir("grids"),modeldir("vmodels");
+        //string griddir("grids"),modeldir("vmodels");
         /* save the dvs data. arg2 is null string to prevent save error for duplicate
         grid */
+            /*
         dVS.save(dynamic_cast<DatabaseHandle&>(dbh),
                 griddir,modeldir,string("dVP13"),string("dVPDNA13"));
+                */
+        // Now save to file 
+        string modeldir("DNA13_vmodels");
+        dVS.save(outfile,modeldir);
         /* Now we convert all values to absolute velocities using the ak135
            velocity model sorted in the vmod object */
 //        double v1d,depth;
