@@ -21,6 +21,14 @@ int main(int argc, char **argv)
 		exit(-1);
 	}
 	try {
+		cout << "Trying nested pf constructor" << endl;
+		Metadata mdnest(pf,string("test_nested_tag"));
+		cout<<"test_double="<<mdnest.get_double("test_double")<<endl;
+		cout<<"test_int="<<mdnest.get_int("test_int")<<endl;
+		cout<<"test_string="<<mdnest.get_string("test_string")<<endl;
+                cout << "Trying file constructor on test_md.pf"<<endl;
+                Metadata mdfc(string("test_md.pf"));
+                cout << mdfc;
 		cout << "Trying AttributeMap default constructor"<<endl;
 		AttributeMap amd;
 		cout << "Default map has "<< amd.attributes.size()
@@ -63,7 +71,7 @@ int main(int argc, char **argv)
 		cout << mdplain;
 		cout << "Trying string constructor with inline data" << endl;
 		string smdtest("x 4.5\ny 8.0\ni 27\nMYPAR 2.5\ncpar xyz\n");
-		Metadata mds(smdtest);
+		Metadata mds(smdtest,"string");
 		cout << mds;
 		cout <<"Trying db constructor in testdb"<<endl;
 		Dbptr db;
@@ -73,11 +81,6 @@ int main(int argc, char **argv)
 		Metadata *mddb = new Metadata(dynamic_cast<DatabaseHandle&>(dbh),
 					mdl,am2);
 		cout << *mddb;
-		cout << "Trying nested pf constructor" << endl;
-		Metadata mdnest(pf,string("test_nested_tag"));
-		cout<<"test_double="<<mdnest.get_double("test_double")<<endl;
-		cout<<"test_int="<<mdnest.get_int("test_int")<<endl;
-		cout<<"test_string="<<mdnest.get_string("test_string")<<endl;
 
 	}
         catch (SeisppError& sess)
