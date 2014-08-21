@@ -2,10 +2,11 @@
 #include <fstream>
 #include <sstream>
 #include <string>
+#include <list>
+#include <vector>
 #include <stdio.h>
 #include <float.h>
 #include "stock.h"
-#include "elog.h"
 #include "pf.h"
 #include "seispp.h"
 #include "Metadata.h"
@@ -58,11 +59,18 @@ void agc_scalar_field(GCLscalarfield3d& g, int iwagc)
 			for(k=0;k<g.n3;++k) g.val[i][j][k]=x3vals[k]/nrmx3v;
 		}
 }
-		
-
+vector<string> list_to_vector(list<string> l)
+{
+    list<string>::iterator lptr;
+    vector<string> result;
+    result.reserve(l.size());
+    for(lptr=l.begin();lptr!=l.end();++lptr)
+        result.push_back(*lptr);
+    return(result);
+}
 void usage()
 {
-	cerr << "gclfield2vtk db|file outfile [-i -g gridname -f fieldname -r remapgridname "
+	cerr << "gclfield2vtk db|file outfile [-i -g gridname -f fieldname -r "
 		<< "-odbf outfieldname -xml -binary -pf pffile] -V" << endl;
 	exit(-1);
 }
@@ -73,17 +81,15 @@ int main(int argc, char **argv)
 
         bool dbmode(true);  // default is db input mode
         ios::sync_with_stdio();
-	elog_init(argc,argv);
 	if(argc<3) usage();
 	string dbname(argv[1]);
         string infile(argv[1]);  // redundant but easier to do this way
 	string outfile(argv[2]);
 	string argstr;
-	string pffile("gclfield2vtk");
+	string pffile("gclfield2vtk.pf");
 	const string nodef("NOT DEFINED");
 	string gridname(nodef);
 	string fieldname(nodef);
-	string remapgridname(nodef);
 	bool saveagcfield(false);
 	string outfieldname;
 	bool remap(false);
@@ -102,11 +108,7 @@ int main(int argc, char **argv)
                     dbmode=false;
 		else if(argstr=="-V")
 		{
-		    cbanner("1.0",
-			"gclfield2vtk db outfile [-pf pffile]",
-			"Gary L. Pavlis",
-			"Indiana University",
-			"pavlis@indiana.edu");
+                    usage();
 		}
 		else if(argstr=="-g")
 		{
@@ -122,9 +124,6 @@ int main(int argc, char **argv)
 		}
 		else if(argstr=="-r")
 		{
-			++i;
-			if(i>=argc)usage();
-			remapgridname=string(argv[i]);
 			remap=true;
 		}
 		else if(argstr=="-odbf")
@@ -137,22 +136,21 @@ int main(int argc, char **argv)
 		else if(argstr=="-xml")
 		{
 			xmloutput=true;
+                        binaryout=false;
 		}
 		else if(argstr=="-binary")
 		{
 			binaryout=true;
+                        xmloutput=false;
 		}
 		else
 		{
 			usage();
 		}
 	}
-        Pf *pf;
-        if(pfread(const_cast<char *>(pffile.c_str()),&pf))
-                elog_die(1,"pfread error\n");
-
 	try {
-        	Metadata control(pf);
+                
+        	PfStyleMetadata control=pfread(pffile);
                 DatascopeHandle dbh;
                 if(dbmode)
                     dbh=DatascopeHandle(dbname,true);
@@ -170,46 +168,37 @@ int main(int argc, char **argv)
                 {
                     nv_expected=control.get_int("nv_expected");
                 }
+                string scalars_tag=control.get_string("scalars_name_tag");
+                list<string> complist=control.get_tbl(string("data_component_names"));
+                vector<string> component_names=list_to_vector(complist);
 		/* Slightly odd logic here, but this allows remap off
 		to be the default.  pf switch is ignored this way if
 		the -r flag was used */
 		if(!remap) remap=control.get_bool("remap_grid");
 		BasicGCLgrid *rgptr;
+                rgptr=NULL;
 		if(remap)
 		{
-                        if(!dbmode)
-                        {
-                            cerr << "Illegal argument combination"<<endl
-                                << "remap option only available with db input"
-                                <<endl;
-                            exit(-1);
-                        }
-			if(remapgridname==nodef)
-				remapgridname=control.get_string("remapgridname");
-			cout << "Remapping emabled.  "
-				<<"Will use coordinate system of grid "
-				<< remapgridname<<endl;
-			int griddim=control.get_int("remapgrid_number_dimensions");
-			if(griddim==3)
-			{
-                                GCLgrid3d *gtmp;
-                                 gtmp=new GCLgrid3d(dbh,
-					remapgridname);
-				rgptr=dynamic_cast<BasicGCLgrid*>(gtmp);
-			}
-			else if(griddim==2)
-			{
-                            GCLgrid *gtmp;
-                            gtmp=new GCLgrid(dbh,
-					remapgridname);
-			    rgptr=dynamic_cast<BasicGCLgrid*>(gtmp);
-			}
-			else
-			{
-				cerr << "Illegal remap grid dimension="
-					<<griddim<<endl
-					<<"Fix parameter file"<<endl;
-			}
+			cout << "Remapping enabled"<<endl;
+                        /* We create a small temporary GCLgrid to allow
+                           use of remap_grid procedure.   */
+                        double lat0,lon0,r0,azm;
+                        lat0=control.get_double("latitude_origin");
+                        lon0=control.get_double("longitude_origin");
+                        r0=control.get_double("radius_origin");
+                        azm=control.get_double("azimuth_y_axis");
+                        cout << "Origin lat,lon,r="
+                            <<lat0<<", "<<lon0<<", "<<r0<<endl;
+                        cout << "Coordinate system y axis rotation="
+                            <<azm<<endl;
+                        lat0=rad(lat0);
+                        lon0=rad(lon0);
+                        azm=rad(azm);
+                        GCLgrid *gtmp=new GCLgrid(2,2,string("reference"),
+                                lat0,lon0,r0,azm,
+                                1.0,1.0,0,0);
+                        rgptr=dynamic_cast<BasicGCLgrid*>(gtmp);
+
 		}
 			
 		bool SaveAsVectorField;
@@ -248,12 +237,17 @@ int main(int argc, char **argv)
 			{
 				// Used to make this optional.  force
 				//if(field!=(*rgptr))
-					remap_grid(dynamic_cast<GCLgrid3d&>(field),
+				remap_grid(dynamic_cast<GCLgrid3d&>(field),
 						*rgptr);
 			}
 			if(rmeanx3) remove_mean_x3(field);
 			if(apply_agc) agc_scalar_field(field,iwagc);
-			output_gcl3d_to_vtksg(field,outfile,xmloutput,binaryout);
+                        if(xmloutput)
+                            outfile=outfile+".vts";
+                        else
+                            outfile=outfile+".vtk";
+			output_gcl3d_to_vtksg<GCLscalarfield3d&>(field,outfile,
+                               scalars_tag,component_names,xmloutput,binaryout);
 			if(saveagcfield) 
 				field.save(dbh,string(""),fielddir,
 				  outfieldname,outfieldname);
@@ -261,11 +255,6 @@ int main(int argc, char **argv)
 		else if(fieldtype=="vector3d")
 		{
 			SaveAsVectorField=control.get_bool("save_as_vector_field");
-			if(SaveAsVectorField)
-			{
-				cerr << "Vector field output not yet supported but planned"
-					<< endl;
-			}
 			if(rmeanx3)
 			{
 				cerr << "remove_mean_x3_slices set true:  "
@@ -278,15 +267,28 @@ int main(int argc, char **argv)
                                     fieldname,nv_expected);
                         else
                             vfield=GCLvectorfield3d(infile);
-			GCLscalarfield3d *sfptr;
 			if(remap)
 			{
 				//if(vfield!=(*rgptr))
 					remap_grid(dynamic_cast<GCLgrid3d&>(vfield),
 						*rgptr);
 			}
-			for(i=0;i<vfield.nv;++i)
-			{
+                        if(SaveAsVectorField)
+                        {
+                            if(xmloutput)
+                                outfile=outfile+".vts";
+                            else
+                                outfile=outfile+".vtk";
+                            output_gcl3d_to_vtksg<GCLvectorfield3d&>(vfield,outfile,
+                                    scalars_tag,component_names,
+                                    xmloutput,binaryout);
+                        }
+                        else
+                        {
+			    for(i=0;i<vfield.nv;++i)
+			    {
+			        GCLscalarfield3d *sfptr;
+                                vector<string> thiscomponent;
 				sfptr = extract_component(vfield,i);
 				if(apply_agc) agc_scalar_field(*sfptr,iwagc);
 				stringstream ss;
@@ -295,8 +297,11 @@ int main(int argc, char **argv)
 					ss<<".vts";
 				else
 					ss<<".vtk";
-				output_gcl3d_to_vtksg(*sfptr,
-					ss.str(),xmloutput,binaryout);
+                                thiscomponent.clear();
+                                thiscomponent.push_back(component_names[i]);
+				output_gcl3d_to_vtksg<GCLscalarfield3d&>(*sfptr,ss.str(),
+                                        scalars_tag,thiscomponent,
+                                        xmloutput,binaryout);
 				/*This is not ideal, but will do this now
 				for expedience.  This creates a series of 
 				scalar fields when saveagcfield is enabled
@@ -312,6 +317,7 @@ int main(int argc, char **argv)
 					  fielddir,ofld,ofld);
 				}
 				delete sfptr;
+                            }
 			}
 		}
 		else if(fieldtype=="grid2d")
@@ -325,8 +331,9 @@ int main(int argc, char **argv)
 			if(remap)
 			{
 				//if(g!=(*rgptr))
-					remap_grid(g,*rgptr);
+				remap_grid(g,*rgptr);
 			}
+                        outfile=outfile+".vtk";
 			npoly=vtk_output_GCLgrid(g,outfile);
 			cout << "Wrote "<<npoly<<" polygons to output file"<<endl;
 			if(apply_agc)cerr <<"WARNING: apply_agc was set true\n"
@@ -345,6 +352,7 @@ int main(int argc, char **argv)
 			    remap_grid(dynamic_cast<GCLgrid&>(field),
 						*rgptr);
 			}
+                        outfile=outfile+".vtk";
 			vtk_output_GCLgrid(dynamic_cast<GCLgrid&>(field),outfile);
 			cout << "Wrote "<<npoly<<" polygons to output file"<<endl;
 			if(apply_agc)cerr <<"WARNING: apply_agc was set true\n"
@@ -370,8 +378,12 @@ int main(int argc, char **argv)
         {
             cerr << sexcp.what();
         }
+        catch(SeisppError& serr)
+        {
+            serr.log_error();
+        }
 	catch (...)
 	{
-		elog_die(1,"Something threw an unhandled excepton\n");
+	    cerr << "Something threw an unhandled exception"<<endl;
 	}
 }
