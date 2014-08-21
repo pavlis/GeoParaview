@@ -203,8 +203,7 @@ int main(int argc, char **argv)
         cout << "Testing free_surface_transform"<<endl;
         cout << "Using u=(0.05,0.05) slowness with vp=6,vs=3.5"<<endl;
         SlownessVector u(0.05,0.05);
-        //s3.free_surface_transformation(u,6.0,3.5);
-        s3.free_surface_transformation(u,0.2,0.1);
+        s3.free_surface_transformation(u,6.0,3.5);
         print_one_sample("transformed 1,0,0=",s3,0);
         print_one_sample("transformed 1,1,0=",s3,1);
         print_one_sample("transformed 0,0,1=",s3,2);
@@ -215,14 +214,16 @@ int main(int argc, char **argv)
         print_one_sample("restored 0,0,1=",s3,2);
         u=SlownessVector(0.05,0.0);
         s3=ssave;
+	s3.u(2,0)=3.17979;  // in incident longitudinal direction
         cout << "Repeat using u=(0.05,0) and same surface vp and vs"<<endl;
         s3.free_surface_transformation(u,6.0,3.5);
-        print_one_sample("transformed 1,0,0=",s3,0);
+	cout << "First is approximate P longitudinal direction"<<endl;
+        print_one_sample("transformed 1,0,3.17979=",s3,0);
         print_one_sample("transformed 1,1,0=",s3,1);
         print_one_sample("transformed 0,0,1=",s3,2);
 	s3.rotate_to_standard();
         cout << "Using computed inverse transform"<<endl;
-        print_one_sample("restored 1,0,0=",s3,0);
+        print_one_sample("restored 1,0,3.17979=",s3,0);
         print_one_sample("restored 1,1,0=",s3,1);
         print_one_sample("restored 0,0,1=",s3,2);
         s3=ssave;
