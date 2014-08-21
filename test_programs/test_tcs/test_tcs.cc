@@ -203,7 +203,8 @@ int main(int argc, char **argv)
         cout << "Testing free_surface_transform"<<endl;
         cout << "Using u=(0.05,0.05) slowness with vp=6,vs=3.5"<<endl;
         SlownessVector u(0.05,0.05);
-        s3.free_surface_transformation(u,6.0,3.5);
+        //s3.free_surface_transformation(u,6.0,3.5);
+        s3.free_surface_transformation(u,0.2,0.1);
         print_one_sample("transformed 1,0,0=",s3,0);
         print_one_sample("transformed 1,1,0=",s3,1);
         print_one_sample("transformed 0,0,1=",s3,2);
