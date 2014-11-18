@@ -1,0 +1,33 @@
+.TH RFrotate 1
+.SH NAME
+RFrotate - rotate waveforms to Radial/Transverse/Vertical system
+.SH SYNOPSIS
+.nf
+RFrotate dbin dbout [-lqt|-fst  -pf pffile]
+.fi
+.SH DESCRIPTION
+In conventional receiver function processing it is standard practice 
+to rotate data from cardinal directions to RTZ or LQT coordinates.   
+This program does that with an additional option to use 
+Kennett's free surface transformation matrix.   
+.LP
+Program takes data from database dbin.   The input database must be
+complete.   The program takes the full event->origin->assoc->arrival view
+and joins it to the view wfdisc->sitechan->site.   Any unassociated rows
+in this construct will be dropped.   
+.SH OPTIONS
+.IP -lqt
+If this options is specified the data are rotated to my (GLP) version 
+of LQT coordinates instead of the default RTZ.  Sign of the R and T 
+coordinates is the issue - see rotate method in the ThreeComponentSeismogram
+object description.
+.IP -fst
+If this option is specified the data are rotated with Kennett's 
+free surface transformation matrix.  Note this is a nonorthogonal 
+coordinate system.
+.IP -pf
+Use pffile instead of the default RFrotate.pf.
+.SH PARAMETER FILE
+.SH "BUGS AND CAVEATS"
+.SH AUTHOR
+Gary L. Pavlis, Indiana University
