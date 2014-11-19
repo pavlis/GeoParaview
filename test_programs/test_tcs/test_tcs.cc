@@ -30,6 +30,11 @@ void print_mdlist(MetadataList& mdl)
         cout << endl;
     }
 }
+void print_one_sample(const char *title,ThreeComponentSeismogram& d,int offset)
+{
+    cout << title<<endl;
+    cout << d.u(0,offset)<<", "<<d.u(1,offset)<<", "<<d.u(2,offset)<<endl;
+}
 bool SEISPP::SEISPP_verbose(true);
 int main(int argc, char **argv)
 {
@@ -66,6 +71,7 @@ int main(int argc, char **argv)
 				s2.u(i,j)=0.0;
 		}
         s2.live=true;
+        print_one_sample("Input data",s2,0);
 	SphericalCoordinate sc;
 	sc.phi=0.0;
 	sc.theta=M_PI_4;
@@ -80,10 +86,11 @@ int main(int argc, char **argv)
 		<< s2.u(0,0) << ", "
 		<< s2.u(1,0) << ", "
 		<< s2.u(2,0) << endl;
-        cout << "Trying theta=45 deg and phi=-45 deg "<<endl;
+        cout << "Trying rotation by theta=45 deg and phi=-45 deg "<<endl;
         sc.phi=-M_PI_4;
         double *nu1=SphericalToUnitVector(sc);
         s2.u(0,0)=nu1[0];  s2.u(1,0)=nu1[1];  s2.u(2,0)=nu1[2];
+        print_one_sample("Input data to 45/-45 transformation",s2,0);
         delete [] nu1;
         s2.rotate(sc);
 	cout << "one sample of unit vector pointing  phi=-45, theta=45 deg after rotation:  "
@@ -143,6 +150,10 @@ int main(int argc, char **argv)
 		<< s3.u(2,1) << endl;
 	cout << "Trying spherical coordinate transformation to rotate phi=45 degrees,theta=0"
 	<< endl;
+        s3.u(0,0)=1.0;  s3.u(1,0)=0.0;   s3.u(2,0)=0.0;
+        s3.u(0,1)=1.0;  s3.u(1,1)=1.0;   s3.u(2,1)=0.0;
+        s3.u(0,2)=0.0;  s3.u(1,2)=0.0;   s3.u(2,2)=1.0;
+        ThreeComponentSeismogram ssave(s3);
 	sc.phi=M_PI_4;
 	sc.theta=0.0;
 	s3.rotate(sc);
@@ -151,72 +162,83 @@ int main(int argc, char **argv)
 		<< s3.u(1,0) << ", "
 		<< s3.u(2,0) << endl;
 	cout << "one sample of rotated (1,1,0)"
+		<< s3.u(0,1) << ", "
+		<< s3.u(1,1) << ", "
+		<< s3.u(2,1) << endl;
+	cout << "one sample of rotated (0,0,1)"
 		<< s3.u(0,2) << ", "
 		<< s3.u(1,2) << ", "
 		<< s3.u(2,2) << endl;
-	cout << "one sample of rotated (0,0,1)"
-		<< s3.u(0,3) << ", "
-		<< s3.u(1,3) << ", "
-		<< s3.u(2,3) << endl;
 	s3.rotate_to_standard();
-	cout << "Applying nonorthogonal transformation"<<endl;
+        print_one_sample("restored 1,0,0=",s3,0);
+        print_one_sample("restored 1,1,0=",s3,1);
+        print_one_sample("restored 0,0,1=",s3,2);
+	cout << "Applying nonorthogonal transformation to restored"<<endl;
 	double a[3][3];
 	a[0][0]=1.0;  a[0][1]=1.0;  a[0][2]=1.0;
 	a[1][0]=-1.0;  a[1][1]=1.0;  a[1][2]=1.0;
 	a[2][0]=0.0;  a[2][1]=-1.0;  a[2][2]=0.0;
 	s3.apply_transformation_matrix(a);
-	cout << "one sample of transformed (1,0,0)"
-		<< s3.u(0,0) << ", "
-		<< s3.u(1,0) << ", "
-		<< s3.u(2,0) << endl;
-	cout << "one sample of transformed (1,1,0)"
-		<< s3.u(0,2) << ", "
-		<< s3.u(1,2) << ", "
-		<< s3.u(2,2) << endl;
-	cout << "one sample of transformed (0,0,1)"
-		<< s3.u(0,3) << ", "
-		<< s3.u(1,3) << ", "
-		<< s3.u(2,3) << endl;
+        print_one_sample("transformed 1,0,0=",s3,0);
+        print_one_sample("transformed 1,1,0=",s3,1);
+        print_one_sample("transformed 0,0,1=",s3,2);
 	cout << "Testing back conversion to standard coordinates";
 	s3.rotate_to_standard();
-	cout << "One sample of restored (1,0,0): "
-		<< s3.u(0,0) << ", "
-		<< s3.u(1,0) << ", "
-		<< s3.u(2,0) << endl;
-	cout << "One sample of restored (1,1,1): "
-		<< s3.u(0,1) << ", "
-		<< s3.u(1,1) << ", "
-		<< s3.u(2,1) << endl;
-	cout << "One sample of restored (1,1,0): "
-		<< s3.u(0,2) << ", "
-		<< s3.u(1,2) << ", "
-		<< s3.u(2,2) << endl;
-	cout << "One sample of restored (0,0,1): "
-		<< s3.u(0,3) << ", "
-		<< s3.u(1,3) << ", "
-		<< s3.u(2,3) << endl;
+        print_one_sample("restored 1,0,0=",s3,0);
+        print_one_sample("restored 1,1,0=",s3,1);
+        print_one_sample("restored 0,0,1=",s3,2);
 
 	cout << "Testing multiple, accumulated transformations" << endl;
 	s3.rotate(nu);
 	s3.apply_transformation_matrix(a);
 	s3.rotate(sc);
+        print_one_sample("transformed 1,0,0=",s3,0);
+        print_one_sample("transformed 1,1,0=",s3,1);
+        print_one_sample("transformed 0,0,1=",s3,2);
 	s3.rotate_to_standard();
-	cout << "One sample of restored (1,0,0): "
-		<< s3.u(0,0) << ", "
-		<< s3.u(1,0) << ", "
-		<< s3.u(2,0) << endl;
-	cout << "One sample of restored (1,1,1): "
-		<< s3.u(0,1) << ", "
-		<< s3.u(1,1) << ", "
-		<< s3.u(2,1) << endl;
-	cout << "One sample of restored (1,1,0): "
-		<< s3.u(0,2) << ", "
-		<< s3.u(1,2) << ", "
-		<< s3.u(2,2) << endl;
-	cout << "One sample of restored (0,0,1): "
-		<< s3.u(0,3) << ", "
-		<< s3.u(1,3) << ", "
-		<< s3.u(2,3) << endl;
+        print_one_sample("restored 1,0,0=",s3,0);
+        print_one_sample("restored 1,1,0=",s3,1);
+        print_one_sample("restored 0,0,1=",s3,2);
+        s3=ssave;
+        cout << "Testing free_surface_transform"<<endl;
+        cout << "Using u=(0.05,0.05) slowness with vp=6,vs=3.5"<<endl;
+        SlownessVector u(0.05,0.05);
+        s3.free_surface_transformation(u,6.0,3.5);
+        print_one_sample("transformed 1,0,0=",s3,0);
+        print_one_sample("transformed 1,1,0=",s3,1);
+        print_one_sample("transformed 0,0,1=",s3,2);
+	s3.rotate_to_standard();
+        cout << "Using computed inverse transform"<<endl;
+        print_one_sample("restored 1,0,0=",s3,0);
+        print_one_sample("restored 1,1,0=",s3,1);
+        print_one_sample("restored 0,0,1=",s3,2);
+        u=SlownessVector(0.05,0.0);
+        s3=ssave;
+	s3.u(2,0)=3.17979;  // in incident longitudinal direction
+        cout << "Repeat using u=(0.05,0) and same surface vp and vs"<<endl;
+        s3.free_surface_transformation(u,6.0,3.5);
+	cout << "First is approximate P longitudinal direction"<<endl;
+        print_one_sample("transformed 1,0,3.17979=",s3,0);
+        print_one_sample("transformed 1,1,0=",s3,1);
+        print_one_sample("transformed 0,0,1=",s3,2);
+	s3.rotate_to_standard();
+        cout << "Using computed inverse transform"<<endl;
+        print_one_sample("restored 1,0,3.17979=",s3,0);
+        print_one_sample("restored 1,1,0=",s3,1);
+        print_one_sample("restored 0,0,1=",s3,2);
+        s3=ssave;
+        u=SlownessVector(0.0,0.05);
+        cout << "Repeat using u=(0,0.05) and same surface vp and vs"<<endl;
+        s3.free_surface_transformation(u,6.0,3.5);
+        print_one_sample("transformed 1,0,0=",s3,0);
+        print_one_sample("transformed 1,1,0=",s3,1);
+        print_one_sample("transformed 0,0,1=",s3,2);
+	s3.rotate_to_standard();
+        cout << "Using computed inverse transform"<<endl;
+        print_one_sample("restored 1,0,0=",s3,0);
+        print_one_sample("restored 1,1,0=",s3,1);
+        print_one_sample("restored 0,0,1=",s3,2);
+
 
 	cout << "Trying Db constructor" << endl;
 	int ierr;
