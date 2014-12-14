@@ -1,0 +1,76 @@
+# Trace_mdl should include: time, endtime, nsamp, samprate, datatype, dir, dfile, and foff
+trace_mdl	&Tbl{
+    sta string
+    wfdisc.sta string
+    wfdisc.chan string
+    wfdisc.time real
+    wfdisc.jdate integer
+    wfdisc.endtime real
+    endtime real
+    wfdisc.nsamp integer
+    wfdisc.samprate real
+    wfdisc.calib real
+    wfdisc.calper real
+    wfdisc.datatype string
+    wfdisc.dir string
+    wfdisc.dfile string
+    wfdisc.foff integer
+    sta string
+    chan string
+    time real
+    nsamp integer
+    samprate real
+    sitechan.hang real
+    sitechan.vang real
+    hang real
+    vang real
+    site.lat real
+    site.lon real
+    site.elev real
+    origin.lat real
+    origin.lon real
+    origin.depth real
+    origin.time real
+}
+
+output_wfdisc_mdl	&Tbl{
+    wfdisc.sta string
+    chan string
+    wfdisc.time real
+    wfdisc.jdate integer
+    wfdisc.endtime real
+    wfdisc.nsamp integer
+    wfdisc.samprate real
+    wfdisc.calib real
+    wfdisc.calper real
+    wfdisc.datatype string
+    wfdisc.dir string
+    wfdisc.dfile string
+    wfdisc.foff integer
+}
+output_wfprocess_mdl	&Tbl{
+    wfprocess.pwfid
+    time real
+    endtime real
+    nsamp integer
+    samprate real
+    wfprocess.dir string
+    wfprocess.dfile string
+    wfprocess.timetype string
+    wfprocess.algorithm string
+}
+
+output_channel_codes	&Tbl{
+IT
+IR
+IZ
+}
+
+# These are surface velocities for P and S
+# Used only in fst mode
+vp0		5.6
+vs0		3.28
+
+# All 3C data are written to a single directory/dfile with these names
+3CWaveformDirectory ./wf3c
+3CDataFile RotatedData.w

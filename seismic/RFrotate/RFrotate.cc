@@ -1,5 +1,6 @@
 #include <list>
 #include "coords.h"
+#include "db.h"
 #include "seispp.h"
 #include "SphericalCoordinate.h"
 #include "dbpp.h"
@@ -59,12 +60,12 @@ DatascopeHandle BuildWorkingView(DatascopeHandle& dbcv,
 {
     try {
         list<string> jk1,jk2,sortkeys,groupkeys;
-        DatascopeHandle result(dbcv);
-        jk1.push_back(string("arrival.time"));
+        DatascopeHandle result(dbwv);
+        jk1.push_back(string("wfdisc.time::wfdisc.endtime"));
         jk1.push_back(string("sta"));
-        jk2.push_back(string("wfdisc.time::wfdisc.endtime"));
+        jk2.push_back(string("arrival.time"));
         jk2.push_back(string("sta"));
-        result.join(dbwv,jk1,jk2);
+        result.join(dbcv,jk1,jk2);
         if(SEISPP_verbose)
             cerr << "BuildWorkingView:  "
                 << "Working view total final number of rows ="
@@ -74,8 +75,12 @@ DatascopeHandle BuildWorkingView(DatascopeHandle& dbcv,
         sortkeys.push_back(string("sta"));
         sortkeys.push_back(string("chan"));
         result.sort(sortkeys);
+        cout << "Size of final view after sort="<<result.number_tuples()<<endl;
         groupkeys.push_back(string("sta"));
         result.group(groupkeys);
+        cout << "Size of final view after group="<<result.number_tuples()<<endl;
+        if (result.is_bundle)
+        	cout<<"DBhandle for working view is a bundle pointer."<<endl;
         return(result);
     }
     catch(...){throw;};
@@ -114,9 +119,9 @@ int main(int argc, char **argv)
     cout << "RFrotate:   Reading from database "
         << dbin_name<<endl
         << "Writing results to database " <<dbout_name<<endl;
-    int i;
+    int i,k;
     string rotation_type("rtz");
-    string pfname("RFrotate");
+    string pfname("RFrotate.pf");
     for(i=3;i<argc;++i)
     {
         string sarg(argv[i]);
@@ -142,11 +147,15 @@ int main(int argc, char **argv)
            view we pull from the parameter file.  */
         MetadataList tracemdl=get_mdlist(md,string("trace_mdl"));
         MetadataList outmdl=get_mdlist(md,string("output_wfdisc_mdl"));
+        MetadataList outmd3c=get_mdlist(md,string("output_wfprocess_mdl"));
         list<string> output_channels=md.get_tbl("output_channel_codes");
         AttributeMap am("css3.0");
+        //vp0, vs0 - P and S velocities of the half space = surface
         double vp0,vs0;
         vp0=md.get_double("vp0");
         vs0=md.get_double("vs0");
+        string dir3c=md.get_string("3CWaveformDirectory");
+        string dfile3c=md.get_string("3CDataFile");
 
         /* First prepare all the database handles */
         DatascopeHandle dbin(dbin_name,true);
@@ -156,12 +165,20 @@ int main(int argc, char **argv)
         dbwf=BuildWaveformView(dbwf);
         dbin=BuildWorkingView(dbin,dbwf);
         dbout.lookup("wfdisc");
+        DatascopeHandle dbo3c(dbout);
+        dbo3c.lookup("wfprocess");
+
         /* We loop over the group pointer to get one 3c seismogram 
            at a time */
+        dbin.rewind();
+
         int nrows=dbin.number_tuples();
         for(i=0;i<nrows;++i,++dbin)
         {
           try{
+          	if (dbin.is_bundle)
+    			cout<<"DBhandle for dbin is a bundle pointer."<<endl;
+
             ThreeComponentSeismogram d(dbin,tracemdl,am);
             /* This may not be essential, but better safe than sorry */
             d.rotate_to_standard();
@@ -176,6 +193,11 @@ int main(int argc, char **argv)
             SlownessVector u=h.pslow(rlat,rlon,relev);
             double az=u.azimuth();
             SphericalCoordinate sc_for_rotation;
+            /*
+            The data are rotated such that x1 becomes 
+ the transverse component, x2 becomes radial, and x3 becomes longitudinal.  Commented by Xiaotao Yang.
+            */
+            
             if(rotation_type=="fst")
             {
                 d.free_surface_transformation(u,vp0,vs0);
@@ -195,13 +217,23 @@ int main(int argc, char **argv)
             /* Now we unbundle the data and write it to output db*/
             TimeSeries *component;
             list<string>::iterator iptr;
-            for(i=0,iptr=output_channels.begin();i<3;++i,++iptr) 
+            for(k=0,iptr=output_channels.begin();k<3;++k,++iptr) 
             {
-                component=ExtractComponent(d,i);
+                component=ExtractComponent(d,k);
                 component->put("chan",*iptr);
                 dbsave(*component,dbout.db,string("wfdisc"),outmdl,am);
                 delete component;
             }
+        string dir3c=md.get_string("3CWaveformDirectory");
+        string dfile3c=md.get_string("3CDataFile");
+            d.put("wfprocess.algorithm",string("RFrotate"));
+            d.put("wfprocess.dir",dir3c);
+            d.put("wfprocess.dfile",dfile3c);
+            d.put("wfprocess.timetype",string("a"));
+            /* Not certain this is necessary, but minimal cost */
+            d.put("dir",dir3c);
+            d.put("dfile",dfile3c);
+            dbsave_oriented(d,dbo3c.db,string("wfprocess"),outmd3c,am);
           }catch(SeisppError& serr)
           {
               cerr << "Something threw a SeisppError exception in main processing"
