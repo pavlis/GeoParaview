@@ -1,6 +1,7 @@
 # Trace_mdl should include: time, endtime, nsamp, samprate, datatype, dir, dfile, and foff
 trace_mdl	&Tbl{
     sta string
+    evid integer
     wfdisc.sta string
     wfdisc.chan string
     wfdisc.time real
