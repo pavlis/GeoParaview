@@ -167,12 +167,17 @@ int main(int argc, char **argv)
         dbout.lookup("wfdisc");
         DatascopeHandle dbo3c(dbout);
         dbo3c.lookup("wfprocess");
+        DatascopeHandle dboevl(dbout);
+        dboevl.lookup("evlink");
+        DatascopeHandle dboscl(dbout);
+        dboscl.lookup("sclink");
 
         /* We loop over the group pointer to get one 3c seismogram 
            at a time */
         dbin.rewind();
 
         int nrows=dbin.number_tuples();
+        string sta;
         for(i=0;i<nrows;++i,++dbin)
         {
           try{
@@ -182,6 +187,9 @@ int main(int argc, char **argv)
             ThreeComponentSeismogram d(dbin,tracemdl,am);
             /* This may not be essential, but better safe than sorry */
             d.rotate_to_standard();
+            /* We define this here so we can use it in messages later
+               if needed and for sclink below*/
+            sta=d.get_string("sta");
             Hypocenter h(extract_hypocenter(d));
             double rlat,rlon,relev;
             rlat=d.get_double("site.lat");
@@ -233,10 +241,38 @@ int main(int argc, char **argv)
             /* Not certain this is necessary, but minimal cost */
             d.put("dir",dir3c);
             d.put("dfile",dfile3c);
-            dbsave_oriented(d,dbo3c.db,string("wfprocess"),outmd3c,am);
+            long pwfid;
+            pwfid=dbsave_oriented(d,dbo3c.db,string("wfprocess"),outmd3c,am);
+            /* We trap these errors and abort because if this section fails
+               there is a setup problem. */
+            int retcode;
+            long evid=d.get_long("evid");
+            retcode=dbaddv(dboevl.db,0,"evid",evid,"pwfid",pwfid,NULL);
+            if(retcode==dbINVALID)
+            {
+                cerr << "Fatal:  dbaddv failed writing evlink table"<<endl
+                    << "evid="<<evid<<" pwfid="<<pwfid<<endl
+                    << "Check parameter file and required database tables"
+                    <<endl;
+                exit(-1);
+            }
+            const string chanout("BUNDLE3C");
+            retcode=dbaddv(dboscl.db,0,"sta",sta.c_str(),
+                    "chan",chanout.c_str(),
+                    "pwfid",pwfid,NULL);
+            if(retcode==dbINVALID)
+            {
+                cerr << "Fatal:  dbaddv failed writing sclink table"<<endl
+                    << "sta="<<sta
+                    << " evid="<<evid<<" pwfid="<<pwfid<<endl
+                    << "Check parameter file and required database tables"
+                    <<endl;
+                exit(-1);
+            }
           }catch(SeisppError& serr)
           {
-              cerr << "Something threw a SeisppError exception in main processing"
+              cerr << "Something threw a SeisppError exception in main "
+                  <<"processing loop for station="<<sta
                   <<endl<<"Error message follows:"<<endl;
               serr.log_error();
           }
