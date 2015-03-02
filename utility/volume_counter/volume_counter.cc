@@ -154,7 +154,16 @@ int main(int argc, char **argv)
         string magnitude_attribute=control.get_string("magnitude_attribute");
         double null_magnitude_default=control.get_double("null_magnitude_default");
         if(use_netmag)
+        {
+            if(SEISPP_verbose)
+                cout << "Attempting to join netmag table"<<endl
+                    << "Current view size before join="<<dbh.number_tuples()
+                    <<endl;;
             dbh.natural_join(string("netmag"));
+            if(SEISPP_verbose)
+                cout << "Number of rows after joining netmag="
+                    << dbh.number_tuples()<<endl;
+        }
         /* We always load ms, mb, and ml as they are part of origin*/
         MetadataList maglist;
         Metadata_typedef md;
@@ -164,6 +173,7 @@ int main(int argc, char **argv)
         md.tag=string("origin.mb");
         maglist.push_back(md);
         md.tag=string("origin.ml");
+        maglist.push_back(md);
         if(use_netmag)
         {
             md.tag=string("netmag.magnitude");
