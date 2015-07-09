@@ -1,9 +1,0 @@
-# This is origin for standard 3d scene for STEEP
-grid3d_lat0 60.5
-grid3d_lon0 -142.8
-grid3d_r0 6162.940
-grid3d_azimuth 20.0
-output_gridname_base steep
-field_directory vmodels
-grid_directory vmodels
-model_base_name steep

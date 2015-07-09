@@ -1,4 +1,0 @@
-mode PLANE_WAVE
-process_list &Tbl{
-DHHZ 0.30 138 1.0 100 SSIM_B120_A010.00_D1100_V3.30.BZ t4 0
-}

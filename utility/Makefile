@@ -1,3 +1,0 @@
-include $(ANTELOPEMAKE)
-
-# $Id$ 

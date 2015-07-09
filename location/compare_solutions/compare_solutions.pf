@@ -1,7 +1,0 @@
-dbprocess_table &Tbl{
-dbopen event
-dbjoin origin
-dbjoin origerr
-dbsort evid algorithm
-dbsubset time < "2003021:00:00:00.0"
-}

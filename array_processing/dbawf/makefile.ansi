@@ -1,8 +1,0 @@
-CC = acc
-CFLAGS = -g -I$(JSPC)/include
-LDFLAGS = -L$(JSPC)/ansi/lib
-dbawf: dbawf.o read_wf.o trace_subs.o
-	$(CC) $(LDFLAGS) -o dbawf dbawf.o \
-     read_wf.o trace_subs.o -ldb -lcoords -ltttaup -lstock \
-    -lM77 -lF77 -lm
-

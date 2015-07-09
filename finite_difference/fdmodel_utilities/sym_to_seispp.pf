@@ -1,8 +1,0 @@
-station_metadata &Tbl{
-    sta string
-    chan string
-    dfile string
-    dir string
-   datatype string
-   calib real
-}
