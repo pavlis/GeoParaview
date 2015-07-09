@@ -1,0 +1,66 @@
+.TH SAC2SU 1
+.SH NAME
+sac2su - convert a set of sac files to a seismic unix file
+.SH SYNOPSIS
+.nf
+sac2su [-o outfile -pf pffile] < file_with_list_of_sacfiles
+.fi
+.SH DESCRIPTION
+This program converts a set of Seismic Analysis Code (SAC) 
+files to a file that can be read and processed with the Colorado 
+School of Mines package called Seismic Unix (SU).  
+SAC format files have only one seismogram per file while SU 
+processing commonly revolves around one single file containing all
+the seismic data separated by fixed length trace headers.  
+\fIsac2su\fR handles this collision in concept in a simple way.
+The program is driven by a list of SAC files that are reformatted and
+stuffed into an output file in the order of the input list.   
+The file list is read from stdin.  The output file defaults to the name
+sacfiles.su, but can be changed with the -o option.
+.SH OPTIONS
+.IP -o
+Used to change the output file from the default of sacfiles.su to 
+the name defined by outfile.
+.IP -p
+Use alternate parameter file pf file.  The user should not normally change
+the pf file for this program.  This could prove necessary only if you want
+to try an adventure using the program beyond it's known boundaries.  See BUGS AND CAVEATS section below.
+.SH PARAMETER FILE
+.LP
+The parameter file defines how header fields are mapped between 
+SAC and SU.   There are frozen constants inside this program that
+use keywords defined in this program so do not change the pf file
+without cross-checking the original source code.  
+.SH "BUGS AND CAVEATS"
+.LP
+Because these two formats have serious differences in some of their
+most fundamental assumptions this process has serious limitations.
+The version here was written originally to provide a way to convert
+Robert Herrmann's synthetic program output to seismic unix files.
+In this context the drastic collision in how time 0 is handled in the
+two formats does not arise (SAC has an excessively complicated way of 
+handle the time stamp for the first data sample while SU inherits the
+simplistic SEGY reflection model where the first sample is implicitly 
+assumed to at least nominally define shot time.).  Irregular start times
+in the list of sac files is guaranteed to produce a mess.  Similarly,
+SU assumes all the data in a file have the same sample rate.  
+Resample all your SAC data to a common sample rate if you want to 
+use mixed sample rate data with this program.  Note the near certain
+complication this will cause with the related irregular time 0 problem. 
+.LP
+A related warning is that all the input SAC files are assumed to be 
+exactly the same number of samples.  SU/SEGY use the multichannel model 
+that assumes this is the case for a given data set.  The assumption here
+is that if you would use SAC to guarantee this constraint is satisfied.
+This condition is not tested so the program will silently produce garbage
+if the file sizes are variable.
+.LP
+Finally, this program writes "old" SU format that uses host floats for
+sample values.  The "new" format uses netcdf.  Use the suoldtonew filter
+if necessary.
+.SH AUTHOR
+Prof. Gary L. Pavlis
+Department of Geological Sciences
+Indiana University
+Bloomington, IN 47405
+pavlis@indiana.edu

@@ -1,0 +1,5 @@
+For R2010a the following abomination seems necessary:
+setenv MATLAB /Applications/MATLAB_R2010a.app
+setenv DYLD_LIBRARY_PATH ${MATLAB}/bin/maci64
+
+This release seems to not handle dynamic library installs properly.

@@ -1,0 +1,22 @@
+nx 37
+ny 33
+nz 14
+dx 50.0
+dy 50.0
+dz 50.0
+# Grid is pushed upward this amount.  Needed because
+# normally Steve's tomography program adds a dummy set
+# of cells on the top surface to deal with topography
+vertical_grid_offset 50.0
+utm_zone_number 20
+utm_zone_letter_code P
+easting0 169252.40
+northing0 885447.93
+#  above have to mat zone number and code.  these
+# are origin of GCLgrid that is output
+grid3d_lat0 8.0
+grid3d_lon0 -67.5
+output_gridname test
+field_directory vmodels
+grid_directory vmodels
+model_base_name bolivar1

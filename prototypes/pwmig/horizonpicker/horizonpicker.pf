@@ -1,0 +1,44 @@
+traceformat SEGYfloat
+logfile test.log
+timetype relative
+yaxis_scaling 1.0
+output_file_metadata_list &Tbl{
+    chanid int
+    lat real
+    lon real
+}
+# external names here are for SEGYfloat
+xrefdata &Tbl{
+    dt deltaSample real
+    nsamp sampleLength int
+    lat recLatOrY real
+    lon recLongOrX real
+    slat sourceLatOrY real
+    slon sourceLongOrX real
+    evid event_number int
+    chanid traceInEnsemble int
+    lineSeq lineSeq int
+    reelSeq reelSeq int
+    live dataUse bool
+}
+orderkeys &Tbl{
+evid
+}
+ensemble_metadata_list &Tbl{
+    evid
+    slat
+    slon
+}
+trace_metadata_list &Tbl{
+    dt 
+    nsamp
+    live
+    lat
+    lon
+    slat
+    slon
+    evid
+    chanid
+    lineSeq
+    reelSeq
+}

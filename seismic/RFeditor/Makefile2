@@ -1,0 +1,18 @@
+BIN=RFeditor
+PF=RFeditor.pf
+ldlibs=-lseispp -ltrvltm -lbrttutil $(TRLIBS) $(DBLIBS) -L$(XMOTIFLIB) \
+       -L$(BOOSTLIB) -lboost_thread -lboost_system -lseisppplot -lseisw -lXm -lXt -lperf -lgclgrid -lpwmig $(X11LIBS)
+
+ANTELOPEMAKELOCAL = $(ANTELOPE)/local/include/antelopemake.local
+include $(ANTELOPEMAKE)  	
+include $(ANTELOPEMAKELOCAL)
+
+CXXFLAGS += -I$(XMOTIFINCLUDE)
+CXXFLAGS += -I$(BOOSTINCLUDE)
+# for valgrind only
+CXXFLAGS += -O0 
+RFeditorEngine.cc : RFeditorEngine.h
+OBJS=RFeditor.o RFeditorEngine.o
+$(BIN) : $(OBJS)
+	$(RM) $@
+	$(CXX) $(CXXFLAGS) -o $@ $(OBJS) $(LDFLAGS) $(LDLIBS)

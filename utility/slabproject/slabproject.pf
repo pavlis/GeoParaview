@@ -1,0 +1,14 @@
+# These are meaningless, change me
+pole_latitude 48.7
+pole_longitude 281.8
+profile_data_file stdin
+profile_sample_interval 10.0
+reverse_profile_data_order false
+master_grid_line 0
+output_grid_directory slabprojectgrids
+remove_transverse_strain false
+#
+# This are only used if remove_transverse_strain is true.
+#
+maximum_allowed_dip 60
+output_strain_fieldname lstrain

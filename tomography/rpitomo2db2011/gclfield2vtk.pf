@@ -1,0 +1,11 @@
+agc_operator_length	20
+apply_agc	false
+fieldname	bolivar1_P
+fieldtype	scalar3d
+gridname	new
+pf_revision_time	1299031287
+remap_grid	false
+remapgrid_number_dimensions	3
+remapmapgridname	steep
+remove_mean_x3_slices	false
+save_as_vector_field	false

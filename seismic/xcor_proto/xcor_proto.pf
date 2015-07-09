@@ -1,0 +1,86 @@
+input_metadata_list &Tbl{
+    sta string
+    chan string
+    time real
+    endtime real
+    nsamp int
+    samprate real
+    dfile string
+    dir string
+    jdate int
+    calib real
+    arrival.time real
+    arrival.arid int
+    arrival.iphase string
+    arrival.deltim real
+    assoc.phase string
+    assoc.timeres real
+    assoc.seaz real
+    assoc.esaz real
+    assoc.delta real
+    origin.lat real
+    origin.lon real
+    origin.depth real
+    origin.time real
+    hang real
+    vang real
+    site.lat
+    site.lon
+    site.elev
+}
+window_start_time -3.0
+window_end_time 7.0
+vs0 3.5
+vp0 5.8
+rotate_data true
+apply_free_surface_transformation true
+component_to_extract 3
+
+dbprocess_commands &Tbl{
+dbopen event
+dbjoin origin
+dbsubset orid==prefor
+dbjoin assoc
+dbjoin arrival
+dbleftjoin wfdisc 
+dbjoin site
+dbjoin sitechan 
+dbsort evid sta chan
+dbgroup evid sta 
+}
+# Needs to be either receiver or source.  
+# Only the exact word source causes source gather -- garbage gives receiver
+gather_type receiver
+# All data will be resampled to this target sample rate
+target_samprate 40 
+resample_definitions	&Arr{
+    100	&Arr{
+        Decimator_response_files	&Tbl{
+            4	response/RT72A_4_f
+	    0.625 resample
+        }
+        high_limit	101
+        low_limit	99
+    }
+    20	&Arr{
+        Decimator_response_files	&Tbl{
+            0.5 resample
+        }
+        high_limit	21
+        low_limit	19
+    }
+    33.5	&Arr{
+        Decimator_response_files	&Tbl{
+            0.8375	resample
+        }
+        high_limit	35
+        low_limit	30
+    }
+    40	&Arr{
+        Decimator_response_files	&Tbl{
+            1  none
+        }
+        high_limit	41
+        low_limit	39
+    }
+}

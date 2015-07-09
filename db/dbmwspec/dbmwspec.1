@@ -1,0 +1,116 @@
+.TH DBMWSPEC 1 # "$Date: 2001/05/22 18:54:22 $"
+.SH NAME
+dbmwspec \- computes multitaper spectral estimates for selected phases
+.SH SYNOPSIS
+.nf
+dbmwspec dbin [-pf pffile -s spec_dir -po -jack -correct]
+.fi
+.SH DESCRIPTION
+.LP
+This program computes multitaper spectral estimates from seismic data 
+in windows around selected times taken from the arrival table.  It
+is intimately linked to the css3.0 schema and is designed as a
+batch program to process a large collection of seismograms in 
+a single run.  dbin is the input css3.0 database.  Output is saved
+in this same database using an extension table (see below).
+.LP
+The program keys on times associated with rows in an arrival table.
+It can process multiple phases in a single pass with multiple
+window definitions and/or resolution specifications to the multitaper
+routine.  The basic algorithm works from a list of window definitions
+defined in the input parameter file (see below).  Each window definition
+is defined relative to a named seismic phase (e.g. P, S, PcP, etc.) 
+and tagged by a secondary title called an sname (mnemonic for spectrum
+name).  This allows one to define quantities like P:NOISE for 
+noise preceding a P wave arrival and P:P1, P:P2, and P:P3 to define
+a suite of 3 different processing windows around a P phase.  The 
+user should note that the outer loop of the program is over the 
+list of window definitions.  This leads to an inefficiency in 
+processing multiple windows tied to a particular phase (e.g. a P
+signal and noise window) because the data are read seperately for
+each window definition.  
+.LP
+This program blindly processes all channels of data and tags the output
+spectral estimates by the channel code with which they were originally
+associated.  If data gaps occur within a requested window the program
+will use the largest data segment within that window to compute the
+spectral estimate.  
+.LP
+The primary output of this program is a set of files indexed by an
+extension database table called psdisc. psdisc is patterned after
+wfdisc as a method to index many spectral files.  The output file
+name is derived from the parent waveform file name by adding
+an appendage of "_mwspec" to the name.  For example,
+if the parent waveform dfile name was evid_20001.w the spectra 
+for all data derived from this file would be contained in a file
+called evid_20001.w_mwspec.  Multiple spectral estimates may be
+contained in one of these files with appropriate values of foff 
+defined in the psdisc table just as multiple waveforms can be
+present in one file for a wfdisc table.  
+.SH OPTIONS
+.IP -pf
+Default reads a parameter file called dbmwspec.pf.  Use this 
+optional parameter to change this.  
+.IP -s
+Use this parameter to write output files in a directory other
+than the default of "./spectra".
+.IP -jack
+Compute and save 95% confidence limits computed by jackknife
+error estimates.  
+.IP -correct
+Use response information to correct spectral estimates.
+(Warning:  this is not currently implemented and a diagnostic
+is issued if it is selected.)
+.SH PARAMETER FILE
+.LP
+\fIspectra_windows\fR.  This is an &Tbl parameter that defines
+the time window and smoothing properties to be used to compute
+the multitaper spectral estimates.  The &Tbl{ and } should
+enclose a series of lines of the form:
+.nf
+phase	sname	start	end tbw
+.fi
+where \fIphase\fR is the name of the seismic phase to use to 
+define the time window for each pick (e.g. P, S, etc.).  
+\fIsname\fR is a name given to the group of spectra associated
+with this phase and related definitions.  \fIstart\fR and 
+\fIend\fR define the times relative to the pick time for 
+this phase for the start and end time of the window respectively.
+\fItbw\fR is the time-bandwidth product for the multitaper
+spectral estimate.  Larger tbw values produce smoother, but
+lower resolution spectral estimates.  Typical values are 4 or 8.   
+.LP
+Here is a simple example:
+.nf
+spectra_windows &Tbl{
+P P1 -0.25 1.25 4 
+P NOISE -1.75 -0.25 4
+}
+.fi
+.LP
+This would produce two spectral estimates for each P phase defined
+in the arrival table.  The estimates tagged with sname=P1 would use
+a window that starts 0.25 seconds before the P arrival time to 1.25
+seconds after this time.  The estimates tagged with sname=NOISE are
+preevent noise spectra from 1.75 to 0.25 seconds before the P 
+arrival time.  
+.SH LIBRARY
+-lsunmath -lmw -lscv2 -ldbl2 -lgrx $(DBLIBS) $(F77LIBS) $(TRLIBS) -lX11
+.SH DIAGNOSTICS
+There are many.  The program is fairly verbose about problems.
+.SH "BUGS AND CAVEATS"
+.IP (1)
+The -correct option does not currently work.  
+.IP (2)
+There probably really should be an optional -sift parameter to subset 
+the input arrival table.  For now this can be done by using a 
+subsetted arrival table in dbin -- a common datascope hack. 
+.IP (3)
+I have conflicting reports that the scaling may be incorrect in
+this program.  To the best of my knowledge it is correct, but
+it is fair to warn you some would disagree with me.  
+.SH AUTHOR
+dbmwspec was written by Gary Pavlis, Indiana University.  All
+the real analytic stuff uses code in libmw courtesy of Frank
+Vernon and David Thomson.
+.\" $Id: dbmwspec.1,v 1.2 2001/05/22 18:54:22 pavlis Exp $

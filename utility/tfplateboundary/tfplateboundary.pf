@@ -1,0 +1,7 @@
+pole_latitude 60.0
+pole_longitude -36.0
+origin_latitude 62.0
+origin_longitude -143.0
+start_distance_from_origin -100.0
+end_distance_from_origin 500.0
+number_of_points 60

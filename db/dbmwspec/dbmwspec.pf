@@ -1,0 +1,5 @@
+spectra_windows	&Tbl{
+    P P -0.25 10.25 4
+    P NOISE -31.0 -1.0  4
+    S S  -10.0 10.0 4
+}

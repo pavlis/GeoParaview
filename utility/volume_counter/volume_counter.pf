@@ -1,0 +1,22 @@
+search_radius 20.0
+output_directory EQCounts
+delta_x1	10.0
+delta_x2	10.0
+delta_x3	5.0
+gridfile_directory	./GCLgrids
+gridname	akeqgrid
+n1	100
+n2	70
+n3	60
+origin_latitude	62.5
+origin_longitude	-142
+origin_offset_x1	60
+origin_offset_x2	40
+x_axis_azimuth	100.0
+# These are needed for area calculation based on magnitudes
+# if use_netmag is true, require join of event->origin->netmag
+use_netmag true
+# This should always have a table.attribute name tag
+magnitude_attribute netmag.magnitude
+null_magnitude_default 1.5
+pf_revision_time	1376958104
