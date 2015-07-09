@@ -1,0 +1,19 @@
+PF=gocad2vtk.pf
+BIN=gocad2vtk
+#ldlibs=-lgeocoords -lcgeom -lgclgrid -lseispp $(DBLIBS) -lperf 
+#ldlibs=-lgeocoords -lcgeom -lgclgrid -lseispp $(TRLIBS) -lperf 
+ldlibs=-lgeocoords -lgclgrid -lseispp $(TRLIBS) -lperf 
+SUBDIR=/contrib
+
+ANTELOPEMAKELOCAL = $(ANTELOPE)/contrib/include/antelopemake.local
+include $(ANTELOPEMAKE)  	
+include $(ANTELOPEMAKELOCAL)
+CXXFLAGS += -I$(BOOSTINCLUDE)
+LDFLAGS += -L$(BOOSTLIB)
+
+
+OBJS=gocad2vtk.o 
+
+$(BIN) : $(OBJS)
+	$(RM) $@
+	$(CXX) $(CXXFLAGS) -o $@ $(OBJS) $(LDFLAGS) $(LDLIBS)

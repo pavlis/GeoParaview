@@ -1,9 +1,11 @@
-BIN=convertchen
-cflags=-g 
-ldlibs=-lgclgrid -lseispp $(DBLIBS) -lperf
 
-include $(ANTELOPEMAKE) 
-OBJS=	convertchen.o
-$(BIN) : $(OBJS)
-	$(RM) $@
-	$(CXX) $(CCFLAGS) -o $@ $(OBJS) $(LDFLAGS) $(LDLIBS)
+all Include install installMAN pf relink tags test :: FORCED
+	@-if localmake_config boost ; then \
+	    $(MAKE) -f Makefile2 $@ ; \
+	fi
+
+clean uninstall :: FORCED
+	$(MAKE) -f Makefile2 $@
+
+FORCED:
+

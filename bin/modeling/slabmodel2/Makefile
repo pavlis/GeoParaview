@@ -1,14 +1,11 @@
-PF=slabmodel.pf
-BIN=slabmodel
-#ldlibs=-lgeocoords -lcgeom -lgclgrid -lseispp $(DBLIBS) -lperf 
-ldlibs=-lgeocoords -lcgeom -lgclgrid -lseispp $(TRLIBS) -lperf 
 
-#ANTELOPEMAKELOCAL = $(ANTELOPE)/local/include/antelopemake.local
-include $(ANTELOPEMAKE)  	
-#include $(ANTELOPEMAKELOCAL)
+all Include install installMAN pf relink tags test :: FORCED
+	@-if localmake_config boost ; then \
+	    $(MAKE) -f Makefile2 $@ ; \
+	fi
 
-OBJS=slabmodel.o 
+clean uninstall :: FORCED
+	$(MAKE) -f Makefile2 $@
 
-$(BIN) : $(OBJS)
-	$(RM) $@
-	$(CXX) $(CXXFLAGS) -o $@ $(OBJS) $(LDFLAGS) $(LDLIBS)
+FORCED:
+

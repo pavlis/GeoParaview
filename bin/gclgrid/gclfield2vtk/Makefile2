@@ -13,6 +13,9 @@ include $(ANTELOPEMAKE)
 include $(ANTELOPEMAKELOCAL)
 
 CXXFLAGS += -I$(VTKINCLUDE) 
+CXXFLAGS += -I$(BOOSTINCLUDE)
+LDFLAGS += -L$(BOOSTLIB)
+
 
 OBJS=gclfield2vtk.o vtk_output.o vtk_output_GCLgrid.o
 $(BIN) : $(OBJS)

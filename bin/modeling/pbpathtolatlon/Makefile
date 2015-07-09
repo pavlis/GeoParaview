@@ -1,10 +1,11 @@
-BIN=pbpathtolatlon
-ldlibs=-lgclgrid -lgeocoords -lseispp $(DBLIBS) -lperf 
 
-include $(ANTELOPEMAKE)  	
+all Include install installMAN pf relink tags test :: FORCED
+	@-if localmake_config boost ; then \
+	    $(MAKE) -f Makefile2 $@ ; \
+	fi
 
-OBJS=pbpathtolatlon.o  
+clean uninstall :: FORCED
+	$(MAKE) -f Makefile2 $@
 
-$(BIN) : $(OBJS)
-	$(RM) $@
-	$(CXX) $(CCFLAGS) -o $@ $(OBJS) $(LDFLAGS) $(LDLIBS)
+FORCED:
+

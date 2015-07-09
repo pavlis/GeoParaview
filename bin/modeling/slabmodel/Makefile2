@@ -1,15 +1,5 @@
-PF=slabmodel.pf
-BIN=slabmodel
-ldlibs=-lcgeom -lgclgrid -lseispp $(DBLIBS) -lperf 
-
-ANTELOPEMAKELOCAL = $(ANTELOPE)/local/include/antelopemake.local
-include $(ANTELOPEMAKE)  	
-include $(ANTELOPEMAKELOCAL)
-
-CXXFLAGS += -I$(BOOSTINCLUDE)
-OBJS=slabmodel.o GeoTriMeshSurface.o PLGeoPath.o PlateBoundaryPath.o \
-     RegionalCoordinates.o
-
-$(BIN) : $(OBJS)
-	$(RM) $@
-	$(CXX) $(CXXFLAGS) -o $@ $(OBJS) $(LDFLAGS) $(LDLIBS)
+all clean Include install installMAN pf relink tags uninstall test :: FORCED
+	@-if localmake_config xmotif  boost; then \
+           $(MAKE) -f Makefile2 $@ ; \
+	fi
+FORCED:

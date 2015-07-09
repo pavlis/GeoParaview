@@ -8,6 +8,7 @@
 #include <float.h>
 #include "stock.h"
 #include "pf.h"
+#include "perf.h"
 #include "seispp.h"
 #include "Metadata.h"
 #include "gclgrid.h"

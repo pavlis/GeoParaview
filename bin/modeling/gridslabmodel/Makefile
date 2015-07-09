@@ -1,10 +1,11 @@
-BIN=gridslabmodel
 
+all Include install installMAN pf relink tags test :: FORCED
+	@-if localmake_config boost ; then \
+	    $(MAKE) -f Makefile2 $@ ; \
+	fi
 
-ldlibs= $(DBLIBS) -lgclgrid -lseispp -ltrvltm $(TRLIBS) -lperf
+clean uninstall :: FORCED
+	$(MAKE) -f Makefile2 $@
 
-include $(ANTELOPEMAKE)
+FORCED:
 
-OBJS=gridslabmodel.o
-$(BIN) : $(OBJS)
-	$(CXX) $(CCFLAGS) -o $@ $(OBJS) $(LDFLAGS) $(LDLIBS)

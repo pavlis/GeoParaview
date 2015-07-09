@@ -1,5 +1,5 @@
-BIN=pathtosurface
-PF=pathtosurface.pf
+BIN=slabproject
+PF=slabproject.pf
 #MAN1=pathtosurface.1
 cflags=-g
 ldlibs=$(DBLIBS) -lseispp -lgclgrid -lperf -lm -lseispp
@@ -10,7 +10,7 @@ include $(ANTELOPE)/contrib/include/antelopemake.local
 CXXFLAGS += -I$(BOOSTINCLUDE)
 LDFLAGS += -L$(BOOSTLIB)
 
-OBJS=pathtosurface.o
+OBJS=slabproject.o
 $(BIN) : $(OBJS)
 	$(RM) $@
 	$(CXX) $(CCFLAGS) -o $@ $(OBJS) $(LDFLAGS) $(LDLIBS)

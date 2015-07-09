@@ -1,37 +1,11 @@
-LIB=libgeocoords.a
-INCLUDE=GeoCoordError.h \
-  Crust1_0.h \
-  GeoPath.h \
-  GeoPolygonRegion.h \
-  GeoSplineSurface.h \
-  GeoSurface.h \
-  GeoTriMeshSurface.h \
-  LatLong-UTMconversion.h \
-  PLGeoPath.h \
-  PlateBoundaryPath.h \
-  RegionalCoordinates.h
-DATADIR=crust1.0
-DATA=crust1.bnds crust1.rho crust1.vp crust1.vs
-cflags=-g
-ldlibs=-lgclgrid -lcoords -lcgeom $(DBLIBS)
 
-include $(ANTELOPEMAKE)
-GeoSplineSurface.cc : GeoSplineSurface.h
-GeoTriMeshSurface.cc : GeoTriMeshSurface.h
-PLGeoPath.cc : GeoPath.h PLGeoPath.h
-PlateBoundaryPath.cc : GeoPath.h PlateBoundaryPath.h
-RegionalCoordinates.cc : RegionalCoordinates.h
+all Include install installMAN pf relink tags test :: FORCED
+	@-if localmake_config boost ; then \
+	    $(MAKE) -f Makefile2 $@ ; \
+	fi
 
-OBJS=Crust1_0.o \
-  GeoSplineSurface.o \
-  GeoTriMeshSurface.o \
-  GeoPolygonRegion.o \
-  LatLong-UTMconversion.o \
-  PLGeoPath.o \
-  PlateBoundaryPath.o \
-  RegionalCoordinates.o
+clean uninstall :: FORCED
+	$(MAKE) -f Makefile2 $@
 
-$(LIB) : $(OBJS)
-	$(RM) $@
-	$(CXXAR) $(CXXARFLAGS) $@ $(OBJS)  # the order "$(CXXARFLAGS) $@" is required
-	$(RANLIB) $@
+FORCED:
+

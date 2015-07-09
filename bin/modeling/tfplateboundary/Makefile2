@@ -1,8 +1,8 @@
-BIN=pathtosurface
-PF=pathtosurface.pf
-#MAN1=pathtosurface.1
+BIN=tfplateboundary
+PF=tfplateboundary.pf
+#MAN1=tfplateboundary.1
 cflags=-g
-ldlibs=$(DBLIBS) -lseispp -lgclgrid -lperf -lm -lseispp
+ldlibs=$(DBLIBS) -lseispp
 SUBDIR=/contrib
 
 include $(ANTELOPEMAKE)  	
@@ -10,7 +10,7 @@ include $(ANTELOPE)/contrib/include/antelopemake.local
 CXXFLAGS += -I$(BOOSTINCLUDE)
 LDFLAGS += -L$(BOOSTLIB)
 
-OBJS=pathtosurface.o
+OBJS=tfplateboundary.o
 $(BIN) : $(OBJS)
 	$(RM) $@
 	$(CXX) $(CCFLAGS) -o $@ $(OBJS) $(LDFLAGS) $(LDLIBS)

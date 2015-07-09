@@ -1,10 +1,11 @@
-BIN=line2grd
-#MAN1=line2grd.1
-cflags=-g
-ldlibs=$(DBLIBS) -lseispp -lgclgrid -lperf -lm -lseispp
 
-include $(ANTELOPEMAKE)  	
-OBJS=line2grd.o
-$(BIN) : $(OBJS)
-	$(RM) $@
-	$(CXX) $(CCFLAGS) -o $@ $(OBJS) $(LDFLAGS) $(LDLIBS)
+all Include install installMAN pf relink tags test :: FORCED
+	@-if localmake_config boost ; then \
+	    $(MAKE) -f Makefile2 $@ ; \
+	fi
+
+clean uninstall :: FORCED
+	$(MAKE) -f Makefile2 $@
+
+FORCED:
+
