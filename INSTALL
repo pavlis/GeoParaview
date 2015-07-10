@@ -1,0 +1,50 @@
+This package is based on the following packages.  These must be installed before 
+this package can be compiled.
+
+1.  You will need a copy of antelope, which is commercial software available from http://brtt.com.
+antelope is available for all US Universities to support seismology research.  The
+agreement and instruction to download can be found here:
+http://brtt.com/education_and_academic_research.html
+
+2. Since version 5.5 of Antelope BRTT does not distribute the contributed code with a new release.
+It must be obtained and built seperately.  The install gui currently has a button to build contrib
+automatically.  If you need to do this manually see the instruction found at this URL:
+http://antelopeusersgroup.org/repository/
+
+3.  The package depends upon the serialization library in the open source boost library.  
+Downlaod the package from http:://boost.org.  Much of boost is templates only, but this package 
+depends upon the serialization library that must be compiled.  See the boost web pages for 
+instructions on how to build this and other libraries in the package.  In my experience it is
+preferable to override the default install location (/usr/local) using the --prefix argument
+on their bootstrap.sh configuration script.  I recommend /opt/boost to mesh clealy with antelope's
+install path.
+
+4. Some of the programs in this library depend upon the monster open-sourcelibrary called vtk.  
+On linux you need to download and build the package according to instructions on the vtk web
+site:  http://www.vtk.org/.   On a Mac it is far far easier to build the package using fink or
+macports.   
+
+The build structure for this package uses the same mechanism as Antelope contrib.   
+In fact, the entire package could have been placed in contrib but I elected to split
+these out as separate programs that might have a different audience than the antelope contrib.
+Before the package can be built you will need to become familiar with the custom and
+rather unusual way that antelope handles open source packages like boost.   This requires
+only three steps:
+1.   Make sure you noted where you installed boost and vtk.  
+
+2.   If you have not already done so make sure you put this line in your shell initialization 
+script.   
+For bash/sh:
+source /opt/antelope/5.5/setup.sh  # note 5.5 is version number, change for later releases
+For csh/tcsh:
+source /opt/antelope/5.5/setup.csh  # note 5.5 is version number, change for later releases
+
+3. Run localmake_config.  In the gui select the button for boost, enter the information for
+BOOSTINCLUDE and BOOSTLIB, and push the enable button.   Repeat for vtk.   The gui will tell
+you if you entered these correctly.   When you get everything write select File->save and when
+instructed push the button to save the configuration.
+
+4.  Return to the directory where you found this file and just type:
+make Include
+make install
+
