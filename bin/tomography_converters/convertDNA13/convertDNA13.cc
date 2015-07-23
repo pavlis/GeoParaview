@@ -7,81 +7,17 @@ using namespace SEISPP;
 /* this is a special program to convert the Berkeley Dynamic North America model
    aka 2010 to a gcl grid that can be converted to a vtk file for inclusion in the TA scene.
    It has lots of frozen constants built in to the 
-   program.  Done because this is not expected to ever be released.
+   program.  Not originally intended for release, but useful enough to be put
+   into pwmig release.  
    */
  
- /*This procedure loads the iasp91 matrix in the Sigloch et al supplement
-   saved with matlab save -ascii   This is probably wrong for Berkeley model - CHECK BEFORE USING*/
-/*   Retained for later use if needed.   
-VelocityModel_1d load_iasp91()
-{
-    vector<double> din,vin;
-    try {
-        ifstream modins;
-        modins.open("iasp91.txt",ios::in);
-        if(modins.fail())
-        {
-            cerr << "Cannot open model file iasp91.txt"<<endl;
-            exit(-1);
-        }
-        do {
-            double d,v;
-            modins >> d;
-            modins >> v;
-            if(!modins.eof())
-            {
-                din.push_back(d);
-                vin.push_back(v);
-            }
-        } while(!modins.eof());
-        int np=din.size();
-        if(np<=1) 
-        {
-            cerr << "Read error in iasp91.txt.  points read="<<np<<endl;
-            exit(-1);
-        }
-        VelocityModel_1d result(np);
-        int i;
-        // Top is special and is always saved
-        result.v.push_back(vin[0]);
-        result.z.push_back(din[0]);
-        for(i=1;i<np;++i)
-        {
-            int iend=result.v.size() - 1;
-            if(fabs(din[i]-din[i-1])<0.001)
-            {
-                result.v[iend]=vin[i];
-            }
-            else
-            {
-                result.v.push_back(vin[i]);
-                result.z.push_back(din[i]);
-                // Note grad will be implicitly placed at i-1
-                result.grad.push_back((vin[i]-vin[i-1])/(din[i]-din[i-1]));
-            }
-        }
-        result.grad.push_back(0.0);  //insert 0 at end
-        result.nlayers=result.v.size();
-        cout << "depth   VP    grad (vel/km)"<<endl;
-        for(i=0;i<result.v.size();++i)
-        {
-            cout << result.z[i] << " "
-                << result.v[i] << " "
-                << result.grad[i] << endl;
-        }
-        return(result);
-    }catch(...)
-    {
-        cerr << "Something threw and unknown exception"<<endl;
-        exit(-1);
-    }
-}
-*/
 
 void usage()
 {
-    cout << "convertucb -dVp|-dVSV|-dVSH|-dVSJ < DNA13_data_file"<<endl
-        <<"   Output is file name determined by switch.  "
+    cout << "convertucb -dVp|-dVSV|-dVSH|-dVSJ [-dU]< DNA13_data_file"<<endl
+        <<"   Output is file name determined by switch.  "<<endl
+        << "   -dU sets output to delta slowness (requires file ak135.mod1d)"
+        <<endl << "    (default is tabulated percent velocity change)"
         <<endl;
     exit(-1);
 }
@@ -89,33 +25,61 @@ bool SEISPP::SEISPP_verbose(true);
 int main(int argc, char **argv)
 {
     try {
-    if(argc!=2)usage();
+    int i,j,k,l,kk;
+    if(argc<2)usage();
     /* Default to dVp*/
     int dcol_to_use;  //0 is first data field after r,lat,lon
     string outfile;
-        string sarg(argv[1]);
+    bool convert_to_slowness(false);
+    bool model_is_S(true);
+    /* Fancy, but need to look for dU flag first so we can 
+       set names to dU when appropriate */
+    for(i=1;i<argc;++i)
+    {
+        string sarg(argv[i]);
+        if(sarg=="-dU") convert_to_slowness=true;
+    }
+    for(i=1;i<argc;++i)
+    {
+        string sarg(argv[i]);
         if(sarg=="-dVp") 
         {
             dcol_to_use=0;
-            outfile="DNA13_dVP";
+            if(convert_to_slowness)
+                outfile="DNA13_dUP";
+            else
+                outfile="DNA13_dVP";
+            model_is_S=false;
         }
         else if(sarg=="-dVSV")
         {
             dcol_to_use=1;
-            outfile="DNA13_dVSV";
+            if(convert_to_slowness)
+                outfile="DNA13_dUSV";
+            else
+                outfile="DNA13_dVSV";
         }
         else if(sarg=="-dVSH")
         {
             dcol_to_use=2;
-            outfile="DNA13_dSVH";
+            if(convert_to_slowness)
+                outfile="DNA13_dUSH";
+            else
+                outfile="DNA13_dVSH";
         }
         else if(sarg=="-dVSJ")
         {
             dcol_to_use=3;
-            outfile="DNA13_dVSJ";
+            if(convert_to_slowness)
+                outfile="DNA13_dUSJ";
+            else
+                outfile="DNA13_dVSJ";
         }
+        else if(sarg=="-dU")
+            cout << "Converting data to slowness perturbations from ak135"<<endl;
         else
             usage();
+    }
     double lat0(25.0);
     double lon0(-126.0);
     /* gclgrid requires these in radians */
@@ -126,6 +90,25 @@ int main(int argc, char **argv)
     const int n1vp(109),n2vp(55),n3vp(129);
     const double dx1nom(25.0),dx2nom(25.0),dx3nom(25.0);
     const int i0(0),j0(0);
+    VelocityModel_1d *V1d;
+    if(convert_to_slowness)
+    {
+        try{
+            if(model_is_S)
+                V1d=new VelocityModel_1d(string("ak135.mod1d"),string("mod1d"),
+                        string("S"));
+            else
+                V1d=new VelocityModel_1d(string("ak135.mod1d"),string("mod1d"),
+                        string("P"));
+        }catch(SeisppError& serr)
+        {
+            serr.log_error();
+            cerr << "You must have the file ak135.mod1d in your working directory"<<endl
+                << "This file can be produced with the program convert_ak135"
+                <<endl;
+            exit(-1);
+        }
+    }
 
     /* Build a template for the grid that will define this model */
     GCLgrid3d *grid=new GCLgrid3d(n1vp,n2vp,n3vp,string("UCBtomo13"),
@@ -135,11 +118,11 @@ int main(int argc, char **argv)
     /* This clones the grid but does not set the field variables*/
     GCLscalarfield3d dVS(*grid);
     delete grid;
-    int i,j,k,l,kk;
     double lat,lon,r;
     double dep,dvsin;
     int nVcol(4);
     double dVinValues[4];
+    double v0;   // 1d velocity value - used only for slowness conversion
     Geographic_point gp;
     Cartesian_point cp;
     char linebuffer[256];
@@ -171,12 +154,19 @@ int main(int argc, char **argv)
             /*This model uses a spherical approximation but everything
               we've done uses reference ellipsoid.  Have to convert or this 
               will look funny.*/
-            dep=6370.0-r;
+            dep=6371.0-r;
             r=rsurface-dep;
             cp=dVS.gtoc(lat,lon,r);
             dVS.x1[i][j][k]=cp.x1;
             dVS.x2[i][j][k]=cp.x2;
             dVS.x3[i][j][k]=cp.x3;
+            if(convert_to_slowness)
+            {
+                v0=V1d->getv(dep);
+                /* conversion is -1.0*dv/v^2 */
+                dvsin=-dvsin/v0;
+            }
+
             dVS.val[i][j][k]=dvsin;
         }
         //string griddir("grids"),modeldir("vmodels");
