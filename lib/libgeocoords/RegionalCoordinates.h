@@ -25,7 +25,7 @@ class RegionalCoordinates
 public:
     /* Default constructor.  Place holder you should not use. */
     RegionalCoordinates();
-    /* Primary constructor.
+    /*! \brief Primary constructor.
 
        The local coordinate system requires only a definition of the point that
     on the earth to use as the origin of the coordinate system and a 
@@ -109,7 +109,7 @@ public:
       means the y (x2) axis points north at the origin)
       */
     double aznorth_angle(){return(azimuth_y);};
-    /*! Return transformation matrix to convert local azimuth to cartesian system.
+    /*! \brief Return transformation matrix to convert local azimuth to cartesian system.
 
       Standard local coordinates use a local east direction for x, a local
       north direction as y, and up as z.   Geologic examples include strike
