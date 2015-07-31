@@ -1,0 +1,12 @@
+/**
+  \mainpage GeoParaview Geographic Primitives Library.
+
+  This library contains a set of C++ objects defining a set georeferenced
+geometric concepts.   A core component of the library is a generic converter
+between geographic coordinates and a local cartesian coordinate system 
+identical to that used in the related GCLgrid library.  The library 
+also contains a set of generic objects the authors has found useful 
+for building 3D scenes with the 3D visualization program called paraview
+(http://www.paraview.org).
+\author Gary L. Pavlis
+*/
