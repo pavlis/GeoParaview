@@ -163,8 +163,9 @@ int main(int argc, char **argv)
             if(convert_to_slowness)
             {
                 v0=V1d->getv(dep);
-                /* conversion is -1.0*dv/v^2 */
-                dvsin=-dvsin/v0;
+                /* conversion is -1.0*dv/v^2.  Original in percent to 
+                require a 1/100 scaling */
+                dvsin=-0.01*dvsin/v0;
             }
 
             dVS.val[i][j][k]=dvsin;
