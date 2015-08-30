@@ -13,6 +13,7 @@
 #include <list>
 #include <string>
 #include "coords.h"
+#include "perf.h"
 #include "seispp.h"
 #include "GeoTriMeshSurface.h"
 #include "GeoSplineSurface.h"
@@ -246,7 +247,7 @@ PathArray BuildLithosphereSurface(PathArray& topsurface,double dz,
         cerr<< "Crossline vectors for same path"<<endl
             << *cptr <<endl;
             */
-        npts=topsurface[i].number_points();
+        npts=topsurface[i].number_points()-1;
         dmatrix pathnormals(3,npts);
         for(j=0;j<npts;++j)
         {
