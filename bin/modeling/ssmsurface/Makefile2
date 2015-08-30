@@ -1,5 +1,5 @@
-PF=slabmodel.pf
-BIN=slabmodel
+PF=ssmsurface.pf
+BIN=ssmsurface
 #ldlibs=-lgeocoords -lcgeom -lgclgrid -lseispp $(DBLIBS) -lperf 
 ldlibs=-lgeocoords -lcgeom -lgclgrid -lseispp $(TRLIBS) -lperf 
 SUBDIR=/contrib
@@ -10,7 +10,7 @@ CXXFLAGS += -I$(BOOSTINCLUDE)
 LDFLAGS += -L$(BOOSTLIB)
 
 
-OBJS=slabmodel.o 
+OBJS=ssmsurface.o 
 
 $(BIN) : $(OBJS)
 	$(RM) $@

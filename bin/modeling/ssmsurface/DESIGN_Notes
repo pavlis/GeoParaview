@@ -92,3 +92,6 @@ class TiePoint
 };
 GCLMaskedGrid LinearDepthCorrection(GCLMaskedGrid& raw, 
         vector<TiePoints>& tpv);
+
+Aug. 30, 2015
+Moved all the GCLgrid stuff that was here to new libgeocoords.   
