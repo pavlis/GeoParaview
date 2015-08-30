@@ -336,6 +336,18 @@ int main(int argc, char **argv)
                 zerotimecurve=resample_PLGeoPath(*rawtrenchpath,
                         trench_path_sample_interval);
                 delete rawtrenchpath;
+                if(SEISPP_verbose) 
+                {
+                    cout << "Resampled trench path (lon,lat,radius)"<<endl;
+                    Geographic_point pgp;
+                    for(i=0;i<zerotimecurve.number_points();++i)
+                    {
+                        pgp=zerotimecurve.node_position(i);
+                        cout << deg(pgp.lon)<<" "<<deg(pgp.lat)
+                            <<" "<< pgp.r<<endl;
+                    }
+                }
+
             }
 
             /* now load and build the surface to be used to build the 
