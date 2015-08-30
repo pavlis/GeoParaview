@@ -1,6 +1,8 @@
 LIB=libgeocoords.a
 INCLUDE=GeoCoordError.h \
   Crust1_0.h \
+  GCLMVFSmoother.h \
+  GCLMasked.h \
   GeoPath.h \
   GeoPolygonRegion.h \
   GeoSplineSurface.h \
@@ -27,6 +29,9 @@ PlateBoundaryPath.cc : GeoPath.h PlateBoundaryPath.h
 RegionalCoordinates.cc : RegionalCoordinates.h
 
 OBJS=Crust1_0.o \
+  GCLMasked.o \
+  GCLMaskedProcedures.o \
+  GCLMVSmoother.o \
   GeoSplineSurface.o \
   GeoTriMeshSurface.o \
   GeoPolygonRegion.o \
