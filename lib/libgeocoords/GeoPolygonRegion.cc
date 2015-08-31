@@ -290,6 +290,7 @@ GeoPolygonRegion& GeoPolygonRegion::operator=(const GeoPolygonRegion& p)
         lat=p.lat;
         lon=p.lon;
     }
+    return(*this);
 }
 
 ostream& operator << (ostream& os, GeoPolygonRegion& p)

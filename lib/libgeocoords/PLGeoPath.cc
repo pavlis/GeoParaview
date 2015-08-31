@@ -188,5 +188,6 @@ ostream& operator<<(ostream& os,PLGeoPath& path)
 	            << path.r[i] << endl;
 	    }
     }
+    return os;
 }
 
