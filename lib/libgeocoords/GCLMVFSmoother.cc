@@ -1,10 +1,5 @@
-class GCLMVFSmoother
-{
-    public:
-        GCLMVFSmoother();
-        GCLMVFSmoother(dmatrix& firfilter);
-        GCLMaskedScalarField apply(GCLMaskedScalarField& parent);
-};
+#include <float.h>
+#include "dmatrix.h"
 #include "GCLMVFSmoother.h"
 GCLMVFSmoother::GCLMVFSmoother() : firfilter()
 {
@@ -29,7 +24,7 @@ GCLMaskedScalarField GCLMVFSmoother::apply(GCLMaskedScalarField& parent)
         int ii,jj;
         int is,js;  // variable start for averaging
         int ie,je;  // variable end
-        int if,jf;  // index in firfilter
+        int ifilt,jfilt;  // index in firfilter
         /* to handle variable hits we have to normalize each point
            independently.  This variable holds that sum for each point */
         double sumwt;  
@@ -51,13 +46,13 @@ GCLMaskedScalarField GCLMVFSmoother::apply(GCLMaskedScalarField& parent)
                     smoothval=0.0;
                     /*loops intentionally focus on ii and jj as 
                       this is safer*/
-                    for(ii=is,if=0;ii<ie;++i,++if)
-                        for(jj=js,jf=0;jj<je;++jj,++jf)
+                    for(ii=is,ifilt=0;ii<ie;++i,++ifilt)
+                        for(jj=js,jfilt=0;jj<je;++jj,++jfilt)
                         {
                             if(field.point_is_valid(ii,jj))
                             {
-                                sumwt+=firfilter(if,jf);
-                                smoothval+=firfilter(if,jf)
+                                sumwt+=firfilter(ifilt,jfilt);
+                                smoothval+=firfilter(ifilt,jfilt)
                                             *parent.val[ii][jj];
                             }
                         }

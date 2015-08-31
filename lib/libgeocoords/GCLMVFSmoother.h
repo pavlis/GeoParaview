@@ -1,3 +1,7 @@
+#ifndef _GCLMVFSMOOTHER_H_
+#define _GCLMVFSMOOTHER_H_
+#include "GCLMasked.h"
+#include "dmatrix.h"
 class GCLMVFSmoother
 {
     public:
@@ -19,3 +23,4 @@ class GCLMVFSmoother
         int nrow,ncol;
         int i0,j0;  //Offset of 0 value
 };
+#endif
