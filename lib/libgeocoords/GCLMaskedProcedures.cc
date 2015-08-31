@@ -1,6 +1,9 @@
+#include "coords.h"
+#include "gclgrid.h"
+#include "GCLMasked.h"
 double CartesianDistance(Cartesian_point& cp1, Cartesian_point& cp2)
 {
-    double d,dx;
+    double x,dx;
     dx=cp2.x1-cp1.x1;
     x+=dx*dx;
     dx=cp2.x2-cp1.x2;
@@ -11,14 +14,14 @@ double CartesianDistance(Cartesian_point& cp1, Cartesian_point& cp2)
 }
 // These procedures should probably set values outside mask to some
 // stock not define value 
-GCLMaskedVectorfield ComputeNormals(GCLmaskedgrid& raw)
+GCLMaskedVectorField ComputeNormals(GCLMaskedGrid& raw)
 {
     try {
         GCLMaskedVectorField result(raw,3);
         int i,j,k;
         double dx1[3],dx2[3],x1crossx2[3];
-        for(i=0;i<(n1-1);++i)
-            for(j=0;j<(n2-1);++i)
+        for(i=0;i<(raw.n1-1);++i)
+            for(j=0;j<(raw.n2-1);++i)
             {
                 dx1[0]=raw.x1[i+1][j]-raw.x1[i][j];
                 dx1[1]=raw.x2[i+2][j]-raw.x2[i][j];
@@ -26,9 +29,9 @@ GCLMaskedVectorfield ComputeNormals(GCLmaskedgrid& raw)
                 dx2[0]=raw.x1[i][j+1]-raw.x1[i][j];
                 dx2[1]=raw.x2[i][j+1]-raw.x2[i][j];
                 dx2[2]=raw.x3[i][j+1]-raw.x3[i][j];
-                d3cros(dx1,dx3,x1crossx3);
+                dr3cros(dx1,dx2,x1crossx2);
                 double nmag;
-                nmag=dr3mag(x1crossx3); // to make unit normals 
+                nmag=dr3mag(x1crossx2); // to make unit normals 
                 for(k=0;k<3;++k) result.val[i][j][k]=x1crossx2[k]/nmag;
             }
         return(result);
@@ -43,8 +46,8 @@ GCLMaskedVectorField ComputeLocalVerticals(GCLMaskedGrid& raw)
         Cartesian_point cp;
         Geographic_point gp;
         double rawvector[3];
-        for(i=0;i<(n1-1);++i)
-            for(j=0;j<(n2-1);++i)
+        for(i=0;i<(raw.n1-1);++i)
+            for(j=0;j<(raw.n2-1);++i)
             {
                 gp=raw.ctog(raw.x1[i][j],raw.x2[i][j],raw.x3[i][j]);
                 gp.r+=Roffset;
@@ -57,12 +60,13 @@ GCLMaskedVectorField ComputeLocalVerticals(GCLMaskedGrid& raw)
                 for(k=0;k<3;++k) result.val[i][j][k]=rawvector[k]/nrmraw;
             }
         // fill outer border using last valid value
-        j=n2-1;
-        for(i=0;i<n1;++i)
+        j=raw.n2-1;
+        for(i=0;i<raw.n1;++i)
             for(k=0;k<3;++k) result.val[i][j][k]=result.val[i][j-1][k];
-        i=n1-1;
-        for(j=0;j<n2;++j)
+        i=raw.n1-1;
+        for(j=0;j<raw.n2;++j)
             for(k=0;k<3;++k) result.val[i][j][k]=result.val[i-1][j][k];
+        return result;
     } catch(...){throw;};
 }
 /* The procedurs below use a derivative based on a horizontal (constant r)
@@ -70,34 +74,50 @@ GCLMaskedVectorField ComputeLocalVerticals(GCLMaskedGrid& raw)
    calculation in one place. 
 
 Arguments:
-g - grid to compute dx1 from
+g - grid to compute dx1 from.  This is a pointer to the base class,
+    BasicGLCgrid, and caller should be aware this is cast to two different
+    pointers - 1. GCLgrid used to calculations and 2. GCLMask used to 
+    discard masked points.   This is necessary because of design constraints
+    in my GCLMaskedGrid implementation.
 i,j - index into grid
 
 A positive value is indicates a normal return. Test for a negative
 value to detect errors in calculation.   Two ways this happens:
 (1) trying to access i value outside grid range, and (2) when 
 i or i+1 is in a masked (invalid) region.
+
+If the dynamic_cast operators fail they throw and exception 
+(I think it is std::exception, but am not positive).   Caller
+needs to check.  Here we just catch an exception and relay it
+to the caller.
    */
-double dx1_offset(GCLMaskedGrid& g,int i, int j)
+double dx1_offset(BasicGCLgrid *baseptr,int i, int j)
 {
     double dx1;
     const double BadResult(-99999.9);  // arbitrary negative number
-    if(i>=(g.n1-1)) return(BadResult);
+    GCLgrid *g;
+    GCLMask *mask;
+    try {
+        g=dynamic_cast<GCLgrid *>(baseptr);
+        mask=dynamic_cast<GCLMask *>(baseptr);
+    }catch(...){throw;};
+
+    if(i>=((g->n1)-1)) return(BadResult);
     Cartesian_point cp1,cp2r1;
     Geographic_point gp1,gp2,gp2r1;
 
-    if(g.point_is_valid(i,j) && g.point_is_valid(i+1,j))
+    if(mask->point_is_valid(i,j) && mask->point_is_valid(i+1,j))
     {
-        cp1.x1=g.x1[i][j];
-        cp1.x2=g.x2[i][j];
-        cp1.x3=g.x3[i][j];
-        gp1=g.ctog(g.x1[i][j],g.x2[i][j],
-                g.x3[i][j]);
-        gp2=g.ctog(g.x1[i+1][j],g.x2[i+1][j],
-                g.x3[i+1][j]);
+        cp1.x1=g->x1[i][j];
+        cp1.x2=g->x2[i][j];
+        cp1.x3=g->x3[i][j];
+        gp1=g->ctog(g->x1[i][j],g->x2[i][j],
+                g->x3[i][j]);
+        gp2=g->ctog(g->x1[i+1][j],g->x2[i+1][j],
+                g->x3[i+1][j]);
         gp2r1=gp2;
         gp2r1.r=gp1.r;
-        cp2r1=g.gtoc(gp2r1);
+        cp2r1=g->gtoc(gp2r1);
         dx1=CartesianDistance(cp1,cp2r1);
     }
     else
@@ -111,7 +131,7 @@ double dx1_offset(GCLMaskedGrid& g,int i, int j)
    calculation here simplified this way.  This function 
    does NOT do any error checking assuming it is ONLY called 
  AFTER calling the previous procedure. */
-Geographic_point constant_r_project(GCLMaskedGrid& g,int i, int j)
+Geographic_point constant_r_project(GCLgrid& g,int i, int j)
 {
     Cartesian_point cp1,cp2r1;
     Geographic_point gp1,gp2,gp2r1;
@@ -140,7 +160,7 @@ Geographic_point constant_r_project(GCLMaskedGrid& g,int i, int j)
  dip along the x1 direction is less than this value it will be
  truncated.  To turn this off just set mindip to -M_PI_2*/
    
-GCLMaskedScalarField compute_drdx1(GCLmaskedgrid& raw,double mindip)
+GCLMaskedScalarField compute_drdx1(GCLMaskedGrid& raw,double mindip)
 {
     try{
         GCLMaskedScalarField result(raw);
@@ -154,16 +174,15 @@ GCLMaskedScalarField compute_drdx1(GCLmaskedgrid& raw,double mindip)
         // This is needed to allow setting mindip to M_PI_2 to turn 
         // of the test.   Needed because tan(M_PI_2) is -infinity.
         if(mindip==M_PI_2)
-        {
             mindiptan=-99999999.9;
         else
             mindiptan=tan(mindip);
-        for(j=0;j<n2;++j)
-            for(i=0;i<(n1-1);++i)
+        for(j=0;j<result.n2;++j)
+            for(i=0;i<(result.n1-1);++i)
             {
                 /* ASsumes this procedure returns a negative
                    value when one of the points is masked*/
-                dx1=dx1_offset(result,i,j);
+                dx1=dx1_offset(&result,i,j);
                 if(dx1>0.0)
                 {
                     gp1=result.geo_coordinates(i,j);
@@ -180,15 +199,15 @@ GCLMaskedScalarField compute_drdx1(GCLmaskedgrid& raw,double mindip)
                 }
             }
         /* Fill i=n1-1 with copies of n1-2 */
-        i=n1-1;
-        for(j=0;j<n2;++j)
+        i=result.n1-1;
+        for(j=0;j<result.n2;++j)
         {
             if(result.point_is_valid(i,j))
                 result.val[i][j]=result.val[i-1][j];
             else
                 result.val[i][j]=GCLFieldNullValue;
         }
-
+        return result;
     } catch(...){throw;};
 }
 
@@ -208,13 +227,13 @@ GCLMaskedScalarField x1_integrator(GCLMaskedGrid& parent,
                    will skip until both points are valid */
                 if(ifld.point_is_valid(i-1,j))
                 {
-                    dx1=x1_offset(parent,i-1,j);
+                    dx1=dx1_offset(&parent,i-1,j);
                     /* do nothing when i,j is masked */
                     if(dx1<0.0) continue;
                     gp0=ifld.geo_coordinates(i-1,j);
                     newgp=ifld.geo_coordinates(i,j);
                     dr=drdx1field.val[i-1][j]*dx1;
-                    newgp.r=gp0+dr;
+                    newgp.r=gp0.r+dr;
                     cp=ifld.gtoc(newgp);
                     ifld.x1[i][j]=cp.x1;
                     ifld.x2[i][j]=cp.x2;
@@ -236,7 +255,7 @@ Cartesian_point get_point(GCLgrid& g, int i, int j)
     return(cp);
 }
 GCLMaskedGrid LinearDepthCorrection(GCLMaskedGrid& raw, 
-                vector<TiePoints>& tpv)
+                vector<TiePoint>& tpv)
 {
     try{
         GCLMaskedGrid result;
@@ -245,8 +264,8 @@ GCLMaskedGrid LinearDepthCorrection(GCLMaskedGrid& raw,
             ostringstream sserr;
             sserr << "LinearDepthCorrection procedure:  size mismatch"<<endl
                 <<"Vector of time point size="<<tpv.size()<<endl
-                <<"Grid dimension in x2 direction is "<<raw.nw<<endl
-                <<"They must match (FATAL ERROR)"<<endl;
+                <<"Grid dimension in x2 direction is "<<raw.n2<<endl
+                <<"They must match-cannot continue"<<endl;
             throw GCLgridError(sserr.str());
         }
         Geographic_point gp,gptie;
@@ -304,10 +323,10 @@ GCLMaskedGrid LinearDepthCorrection(GCLMaskedGrid& raw,
             else
             {
                 cerr << "LinearDepthCorrection procedure (WARNING):  "
-                    <<"tie point at grid position ("<<i_tie<<","
-                       <<j_tie<<") is in a masked region"<<endl
+                    <<"tie point at grid position ("<<tpv[j].i_tie<<","
+                       <<tpv[j].j_tie<<") is in a masked region"<<endl
                        <<"x2=const curve on grid line with j="
-                       <<j_tie<< " may contain an offset"<<endl;
+                       <<j<< " may contain an offset"<<endl;
             }
         }
         return(result);
