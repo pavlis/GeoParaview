@@ -1,3 +1,5 @@
+#ifndef _CRUST_1_0_
+#define _CRUST_1_0_
 #include <string>
 #include "VelocityModel_1d.h"
 using namespace std;
@@ -64,3 +66,4 @@ template <class T> T bilinear(const T& tx, const T& ty,
     return (T(1) - tx) * (T(1) - ty) * c00 
         + tx * (T(1) - ty) * c10 + (T(1) - tx) * ty * c01 + tx * ty * c11;
 }
+#endif
