@@ -54,6 +54,8 @@ class GCLMask
 
            */
         bool point_is_valid(int i, int j);
+        int n1(){return n1_mask;};
+        int n2(){return n2_mask;};
     protected:
         /* Created as a single array, easily indexed 
            because GCLgrid is n1xn2 */
@@ -82,6 +84,18 @@ class GCLMaskedGrid : public GCLgrid, public GCLMask
            \param g parent grid to clone
            */
         GCLMaskedGrid(GCLgrid& g);
+        /*! \brief Apply a mask m to g.
+
+          Sometimes it can be useful, such as in build_masked_surface, to 
+          build a mask independently an then apply it to a given grid.  
+          This constructor does that.  
+
+          \param g - grid to which mask m is to be applied
+          \param m - defining mask
+          \exception GCLgridError will be thrown if g and m are not the same size.
+
+          */
+        GCLMaskedGrid(GCLgrid& g,GCLMask& m);
         /* \brief Construct with a preassembled mask defined by a matrix of doubles.
 
            \param parent is a grid that will be cloned.

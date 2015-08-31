@@ -59,13 +59,16 @@ bool GCLMask::point_is_valid(int i, int j)
 GCLMaskedGrid::GCLMaskedGrid(GCLgrid& parent) : GCLgrid(parent), GCLMask(parent)
 {
 }
+GCLMaskedGrid::GCLMaskedGrid(GCLgrid& g,GCLMask& mask) : GCLgrid(g), GCLMask(mask)
+{
+}
 GCLMaskedGrid::GCLMaskedGrid(GCLgrid& parent, dmatrix& mask, double maskmin)
                         : GCLgrid(parent)
 {
     const string base_error("GCLMaskedGrid constructor with dmatrix mask:  ");
-    if(mask.columns()!=n2) throw GCLgridError(base_error
+    if(mask.columns()!=parent.n2) throw GCLgridError(base_error
             + "number of columns in mask array does not match grid");
-    if(mask.rows()!=n1) throw GCLgridError(base_error
+    if(mask.rows()!=parent.n1) throw GCLgridError(base_error
             + "number of columns in mask array does not match grid");
     int i,j;
     for(i=0;i<parent.n1;++i)
