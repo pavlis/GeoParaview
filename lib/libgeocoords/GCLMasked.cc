@@ -1,15 +1,63 @@
-GCLMaskedGrid::GCLMaskedGrid() : GCLgrid()
+#include "GCLgridError.h"
+#include "gclgrid.h"
+#include "dmatrix.h"
+#include "GCLMasked.h"
+/* First in this file - GCLMask code. */
+GCLMask::GCLMask()
 {
-    valid=NULL;
+    n1_mask=0;
+    n2_mask=0;
 }
-GCLMaskedGrid::GCLMaskedGrid(GCLgrid& parent) : GCLgrid(parent)
+GCLMask::GCLMask(GCLgrid& parent)
 {
-    int i;
-    int ntotal=parent.n1*parent*n2;
-    valid = new bool[ntotal];
-    /* There is a way to do this with the new operator, but here
-       I set all valid explicitly */
-    for(i=0;i<ntotal;++i) valid[i]=true;
+    n1_mask=parent.n1;
+    n2_mask=parent.n2;
+    int ntotal=parent.n1*parent.n2;
+    valid.reserve(ntotal);
+    int k;
+    for(k=0;k<ntotal;++k)valid.push_back(false);
+}
+GCLMask::GCLMask(const GCLMask& parent) : valid(parent.valid)
+{
+    n1_mask=parent.n1_mask;
+    n2_mask=parent.n2_mask;
+}
+GCLMask& GCLMask::operator=(const GCLMask& parent)
+{
+    if(this != & parent)
+    {
+        this->valid=parent.valid;
+        n1_mask=parent.n1_mask;
+        n2_mask=parent.n2_mask;
+    }
+    return(*this);
+}
+bool GCLMask::mask_point(int i, int j)
+{
+    if(i<0 || (i>=n1_mask)) return false;
+    if(j<0 || (j>=n2_mask)) return false;
+    valid[this->voffset(i,j)] = false;
+    return(true);
+}
+bool GCLMask::enable_point(int i, int j)
+{
+    if(i<0 || (i>=n1_mask)) return false;
+    if(j<0 || (j>=n2_mask)) return false;
+    valid[this->voffset(i,j)] = true;
+    return(true);
+}
+bool GCLMask::point_is_valid(int i, int j)
+{
+    if(i<0 || (i>=n1_mask)) return false;
+    if(j<0 || (j>=n2_mask)) return false;
+    int k=voffset(i,j);
+    return(valid[k]);
+}
+
+
+
+GCLMaskedGrid::GCLMaskedGrid(GCLgrid& parent) : GCLgrid(parent), GCLMask(parent)
+{
 }
 GCLMaskedGrid::GCLMaskedGrid(GCLgrid& parent, dmatrix& mask, double maskmin)
                         : GCLgrid(parent)
@@ -19,133 +67,62 @@ GCLMaskedGrid::GCLMaskedGrid(GCLgrid& parent, dmatrix& mask, double maskmin)
             + "number of columns in mask array does not match grid");
     if(mask.rows()!=n1) throw GCLgridError(base_error
             + "number of columns in mask array does not match grid");
-    int ntotal=parent.n1*parent*n2;
-    valid = new bool[ntotal];
-    int i,j,k;
+    int i,j;
     for(i=0;i<parent.n1;++i)
         for(j=0;j<parent.n2;++j)
         {
-            k=voffset(i,j);
             if(mask(i,j)>maskmin)
-            {
-                valid[k]=false;
-            }
+                this->mask_point(i,j);
             else
-                valid[k]=true;
+                this->enable_point(i,j);
         }
 }
 GCLMaskedGrid::GCLMaskedGrid(GCLMaskedGrid& parent) 
-    : GCLgrid(dynamic_cast<GCLgrid&>(parent))
+    : GCLgrid(dynamic_cast<GCLgrid&>(parent)), GCLMask(dynamic_cast<GCLMask&>(parent))
 {
-    int i;
-    int ntotal=parent.n1*parent*n2;
-    valid = new bool[ntotal];
-    for(i=0;i<ntotal;++i) valid[i]=parent.valid[i];
-}
-GCLMaskedGrid::~GCLMaskedGrid()
-{
-    if(valid!=NULL) delete [] valid;
 }
 GCLMaskedGrid& GCLMaskedGrid::operator=(const GCLMaskedGrid& parent)
 {
     if(this != & parent)
     {
         this->GCLgrid::operator=(parent);
-        int ntotal=n1*n2;
-        valid=new bool[ntotal];
-        for(int k=0;k<ntotal;++i) valid=parent.valid[k];
+        this->GCLMask::operator=(parent);
     }
     return(*this);
 }
-bool GCLMaskedGrid::mask_point(int i, int j)
-{
-    if(i<0 || (i>=n1)) return false;
-    if(j<0 || (j>=n2)) return false;
-    valid[this->voffset(i,j)] = false;
-    return(true);
-}
-bool GCLMaskedGrid::point_is_valid(int i, int j)
-{
-    if(i<0 || (i>=n1)) return false;
-    if(j<0 || (j>=n2)) return false;
-    int k=voffset(i,j);
-    return(valid[k]);
-}
-GCLMaskedVectorField::GCLMaskedVectorField() : GCLgrid()
-{
-    nv=0;
-    val=NULL;
-}
 GCLMaskedVectorField::GCLMaskedVectorField(GCLMaskedGrid& g, int nvsize)
+    : GCLvectorfield(dynamic_cast<GCLgrid&>(g),nvsize), GCLMask(dynamic_cast<GCLMask&>(g))
 {
-    nv=nvsize;
-    val=create_3dgrid_contiguous(g.n1,g.n2,nv);
-    int i,j,k;
-    for(i=0;i<n1;++i)
-        for(j=0;j<n2;++j)
-            for(k=0;k<nv;++k) val[i][j][k]=GCLFieldNullValue;
 }
 GCLMaskedVectorField::GCLMaskedVectorField(const GCLMaskedVectorField& parent)
-    : GCLMaskedGrid(dynamic_cast<GCLMaskedGrid>(parent))
+    : GCLvectorfield(dynamic_cast<const GCLvectorfield&>(parent)),
+        GCLMask(dynamic_cast<const GCLMask&>(parent))
 {
-    nv=parent.nv;
-    val=create_3dgrid_contiguous(n1,n2,nv);
-    int i,j,k;
-    for(i=0;i<n1;++i)
-        for(j=0;j<n2;++j)
-            for(k=0;k<nv;++k) val[i][j][k]=parent.val[i][j][k];
-}
-GCLMaskedVectorField::~GCLMaskedVectorField()
-{
-    if(val!=NULL) free_3dgrid_contiguous(val,n1,n2);
 }
 GCLMaskedVectorField& GCLMaskedVectorField::operator=(const GCLMaskedVectorField& parent)
 {
     if(this != & parent)
     {
-       this->GCLMaskedGrid::operator=(parent);
-       val=create_3dgrid_contiguous(n1,n2,nv);
-       int i,j,k;
-       for(i=0;i<n1;++i)
-           for(j=0;j<n2;++j)
-               for(k=0;k<nv;++k) val[i][j][k]=parent.val[i][j][k];
+       this->GCLvectorfield::operator=(parent);
+       this->GCLMask::operator=(parent);
     }
     return(*this);
 }
-GCLMaskedScalarField::GCLMaskedScalarField() : GCLgrid()
+GCLMaskedScalarField::GCLMaskedScalarField(GCLMaskedGrid& g) 
+    : GCLscalarfield(dynamic_cast<GCLgrid&>(g)), GCLMask(dynamic_cast<GCLMask&>(g))
 {
-    nv=0;
-    val=NULL;
-}
-GCLMaskedScalarField::GCLMaskedScalarField(GCLMaskedGrid& g)
-{
-    val=create_2dgrid_contiguous(g.n1,g.n2);
-    int i,j;
-    for(i=0;i<n1;++i)
-        for(j=0;j<n2;++j) val[i][j]=GCLFieldNullValue;
 }
 GCLMaskedScalarField::GCLMaskedScalarField(const GCLMaskedScalarField& parent)
-    : GCLMaskedGrid(dynamic_cast<GCLMaskedGrid>(parent))
+    : GCLscalarfield(dynamic_cast<const GCLscalarfield&>(parent)), 
+        GCLMask(dynamic_cast<const GCLMask&>(parent))
 {
-    val=create_2dgrid_contiguous(n1,n2);
-    int i,j;
-    for(i=0;i<n1;++i)
-        for(j=0;j<n2;++j)
-            val[i][j]=parent.val[i][j];
-}
-GCLMaskedScalarField::~GCLMaskedScalarField()
-{
-    if(val!=NULL) free_2dgrid_contiguous(val,n1,n2);
 }
 GCLMaskedScalarField& GCLMaskedScalarField::operator=(const GCLMaskedScalarField& parent)
 {
     if(this != & parent)
     {
-       this->GCLMaskedGrid::operator=(parent);
-       val=create_wdgrid_contiguous(n1,n2);
-       int i,j;
-       for(i=0;i<n1;++i)
-           for(j=0;j<n2;++j) val[i][j]=parent.val[i][j];
+       this->GCLscalarfield::operator=(parent);
+       this->GCLMask::operator=(parent);
     }
     return(*this);
 }
