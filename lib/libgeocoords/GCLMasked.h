@@ -1,7 +1,12 @@
 #ifndef _GCLMASK_H_
 #define _GCLMASK_H_
+#include <vector>
 #include "dmatrix.h"
 #include "gclgrid.h"
+#include <boost/serialization/serialization.hpp>
+#include <boost/serialization/vector.hpp>
+#include <boost/archive/text_oarchive.hpp>
+#include <boost/archive/text_iarchive.hpp>
 /*! Undefined values in a field are set to this magic value */
 const double GCLFieldNullValue(-9.99999e-99);
 /*! \brief  Used to apply a mask to a GCLgrid object.
@@ -54,8 +59,8 @@ class GCLMask
 
            */
         bool point_is_valid(int i, int j);
-        int n1(){return n1_mask;};
-        int n2(){return n2_mask;};
+        int nx1(){return n1_mask;};
+        int nx2(){return n2_mask;};
     protected:
         /* Created as a single array, easily indexed 
            because GCLgrid is n1xn2 */
@@ -64,6 +69,15 @@ class GCLMask
            consistency when applied to a parent GCLgrid */
         int n1_mask, n2_mask;
     private:
+        /* These are used for input and output of this object. Uses base class definitions
+           from gclgrid */
+        friend class boost::serialization::access;
+        template<class Archive>void serialize(Archive & ar, const unsigned int version)
+        {
+            ar & n1_mask;
+            ar & n2_mask;
+            ar & valid;
+        };
         /* convenience routine */
         int voffset(int i, int j)
         {
@@ -111,26 +125,30 @@ class GCLMaskedGrid : public GCLgrid, public GCLMask
         /* \brief Standard copy constructor */
         GCLMaskedGrid(GCLMaskedGrid& parent);
         GCLMaskedGrid& operator=(const GCLMaskedGrid& parent);
+        void save(string fname);
 };
 /* Variant of GCLscalarfield but with a smaller interface */
 class GCLMaskedScalarField : public GCLscalarfield, public GCLMask
 {
     public:
+        GCLMaskedScalarField(GCLscalarfield& g, GCLMask& m);
         GCLMaskedScalarField(GCLMaskedGrid& g);
         GCLMaskedScalarField(const GCLMaskedScalarField& parent);
         ~GCLMaskedScalarField();
         GCLMaskedScalarField& operator=(const GCLMaskedScalarField& parent);
+        void save(string fname);
 };
 /* This is a variant of the GCLvectorfield but with a smaller
-   interface.  For now used only for slabmodel so unless I release 
-   the newest code this will not be a major issue. */
+   interface.  */
 class GCLMaskedVectorField : public GCLvectorfield, public GCLMask
 {
     public:
+        GCLMaskedVectorField(GCLvectorfield& g, GCLMask& m);
         GCLMaskedVectorField(GCLMaskedGrid& g, int nvsize);
         GCLMaskedVectorField(const GCLMaskedVectorField& parent);
         ~GCLMaskedVectorField();
         GCLMaskedVectorField& operator=(const GCLMaskedVectorField& parent);
+        void save(string fname);
 };
 class TiePoint
 {

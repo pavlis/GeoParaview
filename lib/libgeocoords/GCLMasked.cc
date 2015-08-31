@@ -1,3 +1,4 @@
+#include "fstream"
 #include "GCLgridError.h"
 #include "gclgrid.h"
 #include "dmatrix.h"
@@ -93,6 +94,32 @@ GCLMaskedGrid& GCLMaskedGrid::operator=(const GCLMaskedGrid& parent)
     }
     return(*this);
 }
+/* This is the first of 3 save routines in this file.  They are painfully
+   similar.  Considered messing with a template, but decided it was 
+   an unnecessary complication and I'd deal with the repetitious code. */
+void GCLMaskedGrid::save(string fname)
+{
+    try{
+    /* Downcast to the parent GCLgrid and call it's save method to
+       store base data.  Limitation here is I don't allow use
+     of a directory as in GCLgrid library.  Alway current directory*/
+        this->GCLgrid::save(fname,string("."));
+        /* we have a boost serialization to save the mask data.
+           We store that in a name derived from fname.  This 
+           assume format with fname+".dat" as data and fname+".pf" 
+           to store metadata. */
+        string maskfile=fname+".mask";
+        std::ofstream ofs(maskfile.c_str(),ios::out);
+        boost::archive::text_oarchive oa(ofs);
+        GCLMask *mask=dynamic_cast<GCLMask*>(this);
+        oa << *mask;
+        ofs.close();
+    }catch(...){throw;};
+}
+GCLMaskedVectorField::GCLMaskedVectorField(GCLvectorfield& f, GCLMask& m) 
+    : GCLvectorfield(f), GCLMask(m)
+{
+}
 GCLMaskedVectorField::GCLMaskedVectorField(GCLMaskedGrid& g, int nvsize)
     : GCLvectorfield(dynamic_cast<GCLgrid&>(g),nvsize), GCLMask(dynamic_cast<GCLMask&>(g))
 {
@@ -111,6 +138,29 @@ GCLMaskedVectorField& GCLMaskedVectorField::operator=(const GCLMaskedVectorField
     }
     return(*this);
 }
+void GCLMaskedVectorField::save(string fname)
+{
+    try{
+    /* Downcast to the parent GCLgrid and call it's save method to
+       store base data.  Limitation here is I don't allow use
+     of a directory as in GCLgrid library.  Alway current directory*/
+        this->GCLvectorfield::save(fname,string("."));
+        /* we have a boost serialization to save the mask data.
+           We store that in a name derived from fname.  This 
+           assume format with fname+".dat" as data and fname+".pf" 
+           to store metadata. */
+        string maskfile=fname+".mask";
+        std::ofstream ofs(maskfile.c_str(),ios::out);
+        boost::archive::text_oarchive oa(ofs);
+        GCLMask *mask=dynamic_cast<GCLMask*>(this);
+        oa << *mask;
+        ofs.close();
+    }catch(...){throw;};
+}
+GCLMaskedScalarField::GCLMaskedScalarField(GCLscalarfield& f, GCLMask& m) 
+    : GCLscalarfield(f), GCLMask(m)
+{
+}
 GCLMaskedScalarField::GCLMaskedScalarField(GCLMaskedGrid& g) 
     : GCLscalarfield(dynamic_cast<GCLgrid&>(g)), GCLMask(dynamic_cast<GCLMask&>(g))
 {
@@ -128,4 +178,23 @@ GCLMaskedScalarField& GCLMaskedScalarField::operator=(const GCLMaskedScalarField
        this->GCLMask::operator=(parent);
     }
     return(*this);
+}
+void GCLMaskedScalarField::save(string fname)
+{
+    try{
+    /* Downcast to the parent GCLgrid and call it's save method to
+       store base data.  Limitation here is I don't allow use
+     of a directory as in GCLgrid library.  Alway current directory*/
+        this->GCLscalarfield::save(fname,string("."));
+        /* we have a boost serialization to save the mask data.
+           We store that in a name derived from fname.  This 
+           assume format with fname+".dat" as data and fname+".pf" 
+           to store metadata. */
+        string maskfile=fname+".mask";
+        std::ofstream ofs(maskfile.c_str(),ios::out);
+        boost::archive::text_oarchive oa(ofs);
+        GCLMask *mask=dynamic_cast<GCLMask*>(this);
+        oa << *mask;
+        ofs.close();
+    }catch(...){throw;};
 }
