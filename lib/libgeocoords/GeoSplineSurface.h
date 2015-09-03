@@ -90,6 +90,11 @@ public:
       data that defines convergence (default 0.001)
     \param max_iterations is the maximum number of iterations allowed
       before giving up. (default 250)
+    \param use_ch sets if the object should apply the convex hull
+      of the collection of points.   When true points outside
+      the convex hull will be effectively undefined.  (default is false
+      because implementation in antelope has known problem with an 
+      infinite loop when any 3 points are colinear in the set. )
     */
     GeoSplineSurface(vector<Geographic_point>& pts,
             double minx,
@@ -105,7 +110,8 @@ public:
               double aspect_ratio=1.0,
                double overrelaxation=1.4,
                 double convergence=0.001,
-                 int max_iterations=250);
+                 int max_iterations=250,
+                  bool use_ch=false);
     /* \brief Construct with control parameters coming from a Metadata object.
 
        In my library I use the Metadata object heavily to encapsulate a set of 
@@ -187,8 +193,12 @@ public:
     bool is_defined(double lat,double lon);
     /*! Standard assignment operator */
     GeoSplineSurface& operator=(const GeoSplineSurface& parent);
+    /*! call to enable convex hall editing if not turned on originally.*/
+    void enable_convex_hull();
 private:
+    bool use_convex_hull;
     CGPartition *trigrid;
+    CGPointset *pointset;
     CGGrid *gridptr;
     /* extents of regular grid stored in gridptr 
      stored in radians*/

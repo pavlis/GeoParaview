@@ -19,11 +19,17 @@ GeoSplineSurface::GeoSplineSurface(vector<Geographic_point>& pts,
             double aspect_ratio,
              double overrelaxation,
               double convergence,
-               int max_iterations) : boundary()
+               int max_iterations,
+                bool use_cg) : boundary()
 {
     this->GSSinit(pts,minx,maxx,miny,maxy,dx,dy,lower,upper,
             tension_interior,tension_boundary,aspect_ratio,
             overrelaxation,convergence,max_iterations);
+    if(use_cg) 
+    {
+        trigrid=delaunay_On4(pointset);
+        use_convex_hull=true;
+    };
 }
 void GeoSplineSurface::GSSinit(vector<Geographic_point>& pts,
   double minx,
@@ -65,8 +71,6 @@ void GeoSplineSurface::GSSinit(vector<Geographic_point>& pts,
     gridptr=cggrid_splinefit_pointset(reggrd,
             pointset,tension_interior,tension_boundary,aspect_ratio,
              overrelaxation,convergence,max_iterations,lower,upper);
-    trigrid=delaunay_On4(pointset);
-    cgpointset_free(&pointset);
 }
 GeoSplineSurface::GeoSplineSurface(vector<Geographic_point>& pts,
             Metadata& inpar) : boundary()
@@ -89,6 +93,11 @@ GeoSplineSurface::GeoSplineSurface(vector<Geographic_point>& pts,
         this->GSSinit(pts,minx,maxx,miny,maxy,dx,dy,lower,upper,
             tension_interior,tension_boundary,aspect_ratio,
             overrelaxation,convergence,max_iterations);
+        if(inpar.get_bool("use_convex_hull"))
+        {
+            trigrid=delaunay_On4(pointset);
+            use_convex_hull=true;
+        }
     } catch (SeisppError& serr) 
     {
         /* Translate metadata get errors into GeoCoordsError
@@ -108,6 +117,7 @@ GeoSplineSurface& GeoSplineSurface::operator=(const GeoSplineSurface& parent)
 GeoSplineSurface::~GeoSplineSurface()
 {
     cggrid_free(&gridptr);
+    cgpointset_free(&pointset);
     cgpartition_free(&trigrid);
 }
 string depth_error_message(double lat,double lon,string line2)
@@ -157,11 +167,21 @@ void GeoSplineSurface::AddBoundary(const GeoPolygonRegion& poly)
    triangularization stored in trigrid. */
 bool GeoSplineSurface::is_defined(double lat,double lon)
 {
-    CGPolygon *poly=polygon_containing_xy(trigrid,lon,lat);
-    if(poly==NULL)
-        return false;
+    if(use_convex_hull)
+    {
+        CGPolygon *poly=polygon_containing_xy(trigrid,lon,lat);
+        if(poly==NULL)
+            return false;
+    }
     if(boundary.is_inside(lat,lon))
         return true;
     else
         return false;
+}
+void GeoSplineSurface::enable_convex_hull()
+{
+    // Do nothing if trigrid is already created
+    if(trigrid!=NULL) return;
+    trigrid=delaunay_On4(pointset);
+    use_convex_hull=true;
 }
