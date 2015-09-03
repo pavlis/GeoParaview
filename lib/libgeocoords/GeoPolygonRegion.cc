@@ -257,6 +257,10 @@ GeoPolygonRegion::GeoPolygonRegion(vector<Geographic_point> gpts)
 
 bool GeoPolygonRegion::is_inside(double lat0, double lon0)
 {
+    /* Always return true if the polygon is undefined.   Maybe should
+       be the other way around, but allows an application to 
+       do no boundary checking if the object is null */
+    if(npoints <= 0) return true;
     vector<double> shifted_polygon;
     /* In Kent's function these are interleaved so we make it that way */
     shifted_polygon.reserve(npoints*2);

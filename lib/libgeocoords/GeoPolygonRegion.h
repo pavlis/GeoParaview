@@ -74,7 +74,12 @@ class GeoPolygonRegion
         /* \brief Method to find if point is inside polygon.
 
            This method returns true if the point (lat0,lon0) is inside
-           the polygon defined by the object.  
+           the polygon defined by the object.  Note that if the 
+           polygon data is null (happens always for default constructor)
+           this method always returns true.  One might think this 
+           backwards, but did that to allow other objects to use
+           this one as an option. Then if the poly contains no 
+           data a boundary test is ignored. 
 
            \param lat0 - latitude (degrees) of point to test
            \param lon0 - longitude (degrees) of point to test
