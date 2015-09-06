@@ -11,7 +11,8 @@ gclfield2vtk \- convert internal gclfield objects to vtk format files
 This program is used to convert Geographical CurviLinear (GCL) field objects
 stored in an Antelope database to external formats that can be read by 
 the Visualization Tool Kit (VTK).  The program can convert scalar3d, vector3d,
-scalar2d, and grid2d (structured grid surfaces such as a DEM) objects.  
+scalar2d, grid2d (structured grid surfaces such as a DEM) objects, and 
+a masked scalar2d grid object. .  
 Outputs are in "legacy VTK" format or the newer XML format depending on the 
 choice of options.  Not all combinations are currently supported.  
 (see Bugs and Caveats section).
@@ -19,7 +20,12 @@ choice of options.  Not all combinations are currently supported.
 Argument 1 is required.  If the \fB-i\fR flag is present this is assumed to
 be an input file base name.  Otherwise it is assumed to be a database
 named \fBdb\fR.  In the later case it must point to a valid Antelope database
-descriptor.  \fBoutfile\fR is the (required) output file name.  Use a simple 
+descriptor.  file or db input are both supported for all but the (newest)
+masked grid object.   The implementation of the masked object collides
+with the database schema and I could not figure out how to support it cleanly
+so I chose to not try to implement this.  
+
+\fBoutfile\fR is the (required) output file name.  Use a simple 
 name without an extension for this file.  The program appends an appropriate 
 extension depending on the output option.  This is necessary for paraview to
 grok the file type in windows, macos, or linux implementations.  The output 
@@ -49,14 +55,15 @@ will probably eventually be depricated.
 Use the -xml to have the output written in vtk's xml format.
 This is strongly recommended for large 3D structured grid as the resulting
 files are platform indepenent files that are much faster to read than
-the default ascii file.
+the default ascii file.  This is not supported for any 2D grid outputs.
 .IP -binary
 Use the -binary format to have the output written as binary.  This is 
 comparable to -xml but the vtk control parameters are written in ascii 
 instead of being coded in xml.  This format may be slightly faster to 
 read than -xml, but the authors experience is it is not significant if 
 true at all.   Generally -xml should be used in preference to -binary 
-as the output file is more generic.
+as the output file is more generic.  This format is not supported
+for any 2D objects.
 .IP -pf
 Use pffile.pf as the alternative parameter file to the standard gclfield2vtk.pf.
 Note this program does not use the Antelope pf feature to search for pf 
@@ -64,18 +71,21 @@ files in a heirarchy of places.  Only the file referenced is read.
 .SH FILES
 .LP
 The default output file is a legacy VTK file described in documentation 
-for the Visualization Tool Kit (VTK) library.
+for the Visualization Tool Kit (VTK) library in either text or binary format.
 Structured grids can optionally be written in the newer XML format also
 described in the VTK documentation.
 The XML format, in fact, is highly recommended for 3D grids.
+All 2D grids can only be  written as ascii vtk files.  These can get very bloated
+for things like high resolution DEMs.
 .SH PARAMETER FILE
 .LP
 Two parameters can be viewed as defaults for command line arguments.  
 The \fBgridname\fR parameter is the default for -g and
 \fBfieldname\fR provides the default for -f.
 .LP
-The \fBfieldtype\fR defines the type of grid object the program will convert.  Allowed 
-options are:  grid2d, scalar2d, scalar3d, and vector3d.  
+The most critical parameter found in the parameter file is \fBfieldtype\fR 
+This parameter defines the type of grid object the program will convert.  Allowed 
+options are:  grid2d, scalar2d, MaskedScalar2d, scalar3d, vector3d.  
 This parameter must match the type of the data your are attempting to convert
 or the program will abort with an error message.
 .LP

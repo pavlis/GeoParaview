@@ -12,12 +12,15 @@
 #include "seispp.h"
 #include "Metadata.h"
 #include "gclgrid.h"
+#include "GCLMasked.h"
 #include "agc.h"
 #include "vtk_output.h"
 
 using namespace SEISPP;
 
-int vtk_output_GCLgrid(GCLgrid& g, string ofile);
+int vtk_output_GCLgrid(GCLgrid& g, ofstream& out,string name_tag);
+int vtk_output_GCLgrid(GCLscalarfield& g, ofstream& out,string name_tag);
+int vtk_output_GCLgrid(GCLMaskedScalarField& g, ofstream& out,string name_tag);
 /* Removes mean for constant x3 slices.  Important for
 proper display of tomography models showing absolute velocities */
 void remove_mean_x3(GCLscalarfield3d& f)
@@ -151,6 +154,7 @@ int main(int argc, char **argv)
 	}
 	try {
                 
+                int npoly;   // used in multiple blocks below 
         	PfStyleMetadata control=pfread(pffile);
                 DatascopeHandle dbh;
                 if(dbmode)
@@ -323,7 +327,6 @@ int main(int argc, char **argv)
 		}
 		else if(fieldtype=="grid2d")
 		{
-			int npoly;
                         GCLgrid g;
                         if(dbmode)
 			    g=GCLgrid(dbh,gridname);
@@ -335,14 +338,16 @@ int main(int argc, char **argv)
 				remap_grid(g,*rgptr);
 			}
                         outfile=outfile+".vtk";
-			npoly=vtk_output_GCLgrid(g,outfile);
+                        ofstream out;
+                        out.open(outfile.c_str(),ios::out);
+			npoly=vtk_output_GCLgrid(g,out,scalars_tag);
+                        out.close();
 			cout << "Wrote "<<npoly<<" polygons to output file"<<endl;
 			if(apply_agc)cerr <<"WARNING: apply_agc was set true\n"
 					<<"This is ignored for grids and 2d fields"<<endl;
 		}
 		else if(fieldtype=="scalar2d")
 		{
-			int npoly;
                         GCLscalarfield field;
 			if(dbmode)
                             field=GCLscalarfield(dbh,gridname,fieldname);
@@ -354,11 +359,35 @@ int main(int argc, char **argv)
 						*rgptr);
 			}
                         outfile=outfile+".vtk";
-			vtk_output_GCLgrid(dynamic_cast<GCLgrid&>(field),outfile);
+                        ofstream out;
+                        out.open(outfile.c_str(),ios::out);
+			vtk_output_GCLgrid(field,out,scalars_tag);
+                        out.close();
 			cout << "Wrote "<<npoly<<" polygons to output file"<<endl;
 			if(apply_agc)cerr <<"WARNING: apply_agc was set true\n"
 					<<"This is ignored for grids and 2d fields"<<endl;
 		}	
+                else if(fieldtype=="MaskedScalar2d")
+                {
+                    int npoly;
+                    if(dbmode)
+                    {
+                        cerr << "field type of MaskedScalar2D not supported in dbmode."
+                            << "You must use the -i flag"<<endl;
+                        usage();
+                    }
+                    GCLMaskedScalarField field(infile);
+                    if(remap)
+                        remap_grid(dynamic_cast<GCLgrid&>(field),*rgptr);
+                    outfile=outfile+".vtk";
+                    ofstream out;
+                    out.open(outfile.c_str(),ios::out);
+                    vtk_output_GCLgrid(field,out,scalars_tag);
+                    out.close();
+                    cout << "Wrote "<<npoly<<" polygons to output file"<<endl;
+                    if(apply_agc)cerr <<"WARNING: apply_agc was set true\n"
+                                <<"This is ignored for grids and 2d fields"<<endl;
+                }
 		else
 		{
 			cerr << "Unsupported fieldtype = "<<fieldtype<<endl
