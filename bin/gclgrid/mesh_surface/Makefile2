@@ -1,0 +1,18 @@
+BIN=mesh_surface
+#ldlibs=-lgeocoords -lcgeom -lgclgrid -lseispp $(DBLIBS) -lperf 
+ldlibs=-lgeocoords -lcgeom -lgclgrid -lseispp $(TRLIBS) -lperf 
+SUBDIR=/contrib
+
+
+ANTELOPEMAKELOCAL = $(ANTELOPE)/contrib/include/antelopemake.local
+include $(ANTELOPEMAKE)  	
+include $(ANTELOPEMAKELOCAL)
+CXXFLAGS += -I$(BOOSTINCLUDE)
+LDFLAGS += -L$(BOOSTLIB) -lboost_serialization
+
+
+OBJS=mesh_surface.o
+
+$(BIN) : $(OBJS)
+	$(RM) $@
+	$(CXX) $(CXXFLAGS) -o $@ $(OBJS) $(LDFLAGS) $(LDLIBS)
