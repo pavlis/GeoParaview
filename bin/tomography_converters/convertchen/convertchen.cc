@@ -23,7 +23,7 @@ int main(int argc, char **argv)
 {
   try {
     ios::sync_with_stdio();
-    if(argc!=2) usage();
+    if(argc<2) usage();
     string outfile(argv[1]);
     string outdir(".");
     cout << "Will write results to base file name "<<outfile
