@@ -1,0 +1,15 @@
+The files in the repository are sufficent to crack the 2015 mit model completely. 
+Scott supplied a set of matlab scripts in the electronic supplement to the paper
+on this model that are intimately linked to the reformat m file found here.   
+
+To run this you need to take apart the tar file with the model and matlab code.
+Copy the file reformatMIT2015.m to the to level directory of that tar file and
+run it with matlab.   It should produce the output file MIT2015.txt.   
+
+Then run convertMIT15 redirecting MIT2015.txt as the input.  
+
+For use with pwmig I recommend the -slow flag, but note that requires a (frozen name)
+file called ak135.mod1d.   pwmig can use the same file.   There is a converter
+program to read the data filel supplied from the download site to ak135.mod1d
+
+Oct 1,2015, glp

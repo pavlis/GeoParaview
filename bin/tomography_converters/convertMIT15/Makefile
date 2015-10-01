@@ -1,0 +1,13 @@
+BIN=convertMIT15
+cflags=-g 
+ldlibs=-lgclgrid -lseispp $(DBLIBS) -lperf
+
+SUBDIR=/contrib
+include $(ANTELOPEMAKE) 
+include $(ANTELOPE)/contrib/include/antelopemake.local
+CXXFLAGS += -I$(BOOSTINCLUDE)
+LDFLAGS += -L$(BOOSTLIB)
+OBJS=	convertMIT15.o
+$(BIN) : $(OBJS)
+	$(RM) $@
+	$(CXX) $(CCFLAGS) -o $@ $(OBJS) $(LDFLAGS) $(LDLIBS)
