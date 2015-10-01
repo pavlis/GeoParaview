@@ -9,6 +9,14 @@ GCLMask::GCLMask()
     n1_mask=0;
     n2_mask=0;
 }
+GCLMask::GCLMask(string base_name)
+{
+    string fname;
+    fname=base_name+".mask";
+    std::ifstream ifs(fname.c_str(),ios::in);
+    boost::archive::text_iarchive ia(ifs);
+    ia >> *this;
+}
 GCLMask::GCLMask(GCLgrid& parent)
 {
     n1_mask=parent.n1;
@@ -156,6 +164,10 @@ void GCLMaskedVectorField::save(string fname)
         oa << *mask;
         ofs.close();
     }catch(...){throw;};
+}
+GCLMaskedScalarField::GCLMaskedScalarField(string fname) 
+    : GCLscalarfield(fname),GCLMask(fname)
+{
 }
 GCLMaskedScalarField::GCLMaskedScalarField(GCLscalarfield& f, GCLMask& m) 
     : GCLscalarfield(f), GCLMask(m)

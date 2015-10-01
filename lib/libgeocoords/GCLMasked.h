@@ -21,6 +21,16 @@ class GCLMask
     public:
         /*! Default constructor.  zero initializer */
         GCLMask();
+        /*! \brief Construct from a file.
+
+          This constructs the object from a file name.  This 
+          implementation uses boost's serialization to create 
+          the object from a file name convention.  
+
+          \param base_name is used to construct the file name for
+            data as base_name + ".mask"
+            */
+        GCLMask(string base_name);
         /*! \brief Build an initial mask based on a pattern grid.
 
           A GCLMask object is used to turn components on or off of a GCLgrod
@@ -131,10 +141,11 @@ class GCLMaskedGrid : public GCLgrid, public GCLMask
 class GCLMaskedScalarField : public GCLscalarfield, public GCLMask
 {
     public:
+        /*! Construct from a file with root hame fname. */
+        GCLMaskedScalarField(string fname);
         GCLMaskedScalarField(GCLscalarfield& g, GCLMask& m);
         GCLMaskedScalarField(GCLMaskedGrid& g);
         GCLMaskedScalarField(const GCLMaskedScalarField& parent);
-        ~GCLMaskedScalarField();
         GCLMaskedScalarField& operator=(const GCLMaskedScalarField& parent);
         void save(string fname);
 };
@@ -146,7 +157,6 @@ class GCLMaskedVectorField : public GCLvectorfield, public GCLMask
         GCLMaskedVectorField(GCLvectorfield& g, GCLMask& m);
         GCLMaskedVectorField(GCLMaskedGrid& g, int nvsize);
         GCLMaskedVectorField(const GCLMaskedVectorField& parent);
-        ~GCLMaskedVectorField();
         GCLMaskedVectorField& operator=(const GCLMaskedVectorField& parent);
         void save(string fname);
 };
