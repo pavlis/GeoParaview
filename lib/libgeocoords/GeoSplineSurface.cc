@@ -95,7 +95,11 @@ GeoSplineSurface::GeoSplineSurface(vector<Geographic_point>& pts,
             overrelaxation,convergence,max_iterations);
         if(inpar.get_bool("use_convex_hull"))
         {
+            cout << "Trying to build delaunay triangularization" << endl
+                << "Kill me if this takes a long time - bug in delaunay_0n4"
+                <<endl;
             trigrid=delaunay_On4(pointset);
+            cout << "Success:  output will be limited by convex hull"<<endl;
             use_convex_hull=true;
         }
     } catch (SeisppError& serr) 
