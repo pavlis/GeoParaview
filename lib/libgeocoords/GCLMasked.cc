@@ -65,6 +65,10 @@ bool GCLMask::point_is_valid(int i, int j)
 
 
 
+GCLMaskedGrid::GCLMaskedGrid(string fname) 
+    : GCLgrid(fname),GCLMask(fname)
+{
+}
 GCLMaskedGrid::GCLMaskedGrid(GCLgrid& parent) : GCLgrid(parent), GCLMask(parent)
 {
 }
