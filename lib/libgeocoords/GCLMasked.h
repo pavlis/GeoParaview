@@ -99,8 +99,17 @@ class GCLMask
 class GCLMaskedGrid : public GCLgrid, public GCLMask
 {
     public:
-        /* \brief Default constructor.  */
+        /*! \brief Default constructor.  */
         GCLMaskedGrid(){};
+        /*! \brief Construct from a file. 
+
+          This constructor will read the output of the save
+          method and recreate a clone of the file saved previously.
+          This implementation uses boost serialization in a text file. 
+
+          \param fname is the file name where data is stored. 
+          */
+        GCLMaskedGrid(string fname);
         /* \brief Construct with no original mask.
 
            Often we want to apply our own mask.  This constructor clones 
