@@ -6,7 +6,8 @@ using namespace SEISPP;
 enum infile_type{GRID, SCALARFIELD, VECTORFIELD};
 void usage()
 {
-    cerr << "build_masked_surface (-g indata | -sf indata | -vf indata ) -o outdata < list_of_polygons"<<endl;
+    cerr << "build_masked_surface (-g indata | -sf indata | -vf indata ) -o outdata [-maxval xxx -minval xxx]< list_of_polygons"<<endl;
+
     exit(-1);
 }
 bool SEISPP::SEISPP_verbose(true);

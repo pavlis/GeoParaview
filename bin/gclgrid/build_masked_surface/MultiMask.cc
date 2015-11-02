@@ -33,17 +33,29 @@ MultiMask& MultiMask::operator=(const MultiMask& parent)
 
 bool MultiMask::is_inside(double lat0, double lon0)
 {
-    bool result(false);
     vector<GeoPolygonRegion>::iterator pptr;
     int i;
     for(pptr=polygon.begin(),i=0;pptr!=polygon.end();++pptr,++i)
     {
         bool testone=pptr->is_inside(lat0,lon0);
+        cout << "Polygon "<<i<<" point "<<deg(lat0)<<" "<<deg(lon0)
+            << " is_inside returned "<<testone<<endl;
         if(inside[i])
-            result = result & testone;
+        {
+            if(testone)
+                continue;
+            else
+                return false;
+        }
         else
-            result = result & (!testone);
+        {
+            /* block for polygons tagged to keep points outside */
+            if(testone)
+                return false;
+            else
+                continue;
+        }
     }
-    return result;
+    return true;
 }
 
