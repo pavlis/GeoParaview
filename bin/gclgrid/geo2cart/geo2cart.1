@@ -1,0 +1,21 @@
+.TH GEO2CART 1
+.SH NAME
+geo2cart - converts GMT line files to gclgrid Cartesian system
+.SH SYNOPSIS
+.nf
+geo2cart gridname [-v] < infile
+.fi
+.SH DESCRIPTION
+.LP
+Unix filter to take line files in GMT format and convert them to 
+the Cartesian coordinates defined by an input GCLgrid object.
+Only accepts input in GCLgrid file format.  Argument 1 (gridname)
+is the root name for that file group.
+.IP -v
+Run in verbose mode.
+.SH AUTHOR
+.nf
+Yinzhi (Ian) Wang
+Department of Geological Sciences
+Indiana University
+.fi
