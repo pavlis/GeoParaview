@@ -361,7 +361,7 @@ int main(int argc, char **argv)
                         outfile=outfile+".vtk";
                         ofstream out;
                         out.open(outfile.c_str(),ios::out);
-			vtk_output_GCLgrid(field,out,scalars_tag);
+			npoly=vtk_output_GCLgrid(field,out,scalars_tag);
                         out.close();
 			cout << "Wrote "<<npoly<<" polygons to output file"<<endl;
 			if(apply_agc)cerr <<"WARNING: apply_agc was set true\n"
@@ -382,7 +382,7 @@ int main(int argc, char **argv)
                     outfile=outfile+".vtk";
                     ofstream out;
                     out.open(outfile.c_str(),ios::out);
-                    vtk_output_GCLgrid(field,out,scalars_tag);
+                    npoly=vtk_output_GCLgrid(field,out,scalars_tag);
                     out.close();
                     cout << "Wrote "<<npoly<<" polygons to output file"<<endl;
                     if(apply_agc)cerr <<"WARNING: apply_agc was set true\n"
