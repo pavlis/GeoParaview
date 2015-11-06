@@ -38,8 +38,6 @@ bool MultiMask::is_inside(double lat0, double lon0)
     for(pptr=polygon.begin(),i=0;pptr!=polygon.end();++pptr,++i)
     {
         bool testone=pptr->is_inside(lat0,lon0);
-        cout << "Polygon "<<i<<" point "<<deg(lat0)<<" "<<deg(lon0)
-            << " is_inside returned "<<testone<<endl;
         if(inside[i])
         {
             if(testone)
