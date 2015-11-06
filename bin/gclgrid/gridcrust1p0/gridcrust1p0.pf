@@ -1,0 +1,14 @@
+delta_x1	20.0
+delta_x2	20.0
+gridname	testcrust10
+n1	100
+n2	100
+origin_latitude	50.0
+origin_longitude -155.0
+x_axis_azimuth	90.0
+remap_origin_latitude 60.5
+remap_origin_longitude -142.8
+remap_origin_radius 6162.94
+remap_azimuth_x  110.0
+root_output_name tc1p0
+output_directory Crust1p0grids
