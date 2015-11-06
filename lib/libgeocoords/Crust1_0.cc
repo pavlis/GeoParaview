@@ -37,19 +37,19 @@ Crust1_0::Crust1_0()
     lat0=-89.5;
     lon0=-179.5;
     const string base_error("Crust1_0 constructor:  ");
-    char *vpfile=datapath(NULL,"tables/crust1.0","crust1","vp");
+    char *vpfile=datapath(NULL,"crust1.0","crust1","vp");
     if(vpfile==NULL) 
         throw SeisppError(base_error+"datapath failed search for crust1.vp file");
-    char *vsfile=datapath(NULL,"tables/crust1.0","crust1","vs");
+    char *vsfile=datapath(NULL,"crust1.0","crust1","vs");
     /* This and the next 2 similar tests are very unlikely to every be
        thrown.  If any of these throw they will generate a small memory 
        leak, but the extra coding required to fix that is not justified.*/
     if(vsfile==NULL) 
         throw SeisppError(base_error+"datapath failed search for crust1.vs file");
-    char *rhofile=datapath(NULL,"tables/crust1.0","crust1","rho");
+    char *rhofile=datapath(NULL,"crust1.0","crust1","rho");
     if(rhofile==NULL) 
         throw SeisppError(base_error+"datapath failed search for crust1.rho file");
-    char *bndsfile=datapath(NULL,"tables/crust1.0","crust1","bnds");
+    char *bndsfile=datapath(NULL,"crust1.0","crust1","bnds");
     if(bndsfile==NULL) 
         throw SeisppError(base_error+"datapath failed search for crust1.bnds file");
     /* crust1.0 has a frozen structure with nothing in the file at all 
