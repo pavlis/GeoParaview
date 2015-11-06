@@ -174,9 +174,20 @@ int main(int argc, char **argv)
             f.save(dbh,outdir,outdir,fieldname,fieldname);
         else
             f.save(fieldname,outdir);
-        /* Unfinished - need to also write water depth and sed thickness fields
-           but because that will nearly duplicate above code best to use 
-           that as a pattern so will debug first */
+        /* Finally do depth as a field.   Output depth in km */
+        for(j=0;j<f.n2;++j)
+            for(i=0;i<f.n1;++i)
+            {
+                Geographic_point gp=f.geo_coordinates(i,j);
+                double dlat=deg(gp.lat);
+                double dlon=deg(gp.lon);
+                f.val[i][j]=crust1p0.CrustalThickness(dlat,dlon);
+            }
+        fieldname=base_name+"_depthmoho";
+        if(save_to_db)
+            f.save(dbh,outdir,outdir,fieldname,fieldname);
+        else
+            f.save(fieldname,outdir);
     }catch(std::exception err)
     {
         cerr << err.what()<<endl;
