@@ -1,0 +1,93 @@
+.TH mesh_surface 1
+.SH NAME
+mesh_surface - build a 3d regular mesh from irregular data
+.SH SYNOPSIS
+.nf
+meshsurface ingrid outf [-pf pffile]< pointfile
+.fi
+.SH DESCRIPTION
+.LP
+The original GCLgrid library was limited to a structured 2D grid in 
+3D space.   Type example in 3D visualization is a flag represented by
+a regular mesh.   Frequently in geosciences we have only irregularly 
+sampled data to represent a surface.   The basic idea of this program
+is to build a gridded surface in 3D from irregularly spaced data.  
+This program can be thought of as a 3D version of the bicubic spline
+program called surface and the 
+Delaunay triangularization programs called triangulate in GMT.  
+The output is a GCLscalarfield object with depth as the scalar attribute.
+.LP
+\fIingrid\fR is a base file name for a GCLgrid object that defines the 
+lat and lon grid used for gridding.   That is, only the latitude 
+and longitude coordinates are extracted from this grid.   
+Depth is interpolated from pointfile data (see below).  
+Note this program only supports the file based constructors for a 
+GCLgrid.   That usually means that exportgrid needs to be run on a 
+base grid created with makegclgrid and stored in an antelope db.  
+Similar outf is the base file for the output GCLscalarfield file.   
+.LP
+The pointfile is a simple text file with standard unix white space 
+delimited field.  Each line is assumed to contain a point defined
+by latitude (degrees), longitude (degrees), and depth (km).   
+The code parses the first 3 token and drops trailing text.  Hence
+comments on points can appear as text following the depth field.  
+These define the points that are interpolated to form the mesh.
+.LP
+Note that if triangularization is used data outside the convex hull
+of the input points.   Points outside the hull are flagged with a large
+negative number (-99999.9).  Normally such data should be passed
+through the build_masked_surface program to turn the result into a 
+form that can be correctly viewed in paraview.
+.SH OPTIONS
+.IP -pf
+Use pffile instead of the default mesh_grid.pf.
+.SH FILES
+.LP
+The point file read from stdin is white space delimited text
+in the order latitude, longitude, and depth.  
+.SH PARAMETER FILE
+.LP 
+This is the default parameter file with comments clarifying usage
+.nf
+# This parameter must be either DelaunayTriangularization or
+# BicubicSpline or the program will exit with an error.
+# All other parameters are ignored for DelaunayTriangularization
+#surface_fitting_method DelaunayTriangularization
+surface_fitting_method BicubicSpline
+# This set of parameters are accessed only if use_bicubic_spline is true
+# They are ignored when using triangularization
+grid_longitude_minimum -180
+grid_longitude_maximum -120
+grid_latitude_minimum 50
+grid_latitude_maximum 70
+# Grid spacing for bicubic spline internal grid
+grid_longitude_spacing 0.5
+grid_latitude_spacing 0.5
+lower_bound_depth -3.0
+upper_bound_depth 2000.0
+# This set of parameters should not normally require a change
+tension_interior 0.25
+tension_boundary 1.0
+aspect_ratio 1.0
+overrelaxation 1.4
+convergence 0.001
+max_iterations 250
+.fi
+.SH "BUGS AND CAVEATS"
+.IP (1)
+I have had issues with the cubic spline interpolator. It does not
+always behave well.   It uses a routine in the antelope libraries written
+by Kent Lindquist so the problem is not clear.   I do not recommend
+using that interpolation method.
+.IP (2)
+I also use Lindquist's Delaunay triangulization routine.  It works well
+in most cases but I have seen this routine go into an infinite loop.
+This seems to be related to a known issue with Delaunay triangulization 
+with multiple colinear points.   Lindquist's function does not seem to
+handle this issue.   It is unclear if there is a true infinite loop
+or the compute time in some cases is just extremely long.   The former
+seems likely as I've let this code run for hours with a few hundred 
+points and it did not finish.   
+.SH AUTHOR
+Professor Gary L. Pavlis, Department of Geological Sciences,
+Indiana University (pavlis@indiana.edu)
