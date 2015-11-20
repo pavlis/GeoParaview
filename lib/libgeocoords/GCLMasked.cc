@@ -116,6 +116,18 @@ void GCLMaskedGrid::save(string fname)
        store base data.  Limitation here is I don't allow use
      of a directory as in GCLgrid library.  Alway current directory*/
         this->GCLgrid::save(fname,string("."));
+        /* We need to read and edit the pf file that was written by
+           the previous routine.   Needed because we have to edit
+           the object type attribute. This is a horrible inefficiency
+           and would be a problem if was done millions of times but
+           I do not anticipate that being an issue so we will live
+           with this inefficiency. */
+        Pf *pf;
+        pfread(const_cast<char *>(fname.c_str()),&pf);
+        string obname(typeid(*this).name());
+        pfput_string(pf,const_cast<char*>("object_type"),
+                const_cast<char *>(obname.c_str()));
+        pfwrite(const_cast<char *>(fname.c_str()),pf);
         /* we have a boost serialization to save the mask data.
            We store that in a name derived from fname.  This 
            assume format with fname+".dat" as data and fname+".pf" 
@@ -157,6 +169,13 @@ void GCLMaskedVectorField::save(string fname)
        store base data.  Limitation here is I don't allow use
      of a directory as in GCLgrid library.  Alway current directory*/
         this->GCLvectorfield::save(fname,string("."));
+        /* This is identical to above for GCLMaskedGrid*/
+        Pf *pf;
+        pfread(const_cast<char *>(fname.c_str()),&pf);
+        string obname(typeid(*this).name());
+        pfput_string(pf,const_cast<char*>("object_type"),
+                const_cast<char *>(obname.c_str()));
+        pfwrite(const_cast<char *>(fname.c_str()),pf);
         /* we have a boost serialization to save the mask data.
            We store that in a name derived from fname.  This 
            assume format with fname+".dat" as data and fname+".pf" 
@@ -202,6 +221,13 @@ void GCLMaskedScalarField::save(string fname)
        store base data.  Limitation here is I don't allow use
      of a directory as in GCLgrid library.  Alway current directory*/
         this->GCLscalarfield::save(fname,string("."));
+        /* This is identical to above for GCLMaskedGrid*/
+        Pf *pf;
+        pfread(const_cast<char *>(fname.c_str()),&pf);
+        string obname(typeid(*this).name());
+        pfput_string(pf,const_cast<char*>("object_type"),
+                const_cast<char *>(obname.c_str()));
+        pfwrite(const_cast<char *>(fname.c_str()),pf);
         /* we have a boost serialization to save the mask data.
            We store that in a name derived from fname.  This 
            assume format with fname+".dat" as data and fname+".pf" 
