@@ -170,7 +170,7 @@ void GCLMaskedVectorField::save(string fname)
     }catch(...){throw;};
 }
 GCLMaskedScalarField::GCLMaskedScalarField(string fname) 
-    : GCLscalarfield(fname),GCLMask(fname)
+    : GCLscalarfield(fname,default_output_format,false),GCLMask(fname)
 {
 }
 GCLMaskedScalarField::GCLMaskedScalarField(GCLscalarfield& f, GCLMask& m) 
