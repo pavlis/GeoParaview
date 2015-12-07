@@ -40,14 +40,28 @@ int main(int argc, char **argv)
             << "Loading GCLgrid "<<ingridname<<" to define surface meshing"
             <<endl;
         GCLgrid mesh(ingridname);
+        Metadata md(pf);
         /* f is our output field.  This clones the mesh geometry but 
            sets all val entries to 0.0*/
         GCLscalarfield f(mesh);
+        string surface_type=md.get_string("surface_fitting_method");
+        /* Major switch to control what is posted to field.  When this
+           boolean is false (default) only 3 columns are read and the
+           scalar is set to depth.   When true an alternative value 
+           in column 4 becomes the field variable. */
+        bool data_has_attribute=md.get_bool("data_has_attribute");
         /* Control points are read from input.*/
         double latin,lonin,zin;
         vector<Geographic_point> gp;
+        /* These duplicate gp vector above, but radius is 
+           replaced by radius less the attribute.  Depends 
+           upon the spline function converting back, which 
+           the current version does.  Very big maintenance
+           issue. */
+        vector<Geographic_point> gp_attr;
         int ncps(0);
         char linebuf[512];
+        double val;
         while(cin.getline(linebuf,512))
         {
             stringstream ss(linebuf);
@@ -57,23 +71,42 @@ int main(int argc, char **argv)
             gpin.lon=rad(lonin);
             gpin.r=r0_ellipse(gpin.lat)-zin;
             //DEBUG
-            cout << deg(gpin.lon) <<" "<<deg(gpin.lat)<<" "<< r0_ellipse(gpin.lat) - gpin.r<<endl;
+            //cout << deg(gpin.lon) <<" "<<deg(gpin.lat)<<" "<< r0_ellipse(gpin.lat) - gpin.r<<endl;
             gp.push_back(gpin);
+            if(data_has_attribute)
+            {
+                ss >> val;
+                gpin.r=r0_ellipse(gpin.lat)-val;
+                gp_attr.push_back(gpin);
+            }
             ++ncps;
         }
         cout << "Read "<<ncps<<" control points from stdin"<<endl;
-        Metadata md(pf);
-        GeoSurface *bptr;  // base pointer passed around for polymophic behaviour
-        string surface_type=md.get_string("surface_fitting_method");
+        //base pointer passed around for polymophic behaviour
+        GeoSurface *bptr; 
+        // Comparable when using an attribute added to surface
+        GeoSurface *abptr;
         if(surface_type=="DelaunayTriangularization")
         {
             GeoTriMeshSurface *gtmsptr=new GeoTriMeshSurface(gp);
             bptr=dynamic_cast<GeoSurface*>(gtmsptr);
+            if(data_has_attribute)
+            {
+                GeoTriMeshSurface *gatmpptr
+                    =new GeoTriMeshSurface(gp_attr);
+                abptr=dynamic_cast<GeoSurface*>(gatmpptr);
+            }
         }
         else if(surface_type=="BicubicSpline")
         {
             GeoSplineSurface *gssptr=new GeoSplineSurface(gp,md);
             bptr=dynamic_cast<GeoSurface*>(gssptr);
+            if(data_has_attribute)
+            {
+                GeoSplineSurface *gatmpptr
+                    = new GeoSplineSurface(gp_attr,md);
+                abptr=dynamic_cast<GeoSurface*>(gatmpptr);
+            }
         }
         else
         {
@@ -102,6 +135,8 @@ int main(int argc, char **argv)
                     f.x1[i][j]=cp.x1;
                     f.x2[i][j]=cp.x2;
                     f.x3[i][j]=cp.x3;
+                    if(data_has_attribute)
+                        f.val[i][j]=abptr->depth(mlat,mlon);
                 }
                 else
                     // Do not distort grid for undefined points - leaves them at original r
@@ -117,5 +152,3 @@ int main(int argc, char **argv)
         exit(-1);
     }
 }
-
-

@@ -1,25 +1,17 @@
-# This parameter must be either DelaunayTriangularization or
-# BicubicSpline or the program will exit with an error.
-# All other parameters are ignored for DelaunayTriangularization
-#surface_fitting_method DelaunayTriangularization
-surface_fitting_method BicubicSpline
-# This set of parameters are accessed only if use_bicubic_spline is true
-# They are ignored when using triangularization
-grid_longitude_minimum -180
-grid_longitude_maximum -120
-grid_latitude_minimum 50
-grid_latitude_maximum 70
-# used for debug production value below
-grid_longitude_spacing 0.5
-grid_latitude_spacing 0.5
-#grid_longitude_spacing 0.025
-#grid_latitude_spacing 0.05
-lower_bound_depth -3.0
-upper_bound_depth 2000.0
-# This set of parameters should not normally require a change
-tension_interior 0.25
-tension_boundary 1.0
-aspect_ratio 1.0
-overrelaxation 1.4
-convergence 0.001
-max_iterations 250
+aspect_ratio	1.0
+convergence	0.001
+data_has_attribute	true
+grid_latitude_maximum	52.0
+grid_latitude_minimum	22.0
+grid_latitude_spacing	0.1
+grid_longitude_maximum	-65.0
+grid_longitude_minimum	-130.0
+grid_longitude_spacing	0.1
+lower_bound_depth	-100.0
+max_iterations	250
+overrelaxation	1.4
+pf_revision_time	1449440173
+surface_fitting_method	BicubicSpline
+tension_boundary	1.0
+tension_interior	1.0
+upper_bound_depth	100.0
