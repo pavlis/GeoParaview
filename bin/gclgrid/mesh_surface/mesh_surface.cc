@@ -1,3 +1,6 @@
+#include <iostream>
+#include <fstream>
+#include <sstream>
 #include "seispp.h"
 #include "gclgrid.h"
 #include "GeoTriMeshSurface.h"
@@ -7,8 +10,10 @@
 const double UndefinedDepth(-99999.9);
 void usage()
 {
-    cerr << "meshsurface ingrid outf [-pf pffile]< pointfile" <<endl;
-    cerr << " outf is GCLscalarfield with depth as value"<<endl;
+    cerr << "meshsurface ingrid outf [-af fname -pf pffile]< pointfile" <<endl;
+    cerr << " outf is GCLscalarfield with depth as value"<<endl
+        <<  " use -af to build a parallel file of attributes on surface"
+        <<endl;;
     exit(-1);
 }
 bool SEISPP::SEISPP_verbose(true);
@@ -18,6 +23,8 @@ int main(int argc, char **argv)
     string ingridname(argv[1]);
     string outfieldname(argv[2]);
     string pffile("mesh_surface");
+    bool data_has_attribute(false);
+    string attribute_data_file;
     int i,j;
     for(i=3;i<argc;++i)
     {
@@ -28,6 +35,15 @@ int main(int argc, char **argv)
             if(i>argc) usage();
             pffile=string(argv[i]);
         }
+        else if(sarg=="-af")
+        {
+            ++i;
+            if(i>argc) usage();
+            attribute_data_file=string(argv[i]);
+            data_has_attribute=true;
+        }
+        else
+            usage();
     }
     Pf *pf;
     if(pfread(const_cast<char *>(pffile.c_str()),&pf))
@@ -45,43 +61,54 @@ int main(int argc, char **argv)
            sets all val entries to 0.0*/
         GCLscalarfield f(mesh);
         string surface_type=md.get_string("surface_fitting_method");
-        /* Major switch to control what is posted to field.  When this
-           boolean is false (default) only 3 columns are read and the
-           scalar is set to depth.   When true an alternative value 
-           in column 4 becomes the field variable. */
-        bool data_has_attribute=md.get_bool("data_has_attribute");
         /* Control points are read from input.*/
         double latin,lonin,zin;
         vector<Geographic_point> gp;
-        /* These duplicate gp vector above, but radius is 
-           replaced by radius less the attribute.  Depends 
-           upon the spline function converting back, which 
-           the current version does.  Very big maintenance
-           issue. */
+        /* Similar vector of data for attribute data*/
         vector<Geographic_point> gp_attr;
         int ncps(0);
         char linebuf[512];
         double val;
+        Geographic_point gpin;
         while(cin.getline(linebuf,512))
         {
             stringstream ss(linebuf);
             ss >> lonin; ss>>latin;  ss>>zin;
-            Geographic_point gpin;
             gpin.lat=rad(latin);
             gpin.lon=rad(lonin);
             gpin.r=r0_ellipse(gpin.lat)-zin;
-            //DEBUG
-            //cout << deg(gpin.lon) <<" "<<deg(gpin.lat)<<" "<< r0_ellipse(gpin.lat) - gpin.r<<endl;
             gp.push_back(gpin);
-            if(data_has_attribute)
-            {
-                ss >> val;
-                gpin.r=r0_ellipse(gpin.lat)-val;
-                gp_attr.push_back(gpin);
-            }
+            //DEBUG
+            //cout << lonin<<" "<<latin<<" "<<zin<<endl;
             ++ncps;
         }
         cout << "Read "<<ncps<<" control points from stdin"<<endl;
+        if(data_has_attribute)
+        {
+            ifstream afin(attribute_data_file.c_str(),ios::in);
+            if(afin.fail())
+            {
+                cerr << "Open failed on attribute file defined by -af "
+                    << "flag="<<attribute_data_file<<endl
+                    << "Fatal error"<<endl;
+                exit(-1);
+            }
+            ncps=0;
+            while(afin.getline(linebuf,512))
+            {
+                stringstream ss(linebuf);
+                ss >> lonin; ss>>latin;  ss>>zin;
+                gpin.lat=rad(latin);
+                gpin.lon=rad(lonin);
+                /* Note zin in this case is not that at all but 
+                   the attribute value.  Reusing the variable only*/
+                gpin.r=r0_ellipse(gpin.lat)-zin;
+                gp_attr.push_back(gpin);
+                ++ncps;
+            }
+            cout << "Read "<<ncps<<" attribute points from file "
+                <<attribute_data_file<<endl;
+        }
         //base pointer passed around for polymophic behaviour
         GeoSurface *bptr; 
         // Comparable when using an attribute added to surface
@@ -123,11 +150,9 @@ int main(int argc, char **argv)
                 cout << "working on grid point i="<<i<<" j="<<j<<endl;
                 double mlat(mesh.lat(i,j));
                 double mlon(mesh.lon(i,j));
-                double mr(mesh.r(i,j));
+                double mr=r0_ellipse(mlat);
                 if(bptr->is_defined(mlat,mlon))
                 {
-                    //DEBUG
-                    //cout << deg(mlon) << " "<<deg(mlat)<<" "<<bptr->depth(mlat,mlon)<<endl;
                     f.val[i][j]=bptr->depth(mlat,mlon);
                     mr-=f.val[i][j];
                     ++nlive;
@@ -137,6 +162,10 @@ int main(int argc, char **argv)
                     f.x3[i][j]=cp.x3;
                     if(data_has_attribute)
                         f.val[i][j]=abptr->depth(mlat,mlon);
+                    //DEBUG
+                    cout << deg(mlon) << " "<<deg(f.lon(i,j))<<" "
+                        <<deg(mlat)<<" "<<deg(f.lat(i,j))
+                        <<" "<<f.depth(i,j)<<" "<<f.val[i][j]<<endl;
                 }
                 else
                     // Do not distort grid for undefined points - leaves them at original r
