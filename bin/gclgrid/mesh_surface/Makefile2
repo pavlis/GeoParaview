@@ -1,5 +1,6 @@
 BIN=mesh_surface
 PF=mesh_surface.pf
+MAN1=mesh_surface.1
 #ldlibs=-lgeocoords -lcgeom -lgclgrid -lseispp $(DBLIBS) -lperf 
 ldlibs=-lgeocoords -lcgeom -lgclgrid -lseispp $(TRLIBS) -lperf 
 SUBDIR=/contrib
