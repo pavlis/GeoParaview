@@ -105,7 +105,7 @@ int main(int argc, char **argv)
                 if(convert_to_slowness)
                 {
                     v0=vmod.getv(depth);
-                    dVP.val[i][j][k] *= -0.01/v0;
+                    dVP.val[i][j][k] = -dVP.val[i][j][k]/v0/(1+dVP.val[i][j][k]);
                 }
             }
             // copy top value to top cell 
@@ -138,7 +138,7 @@ int main(int argc, char **argv)
                     depth=dVP.depth(i,j,k);
                     v1d=vmod.getv(depth);
                 /* model is percent perturbation of velocity */
-                dVP.val[i][j][k]=v1d+(0.01*v1d*dVP.val[i][j][k]);
+                dVP.val[i][j][k]=v1d+(v1d*dVP.val[i][j][k]);
                 }
             }
         }
