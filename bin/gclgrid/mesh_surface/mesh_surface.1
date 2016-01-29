@@ -92,14 +92,14 @@ and the paper referenced there on the tension parameters.
 Tension needs to be 1 if the data have large local gradients that
 define an edge.   With smoother attributes they recommend 0.25.
 .IP (2)
-I also use Lindquist's Delaunay triangulization routine.  It works well
-in most cases but I have seen this routine go into an infinite loop.
-This seems to be related to a known issue with Delaunay triangulization 
-with multiple colinear points.   Lindquist's function does not seem to
-handle this issue.   It is unclear if there is a true infinite loop
-or the compute time in some cases is just extremely long.   The former
-seems likely as I've let this code run for hours with a few hundred 
-points and it did not finish.   
+I also use Lindquist's Delaunay triangulization routine.  
+The algorithm used is a less than optimal N^4 algorithm that can
+take an overwhelming amount of time to compute if N is more than
+than the order of 100.   Later reading shows there is a much faster
+algorithm in existence, but it has not been implemented.  Do not use
+triangularization for anything but small data sets.  A useful trick 
+for irregular data is to use GMT's blockmean or blockedian to reduce
+the number of points before triangularization.
 .SH AUTHOR
 Professor Gary L. Pavlis, Department of Geological Sciences,
 Indiana University (pavlis@indiana.edu)
