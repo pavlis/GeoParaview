@@ -1,7 +1,7 @@
 BIN=geo2cart
 
 SUBDIR=/contrib
-ldlibs=-lm -lseispp -lgclgrid -lperf $(DBLIBS) 
+ldlibs=-lm -lseispp -lgclgrid -lperf $(DBLIBS) -lseispp
 
 include $(ANTELOPEMAKE)  	
 include $(ANTELOPEMAKELOCAL)
