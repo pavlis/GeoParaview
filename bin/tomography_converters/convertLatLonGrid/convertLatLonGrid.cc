@@ -109,7 +109,7 @@ int main(int argc, char **argv)
 		        lat=rad(lat);
 		        lon=rad(lon);
 		        double rsurface=r0_ellipse(lat);
-	            depth=dx3nom*kk;
+	            //depth=dx3nom*kk;
 	            //DEBUG
 				//cout<<"Depth: "<<depth<<endl;
 				r=rsurface-depth;
