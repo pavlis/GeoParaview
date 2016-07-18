@@ -13,7 +13,7 @@ void usage()
     cout << "convertLatLonGrid outputname model_name P|S N_lat N_lon N_dep [-d -r -lti lat_interval -lni lon_interval -di dep_interval] "<<endl
     	<<"-d write to a database with name outputname. The default is write to GCLgrid file."<<endl
     	<<"-r when input is a regional grid. The default is global grid. "<<endl
-    	<<"-lti -lni -di defines the nominal intervals of the grid. "<<endl
+    	<<"-lti -lni -di defines the nominal intervals of the grid in degree and km. "<<endl
         <<endl;
     exit(-1);
 }
@@ -42,13 +42,13 @@ int main(int argc, char **argv)
         {
             ++i;
             if(i>=argc) usage();
-            lat_interval=atof(argv[i]);
+            lat_interval*=atof(argv[i]);
         }
 		else if(sarg=="-lni")
         {
             ++i;
             if(i>=argc) usage();
-            lon_interval=atof(argv[i]);
+            lon_interval*=atof(argv[i]);
         }
 		else if(sarg=="-di")
         {
