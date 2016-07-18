@@ -160,7 +160,7 @@ int main(int argc, char **argv)
 	            {
 			        if(i==n1vp-1)
 			        {
-					    cp=dVP.gtoc(lat,-lon,r);
+					    cp=dVP.gtoc(lat,lon-rad(360.0),r);
 					    dVP.x1[0][j][k]=cp.x1;
 					    dVP.x2[0][j][k]=cp.x2;
 					    dVP.x3[0][j][k]=cp.x3;
