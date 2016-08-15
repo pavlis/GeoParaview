@@ -105,6 +105,14 @@ Cartesian_point RegionalCoordinates::cartesian(Geographic_point gp)
 {
     return(this->cartesian(gp.lat,gp.lon,gp.r));
 }
+Geographic_point RegionalCoordinates::geographic(double x, double y, double z)
+{
+    double xp[3];
+    xp[0]=x;
+    xp[1]=y;
+    xp[2]=z;
+    return(this->geographic(xp));
+}
 Geographic_point RegionalCoordinates::geographic(double xin[3])
 {
     Geographic_point  p;
