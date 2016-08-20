@@ -4,3 +4,4 @@ projection_depth_increment 10.0
 number_depth_increments 10
 reference_grid_name taimage
 output_directory GCLgrids
+origin_offset 0.0
