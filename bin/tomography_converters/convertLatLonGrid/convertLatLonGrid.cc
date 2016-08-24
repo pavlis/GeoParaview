@@ -10,11 +10,14 @@ using namespace SEISPP;
 
 void usage()
 {
-    cout << "convertLatLonGrid outputname model_name P|S N_lat N_lon N_dep "
-        <<"[-d -r -slow -lti lat_interval -lni lon_interval -di dep_interval] "<<endl
+    cout <<"Usage:"<<endl
+        <<"convertLatLonGrid outputname model_name P|S N_lat N_lon N_dep "
+        <<"[-d -r -velocity -slow -lti lat_interval -lni lon_interval -di dep_interval] "<<endl<<endl
         <<"-d write to a database with name outputname. The default is write to GCLgrid file."<<endl
-        <<"-r when input is a regional grid. The default is global grid. "<<endl
-        << "-slow outputs delta slowness - default is raw velocity change in percent"<<endl
+        <<"-r specify a regional grid. The default is global grid. "<<endl
+        <<"-velocity assumes input to be actual velocity and convert it to velocity change in percent relative to AK135. "
+            <<"The default does not do such convertion. "<<endl
+        <<"-slow outputs delta slowness - default is raw velocity change in percent"<<endl
         <<"-lti -lni -di defines the nominal intervals of the grid in degree and km. "<<endl
         <<endl;
     exit(-1);
@@ -30,6 +33,7 @@ int main(int argc, char **argv)
     //bool convert_to_slowness(false);
     bool write_to_db(false);
     bool is_regional(false);
+    bool convert_to_dv(false);
     bool convert_to_slowness(false);
     double lat_interval(24.0*4);
     double lon_interval(27.5*4);
@@ -41,6 +45,8 @@ int main(int argc, char **argv)
             write_to_db=true;
         else if(sarg=="-r")
             is_regional=true;
+        else if(sarg=="-velocity")
+            convert_to_dv=true;
         else if(sarg=="-slow")
             convert_to_slowness=true;
         else if(sarg=="-lti")
@@ -97,7 +103,7 @@ int main(int argc, char **argv)
     int N_dep(atoi(argv[6]));
     cout << "N_lat = "<< N_lat << ", N_lon = "<< N_lon << ", N_dep = "<< N_dep <<endl;
     VelocityModel_1d *V1d=NULL;
-    if(convert_to_slowness)
+    if(convert_to_slowness || convert_to_dv)
     {
         try{
             if(isPm)
@@ -133,7 +139,7 @@ int main(int argc, char **argv)
     /* This grid will not be congruent with receiver function image grid.
        gclfield2vtk must have remapping defined for this to be registered right.
         Here I use simple origin at the first grid point in the input scan order. */
-    r0=r0_ellipse(lat0); 
+    r0=r0_ellipse(lat0);
     GCLgrid3d *grid=new GCLgrid3d(n1vp,n2vp,n3vp,model_name,
             lat0,lon0,r0,0.0,
             dx1nom,dx2nom,dx3nom,i0,j0);
@@ -180,6 +186,14 @@ int main(int argc, char **argv)
                 dVP.x2[i][j][k]=cp.x2;
                 dVP.x3[i][j][k]=cp.x3;
                 cin >> dVP.val[i][j][k];
+                if(convert_to_dv)
+                {
+                    v0=V1d->getv(depth);
+                    if(dVP.val[i][j][k] == 9999)
+                        dVP.val[i][j][k] = 0.0;
+                    else
+                        dVP.val[i][j][k] = (dVP.val[i][j][k]-v0)/v0*100.0;
+                }
                 if(convert_to_slowness)
                 {
                     v0=V1d->getv(depth);
