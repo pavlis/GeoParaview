@@ -205,7 +205,9 @@ int main(int argc, char **argv)
                         rgptr=dynamic_cast<BasicGCLgrid*>(gtmp);
 
 		}
-			
+
+		bool adddepth=control.get_bool("add_depth");;
+
 		bool SaveAsVectorField;
 		int VectorComponent;
 		bool rmeanx3=control.get_bool("remove_mean_x3_slices");
@@ -257,6 +259,32 @@ int main(int argc, char **argv)
 				field.save(dbh,string(""),fielddir,
 				  outfieldname,outfieldname);
 		}
+		else if(fieldtype=="grid3d") 
+		{
+                        GCLgrid3d ingrid;
+                        if(dbmode)
+			    ingrid=GCLgrid3d(dbh,gridname);
+                        else
+                            ingrid=GCLgrid3d(infile);
+			if(remap)
+			{
+				// Used to make this optional.  force
+				//if(field!=(*rgptr))
+				remap_grid(dynamic_cast<GCLgrid3d&>(ingrid),
+						*rgptr);
+			}
+                        GCLscalarfield3d field(ingrid);
+			for(int i=0;i<field.n1;i++)
+				for(int j=0;j<field.n2;j++)
+					for(int k=0;k<field.n3;k++)
+						field.val[i][j][k]=field.depth(i,j,k);
+                        if(xmloutput)
+                            outfile=outfile+".vts";
+                        else
+                            outfile=outfile+".vtk";
+			output_gcl3d_to_vtksg<GCLscalarfield3d&>(field,outfile,
+                               scalars_tag,component_names,xmloutput,binaryout);
+		}
 		else if(fieldtype=="vector3d")
 		{
 			SaveAsVectorField=control.get_bool("save_as_vector_field");
@@ -280,6 +308,21 @@ int main(int argc, char **argv)
 			}
                         if(SaveAsVectorField)
                         {
+			    if(adddepth)
+			    {
+				GCLvectorfield3d vfieldnew(dynamic_cast<GCLgrid3d&>(vfield),vfield.nv+1);
+				for(int i=0;i<vfield.n1;i++)
+					for(int j=0;j<vfield.n2;j++)
+						for(int k=0;k<vfield.n3;k++)
+							for(int l=0;l<vfield.nv;l++)
+								vfieldnew.val[i][j][k][l]=vfield.val[i][j][k][l];
+				for(int i=0;i<vfieldnew.n1;i++)
+					for(int j=0;j<vfieldnew.n2;j++)
+						for(int k=0;k<vfieldnew.n3;k++)
+							vfieldnew.val[i][j][k][vfield.nv]=vfieldnew.depth(i,j,k);
+				vfield=vfieldnew;
+				component_names.push_back("Depth");
+			    }
                             if(xmloutput)
                                 outfile=outfile+".vts";
                             else
