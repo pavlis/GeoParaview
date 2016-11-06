@@ -4,9 +4,10 @@
 #include <vector>
 #include <fstream>
 #include <sstream>
+#include "dmatrix.h"
+#include "gclgrid.h"
 #include "seispp.h"
 #include "Metadata.h"
-#include "gclgrid.h"
 using namespace std;
 using namespace SEISPP;
 void usage()
@@ -14,6 +15,48 @@ void usage()
   cerr << "ModEM2gclfield infile outputfieldname [-pf pffile]"<<endl;
   exit(-1);
 }
+/* Subroutine like procedure to adjust grid depths to irregular 
+ * depths stored in z.   Note we assume z is reversed relative to 
+ * GCLgrid3d convention (i.e. z increases with index - grid does the
+ * reverse */
+void adjust_depths(GCLgrid3d& g, vector<double> z)
+{
+    // Sanity check
+    int nz=z.size();
+    if(nz!=g.n3)
+    {
+        cerr << "adjust_depths:   fatal error.  Size mismatch"<<endl
+            << "grid n3="<<g.n3<<" but depth vector length passed ="
+            << nz<<endl;
+        exit(-1);
+    }
+    Geographic_point gp;
+    Cartesian_point cp;
+    int k,kk;
+    int k0=g.n3-1;  // We assume this point is at r0 - constructor does this
+    int i,j;
+    /* I do not comprehend why this is necessary. Inheritance should
+     * handle this but the gcc compiler I'm using does not allow me
+     * to use the derived class */
+    BasicGCLgrid *bgg;
+    bgg=dynamic_cast<BasicGCLgrid*>(&g);
+    for(i=0;i<g.n1;++i)
+        for(j=0;j<g.n2;++j)
+        {
+            gp=bgg->ctog(g.x1[i][j][k0],g.x2[i][j][k0],g.x3[i][j][k0]);
+            //gp=g.ctog(g.x1[i][j][k0],g.x2[i][j][k0],g.x3[i][j][k0]);
+            for(kk=0,k=g.n3-1;kk<nz;++kk,--k)
+            {
+                Geographic_point gpnow(gp);
+                gpnow.r -= z[kk];
+                cp=g.gtoc(gpnow);
+                g.x1[i][j][k]=cp.x1;
+                g.x2[i][j][k]=cp.x2;
+                g.x3[i][j][k]=cp.x3;
+            }
+        }
+}
+
 /* Return a vector of accumulated distances (converted to km) from
 the input line.   reverse boolean inverts the order as seems necessary
 for this format */
@@ -87,8 +130,8 @@ void test_axis(vector<double> x, double dx)
   int i;
   for(i=1;i<x.size();++i)
   {
-    double dxi=x[i]-x[i-1];
-    double test=fabs((dxi-dx)/dx);
+    double dxi=fabs(x[i]-x[i-1]);
+    double test=(dxi-dx)/dx;
     if(test>FLT_EPSILON)
     {
       cerr << "Grid axis error - only currently support regular grids with irregular boundaries"<<endl
@@ -99,6 +142,23 @@ void test_axis(vector<double> x, double dx)
     }
   }
 }
+int find_smallest(vector<double>& x)
+{
+    int i,i0;
+    int nx=x.size();
+    double xmin;
+    xmin=fabs(x[0]);
+    for(i0=0,i=1;i<nx;++i)
+    {
+      if(fabs(x[i])<xmin)
+      {
+          xmin=fabs(x[i]);
+          i0=i;
+      }
+    }
+    return i0;
+}
+      
 bool SEISPP::SEISPP_verbose(true);
 int main(int argc, char **argv)
 {
@@ -168,7 +228,7 @@ int main(int argc, char **argv)
     const int INBUFSIZE(8192);
     char linebuf[INBUFSIZE];
     din.getline(linebuf,INBUFSIZE);
-    const string firstline("# 3D MT model written by ModEM in WS format");
+    const string firstline(" # 3D MT model written by ModEM in WS format");
     if(firstline!=linebuf)
     {
       cerr << "File format error"<<endl
@@ -195,7 +255,8 @@ int main(int argc, char **argv)
     vector<double> x2_all=parse_coord_axis_line(linebuf,nx2,true);
     din.getline(linebuf,INBUFSIZE);
     /* Parse the z section straight up as we don't have a border issue there */
-    ss.str(linebuf);
+    stringstream ssz;
+    ssz.str(linebuf);
     vector<double> x3v;
     x3v.reserve(nx3);
     double z(0.0);
@@ -203,8 +264,8 @@ int main(int argc, char **argv)
     for(i=0;i<nx3;++i)
     {
       double dz;
-      ss >> dz;
-      cout << z <<" ";
+      ssz >> dz;
+      cout << z <<endl;
       x3v.push_back(z);
       z += (dz*0.001);
     }
@@ -218,11 +279,11 @@ int main(int argc, char **argv)
     will abort if any points differ from the expected*/
     double dx1,dx2;
     test_axis(x1v,dx1expected);
-    cout << "x1 axis checks out with output uniform grid size="<<dx1<<endl;
     dx1=dx1expected;
+    cout << "x1 axis checks out with output uniform grid size="<<dx1<<endl;
     test_axis(x2v,dx2expected);
-    cout << "x2 axis checks out with output uniform grid size="<<dx2<<endl;
     dx2=dx2expected;
+    cout << "x2 axis checks out with output uniform grid size="<<dx2<<endl;
     nx1c=x1v.size();
     nx2c=x2v.size();
     vector<dmatrix> rho;
@@ -260,26 +321,12 @@ int main(int argc, char **argv)
     /* We hunt for the closest grid point to the origin and uses that to
     set the i0,j0 offsets for the GCLgrid below */
     int i0,j0;
-    double x1min,x2min;
-    for(i=1,x1min=fabs(x1v[0]),i0=0;i<nx1c;++i)
-    {
-      if(fabs(x1v[i])<x1min)
-      {
-        x1min=x1v[i];
-        i0=i;
-      }
-    }
-    for(i=1,x2min=fabs(x2v[0]),j0=0;i<nx2c;++i)
-    {
-      if(fabs(x1v[i])<x1min)
-      {
-        x2min=x2v[i];
-        j0=i;
-      }
-    }
+    i0=find_smallest(x1v);
+    j0=find_smallest(x2v);
     cout << "Using grid origin a index i0="<<i0
-      <<" which has offset from file origin of "<<x1min<<endl
-      <<"Index j0="<<j0<<" which has an offset from file origin of "<<x2min<<endl;
+      <<" which has offset from file origin of "<<x1v[i0]<<endl
+      <<"Index j0="<<j0<<" which has an offset from file origin of "
+      <<x2v[j0]<<endl;
     /* At this point rho_raw has an image of the file stored as
     matrices with the borders cropped.   Each element of the vector is a
     constant depth layer.   The final step is to translate the grid order
@@ -307,6 +354,10 @@ int main(int argc, char **argv)
         }
       }
     }
+    /* Last thing we need to do is adjust the depths.   The constructor
+     * builds a regular depth grid.   This procedure adjusts the grid
+     * geometry for irregular depth */
+    adjust_depths(f,x3v);
     cout << "Writing data to directory="
        <<outdir<<" with base name="<<outfieldname<<endl;
     f.save(outfieldname,outdir);
