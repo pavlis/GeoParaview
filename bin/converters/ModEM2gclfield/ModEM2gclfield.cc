@@ -332,8 +332,9 @@ int main(int argc, char **argv)
     constant depth layer.   The final step is to translate the grid order
     into a GCLgrid3D and then build the scalarfield object.   First build
     the framework GCLgrid.   dx3nominal is set to dx1 arbitrarily - this is a
-    irregular mesh in depth so wrong anyway.*/
-    GCLgrid3d grid(nx1c,nx2c,nx3,gridname,lat0,lon0,r0,M_PI_2+azgrid,
+    irregular mesh in depth so wrong anyway.  Note also nx1c and nx2c are 
+    reversed because of the weird geomtry of this grid.*/
+    GCLgrid3d grid(nx2c,nx1c,nx3,gridname,lat0,lon0,r0,M_PI_2+azgrid,
       dx1,dx2,dx1,i0,j0);
     /* Clone this grid to build teh scalarfield object - a large memory model
     but these models are tiny by modern standards */
@@ -342,9 +343,9 @@ int main(int argc, char **argv)
     weird indexing because we have to invert the indices i and j and particularly
     odd way and run the k index backward. */
     int ii,jj,kk;
-    for(i=0,ii=0;i<nx1c;++i,++ii)
+    for(i=0,jj=0;i<nx1c;++i,++jj)
     {
-      for(j=0,jj=nx2c-1;j<nx2c;++j,--jj)
+      for(j=0,ii=0;j<nx2c;++j,++ii)
       {
         for(k=0,kk=nx3-1;k<nx3;++k,--kk)
         {
