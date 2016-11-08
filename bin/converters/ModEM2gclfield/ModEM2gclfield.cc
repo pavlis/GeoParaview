@@ -78,9 +78,8 @@ vector<double> parse_coord_axis_line(char *line, int nx, bool reverse)
   {
     vector<double> xvr;
     xvr.reserve(nx);
-    /* x is currently set to the accumulated sum of cell sizes but it is
-    off b one cell so we have to correct by delta */
-    x -= delta;
+    /* x is currently set to the accumulated sum of cell sizes.  To 
+     * reverse we start there compute deltas from that point. */
     for(i=0;i<nx;++i)
     {
       xvr.push_back(x-xv[i]);
