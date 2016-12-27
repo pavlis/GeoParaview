@@ -1,0 +1,11 @@
+origin_latitude 42.274
+origin_longitude -89.091
+gridname ModEMCEUS
+output_directory ModEM
+number_x1_border_left 7
+number_x1_border_right 7
+number_x2_border_left 7
+number_x2_border_right 7
+dx1 20.0
+dx2 20.0
+
