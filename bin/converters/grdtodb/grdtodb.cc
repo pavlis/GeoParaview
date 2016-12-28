@@ -9,18 +9,34 @@ using namespace std;
 using namespace SEISPP;
 void usage()
 {
-	cerr << "grdtodb grdfile db patterngrid"<<endl
-		<<"  Note:  grdfile.pf implied and required"<<endl;
+	cerr << "grdtodb grdfile db [-p patterngrid]"<<endl
+		<<"  Note:  grdfile.pf implied and required"<<endl
+                << "  Use -p to set the gclfield origin to that defined in GCLgrid3d object patterngrid"
+                <<endl;
 	exit(-1);
 }
 bool SEISPP::SEISPP_verbose(false);
 int main(int argc, char **argv)
 {
-	if(argc != 4) usage();
+	if(argc < 3) usage();
 	string grdfile_base(argv[1]);
 	string dbname(argv[2]);
-	string patterngrid(argv[3]);
+        bool use_patterngrid(false);
+	string patterngrid("none");
 	string grdconverted=grdfile_base + string(".xyz");
+        for(int ia=3;ia<argc;++ia)
+        {
+          string sarg(argv[ia]);
+          if(sarg=="-p")
+          {
+            ++ia;
+            if(ia>=argc)usage();
+            patterngrid=string(argv[ia]);
+            use_patterngrid=true;
+          }
+          else
+            usage();
+        }
 	string pffile=grdfile_base;
 	Pf *pf;
 	if(pfread(const_cast<char *>(pffile.c_str()),&pf))
@@ -74,8 +90,11 @@ int main(int argc, char **argv)
 		// remap procedure
 		GCLgrid g(n1,n2,gridname,rad(lat0),rad(lon0),r0,0.0,dx1n,dx2n,iorigin,jorigin);
 		// This needs to be more flexible and allow other grid types as patterns
-		GCLgrid3d gpat(dbh,patterngrid);
-		remap_grid(g,dynamic_cast<BasicGCLgrid&>(gpat));
+                if(use_patterngrid)
+                {
+		  GCLgrid3d gpat(dbh,patterngrid);
+		  remap_grid(g,dynamic_cast<BasicGCLgrid&>(gpat));
+                }
 		// This assumes grd2xyz writes from top down which is inverted
 		// from required order for the gclgrid object.  
 		int i,j;
