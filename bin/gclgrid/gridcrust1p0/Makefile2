@@ -1,6 +1,6 @@
 BIN=gridcrust1p0
 PF=gridcrust1p0.pf
-ldlibs=-lseispp -lgclgrid -lgeocoords $(DBLIBS) -lperf
+ldlibs=-lseispp -lgclgrid -lgeocoords $(DBLIBS) -lperf -lgclgrid -lseispp
 SUBDIR=/contrib
 
 include $(ANTELOPEMAKE)

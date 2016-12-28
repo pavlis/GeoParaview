@@ -1,0 +1,48 @@
+nv_expected 5
+gridname all48
+fieldname bolivar1_P
+fieldtype vector3d
+# 
+# new for remap grid option
+#
+remap_grid true
+remapmapgridname all48
+remapgrid_number_dimensions 2
+#
+#  Used only for vector fields
+#
+save_as_vector_field true
+#
+# Only referenced for vector fields when save_as_vector_field is false
+# Which component of vector will be saved as scalar field file
+#
+latitude_origin	41
+longitude_origin	-109.05
+radius_origin	  5470.935
+azimuth_y_axis 0
+vector_component 0
+remove_mean_x3_slices false
+apply_agc false
+agc_operator_length 20
+normalize_amplitudes false
+data_component_names &Tbl{
+T
+R
+L
+sum_omega
+fold
+}
+scalars_name_tag D
+
+v_target 1
+starting_depth 410
+ending_depth 660
+max_number_of_surface 1000
+amplitude_upper_limit -0.5
+amplitude_lower_limit -8
+minimum_number_of_points_in_a_surface 100
+
+vertical_limit_around_points 4
+maximum_number_of_steps_for_tracking 20
+
+pf_revision_time 1234126182

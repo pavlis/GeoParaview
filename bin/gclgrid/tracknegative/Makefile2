@@ -1,0 +1,20 @@
+BIN=tracknegative
+PF=tracknegative.pf
+
+
+cxxflags= -O3 -I$(VTKINCLUDE) -I$(BOOSTINCLUDE)
+ldlibs=-lm -lgclgrid -lseispp -lperf  \
+   $(DBLIBS) $(TRLIBS) $(F77LIBS) -L$(VTKLIB) -L$(BOOSTLIB) -lboost_serialization \
+   -lvtkRendering -lvtkGraphics -lvtkImaging -lvtkIO -lvtkFiltering -lvtkCommon -lvtkIO \
+   -lgclgrid -lgeocoords
+ANTELOPEMAKELOCAL = $(ANTELOPE)/contrib/include/antelopemake.local
+SUBDIR=/contrib
+
+include $(ANTELOPEMAKE)
+include $(ANTELOPEMAKELOCAL)
+
+
+OBJS=tracknegative.o vtk_output.o vtk_output_GCLgrid.o
+$(BIN) : $(OBJS)
+	$(RM) $@
+	$(CXX) $(CCFLAGS) -o $@ $(OBJS) $(LDFLAGS) $(LDLIBS)

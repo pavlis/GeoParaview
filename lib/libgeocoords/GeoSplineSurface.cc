@@ -1,3 +1,4 @@
+#include <math.h>
 #include <fstream>
 #include "SeisppError.h"
 #include "GeoCoordError.h"
@@ -149,7 +150,8 @@ double GeoSplineSurface::depth(double lat, double lon)
             string("Point is outside domain of grid defining this surface.")));
     double result;
     result=cggrid_probe(gridptr,lon,lat);
-    if(is_nan(result)) 
+    //if(is_nan(result)) 
+    if(fpclassify(result)==FP_NAN) 
         throw GeoCoordError(depth_error_message(lat,lon,
             string("lookup method (cggrid_probe) failed for this point.")));
     return(result);
