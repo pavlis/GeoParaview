@@ -1,6 +1,7 @@
 //LatLong- UTM conversion..h
 //definitions for lat/long to UTM and UTM to lat/lng conversions
 #include <string.h>
+#include <utility> // needed for pair
 
 #ifndef LATLONGCONV
 #define LATLONGCONV

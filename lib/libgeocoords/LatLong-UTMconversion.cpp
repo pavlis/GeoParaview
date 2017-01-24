@@ -4,6 +4,8 @@
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <ctype.h>
+#include <iostream>
 #include "LatLong-UTMconversion.h"
 
 
@@ -183,7 +185,7 @@ void UTMtoLL(int ReferenceEllipsoid, const double UTMNorthing, const double UTME
 /* Small helper for the procedure below.  Returns the zone number
 from a char array input of form NumberLetter (e.g. 15S).   Letter must
 be upper case */
-int get_zone_number(char *utz)
+int get_zone_number(const char *utz)
 {
 	char buffer[128];  // overkill in size
 	int i;
@@ -209,7 +211,7 @@ string to extract that number. */
 std::pair<double,double> LLtoUTMFixedZone(int ReferenceEllipsoid,
 	const double Lat, const double Long, const char *UTMZone)
 {
-	double UTMNorthing, double UTMEasting;
+	double UTMNorthing, UTMEasting;
 //converts lat/long to UTM coords.  Equations from USGS Bulletin 1532
 //East Longitudes are positive, West longitudes are negative.
 //North latitudes are positive, South latitudes are negative
@@ -234,7 +236,7 @@ std::pair<double,double> LLtoUTMFixedZone(int ReferenceEllipsoid,
 	int    ZoneNumber;
 	ZoneNumber=get_zone_number(UTMZone);
 	//DEBUG
-	cerr << "Parsed zone number="<<ZoneNUmber<<" from "<<UTMZone<<endl;
+        std::cerr << "Parsed zone number="<<ZoneNumber<<" from "<<UTMZone<<std::endl;
 
 	LongOrigin = (ZoneNumber - 1)*6 - 180 + 3;  //+3 puts origin in middle of zone
 	LongOriginRad = LongOrigin * deg2rad;
