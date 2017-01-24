@@ -5,16 +5,17 @@
 #ifndef LATLONGCONV
 #define LATLONGCONV
 
-void LLtoUTM(int ReferenceEllipsoid, const double Lat, const double Long, 
+void LLtoUTM(int ReferenceEllipsoid, const double Lat, const double Long,
 			 double &UTMNorthing, double &UTMEasting, char* UTMZone);
 void UTMtoLL(int ReferenceEllipsoid, const double UTMNorthing, const double UTMEasting, const char* UTMZone,
 			  double& Lat,  double& Long );
 char UTMLetterDesignator(double Lat);
-void LLtoSwissGrid(const double Lat, const double Long, 
+void LLtoSwissGrid(const double Lat, const double Long,
 			 double &SwissNorthing, double &SwissEasting);
-void SwissGridtoLL(const double SwissNorthing, const double SwissEasting, 
+void SwissGridtoLL(const double SwissNorthing, const double SwissEasting,
 					double& Lat, double& Long);
-
+std::pair<double,double> LLtoUTMFixedZone(int ReferenceEllipsoid,
+						const double Lat, const double Long, const char *UTMZone);
 
 class Ellipsoid
 {
@@ -22,14 +23,14 @@ public:
 	Ellipsoid(){};
 	Ellipsoid(int Id, const char* name, double radius, double ecc)
 	{
-		id = Id; ellipsoidName = strdup(name); 
+		id = Id; ellipsoidName = strdup(name);
 		EquatorialRadius = radius; eccentricitySquared = ecc;
 	}
 
 	int id;
 	char* ellipsoidName;
-	double EquatorialRadius; 
-	double eccentricitySquared;  
+	double EquatorialRadius;
+	double eccentricitySquared;
 
 };
 
@@ -38,8 +39,8 @@ const double FOURTHPI = PI / 4;
 const double deg2rad = PI / 180;
 const double rad2deg = 180.0 / PI;
 
-static Ellipsoid ellipsoid[] = 
-{//  id, Ellipsoid name, Equatorial Radius, square of eccentricity	
+static Ellipsoid ellipsoid[] =
+{//  id, Ellipsoid name, Equatorial Radius, square of eccentricity
 	Ellipsoid( -1, "Placeholder", 0, 0),//placeholder only, To allow array indices to match id numbers
 	Ellipsoid( 1, "Airy", 6377563, 0.00667054),
 	Ellipsoid( 2, "Australian National", 6378160, 0.006694542),

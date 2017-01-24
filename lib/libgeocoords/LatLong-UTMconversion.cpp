@@ -7,7 +7,7 @@
 #include "LatLong-UTMconversion.h"
 
 
-/*Reference ellipsoids derived from Peter H. Dana's website- 
+/*Reference ellipsoids derived from Peter H. Dana's website-
 http://www.utexas.edu/depts/grg/gcraft/notes/datum/elist.html
 Department of Geography, University of Texas at Austin
 Internet: pdana@mail.utexas.edu
@@ -20,11 +20,11 @@ Defense Mapping Agency. 1987b. DMA Technical Report: Supplement to Department of
 
 
 
-void LLtoUTM(int ReferenceEllipsoid, const double Lat, const double Long, 
+void LLtoUTM(int ReferenceEllipsoid, const double Lat, const double Long,
 			 double &UTMNorthing, double &UTMEasting, char* UTMZone)
 {
-//converts lat/long to UTM coords.  Equations from USGS Bulletin 1532 
-//East Longitudes are positive, West longitudes are negative. 
+//converts lat/long to UTM coords.  Equations from USGS Bulletin 1532
+//East Longitudes are positive, West longitudes are negative.
 //North latitudes are positive, South latitudes are negative
 //Lat and Long are in decimal degrees
 	//Written by Chuck Gantz- chuck.gantz@globalstar.com
@@ -36,7 +36,7 @@ void LLtoUTM(int ReferenceEllipsoid, const double Lat, const double Long,
 	double LongOrigin;
 	double eccPrimeSquared;
 	double N, T, C, A, M;
-	
+
 //Make sure the longitude is between -180.00 .. 179.9
 	double LongTemp = (Long+180)-int((Long+180)/360)*360-180; // -180.00 .. 179.9;
 
@@ -46,12 +46,12 @@ void LLtoUTM(int ReferenceEllipsoid, const double Lat, const double Long,
 	int    ZoneNumber;
 
 	ZoneNumber = int((LongTemp + 180)/6) + 1;
-  
+
 	if( Lat >= 56.0 && Lat < 64.0 && LongTemp >= 3.0 && LongTemp < 12.0 )
 		ZoneNumber = 32;
 
   // Special zones for Svalbard
-	if( Lat >= 72.0 && Lat < 84.0 ) 
+	if( Lat >= 72.0 && Lat < 84.0 )
 	{
 	  if(      LongTemp >= 0.0  && LongTemp <  9.0 ) ZoneNumber = 31;
 	  else if( LongTemp >= 9.0  && LongTemp < 21.0 ) ZoneNumber = 33;
@@ -71,11 +71,11 @@ void LLtoUTM(int ReferenceEllipsoid, const double Lat, const double Long,
 	C = eccPrimeSquared*cos(LatRad)*cos(LatRad);
 	A = cos(LatRad)*(LongRad-LongOriginRad);
 
-	M = a*((1	- eccSquared/4		- 3*eccSquared*eccSquared/64	- 5*eccSquared*eccSquared*eccSquared/256)*LatRad 
+	M = a*((1	- eccSquared/4		- 3*eccSquared*eccSquared/64	- 5*eccSquared*eccSquared*eccSquared/256)*LatRad
 				- (3*eccSquared/8	+ 3*eccSquared*eccSquared/32	+ 45*eccSquared*eccSquared*eccSquared/1024)*sin(2*LatRad)
-									+ (15*eccSquared*eccSquared/256 + 45*eccSquared*eccSquared*eccSquared/1024)*sin(4*LatRad) 
+									+ (15*eccSquared*eccSquared/256 + 45*eccSquared*eccSquared*eccSquared/1024)*sin(4*LatRad)
 									- (35*eccSquared*eccSquared*eccSquared/3072)*sin(6*LatRad));
-	
+
 	UTMEasting = (double)(k0*N*(A+(1-T+C)*A*A*A/6
 					+ (5-18*T+T*T+72*C-58*eccPrimeSquared)*A*A*A*A*A/120)
 					+ 500000.0);
@@ -122,10 +122,10 @@ char UTMLetterDesignator(double Lat)
 void UTMtoLL(int ReferenceEllipsoid, const double UTMNorthing, const double UTMEasting, const char* UTMZone,
 			  double& Lat,  double& Long )
 {
-//converts UTM coords to lat/long.  Equations from USGS Bulletin 1532 
-//East Longitudes are positive, West longitudes are negative. 
+//converts UTM coords to lat/long.  Equations from USGS Bulletin 1532
+//East Longitudes are positive, West longitudes are negative.
 //North latitudes are positive, South latitudes are negative
-//Lat and Long are in decimal degrees. 
+//Lat and Long are in decimal degrees.
 	//Written by Chuck Gantz- chuck.gantz@globalstar.com
 
 	double k0 = 0.9996;
@@ -160,7 +160,7 @@ void UTMtoLL(int ReferenceEllipsoid, const double UTMNorthing, const double UTME
 	M = y / k0;
 	mu = M/(a*(1-eccSquared/4-3*eccSquared*eccSquared/64-5*eccSquared*eccSquared*eccSquared/256));
 
-	phi1Rad = mu	+ (3*e1/2-27*e1*e1*e1/32)*sin(2*mu) 
+	phi1Rad = mu	+ (3*e1/2-27*e1*e1*e1/32)*sin(2*mu)
 				+ (21*e1*e1/16-55*e1*e1*e1*e1/32)*sin(4*mu)
 				+(151*e1*e1*e1/96)*sin(6*mu);
 	phi1 = phi1Rad*rad2deg;
@@ -179,4 +179,85 @@ void UTMtoLL(int ReferenceEllipsoid, const double UTMNorthing, const double UTME
 					*D*D*D*D*D/120)/cos(phi1Rad);
 	Long = LongOrigin + Long * rad2deg;
 
+}
+/* Small helper for the procedure below.  Returns the zone number
+from a char array input of form NumberLetter (e.g. 15S).   Letter must
+be upper case */
+int get_zone_number(char *utz)
+{
+	char buffer[128];  // overkill in size
+	int i;
+	int n=strlen(utz);
+	for(i=0;i<n;++i)
+	{
+		if(isdigit(utz[i])) buffer[i]=utz[i];
+	}
+	buffer[i]='\n';
+	return(atoi(buffer));
+}
+/* This is a variant of LLtoUTM where the zone is passed
+as an input argument instead of being returned.  That mean
+the transverse mercator conformal mapping formula for the
+chosen zone is used without the usual zone conversion.
+This is frequently necessary when trying to compute
+x-y style coordinates over a large area or an area
+that crosses zone boundaries.  Returns an std::pair
+with the first=easting and second=north (x,y).   Note for
+this projection only the utm zone number is needed.
+However, to be less ambiguous we parse the UTMzone
+string to extract that number. */
+std::pair<double,double> LLtoUTMFixedZone(int ReferenceEllipsoid,
+	const double Lat, const double Long, const char *UTMZone)
+{
+	double UTMNorthing, double UTMEasting;
+//converts lat/long to UTM coords.  Equations from USGS Bulletin 1532
+//East Longitudes are positive, West longitudes are negative.
+//North latitudes are positive, South latitudes are negative
+//Lat and Long are in decimal degrees
+	//Written by Chuck Gantz- chuck.gantz@globalstar.com
+
+	double a = ellipsoid[ReferenceEllipsoid].EquatorialRadius;
+	double eccSquared = ellipsoid[ReferenceEllipsoid].eccentricitySquared;
+	double k0 = 0.9996;
+
+	double LongOrigin;
+	double eccPrimeSquared;
+	double N, T, C, A, M;
+	double LatRad = Lat*deg2rad;
+
+//Make sure the longitude is between -180.00 .. 179.9
+	double LongTemp = (Long+180)-int((Long+180)/360)*360-180; // -180.00 .. 179.9;
+
+
+	double LongRad = LongTemp*deg2rad;
+	double LongOriginRad;
+	int    ZoneNumber;
+	ZoneNumber=get_zone_number(UTMZone);
+	//DEBUG
+	cerr << "Parsed zone number="<<ZoneNUmber<<" from "<<UTMZone<<endl;
+
+	LongOrigin = (ZoneNumber - 1)*6 - 180 + 3;  //+3 puts origin in middle of zone
+	LongOriginRad = LongOrigin * deg2rad;
+
+	eccPrimeSquared = (eccSquared)/(1-eccSquared);
+
+	N = a/sqrt(1-eccSquared*sin(LatRad)*sin(LatRad));
+	T = tan(LatRad)*tan(LatRad);
+	C = eccPrimeSquared*cos(LatRad)*cos(LatRad);
+	A = cos(LatRad)*(LongRad-LongOriginRad);
+
+	M = a*((1	- eccSquared/4		- 3*eccSquared*eccSquared/64	- 5*eccSquared*eccSquared*eccSquared/256)*LatRad
+				- (3*eccSquared/8	+ 3*eccSquared*eccSquared/32	+ 45*eccSquared*eccSquared*eccSquared/1024)*sin(2*LatRad)
+									+ (15*eccSquared*eccSquared/256 + 45*eccSquared*eccSquared*eccSquared/1024)*sin(4*LatRad)
+									- (35*eccSquared*eccSquared*eccSquared/3072)*sin(6*LatRad));
+
+	UTMEasting = (double)(k0*N*(A+(1-T+C)*A*A*A/6
+					+ (5-18*T+T*T+72*C-58*eccPrimeSquared)*A*A*A*A*A/120)
+					+ 500000.0);
+
+	UTMNorthing = (double)(k0*(M+N*tan(LatRad)*(A*A/2+(5-T+9*C+4*C*C)*A*A*A*A/24
+				 + (61-58*T+T*T+600*C-330*eccPrimeSquared)*A*A*A*A*A*A/720)));
+	if(Lat < 0)
+		UTMNorthing += 10000000.0; //10000000 meter offset for southern hemisphere
+	return std::pair<double,double>(UTMEasting,UTMNorthing);
 }
