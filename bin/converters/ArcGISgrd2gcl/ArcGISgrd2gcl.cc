@@ -2,8 +2,11 @@
 #include <fstream>
 #include <string>
 #include <vector>
+#include "seispp.h"
 #include "Metadata.h"
 #include "gclgrid.h"
+#include "GCLMasked.h"
+#include "LatLong-UTMconversion.h"
 void usage()
 {
   cerr << "ArcGISgrd2gcl infile outfilebase [-zone xx -gridname gn]" <<endl
@@ -17,6 +20,7 @@ void usage()
     <<endl;
   exit(-1);
 }
+bool SEISPP::SEISPP_verbose(true);
 int main(int argc, char **argv)
 {
   int i,j;
@@ -34,7 +38,7 @@ int main(int argc, char **argv)
       if(i>=argc)usage();
       utmzone=string(argv[i]);
     }
-    else f(sarg=="-zone")
+    else if(sarg=="-zone")
     {
       ++i;
       if(i>=argc)usage();
@@ -111,7 +115,7 @@ int main(int argc, char **argv)
   names */
   double lat0,lon0,r0;   //frozen origin here to surface r0 at lower left corner
   /* 23 in this call freezes WGS-84 - not at all elegant*/
-  UTMtoLL(23,yll,xll,utmzone.c_str(),&lat0,&lon0);
+  UTMtoLL(23,yll,xll,utmzone.c_str(),lat0,lon0);
   lat0 *= deg2rad;
   lon0 *= deg2rad;
   r0=r0_ellipse(lat0);
@@ -128,7 +132,7 @@ int main(int argc, char **argv)
       easting=xll+cellsize*((double)i);
       northing=yll+cellsize*((double)j);
       elev=dvector[iv];
-      UTMtoLL(23,northing,easting,utmzone.c_str(),&lat,&lon);
+      UTMtoLL(23,northing,easting,utmzone.c_str(),lat,lon);
       lat*=deg2rad;
       lon*=deg2rad;
       /*Zero masked values */
@@ -163,5 +167,5 @@ int main(int argc, char **argv)
     }
   }
   GCLMaskedScalarField msf(f,gmask);
-  msf.save(outfilebase);
+  msf.save(outbase);
 }
