@@ -206,7 +206,7 @@ int main(int argc, char **argv)
         ++number_not_null;
         if(write_gmt_output)
         {
-            gmtofs<<lat<<" "<<lon<<" "<<elev<<endl;
+            gmtofs<<lon<<" "<<lat<<" "<<elev<<endl;
         }
       }
       lat*=deg2rad;
@@ -247,4 +247,21 @@ int main(int argc, char **argv)
     cout << "Saved results to "<<outbase<<" with "<<number_not_null
       << " set cells of "<<nx1*nx2<<" total grid points"<<endl;
   }
+  if(write_gmt_output)
+  {
+      cout << "Wrote data for input to xyz2grd to file="<<gmtoutputfile<<endl;
+      double latll,lonll,latur,lonur;
+      latll=g.lat(0,0);
+      lonll=g.lon(0,0);
+      latur=g.lat(g.n1-1,g.n2-1);
+      lonur=g.lon(g.n1-1,g.n2-1);
+      latll/=deg2rad;
+      lonll/=deg2rad;
+      latur/=deg2rad;
+      lonur/=deg2rad;
+      cout << "Use these arguments for xyz2grd:"<<endl
+          << "-R"<<lonll<<"/"<<lonur<<"/"<<latll<<"/"<<latur
+          << " -I"<<cellsize<<"/"<<cellsize<<"e"<<endl;
+      //Note e with -I means meters to gmt for cellsize
+   }
 }
