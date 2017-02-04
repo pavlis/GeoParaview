@@ -85,7 +85,7 @@ int main(int argc, char **argv)
   if(SEISPP_verbose)
   {
       cout << "ArcGISgrd2gcl converting data in file "<<infile<<endl
-          << "Writing results to GCLMaskedScalarField file with base name"
+          << "Writing results to GCLMaskedScalarField file with base name "
           << outbase<<endl
           << "Data offset="<<zoffset<<endl
           << "Scale factor to apply to elevation values="<<rawz2elev<<endl
