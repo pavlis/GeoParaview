@@ -211,7 +211,7 @@ int main(int argc, char **argv)
       }
       lat*=deg2rad;
       lon*=deg2rad;
-      r=r0_ellipse(lat)-elev;
+      r=r0_ellipse(lat)+elev;
       cp=g.gtoc(lat,lon,r);
       f.x1[i][jj]=cp.x1;
       f.x2[i][jj]=cp.x2;
