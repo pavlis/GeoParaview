@@ -27,7 +27,8 @@ int main(int argc, char **argv)
   if(argc<3)usage();
   string infile(argv[1]);
   string outbase(argv[2]);
-  string utmzone("XXX");   // Need to get this from Dante email
+  /* This is correct for great unconformity map.  Letter is superflous. */
+  string utmzone("14S");   
   string gridname("PCStructure");
   for(i=3;i<argc;++i)
   {
@@ -75,12 +76,9 @@ int main(int argc, char **argv)
   double xll=header.get_double("xllcorner");
   double yll=header.get_double("yllcorner");
   double cellsize=header.get_double("cellsize");
-  double NODATAvalue=header.get_double("NODATA_value");
-  /* To avoid a float equal compare we derive a floor from NODATAvalue and
-  test instead for any value smaller than the (negative) NODATAvalue.*/
-  double NDfloor=NODATAvalue+1.0;
+  int NODATAvalue=header.get_int("NODATA_value");
   /* A sanity check*/
-  if(NDfloor>0.0)
+  if(NODATAvalue>0)
   {
     cerr << "ArcGISgrd2gcl:  parsed NODATA_value="<<NODATAvalue
        << " is nonsense"<<endl<<"Expected to be a large negative number"<<endl
@@ -89,6 +87,9 @@ int main(int argc, char **argv)
        << "Cannot continue"<<endl;
     exit(-1);
   }
+  double NODATAtest;
+  NODATAtest=(double)NODATAvalue;
+  NODATAtest += 1.0;  //Make test 1 foot above null value to avoid float equal test
   /* Large memory algorithm - eat up the entire file and make sure the
   size matches what is expected from size parameters */
   vector<double> dvector;
@@ -111,8 +112,7 @@ int main(int argc, char **argv)
   /* We have to first build a regular GCLgrid before we apply the mask.
   We assume all the dvector values are in units of m.  horizontal coordinates
   are assumed utm in m.  Dante thinks the file starts in the upper left corner
-  but I am going guess it is actually the lower left given the parameter
-  names */
+  and online sources confirm this. */
   double lat0,lon0,r0;   //frozen origin here to surface r0 at lower left corner
   /* 23 in this call freezes WGS-84 - not at all elegant*/
   UTMtoLL(23,yll,xll,utmzone.c_str(),lat0,lon0);
@@ -125,47 +125,70 @@ int main(int argc, char **argv)
   double lat,lon,r;
   Cartesian_point cp;
   int iv;
-  for(i=0,iv=0;i<nx1;++i)
+  /* To get around a weird arc export feature we need to subtract this 
+   * value from the raw elevation number before conversion to km */
+  const double zoffset(50000.0);
+  /* The precambrian surface data for which this program was written tabulate
+   * the depths in feet.   For now we freeze this in this conversion 
+   * constant. */
+  const double rawz2elev(0.0003048);
+  /* Scan order is TV order - start upper left corner, scan left to right,
+   * next row down, repeat till bottom.  jj is used for down counting. */
+  int jj;
+  int number_not_null(0);
+  for(j=0,iv=0,jj=nx2-1;j<nx2;++j,--jj)
   {
-    for(j=0;j<nx2;++j)
+    for(i=0;i<nx1;++i)
     {
       easting=xll+cellsize*((double)i);
-      northing=yll+cellsize*((double)j);
-      elev=dvector[iv];
+      northing=yll+cellsize*((double)jj);
       UTMtoLL(23,northing,easting,utmzone.c_str(),lat,lon);
+      //cout << lat<<" "<<lon<<" ";
       lat*=deg2rad;
       lon*=deg2rad;
       /*Zero masked values */
-      if(dvector[iv]<NDfloor)
+      if(dvector[iv]<=NODATAtest)
       {
         elev=0;
-        f.val[i][j]=0.0;
+        f.val[i][jj]=0.0;
       }
       else
       {
-        elev=dvector[iv]/1000.0;
-        f.val[i][j]=elev;
+        elev=(dvector[iv] - zoffset)*rawz2elev;
+        f.val[i][jj]=elev;
+        ++number_not_null;
       }
+      //cout << elev<<endl;
       r=r0_ellipse(lat)-elev;
       cp=g.gtoc(lat,lon,r);
-      f.x1[i][j]=cp.x1;
-      f.x2[i][j]=cp.x2;
-      f.x3[i][j]=cp.x3;
+      f.x1[i][jj]=cp.x1;
+      f.x2[i][jj]=cp.x2;
+      f.x3[i][jj]=cp.x3;
       ++iv;
     }
   }
-  g.compute_extents();
+  f.compute_extents();
+  //f.save(outbase,string("."));
+  /* Now apply the mask - this is wrong and needs to be fixed 
+   * once I establish the scan order*/
   GCLMask gmask(g);
-  /* Now apply the mask */
-  for(i=0,iv=0;i<nx1;++i)
+  for(j=0,iv=0,jj=nx2-1;j<nx2;++j,--jj)
   {
-    for(j=0;j<nx2;++j)
+    for(i=0;i<nx1;++i)
     {
-      if(dvector[iv]<NDfloor)
-        gmask.mask_point(i,j);
+      if(dvector[iv]<=NODATAtest)
+      {
+        gmask.mask_point(i,jj);
+      }
+      else
+      {
+          gmask.enable_point(i,jj);
+      }
       ++iv;
     }
   }
   GCLMaskedScalarField msf(f,gmask);
   msf.save(outbase);
+  cout << "Saved results to "<<outbase<<" with "<<number_not_null
+      << " set cells of "<<nx1*nx2<<" total grid points"<<endl;
 }
