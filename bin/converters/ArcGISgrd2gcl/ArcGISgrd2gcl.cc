@@ -261,7 +261,7 @@ int main(int argc, char **argv)
       lonur/=deg2rad;
       cout << "Use these arguments for xyz2grd:"<<endl
           << "-R"<<lonll<<"/"<<lonur<<"/"<<latll<<"/"<<latur
-          << " -I"<<cellsize<<"/"<<cellsize<<"e"<<endl;
+          << " -I"<<cellsize<<"e/"<<cellsize<<"e"<<endl;
       //Note e with -I means meters to gmt for cellsize
    }
 }
