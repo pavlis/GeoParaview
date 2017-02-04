@@ -9,18 +9,22 @@
 #include "LatLong-UTMconversion.h"
 void usage()
 {
-  cerr << "ArcGISgrd2gcl infile outfilebase [-zone xx -gridname gn]" <<endl
+  cerr << "ArcGISgrd2gcl infile outfilebase [-zone xx -gridname gn -offset xx -scale xx -v]" <<endl
     << "Converts txt format regular grid from ArcGIS export to 2D GCLfield"<<endl
     << "infile is the file created by ArcGIS"<<endl
     << "outfilebase is the base name for the converted output gclfield data"
     <<endl
     << "Output is a masked field with depth as the scalar variable"<<endl
     << "Use -zone to change the UTM zone code to xx"<<endl
-    << "Use -gridname to change base grid name (default PCStructure)"
+    << "Use -gridname to change base grid name (default PCStructure)"<<endl
+    << "Use -offset subtract a dc value from all nonnull data (default 0)"<<endl
+    << "Use -scale to change scale (default is ft to m conversion)"<<endl
+    << "Note:  offset is applied before scale (z=(zraw-offet)*scale)"<<endl
+    << "Use -v for verbose (default is silent)"<<endl
     <<endl;
   exit(-1);
 }
-bool SEISPP::SEISPP_verbose(true);
+bool SEISPP::SEISPP_verbose(false);
 int main(int argc, char **argv)
 {
   int i,j;
@@ -30,6 +34,8 @@ int main(int argc, char **argv)
   /* This is correct for great unconformity map.  Letter is superflous. */
   string utmzone("14S");   
   string gridname("PCStructure");
+  double zoffset(50000.0);
+  double rawz2elev(0.0003048);
   for(i=3;i<argc;++i)
   {
     string sarg(argv[i]);
@@ -39,16 +45,40 @@ int main(int argc, char **argv)
       if(i>=argc)usage();
       utmzone=string(argv[i]);
     }
-    else if(sarg=="-zone")
+    else if(sarg=="-gridname")
     {
       ++i;
       if(i>=argc)usage();
       gridname=string(argv[i]);
     }
+    else if(sarg=="-offset")
+    {
+      ++i;
+      if(i>=argc)usage();
+      zoffset=atof(argv[i]);
+    }
+    else if(sarg=="-scale")
+    {
+      ++i;
+      if(i>=argc)usage();
+      rawz2elev=atof(argv[i]);
+    }
+    else if(sarg=="-v")
+        SEISPP_verbose=true;
     else
     {
       usage();
     }
+  }
+  if(SEISPP_verbose)
+  {
+      cout << "ArcGISgrd2gcl converting data in file "<<infile<<endl
+          << "Writing results to GCLMaskedScalarField file with base name"
+          << outbase<<endl
+          << "Data offset="<<zoffset<<endl
+          << "Scale factor to apply to elevation values="<<rawz2elev<<endl
+          << "Assuming data are UTM coordinates with zone="<<utmzone<<endl
+          << "Name tag on output field data="<<gridname<<endl;
   }
   ifstream ifs;
   const int number_header_lines(6);
@@ -77,6 +107,11 @@ int main(int argc, char **argv)
   double yll=header.get_double("yllcorner");
   double cellsize=header.get_double("cellsize");
   int NODATAvalue=header.get_int("NODATA_value");
+  if(SEISPP_verbose)
+  {
+      cout << "Header data read from input file:"<<endl;
+      cout << header<<endl;
+  }
   /* A sanity check*/
   if(NODATAvalue>0)
   {
@@ -125,13 +160,6 @@ int main(int argc, char **argv)
   double lat,lon,r;
   Cartesian_point cp;
   int iv;
-  /* To get around a weird arc export feature we need to subtract this 
-   * value from the raw elevation number before conversion to km */
-  const double zoffset(50000.0);
-  /* The precambrian surface data for which this program was written tabulate
-   * the depths in feet.   For now we freeze this in this conversion 
-   * constant. */
-  const double rawz2elev(0.0003048);
   /* Scan order is TV order - start upper left corner, scan left to right,
    * next row down, repeat till bottom.  jj is used for down counting. */
   int jj;
@@ -189,6 +217,9 @@ int main(int argc, char **argv)
   }
   GCLMaskedScalarField msf(f,gmask);
   msf.save(outbase);
-  cout << "Saved results to "<<outbase<<" with "<<number_not_null
+  if(SEISPP_verbose)
+  {
+    cout << "Saved results to "<<outbase<<" with "<<number_not_null
       << " set cells of "<<nx1*nx2<<" total grid points"<<endl;
+  }
 }
