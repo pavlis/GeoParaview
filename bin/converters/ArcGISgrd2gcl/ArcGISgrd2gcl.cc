@@ -9,7 +9,8 @@
 #include "LatLong-UTMconversion.h"
 void usage()
 {
-  cerr << "ArcGISgrd2gcl infile outfilebase [-zone xx -gridname gn -offset xx -scale xx -v]" <<endl
+  cerr << "ArcGISgrd2gcl infile outfilebase [-zone xx "<<endl
+      <<"-gridname gn -offset xx -scale xx -gmt gmtout -v]" <<endl
     << "Converts txt format regular grid from ArcGIS export to 2D GCLfield"<<endl
     << "infile is the file created by ArcGIS"<<endl
     << "outfilebase is the base name for the converted output gclfield data"
@@ -20,6 +21,8 @@ void usage()
     << "Use -offset subtract a dc value from all nonnull data (default 0)"<<endl
     << "Use -scale to change scale (default is ft to m conversion)"<<endl
     << "Note:  offset is applied before scale (z=(zraw-offet)*scale)"<<endl
+    << "Use -gmt to write file gmtout for import into gmt with xyz2grd"<<endl
+    << "(Note xyz2grd does not require a fill for NULL values - just skipped in output)"<<endl
     << "Use -v for verbose (default is silent)"<<endl
     <<endl;
   exit(-1);
@@ -36,6 +39,8 @@ int main(int argc, char **argv)
   string gridname("PCStructure");
   double zoffset(50000.0);
   double rawz2elev(0.0003048);
+  bool write_gmt_output(false);
+  string gmtoutputfile;
   for(i=3;i<argc;++i)
   {
     string sarg(argv[i]);
@@ -62,6 +67,13 @@ int main(int argc, char **argv)
       ++i;
       if(i>=argc)usage();
       rawz2elev=atof(argv[i]);
+    }
+    else if(sarg=="-gmt")
+    {
+      ++i;
+      if(i>=argc)usage();
+      write_gmt_output=true;
+      gmtoutputfile=string(argv[i]);
     }
     else if(sarg=="-v")
         SEISPP_verbose=true;
@@ -92,6 +104,16 @@ int main(int argc, char **argv)
   {
     cerr << "ArcGISgrd2gcl:  cannot open input file "<<infile<<endl;
     usage();
+  }
+  ofstream gmtofs;
+  if(write_gmt_output)
+  {
+    gmtofs.open(gmtoutputfile.c_str(),ios::out);
+    if(gmtofs.fail())
+    {
+      cerr << "Cannot open gmt export file="<<gmtoutputfile<<endl;
+      usage();
+    }
   }
   string headerlines;
   for(i=0;i<number_header_lines;++i)
@@ -171,9 +193,6 @@ int main(int argc, char **argv)
       easting=xll+cellsize*((double)i);
       northing=yll+cellsize*((double)jj);
       UTMtoLL(23,northing,easting,utmzone.c_str(),lat,lon);
-      //cout << lat<<" "<<lon<<" ";
-      lat*=deg2rad;
-      lon*=deg2rad;
       /*Zero masked values */
       if(dvector[iv]<=NODATAtest)
       {
@@ -185,8 +204,13 @@ int main(int argc, char **argv)
         elev=(dvector[iv] - zoffset)*rawz2elev;
         f.val[i][jj]=elev;
         ++number_not_null;
+        if(write_gmt_output)
+        {
+            gmtofs<<lat<<" "<<lon<<" "<<elev<<endl;
+        }
       }
-      //cout << elev<<endl;
+      lat*=deg2rad;
+      lon*=deg2rad;
       r=r0_ellipse(lat)-elev;
       cp=g.gtoc(lat,lon,r);
       f.x1[i][jj]=cp.x1;
@@ -196,6 +220,7 @@ int main(int argc, char **argv)
     }
   }
   f.compute_extents();
+  if(write_gmt_output) gmtofs.close();
   //f.save(outbase,string("."));
   /* Now apply the mask - this is wrong and needs to be fixed 
    * once I establish the scan order*/
