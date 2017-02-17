@@ -235,8 +235,6 @@ std::pair<double,double> LLtoUTMFixedZone(int ReferenceEllipsoid,
 	double LongOriginRad;
 	int    ZoneNumber;
 	ZoneNumber=get_zone_number(UTMZone);
-	//DEBUG
-        std::cerr << "Parsed zone number="<<ZoneNumber<<" from "<<UTMZone<<std::endl;
 
 	LongOrigin = (ZoneNumber - 1)*6 - 180 + 3;  //+3 puts origin in middle of zone
 	LongOriginRad = LongOrigin * deg2rad;
