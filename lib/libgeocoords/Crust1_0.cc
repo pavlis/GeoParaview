@@ -193,7 +193,7 @@ VelocityModel_1d Crust1_0::model(double lat, double lon, string property)
         layertops=interpolate_model_grid(depth,i,j,deltalon,deltalat);
         if(property=="Pvelocity" || property=="Vp")
             y=interpolate_model_grid(vp,i,j,deltalon,deltalat);
-        else if(property=="Svelocity" || property=="Vp")
+        else if(property=="Svelocity" || property=="Vs")
             y=interpolate_model_grid(vs,i,j,deltalon,deltalat);
         else if(property=="Density" || property=="rho")
             y=interpolate_model_grid(rho,i,j,deltalon,deltalat);
